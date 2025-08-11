@@ -1,0 +1,179 @@
+@import "tailwindcss";
+@import url('https://fonts.googleapis.com/css2?family=Anuphan:wght@100..700&family=Raleway:ital,wght@0,100..900;1,100..900&display=swap');
+:root {
+  --background: #ffffff;
+  --foreground: #171717;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0a0a0a;
+    --foreground: #616161;
+  }
+}
+
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: "Anuphan", sans-serif;
+  /* font-weight: 200; */
+  /* font-style: normal; */
+  font-size: 1.0rem;
+}
+
+/* globals.css - เพิ่มใน app/globals.css */
+
+/* Consistent Button Styles */
+.btn {
+  @apply px-4 py-2 rounded-lg font-medium transition-all duration-200 inline-flex items-center gap-2;
+}
+
+.btn-primary {
+  @apply bg-blue-600 text-white hover:bg-blue-700 hover:shadow-lg;
+}
+
+.btn-secondary {
+  @apply bg-gray-100 text-gray-700 hover:bg-gray-200;
+}
+
+.btn-outline {
+  @apply border-2 border-gray-300 bg-white hover:border-gray-400;
+}
+
+.btn-danger {
+  @apply bg-red-600 text-white hover:bg-red-700;
+}
+
+.btn-success {
+  @apply bg-green-600 text-white hover:bg-green-700;
+}
+
+/* Consistent Card Styles */
+.card {
+  @apply bg-white rounded-lg shadow-md p-6;
+}
+
+.card-header {
+  @apply border-b border-gray-200 pb-4 mb-4;
+}
+
+/* Consistent Form Styles */
+.form-label {
+  @apply block text-sm font-medium text-gray-700 mb-2;
+}
+
+.form-input {
+  @apply w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent;
+}
+
+.form-select {
+  @apply w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white;
+}
+
+.form-error {
+  @apply text-red-600 text-sm mt-1;
+}
+
+/* Consistent Table Styles */
+.table-container {
+  @apply bg-white rounded-lg shadow-sm overflow-hidden;
+}
+
+.table-header {
+  @apply bg-gray-50 text-gray-700 font-medium text-sm;
+}
+
+.table-row {
+  @apply border-b border-gray-200 hover:bg-gray-50 transition-colors;
+}
+
+/* Animation Classes */
+.animate-in {
+  animation: animate-in 0.3s ease-out;
+}
+
+@keyframes animate-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Consistent Status Colors */
+.status-pending {
+  @apply bg-yellow-100 text-yellow-800 border-yellow-300;
+}
+
+.status-approved {
+  @apply bg-green-100 text-green-800 border-green-300;
+}
+
+.status-rejected {
+  @apply bg-red-100 text-red-800 border-red-300;
+}
+
+/* Responsive Grid */
+.grid-responsive {
+  @apply grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-in {
+  animation: fade-in 0.3s ease-out;
+}
+
+.fade-in {
+  animation-name: fade-in;
+}
+
+option:disabled {
+  color: #9CA3AF;
+  background-color: #F3F4F6;
+}
+
+/* CKEditor Custom Styles */
+.ck-editor__editable {
+  min-height: 200px;
+}
+
+.ck-editor__editable:focus {
+  border-color: #3b82f6 !important;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1) !important;
+}
+
+.ck.ck-toolbar {
+  border-bottom: 1px solid #e5e7eb !important;
+  background-color: #f9fafb !important;
+}
+
+.ck.ck-editor__main>.ck-editor__editable {
+  background-color: white;
+  border: none !important;
+  padding: 1rem;
+}
+
+.ck.ck-editor__editable.ck-focused {
+  border: none !important;
+}
