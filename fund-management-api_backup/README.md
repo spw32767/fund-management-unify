@@ -1,1 +1,0 @@
-# fund-management-api
