@@ -1,6 +1,6 @@
 // app/lib/teacher_api.js - Teacher specific API methods (Updated with Submission Users Management)
 
-import apiClient from '../lib/api';
+import apiClient, { dashboardAPI } from '../lib/api';
 import { targetRolesUtils } from '../lib/target_roles_utils';
 
 // Teacher API methods for role-based fund access
@@ -120,7 +120,7 @@ export const teacherAPI = {
   // Get teacher dashboard stats
   async getDashboardStats() {
     try {
-      const response = await apiClient.get('/teacher/dashboard/stats');
+      const response = await apiClient.get('/dashboard/stats');
       return response;
     } catch (error) {
       console.error('Error fetching teacher dashboard stats:', error);
