@@ -13,6 +13,7 @@ import ApplicationForm from "./components/applications/ApplicationForm";
 import UnderDevelopmentContent from "./components/common/UnderDevelopmentContent";
 import PromotionFundContent from "./components/funds/PromotionFundContent";
 import PublicationRewardForm from "./components/applications/PublicationRewardForm";
+import UserProfile from "./components/profile/UserProfile";
 
 function TeacherPageContent() {
   const [isOpen, setIsOpen] = useState(false);
@@ -40,7 +41,7 @@ function TeacherPageContent() {
       case 'dashboard':
         return <DashboardContent onNavigate={handleNavigate} />;
       case 'profile':
-        return <UnderDevelopmentContent currentPage={currentPage} title="ข้อมูลส่วนตัว" />;
+        return <UserProfile onNavigate={handleNavigate} />;
       case 'research-fund':
         return <ResearchFundContent onNavigate={handleNavigate} />;
       case 'promotion-fund':
