@@ -21,13 +21,13 @@ function TeacherPageContent() {
   const [currentPage, setCurrentPage] = useState('profile');
   const [selectedFundData, setSelectedFundData] = useState(null);
 
-  const handleNavigate = (page, data) => {
-    // ถ้าออกจากหน้าฟอร์มใดๆ ให้ล้างข้อมูลทุนที่เลือก
-    if (['application-form', 'publication-reward-form'].includes(currentPage) && 
-        !['application-form', 'publication-reward-form'].includes(page)) {
-      setSelectedFundData(null);
-    }
-    
+    const handleNavigate = (page, data) => {
+      // ถ้าออกจากหน้าฟอร์มใดๆ ให้ล้างข้อมูลทุนที่เลือก
+      if (['application-form', 'publication-reward-form'].includes(currentPage) &&
+          !['application-form', 'publication-reward-form'].includes(page)) {
+        setSelectedFundData(null);
+      }
+
     setCurrentPage(page);
     
     if (data) {
@@ -66,11 +66,12 @@ function TeacherPageContent() {
       'promotion-fund': 'ทุนส่งเสริมกิจกรรม',
       'research-fund': 'ทุนอุดหนุนกิจกรรม',
       'applications': 'คำร้องของฉัน',
-      'received-funds': 'ทุนที่เคยได้รับ',
-      'application-form': 'ยื่นคำร้องใหม่'
+        'received-funds': 'ทุนที่เคยได้รับ',
+        'application-form': 'ยื่นคำร้องใหม่',
+        'publication-reward-form': 'รางวัลตีพิมพ์'
+      };
+      return titles[currentPage] || currentPage;
     };
-    return titles[currentPage] || currentPage;
-  };
 
   return (
     <div className="min-h-screen bg-gray-100">

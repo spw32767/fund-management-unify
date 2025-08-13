@@ -295,7 +295,7 @@ export default function ProfileContent({ onNavigate }) {
 
         {/* Quick Links */}
         <div className="bg-gray-50 rounded-lg p-4 mb-6">
-          <h4 className="font-semibold text-gray-900 mb-3">คำร้องสำสถานองฉัน</h4>
+          <h4 className="font-semibold text-gray-900 mb-3">คำร้องของฉัน</h4>
           <div className="space-y-3">
             {teacherData.quickLinks.map((link) => (
               <div key={link.id} className="flex items-center justify-between">
