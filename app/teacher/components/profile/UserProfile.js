@@ -93,9 +93,10 @@ export default function ProfileContent({ onNavigate }) {
           successRate: Number(successRate.toFixed(1))
         },
         quickLinks: recentApps.map(app => ({
-          id: app.application_id || app.id,
-          name: app.project_title || app.application_number || 'ไม่ทราบชื่อโครงการ',
-          status: app.status_name || 'ดูรายละเอียด'
+          id: app.submission_id || app.id,
+          name: app.title || app.submission_number || 'ไม่ทราบชื่อโครงการ',
+          status: app.status_name || 'ดูรายละเอียด',
+          destination: 'applications'
         }))
       });
     } catch (error) {
@@ -298,7 +299,10 @@ export default function ProfileContent({ onNavigate }) {
           <h4 className="font-semibold text-gray-900 mb-3">คำร้องของฉัน</h4>
           <div className="space-y-3">
             {teacherData.quickLinks.map((link) => (
-              <div key={link.id} className="flex items-center justify-between">
+              <div
+                key={link.id ?? `${link.name}-${link.destination}`}
+                className="flex items-center justify-between"
+              >
                 <span className="text-sm text-gray-600 truncate mr-2">{link.name}</span>
                 <button
                   onClick={() => onNavigate && onNavigate('applications')}

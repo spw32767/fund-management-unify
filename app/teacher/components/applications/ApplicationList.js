@@ -2,29 +2,121 @@
 
 import { useState, useEffect } from "react";
 import { Search, Filter, Eye, Download, FileText, ClipboardList, Plus } from "lucide-react";
-import { mockApplications } from "../data/mockData";
+import { submissionAPI } from "@/app/lib/teacher_api";
 import StatusBadge from "../common/StatusBadge";
 import DataTable from "../common/DataTable";
 import PageLayout from "../common/PageLayout";
 import Card from "../common/Card";
 import EmptyState from "../common/EmptyState";
 
-export default function ApplicationList() {
+export default function ApplicationList({ onNavigate }) {
   const [applications, setApplications] = useState([]);
   const [filteredApplications, setFilteredApplications] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [yearFilter, setYearFilter] = useState("all");
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    // Simulate API call
-    setApplications(mockApplications);
-    setFilteredApplications(mockApplications);
+    loadApplications();
   }, []);
 
   useEffect(() => {
     filterApplications();
   }, [searchTerm, statusFilter, yearFilter, applications]);
+
+  // Load applications from API
+  const loadApplications = async () => {
+    setLoading(true);
+    try {
+      const response = await submissionAPI.getSubmissions();
+      
+      // Debug log
+      console.log('API Response:', response);
+      
+      if (response.success && response.submissions) {
+        // Transform data to match existing structure
+        const transformedData = response.submissions.map(sub => ({
+          application_id: sub.submission_id,
+          application_number: sub.submission_number,
+          project_title: getTitle(sub),
+          subcategory_name: getSubmissionTypeName(sub.submission_type),
+          requested_amount: getAmount(sub),
+          status: sub.Status?.status_name || getStatusName(sub.status_id),
+          status_code: getStatusCode(sub.status_id),
+          submitted_at: sub.created_at,
+          year: sub.Year?.year || '2568',
+          // Keep original data for reference
+          _original: sub
+        }));
+        
+        setApplications(transformedData);
+        setFilteredApplications(transformedData);
+      }
+    } catch (error) {
+      console.error('Error loading applications:', error);
+      // Fallback to empty array
+      setApplications([]);
+      setFilteredApplications([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Helper functions to extract data
+  const getTitle = (submission) => {
+    if (submission.submission_type === 'publication_reward') {
+      return submission.PublicationRewardDetail?.paper_title || 
+             submission.publication_reward_detail?.paper_title ||
+             'เงินรางวัลตีพิมพ์';
+    } else if (submission.submission_type === 'fund_application') {
+      return submission.FundApplicationDetail?.project_title ||
+             submission.fund_application_detail?.project_title ||
+             'ทุนวิจัย';
+    }
+    return 'ไม่ระบุ';
+  };
+
+  const getAmount = (submission) => {
+    if (submission.submission_type === 'publication_reward') {
+      return submission.PublicationRewardDetail?.reward_amount || 
+             submission.publication_reward_detail?.reward_amount || 0;
+    } else if (submission.submission_type === 'fund_application') {
+      return submission.FundApplicationDetail?.requested_amount ||
+             submission.fund_application_detail?.requested_amount || 0;
+    }
+    return 0;
+  };
+
+  const getSubmissionTypeName = (type) => {
+    const typeMap = {
+      'publication_reward': 'เงินรางวัลตีพิมพ์',
+      'fund_application': 'ทุนวิจัย'
+    };
+    return typeMap[type] || type;
+  };
+
+  const getStatusName = (statusId) => {
+    const statusMap = {
+      1: 'รอพิจารณา',
+      2: 'อนุมัติ',
+      3: 'ปฏิเสธ',
+      4: 'ต้องการข้อมูลเพิ่มเติม',
+      5: 'ร่าง'
+    };
+    return statusMap[statusId] || 'ไม่ทราบสถานะ';
+  };
+
+  const getStatusCode = (statusId) => {
+    const codeMap = {
+      1: 'pending',
+      2: 'approved',
+      3: 'rejected',
+      4: 'revision',
+      5: 'draft'
+    };
+    return codeMap[statusId] || 'unknown';
+  };
 
   const filterApplications = () => {
     let filtered = [...applications];
@@ -58,29 +150,33 @@ export default function ApplicationList() {
       className: "font-medium"
     },
     {
-      header: "ชื่อโครงการ",
+      header: "ชื่อโครงการ/บทความ",
       accessor: "project_title",
       className: "max-w-xs truncate"
     },
     {
-      header: "ประเภททุน",
+      header: "ประเภท",
       accessor: "subcategory_name",
       className: "text-sm"
     },
     {
-      header: "จำนวนเงินที่ขอ",
+      header: "จำนวนเงิน",
       accessor: "requested_amount",
-      render: (value) => `฿${value.toLocaleString()}`
+      render: (value) => `฿${(value || 0).toLocaleString()}`
     },
     {
       header: "สถานะ",
       accessor: "status",
-      render: (value, row) => <StatusBadge status={row.status_code} text={value} />
+      render: (value, row) => {
+        // Get status_id from original data
+        const statusId = row._original?.status_id || 1;
+        return <StatusBadge status={value} statusId={statusId} />;
+      }
     },
     {
       header: "วันที่ส่ง",
       accessor: "submitted_at",
-      render: (value) => new Date(value).toLocaleDateString('th-TH')
+      render: (value) => value ? new Date(value).toLocaleDateString('th-TH') : '-'
     },
     {
       header: "การดำเนินการ",
@@ -106,13 +202,27 @@ export default function ApplicationList() {
   ];
 
   const handleViewDetail = (id) => {
-    console.log("View detail:", id);
-    // Navigate to detail page
+    const app = applications.find(a => a.application_id === id);
+    if (app._original.submission_type === 'publication_reward') {
+      onNavigate('publication-reward-detail', { submissionId: id });
+    } else {
+      onNavigate('fund-application-detail', { submissionId: id });
+    }
   };
 
   const handleDownload = (id) => {
     console.log("Download:", id);
     // Handle download
+  };
+
+  const handleCreateNew = () => {
+    if (onNavigate) {
+      onNavigate('research-fund');
+    }
+  };
+
+  const handleRefresh = () => {
+    loadApplications();
   };
 
   return (
@@ -121,10 +231,22 @@ export default function ApplicationList() {
       subtitle="รายการคำร้องทั้งหมดที่คุณได้ยื่นไว้"
       icon={ClipboardList}
       actions={
-        <button className="btn btn-primary">
-          <Plus size={20} />
-          ยื่นคำร้องใหม่
-        </button>
+        <div className="flex gap-2">
+          <button 
+            onClick={handleRefresh}
+            className="btn btn-secondary"
+            disabled={loading}
+          >
+            {loading ? 'กำลังโหลด...' : 'รีเฟรช'}
+          </button>
+          <button 
+            onClick={handleCreateNew}
+            className="btn btn-primary"
+          >
+            <Plus size={20} />
+            ยื่นคำร้องใหม่
+          </button>
+        </div>
       }
       breadcrumbs={[
         { label: "หน้าแรก", href: "/teacher" },
@@ -159,7 +281,9 @@ export default function ApplicationList() {
             <option value="all">สถานะทั้งหมด</option>
             <option value="pending">รอพิจารณา</option>
             <option value="approved">อนุมัติ</option>
-            <option value="rejected">ไม่อนุมัติ</option>
+            <option value="rejected">ปฏิเสธ</option>
+            <option value="revision">ต้องการข้อมูลเพิ่มเติม</option>
+            <option value="draft">ร่าง</option>
           </select>
 
           <select
@@ -175,7 +299,14 @@ export default function ApplicationList() {
         </div>
 
         {/* Data Table */}
-        {filteredApplications.length === 0 ? (
+        {loading ? (
+          <div className="flex justify-center items-center py-12">
+            <div className="text-center">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+              <p className="mt-4 text-gray-600">กำลังโหลดข้อมูล...</p>
+            </div>
+          </div>
+        ) : filteredApplications.length === 0 ? (
           <EmptyState
             icon={FileText}
             title="ไม่พบคำร้อง"
@@ -196,7 +327,10 @@ export default function ApplicationList() {
                   ล้างการค้นหา
                 </button>
               ) : (
-                <button className="btn btn-primary">
+                <button 
+                  onClick={handleCreateNew}
+                  className="btn btn-primary"
+                >
                   <Plus size={20} />
                   สร้างคำร้องใหม่
                 </button>

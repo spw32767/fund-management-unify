@@ -14,6 +14,7 @@ import UnderDevelopmentContent from "./components/common/UnderDevelopmentContent
 import PromotionFundContent from "./components/funds/PromotionFundContent";
 import PublicationRewardForm from "./components/applications/PublicationRewardForm";
 import UserProfile from "./components/profile/UserProfile";
+import PublicationRewardDetail from "./components/funds/PublicationRewardDetail";
 
 function TeacherPageContent() {
   const [isOpen, setIsOpen] = useState(false);
@@ -56,6 +57,8 @@ function TeacherPageContent() {
         return <ApplicationForm selectedFund={selectedFundData} />;
       default:
         return <UnderDevelopmentContent currentPage={currentPage} />;
+      case 'publication-reward-detail':
+        return <PublicationRewardDetail submissionId={selectedFundData?.submissionId} onNavigate={handleNavigate} />;
     }
   };
 
