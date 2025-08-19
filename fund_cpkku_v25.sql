@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: localhost:3306
--- Generation Time: Aug 06, 2025 at 03:42 PM
+-- Generation Time: Aug 18, 2025 at 01:36 PM
 -- Server version: 11.1.6-MariaDB-ubu2004
 -- PHP Version: 7.4.3-4ubuntu2.29
 
@@ -127,8 +127,8 @@ CREATE TABLE `application_status` (
   `application_status_id` int(11) NOT NULL,
   `status_code` varchar(255) DEFAULT NULL,
   `status_name` varchar(255) DEFAULT NULL,
-  `create_at` datetime DEFAULT NULL,
-  `update_at` datetime DEFAULT NULL,
+  `create_at` datetime DEFAULT current_timestamp(),
+  `update_at` datetime DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   `delete_at` datetime DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
 
@@ -139,7 +139,9 @@ CREATE TABLE `application_status` (
 INSERT INTO `application_status` (`application_status_id`, `status_code`, `status_name`, `create_at`, `update_at`, `delete_at`) VALUES
 (1, '0', 'รอพิจารณา', '2025-06-24 16:49:13', '2025-06-24 16:49:13', NULL),
 (2, '1', 'อนุมัติ', '2025-06-24 16:49:13', '2025-06-24 16:49:13', NULL),
-(3, '2', 'ปฏิเสธ', '2025-06-24 16:49:13', '2025-06-24 16:49:13', NULL);
+(3, '2', 'ปฏิเสธ', '2025-06-24 16:49:13', '2025-06-24 16:49:13', NULL),
+(4, '3', 'ต้องการข้อมูลเพิ่มเติม', '2025-08-12 15:50:00', '2025-08-12 10:50:45', NULL),
+(5, '4', 'ร่าง', '2025-08-12 15:50:22', '2025-08-12 10:50:25', NULL);
 
 -- --------------------------------------------------------
 
@@ -215,7 +217,54 @@ INSERT INTO `audit_logs` (`log_id`, `user_id`, `action`, `entity_type`, `entity_
 (45, 8, 'create', 'submission', 23, 'PR-20250805-0001', NULL, '{\"submission_type\": \"publication_reward\", \"status_id\": 1, \"year_id\": 3}', NULL, NULL, NULL, 'Created new publication_reward', '2025-08-05 22:41:57'),
 (46, 8, 'submit', 'submission', 23, 'PR-20250805-0001', NULL, NULL, '', NULL, NULL, 'submit submission', '2025-08-05 22:41:57'),
 (47, 8, 'create', 'submission', 24, 'PR-20250805-0002', NULL, '{\"submission_type\": \"publication_reward\", \"status_id\": 1, \"year_id\": 3}', NULL, NULL, NULL, 'Created new publication_reward', '2025-08-05 22:46:58'),
-(48, 8, 'submit', 'submission', 24, 'PR-20250805-0002', NULL, NULL, '', NULL, NULL, 'submit submission', '2025-08-05 22:46:59');
+(48, 8, 'submit', 'submission', 24, 'PR-20250805-0002', NULL, NULL, '', NULL, NULL, 'submit submission', '2025-08-05 22:46:59'),
+(49, 8, 'create', 'submission', 25, 'PR-20250807-0001', NULL, '{\"submission_type\": \"publication_reward\", \"status_id\": 1, \"year_id\": 3}', NULL, NULL, NULL, 'Created new publication_reward', '2025-08-07 01:19:17'),
+(50, 8, 'submit', 'submission', 25, 'PR-20250807-0001', NULL, NULL, '', NULL, NULL, 'submit submission', '2025-08-07 01:19:18'),
+(51, 8, 'create', 'submission', 26, 'PR-20250807-0002', NULL, '{\"submission_type\": \"publication_reward\", \"status_id\": 1, \"year_id\": 3}', NULL, NULL, NULL, 'Created new publication_reward', '2025-08-07 02:34:33'),
+(52, 8, 'submit', 'submission', 26, 'PR-20250807-0002', NULL, NULL, '', NULL, NULL, 'submit submission', '2025-08-07 02:34:34'),
+(53, 8, 'create', 'submission', 27, 'PR-20250807-0003', NULL, '{\"submission_type\": \"publication_reward\", \"status_id\": 1, \"year_id\": 3}', NULL, NULL, NULL, 'Created new publication_reward', '2025-08-07 02:56:56'),
+(54, 8, 'create', 'submission', 28, 'PR-20250807-0004', NULL, '{\"submission_type\": \"publication_reward\", \"status_id\": 1, \"year_id\": 3}', NULL, NULL, NULL, 'Created new publication_reward', '2025-08-07 02:57:59'),
+(55, 8, 'create', 'submission', 29, 'PR-20250807-0005', NULL, '{\"submission_type\": \"publication_reward\", \"status_id\": 1, \"year_id\": 3}', NULL, NULL, NULL, 'Created new publication_reward', '2025-08-07 03:27:58'),
+(56, 8, 'submit', 'submission', 29, 'PR-20250807-0005', NULL, NULL, '', NULL, NULL, 'submit submission', '2025-08-07 03:28:43'),
+(57, 8, 'create', 'submission', 30, 'PR-20250807-0006', NULL, '{\"submission_type\": \"publication_reward\", \"status_id\": 1, \"year_id\": 3}', NULL, NULL, NULL, 'Created new publication_reward', '2025-08-07 04:00:14'),
+(58, 8, 'create', 'submission', 31, 'PR-20250807-0007', NULL, '{\"submission_type\": \"publication_reward\", \"status_id\": 1, \"year_id\": 3}', NULL, NULL, NULL, 'Created new publication_reward', '2025-08-07 06:11:59'),
+(59, 8, 'submit', 'submission', 31, 'PR-20250807-0007', NULL, NULL, '', NULL, NULL, 'submit submission', '2025-08-07 06:11:59'),
+(60, 8, 'create', 'submission', 32, 'PR-20250807-0008', NULL, '{\"submission_type\": \"publication_reward\", \"status_id\": 1, \"year_id\": 3}', NULL, NULL, NULL, 'Created new publication_reward', '2025-08-07 13:34:30'),
+(61, 8, 'submit', 'submission', 32, 'PR-20250807-0008', NULL, NULL, '', NULL, NULL, 'submit submission', '2025-08-07 13:34:30'),
+(62, 8, 'create', 'submission', 33, 'PR-20250807-0009', NULL, '{\"submission_type\": \"publication_reward\", \"status_id\": 1, \"year_id\": 3}', NULL, NULL, NULL, 'Created new publication_reward', '2025-08-07 13:38:22'),
+(63, 8, 'submit', 'submission', 33, 'PR-20250807-0009', NULL, NULL, '', NULL, NULL, 'submit submission', '2025-08-07 13:38:22'),
+(64, 8, 'create', 'submission', 34, 'PR-20250807-0010', NULL, '{\"submission_type\": \"publication_reward\", \"status_id\": 1, \"year_id\": 3}', NULL, NULL, NULL, 'Created new publication_reward', '2025-08-07 13:41:31'),
+(65, 8, 'submit', 'submission', 34, 'PR-20250807-0010', NULL, NULL, '', NULL, NULL, 'submit submission', '2025-08-07 13:41:31'),
+(66, 8, 'create', 'submission', 35, 'PR-20250807-0011', NULL, '{\"submission_type\": \"publication_reward\", \"status_id\": 1, \"year_id\": 3}', NULL, NULL, NULL, 'Created new publication_reward', '2025-08-07 13:53:27'),
+(67, 8, 'submit', 'submission', 35, 'PR-20250807-0011', NULL, NULL, '', NULL, NULL, 'submit submission', '2025-08-07 13:53:27'),
+(68, 8, 'create', 'submission', 36, 'PR-20250807-0012', NULL, '{\"submission_type\": \"publication_reward\", \"status_id\": 1, \"year_id\": 3}', NULL, NULL, NULL, 'Created new publication_reward', '2025-08-07 13:58:00'),
+(69, 8, 'submit', 'submission', 36, 'PR-20250807-0012', NULL, NULL, '', NULL, NULL, 'submit submission', '2025-08-07 13:58:00'),
+(70, 8, 'create', 'submission', 37, 'PR-20250807-0013', NULL, '{\"submission_type\": \"publication_reward\", \"status_id\": 1, \"year_id\": 3}', NULL, NULL, NULL, 'Created new publication_reward', '2025-08-07 14:01:47'),
+(71, 8, 'submit', 'submission', 37, 'PR-20250807-0013', NULL, NULL, '', NULL, NULL, 'submit submission', '2025-08-07 14:01:47'),
+(72, 8, 'approve', 'submission', 1, 'PR-20250731-0001', NULL, NULL, 'status', NULL, NULL, 'approve submission', '2025-08-13 12:54:33'),
+(73, 8, 'reject', 'submission', 1, 'PR-20250731-0001', NULL, NULL, 'status', NULL, NULL, 'reject submission', '2025-08-13 12:56:18'),
+(74, 8, 'update', 'submission', 1, 'PR-20250731-0001', NULL, NULL, 'status', NULL, NULL, 'update submission', '2025-08-13 12:56:39'),
+(75, 8, 'approve', 'submission', 2, 'PR-20250731-0002', NULL, NULL, 'status', NULL, NULL, 'approve submission', '2025-08-15 12:03:43'),
+(76, 8, 'reject', 'submission', 2, 'PR-20250731-0002', NULL, NULL, 'status', NULL, NULL, 'reject submission', '2025-08-15 12:07:09'),
+(77, 8, 'update', 'submission', 2, 'PR-20250731-0002', NULL, NULL, 'status', NULL, NULL, 'update submission', '2025-08-15 12:13:44'),
+(78, 8, 'approve', 'submission', 3, 'PR-20250731-0003', NULL, NULL, 'status', NULL, NULL, 'approve submission', '2025-08-15 12:14:11'),
+(79, 8, 'approve', 'submission', 1, 'PR-20250731-0001', NULL, NULL, 'status', NULL, NULL, 'approve submission', '2025-08-15 17:45:19'),
+(80, 8, 'update', 'submission', 1, 'PR-20250731-0001', NULL, NULL, 'status', NULL, NULL, 'update submission', '2025-08-15 17:45:43'),
+(81, 8, 'approve', 'submission', 1, 'PR-20250731-0001', NULL, NULL, 'status', NULL, NULL, 'approve submission', '2025-08-15 17:46:02'),
+(82, 8, 'update', 'submission', 1, 'PR-20250731-0001', NULL, NULL, 'status', NULL, NULL, 'update submission', '2025-08-15 17:46:15'),
+(83, 8, 'update', 'submission', 1, 'PR-20250731-0001', NULL, NULL, 'status', NULL, NULL, 'update submission', '2025-08-15 17:46:27'),
+(84, 8, 'update', 'submission', 1, 'PR-20250731-0001', NULL, NULL, 'status', NULL, NULL, 'update submission', '2025-08-15 17:46:35'),
+(85, 8, 'approve', 'submission', 1, 'PR-20250731-0001', NULL, NULL, 'status', NULL, NULL, 'approve submission', '2025-08-15 17:54:27'),
+(86, 8, 'update', 'submission', 1, 'PR-20250731-0001', NULL, NULL, 'status', NULL, NULL, 'update submission', '2025-08-15 17:54:48'),
+(87, 8, 'update', 'submission', 1, 'PR-20250731-0001', NULL, NULL, 'status', NULL, NULL, 'update submission', '2025-08-15 17:54:58'),
+(88, 8, 'reject', 'submission', 1, 'PR-20250731-0001', NULL, NULL, 'status', NULL, NULL, 'reject submission', '2025-08-15 17:55:11'),
+(89, 8, 'approve', 'submission', 1, 'PR-20250731-0001', NULL, NULL, 'status', NULL, NULL, 'approve submission', '2025-08-15 18:01:11'),
+(90, 8, 'update', 'submission', 1, 'PR-20250731-0001', NULL, NULL, 'status', NULL, NULL, 'update submission', '2025-08-16 11:27:36'),
+(91, 8, 'approve', 'submission', 25, 'PR-20250807-0001', NULL, NULL, 'status', NULL, NULL, 'approve submission', '2025-08-16 11:28:55'),
+(92, 8, 'reject', 'submission', 25, 'PR-20250807-0001', NULL, NULL, 'status', NULL, NULL, 'reject submission', '2025-08-16 11:29:04'),
+(93, 8, 'update', 'submission', 25, 'PR-20250807-0001', NULL, NULL, 'status', NULL, NULL, 'update submission', '2025-08-16 11:29:09'),
+(94, 8, 'update', 'submission', 25, 'PR-20250807-0001', NULL, NULL, 'status', NULL, NULL, 'update submission', '2025-08-16 11:29:15'),
+(95, 8, 'update', 'submission', 25, 'PR-20250807-0001', NULL, NULL, 'status', NULL, NULL, 'update submission', '2025-08-16 11:29:38');
 
 -- --------------------------------------------------------
 
@@ -234,26 +283,28 @@ CREATE TABLE `document_types` (
   `is_required` enum('yes','no') DEFAULT NULL,
   `create_at` datetime DEFAULT current_timestamp(),
   `update_at` datetime DEFAULT current_timestamp(),
-  `delete_at` datetime DEFAULT NULL
+  `delete_at` datetime DEFAULT NULL,
+  `fund_types` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL COMMENT 'ประเภททุนที่ใช้ได้ ["publication_reward", "fund_application"]' CHECK (json_valid(`fund_types`)),
+  `subcategory_ids` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL COMMENT 'รหัส subcategory เฉพาะ [1,2,3] หรือ NULL = ทุก subcategory' CHECK (json_valid(`subcategory_ids`))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
 
 --
 -- Dumping data for table `document_types`
 --
 
-INSERT INTO `document_types` (`document_type_id`, `document_type_name`, `code`, `category`, `required`, `multiple`, `document_order`, `is_required`, `create_at`, `update_at`, `delete_at`) VALUES
-(1, 'QS WUR 1-400', 'qs_wur_1-400', '', 0, 0, 1, NULL, NULL, NULL, NULL),
-(2, 'Full reprint (บทความตีพิมพ์)', 'full_reprint_(บทความตีพิมพ์)', 'publication', 1, 0, 2, NULL, NULL, NULL, NULL),
-(3, 'Scopus-ISI (หลักฐานการจัดอันดับ)', 'scopus-isi_(หลักฐานการจัดอันดับ)', 'publication', 1, 0, 3, NULL, NULL, NULL, NULL),
-(4, 'สำเนาบัญชีธนาคาร', 'สำเนาบัญชีธนาคาร', '', 1, 0, 4, NULL, NULL, NULL, NULL),
-(5, 'Payment / Exchange rate', 'payment_/_exchange_rate', 'publication', 0, 0, 5, NULL, NULL, NULL, NULL),
-(6, 'Page charge Invoice', 'page_charge_invoice', '', 0, 0, 6, NULL, NULL, NULL, NULL),
-(7, 'Page charge Receipt', 'page_charge_receipt', 'publication', 0, 0, 7, NULL, NULL, NULL, NULL),
-(8, 'Manuscript Editor Invoice', 'manuscript_editor_invoice', 'publication', 0, 0, 8, NULL, NULL, NULL, NULL),
-(9, 'Manuscript Receipt', 'manuscript_receipt', '', 0, 0, 9, NULL, NULL, NULL, NULL),
-(10, 'Review Response (Special issue)', 'review_response_(special_issue)', '', 0, 0, 10, NULL, NULL, NULL, NULL),
-(11, 'เอกสารอื่นๆ', 'เอกสารอื่นๆ', 'publication', 0, 1, 11, NULL, NULL, NULL, NULL),
-(12, 'เอกสารเบิกจ่ายภายนอก', 'เอกสารเบิกจ่ายภายนอก', 'publication', 0, 1, 12, 'no', NULL, NULL, NULL);
+INSERT INTO `document_types` (`document_type_id`, `document_type_name`, `code`, `category`, `required`, `multiple`, `document_order`, `is_required`, `create_at`, `update_at`, `delete_at`, `fund_types`, `subcategory_ids`) VALUES
+(1, 'QS WUR 1-400', 'qs_wur_1-400', '', 0, 0, 1, NULL, NULL, NULL, NULL, NULL, NULL),
+(2, 'Full reprint (บทความตีพิมพ์)', 'full_reprint_(บทความตีพิมพ์)', 'publication', 1, 0, 2, NULL, NULL, NULL, NULL, NULL, NULL),
+(3, 'Scopus-ISI (หลักฐานการจัดอันดับ)', 'scopus-isi_(หลักฐานการจัดอันดับ)', 'publication', 1, 0, 3, NULL, NULL, NULL, NULL, NULL, NULL),
+(4, 'สำเนาบัญชีธนาคาร', 'สำเนาบัญชีธนาคาร', '', 1, 0, 4, NULL, NULL, NULL, NULL, NULL, NULL),
+(5, 'Payment / Exchange rate', 'payment_/_exchange_rate', 'publication', 0, 0, 5, NULL, NULL, NULL, NULL, NULL, NULL),
+(6, 'Page charge Invoice', 'page_charge_invoice', '', 0, 0, 6, NULL, NULL, NULL, NULL, NULL, NULL),
+(7, 'Page charge Receipt', 'page_charge_receipt', 'publication', 0, 0, 7, NULL, NULL, NULL, NULL, NULL, NULL),
+(8, 'Manuscript Editor Invoice', 'manuscript_editor_invoice', 'publication', 0, 0, 8, NULL, NULL, NULL, NULL, NULL, NULL),
+(9, 'Manuscript Receipt', 'manuscript_receipt', '', 0, 0, 9, NULL, NULL, NULL, NULL, NULL, NULL),
+(10, 'Review Response (Special issue)', 'review_response_(special_issue)', '', 0, 0, 10, NULL, NULL, NULL, NULL, NULL, NULL),
+(11, 'เอกสารอื่นๆ', 'เอกสารอื่นๆ', 'publication', 0, 1, 11, NULL, NULL, NULL, NULL, NULL, NULL),
+(12, 'เอกสารเบิกจ่ายภายนอก', 'เอกสารเบิกจ่ายภายนอก', 'publication', 0, 1, 12, 'no', NULL, NULL, NULL, NULL, NULL);
 
 -- --------------------------------------------------------
 
@@ -328,7 +379,32 @@ INSERT INTO `file_uploads` (`file_id`, `original_name`, `stored_path`, `folder_t
 (43, 'pdf-sample_1.pdf', 'uploads/users/user_8_สมชาย_ใจด/submissions/pub24_2025-08-05/pdf-sample_1.pdf', 'temp', NULL, 13264, 'application/pdf', '', 0, 8, '2025-08-05 22:46:59', '2025-08-05 22:46:59', '2025-08-05 22:46:59', NULL),
 (44, 'pdf-sample_2.pdf', 'uploads/users/user_8_สมชาย_ใจด/submissions/pub24_2025-08-05/pdf-sample_2.pdf', 'temp', NULL, 13264, 'application/pdf', '', 0, 8, '2025-08-05 22:46:59', '2025-08-05 22:46:59', '2025-08-05 22:46:59', NULL),
 (45, 'pdf-sample_0.pdf', 'uploads/users/user_8_สมชาย_ใจด/submissions/pub24_2025-08-05/pdf-sample_0.pdf', 'temp', NULL, 13264, 'application/pdf', '', 0, 8, '2025-08-05 22:46:59', '2025-08-05 22:46:59', '2025-08-05 22:46:59', NULL),
-(46, 'pdf-sample_0.pdf', 'uploads/users/user_8_สมชาย_ใจด/submissions/pub24_2025-08-05/pdf-sample_0_1.pdf', 'temp', NULL, 13264, 'application/pdf', '', 0, 8, '2025-08-05 22:46:59', '2025-08-05 22:46:59', '2025-08-05 22:46:59', NULL);
+(46, 'pdf-sample_0.pdf', 'uploads/users/user_8_สมชาย_ใจด/submissions/pub24_2025-08-05/pdf-sample_0_1.pdf', 'temp', NULL, 13264, 'application/pdf', '', 0, 8, '2025-08-05 22:46:59', '2025-08-05 22:46:59', '2025-08-05 22:46:59', NULL),
+(47, 'pdf-sample_1.pdf', 'uploads/users/user_8_สมชาย_ใจด/submissions/pub25_2025-08-07/pdf-sample_1.pdf', 'temp', NULL, 13264, 'application/pdf', '', 0, 8, '2025-08-07 01:19:18', '2025-08-07 01:19:18', '2025-08-07 01:19:18', NULL),
+(48, 'pdf-sample_2.pdf', 'uploads/users/user_8_สมชาย_ใจด/submissions/pub25_2025-08-07/pdf-sample_2.pdf', 'temp', NULL, 13264, 'application/pdf', '', 0, 8, '2025-08-07 01:19:18', '2025-08-07 01:19:18', '2025-08-07 01:19:18', NULL),
+(49, 'pdf-sample_0.pdf', 'uploads/users/user_8_สมชาย_ใจด/submissions/pub25_2025-08-07/pdf-sample_0.pdf', 'temp', NULL, 13264, 'application/pdf', '', 0, 8, '2025-08-07 01:19:18', '2025-08-07 01:19:18', '2025-08-07 01:19:18', NULL),
+(50, 'pdf-sample_0.pdf', 'uploads/users/user_8_สมชาย_ใจด/submissions/pub25_2025-08-07/pdf-sample_0_1.pdf', 'temp', NULL, 13264, 'application/pdf', '', 0, 8, '2025-08-07 01:19:18', '2025-08-07 01:19:18', '2025-08-07 01:19:18', NULL),
+(51, 'pdf-sample_0.pdf', 'uploads/users/user_8_สมชาย_ใจด/submissions/pub26_2025-08-07/pdf-sample_0.pdf', 'temp', NULL, 13264, 'application/pdf', '', 0, 8, '2025-08-07 02:34:34', '2025-08-07 02:34:34', '2025-08-07 02:34:34', NULL),
+(52, 'pdf-sample_3.pdf', 'uploads/users/user_8_สมชาย_ใจด/submissions/pub26_2025-08-07/pdf-sample_3.pdf', 'temp', NULL, 13264, 'application/pdf', '', 0, 8, '2025-08-07 02:34:34', '2025-08-07 02:34:34', '2025-08-07 02:34:34', NULL),
+(53, 'pdf-sample_0.pdf', 'uploads/users/user_8_สมชาย_ใจด/submissions/pub29_2025-08-07/pdf-sample_0.pdf', 'temp', NULL, 13264, 'application/pdf', '', 0, 8, '2025-08-07 03:28:42', '2025-08-07 03:28:42', '2025-08-07 03:28:42', NULL),
+(54, 'pdf-sample_1.pdf', 'uploads/users/user_8_สมชาย_ใจด/submissions/pub29_2025-08-07/pdf-sample_1.pdf', 'temp', NULL, 13264, 'application/pdf', '', 0, 8, '2025-08-07 03:28:42', '2025-08-07 03:28:42', '2025-08-07 03:28:42', NULL),
+(55, 'merged_documents.pdf', 'uploads/users/user_8_สมชาย_ใจด/submissions/pub29_2025-08-07/merged_documents.pdf', 'temp', NULL, 23937, 'application/pdf', '', 0, 8, '2025-08-07 03:28:43', '2025-08-07 03:28:43', '2025-08-07 03:28:43', NULL),
+(56, 'pdf-sample_0.pdf', 'uploads/users/user_8_สมชาย_ใจด/submissions/pub31_2025-08-07/pdf-sample_0.pdf', 'temp', NULL, 13264, 'application/pdf', '', 0, 8, '2025-08-07 06:11:59', '2025-08-07 06:11:59', '2025-08-07 06:11:59', NULL),
+(57, 'pdf-sample_1.pdf', 'uploads/users/user_8_สมชาย_ใจด/submissions/pub31_2025-08-07/pdf-sample_1.pdf', 'temp', NULL, 13264, 'application/pdf', '', 0, 8, '2025-08-07 06:11:59', '2025-08-07 06:11:59', '2025-08-07 06:11:59', NULL),
+(58, 'pdf-sample_0.pdf', 'uploads/users/user_8_สมชาย_ใจด/submissions/pub32_2025-08-07/pdf-sample_0.pdf', 'temp', NULL, 13264, 'application/pdf', '', 0, 8, '2025-08-07 13:34:30', '2025-08-07 13:34:30', '2025-08-07 13:34:30', NULL),
+(59, 'pdf-sample_3.pdf', 'uploads/users/user_8_สมชาย_ใจด/submissions/pub32_2025-08-07/pdf-sample_3.pdf', 'temp', NULL, 13264, 'application/pdf', '', 0, 8, '2025-08-07 13:34:30', '2025-08-07 13:34:30', '2025-08-07 13:34:30', NULL),
+(60, 'pdf-sample_2.pdf', 'uploads/users/user_8_สมชาย_ใจด/submissions/pub33_2025-08-07/pdf-sample_2.pdf', 'temp', NULL, 13264, 'application/pdf', '', 0, 8, '2025-08-07 13:38:22', '2025-08-07 13:38:22', '2025-08-07 13:38:22', NULL),
+(61, 'pdf-sample_0.pdf', 'uploads/users/user_8_สมชาย_ใจด/submissions/pub33_2025-08-07/pdf-sample_0.pdf', 'temp', NULL, 13264, 'application/pdf', '', 0, 8, '2025-08-07 13:38:22', '2025-08-07 13:38:22', '2025-08-07 13:38:22', NULL),
+(62, 'pdf-sample_1.pdf', 'uploads/users/user_8_สมชาย_ใจด/submissions/pub34_2025-08-07/pdf-sample_1.pdf', 'temp', NULL, 13264, 'application/pdf', '', 0, 8, '2025-08-07 13:41:31', '2025-08-07 13:41:31', '2025-08-07 13:41:31', NULL),
+(63, 'pdf-sample_0.pdf', 'uploads/users/user_8_สมชาย_ใจด/submissions/pub34_2025-08-07/pdf-sample_0.pdf', 'temp', NULL, 13264, 'application/pdf', '', 0, 8, '2025-08-07 13:41:31', '2025-08-07 13:41:31', '2025-08-07 13:41:31', NULL),
+(64, 'pdf-sample_0.pdf', 'uploads/users/user_8_สมชาย_ใจด/submissions/pub35_2025-08-07/pdf-sample_0.pdf', 'temp', NULL, 13264, 'application/pdf', '', 0, 8, '2025-08-07 13:53:27', '2025-08-07 13:53:27', '2025-08-07 13:53:27', NULL),
+(65, 'pdf-sample_3.pdf', 'uploads/users/user_8_สมชาย_ใจด/submissions/pub35_2025-08-07/pdf-sample_3.pdf', 'temp', NULL, 13264, 'application/pdf', '', 0, 8, '2025-08-07 13:53:27', '2025-08-07 13:53:27', '2025-08-07 13:53:27', NULL),
+(66, 'pdf-sample_3.pdf', 'uploads/users/user_8_สมชาย_ใจด/submissions/pub36_2025-08-07/pdf-sample_3.pdf', 'temp', NULL, 13264, 'application/pdf', '', 0, 8, '2025-08-07 13:58:00', '2025-08-07 13:58:00', '2025-08-07 13:58:00', NULL),
+(67, 'pdf-sample_0.pdf', 'uploads/users/user_8_สมชาย_ใจด/submissions/pub36_2025-08-07/pdf-sample_0.pdf', 'temp', NULL, 13264, 'application/pdf', '', 0, 8, '2025-08-07 13:58:00', '2025-08-07 13:58:00', '2025-08-07 13:58:00', NULL),
+(68, 'pdf-sample_1.pdf', 'uploads/users/user_8_สมชาย_ใจด/submissions/pub36_2025-08-07/pdf-sample_1.pdf', 'temp', NULL, 13264, 'application/pdf', '', 0, 8, '2025-08-07 13:58:00', '2025-08-07 13:58:00', '2025-08-07 13:58:00', NULL),
+(69, 'pdf-sample_1.pdf', 'uploads/users/user_8_สมชาย_ใจด/submissions/pub36_2025-08-07/pdf-sample_1_1.pdf', 'temp', NULL, 13264, 'application/pdf', '', 0, 8, '2025-08-07 13:58:00', '2025-08-07 13:58:00', '2025-08-07 13:58:00', NULL),
+(70, 'pdf-sample_0.pdf', 'uploads/users/user_8_สมชาย_ใจด/submissions/pub37_2025-08-07/pdf-sample_0.pdf', 'temp', NULL, 13264, 'application/pdf', '', 0, 8, '2025-08-07 14:01:47', '2025-08-07 14:01:47', '2025-08-07 14:01:47', NULL),
+(71, 'pdf-sample_1.pdf', 'uploads/users/user_8_สมชาย_ใจด/submissions/pub37_2025-08-07/pdf-sample_1.pdf', 'temp', NULL, 13264, 'application/pdf', '', 0, 8, '2025-08-07 14:01:47', '2025-08-07 14:01:47', '2025-08-07 14:01:47', NULL);
 
 -- --------------------------------------------------------
 
@@ -344,6 +420,10 @@ CREATE TABLE `fund_application_details` (
   `project_description` text DEFAULT NULL,
   `requested_amount` decimal(15,2) DEFAULT NULL,
   `approved_amount` decimal(15,2) DEFAULT NULL,
+  `approved_by` int(11) DEFAULT NULL,
+  `approved_at` datetime DEFAULT NULL,
+  `rejected_by` int(11) DEFAULT NULL,
+  `rejected_at` datetime DEFAULT NULL,
   `closed_at` datetime DEFAULT NULL,
   `comment` text DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -371,7 +451,8 @@ CREATE TABLE `fund_categories` (
 
 INSERT INTO `fund_categories` (`category_id`, `category_name`, `status`, `year_id`, `comment`, `create_at`, `update_at`, `delete_at`) VALUES
 (1, 'ทุนส่งเสริมการวิจัย', 'active', 1, NULL, '2025-06-24 16:49:13', '2025-06-24 16:49:13', NULL),
-(2, 'ทุนอุดหนุนกิจกรรม', 'active', 1, NULL, '2025-06-24 16:49:13', '2025-07-23 19:29:48', NULL);
+(2, 'ทุนอุดหนุนกิจกรรม', 'active', 1, NULL, '2025-06-24 16:49:13', '2025-08-10 23:25:26', NULL),
+(5, 'ฟหก', 'active', 1, NULL, '2025-08-11 13:39:17', '2025-08-11 13:39:17', '2025-08-11 13:39:30');
 
 -- --------------------------------------------------------
 
@@ -399,21 +480,24 @@ CREATE TABLE `fund_subcategories` (
 --
 
 INSERT INTO `fund_subcategories` (`subcategory_id`, `category_id`, `subcategory_name`, `fund_condition`, `target_roles`, `form_type`, `form_url`, `status`, `comment`, `create_at`, `update_at`, `delete_at`) VALUES
-(1, 1, '1.1 ทุนสนับสนุนผู้เชี่ยวชาญต่างประเทศ', 'ผู้ได้รับทุนสนับสนุนผู้เชี่ยวชาญต่างประเทศ ต้องเผยแพร่บทความในฐานข้อมูลระดับ WOS หรือ ISI หรือ SCOPUS ในควอร์ไทล์ที่ 1 (Q1)', '[\"1\",\"3\"]', 'download', 'http://147.50.230.213:8080/uploads/form.pdf', 'active', NULL, '2025-06-24 16:49:13', '2025-06-24 16:49:13', NULL),
-(2, 1, '1.2 ทุนวิจัยสถาบัน', 'ผู้ได้รับทุนสนับสนุนวิจัยสถาบัน ทุนวิจัยเพื่องานประจำ หรือทุนวิจัยในชั้นเรียนจะต้องมีชิ้นงาน', '[\"2\",\"3\"]', 'download', NULL, 'active', NULL, '2025-06-24 16:49:13', '2025-06-24 16:49:13', NULL),
-(3, 1, '1.3 ทุนวิจัยเพื่อพัฒนางานประจํา', NULL, '[\"2\", \"3\"]', 'download', NULL, 'active', NULL, '2025-06-24 16:49:13', '2025-06-24 16:49:13', NULL),
-(4, 1, '1.4 ทุนวิจัยในชั้นเรียน', NULL, '[\"1\", \"3\"]', 'download', NULL, 'active', NULL, '2025-06-24 16:49:13', '2025-06-24 16:49:13', NULL),
-(5, 1, 'ทุนสนับสนุนงานวิจัย นวัตกรรมและสิ่งประดิษฐ์เพื่อการเรียนการสอน', NULL, '[\"1\", \"3\"]', 'download', NULL, 'active', NULL, '2025-06-24 16:49:13', '2025-06-24 16:49:13', NULL),
-(6, 1, '1.5 ทุนวิจัยความเป็นเลิศ', 'ผู้ได้รับทุนวิจัยความเป็นเลิศ ต้องเผยแพร่บทความในฐานข้อมูลระดับ WOS หรือ ISI หรือ SCOPUS', '[\"1\", \"3\"]', 'download', NULL, 'active', NULL, '2025-06-24 16:49:13', '2025-06-24 16:49:13', NULL),
-(7, 1, '1.10 ทุนพัฒนากลุ่มวิจัยบูรณาการ', 'ทุนพัฒนากลุ่มวิจัยบูรณาการ แบ่งออกเป็น 3 ระดับ', '[\"1\", \"3\"]', 'download', NULL, 'active', NULL, '2025-06-24 16:49:13', '2025-06-24 16:49:13', NULL),
-(8, 1, 'ทุนนักวิจัยอาวุโส', NULL, '[\"1\", \"3\"]', 'download', NULL, 'active', NULL, '2025-06-24 16:49:13', '2025-06-24 16:49:13', NULL),
-(9, 1, '1.7 ทุนพัฒนาศูนย์วิจัย', NULL, '[\"1\", \"3\"]', 'download', NULL, 'active', NULL, '2025-06-24 16:49:13', '2025-06-24 16:49:13', NULL),
-(10, 1, 'ทุนฝึกอบรมนักวิจัยหลังปริญญาเอก', 'ทุนฝึกอบรมนักวิจัยหลังปริญญาเอก เป็นการสนับสนุนนักวิจัยผ่านการรับทุนของอาจารย์', '[\"1\", \"3\"]', 'download', NULL, 'active', NULL, '2025-06-24 16:49:13', '2025-06-24 16:49:13', NULL),
-(11, 1, '1.6 ทุนนวัตกรรมความเป็นเลิศ', 'ผู้ได้รับทุนนวัตกรรมความเป็นเลิศ จะต้องสร้างนวัตกรรมหรือเครื่องมือ เครื่องใช้', '[\"1\", \"3\"]', 'download', NULL, 'active', NULL, '2025-06-24 16:49:13', '2025-06-24 16:49:13', NULL),
-(12, 1, '1.9 ทุนสนับสนุนการได้รับทุนวิจัยภายนอก', NULL, '[\"1\", \"3\"]', 'download', NULL, 'active', NULL, '2025-06-24 16:49:13', '2025-06-24 16:49:13', NULL),
-(13, 2, 'ทุนทําวิจัยในต่างประเทศ', NULL, '[\"1\"]', 'download', NULL, 'active', NULL, '2025-06-24 16:49:13', '2025-07-23 12:31:56', NULL),
-(14, 2, 'เงินรางวัลการตีพิมพ์เผยแพร่ผลงานวิจัยที่ได้รับการตีพิมพ์ในสาขาวิทยาศาสตร์และเทคโนโลยี (กรณีเป็นผู้แต่งชื่อแรก)', NULL, '[\"1\"]', 'publication_reward', NULL, 'active', NULL, '2025-06-24 16:49:13', '2025-07-23 15:10:25', NULL),
-(15, 2, 'เงินรางวัลการตีพิมพ์เผยแพร่ผลงานวิจัยที่ได้รับการตีพิมพ์ในสาขาวิทยาศาสตร์และเทคโนโลยี (กรณีเป็นผู้ประพันธ์บรรณกิจ)', NULL, '[\"2\",\"1\"]', 'publication_reward', NULL, 'active', NULL, NULL, '2025-08-02 12:28:55', NULL);
+(1, 1, '1.1 ทุนสนับสนุนผู้เชี่ยวชาญต่างประเทศ', 'ผู้ได้รับทุนสนับสนุนผู้เชี่ยวชาญต่างประเทศ ต้องเผยแพร่บทความในฐานข้อมูลระดับ WOS หรือ ISI หรือ SCOPUS ในควอร์ไทล์ที่ 1 (Q1)', '', 'download', 'http://147.50.230.213:8080/uploads/form.pdf', 'active', NULL, '2025-06-24 16:49:13', '2025-06-24 16:49:13', NULL),
+(2, 1, '1.2 ทุนวิจัยสถาบัน', 'ผู้ได้รับทุนสนับสนุนวิจัยสถาบัน ทุนวิจัยเพื่องานประจำ หรือทุนวิจัยในชั้นเรียนจะต้องมีชิ้นงาน', '', 'download', NULL, 'active', NULL, '2025-06-24 16:49:13', '2025-06-24 16:49:13', NULL),
+(3, 1, '1.3 ทุนวิจัยเพื่อพัฒนางานประจํา', NULL, '', 'download', NULL, 'active', NULL, '2025-06-24 16:49:13', '2025-06-24 16:49:13', NULL),
+(4, 1, '1.4 ทุนวิจัยในชั้นเรียน', NULL, '', 'download', NULL, 'active', NULL, '2025-06-24 16:49:13', '2025-06-24 16:49:13', NULL),
+(5, 1, 'ทุนสนับสนุนงานวิจัย นวัตกรรมและสิ่งประดิษฐ์เพื่อการเรียนการสอน', NULL, '', 'download', NULL, 'active', NULL, '2025-06-24 16:49:13', '2025-06-24 16:49:13', NULL),
+(6, 1, '1.5 ทุนวิจัยความเป็นเลิศ', 'ผู้ได้รับทุนวิจัยความเป็นเลิศ ต้องเผยแพร่บทความในฐานข้อมูลระดับ WOS หรือ ISI หรือ SCOPUS', '', 'download', NULL, 'active', NULL, '2025-06-24 16:49:13', '2025-06-24 16:49:13', NULL),
+(7, 1, '1.10 ทุนพัฒนากลุ่มวิจัยบูรณาการ', 'ทุนพัฒนากลุ่มวิจัยบูรณาการ แบ่งออกเป็น 3 ระดับ', '', 'download', NULL, 'active', NULL, '2025-06-24 16:49:13', '2025-06-24 16:49:13', NULL),
+(8, 1, 'ทุนนักวิจัยอาวุโส', NULL, '', 'download', NULL, 'active', NULL, '2025-06-24 16:49:13', '2025-06-24 16:49:13', NULL),
+(9, 1, '1.7 ทุนพัฒนาศูนย์วิจัย', NULL, '', 'download', NULL, 'active', NULL, '2025-06-24 16:49:13', '2025-06-24 16:49:13', NULL),
+(10, 1, 'ทุนฝึกอบรมนักวิจัยหลังปริญญาเอก', 'ทุนฝึกอบรมนักวิจัยหลังปริญญาเอก เป็นการสนับสนุนนักวิจัยผ่านการรับทุนของอาจารย์', '', 'download', NULL, 'active', NULL, '2025-06-24 16:49:13', '2025-06-24 16:49:13', NULL),
+(11, 1, '1.6 ทุนนวัตกรรมความเป็นเลิศ', 'ผู้ได้รับทุนนวัตกรรมความเป็นเลิศ จะต้องสร้างนวัตกรรมหรือเครื่องมือ เครื่องใช้', '', 'download', NULL, 'active', NULL, '2025-06-24 16:49:13', '2025-06-24 16:49:13', NULL),
+(12, 1, '1.9 ทุนสนับสนุนการได้รับทุนวิจัยภายนอก', NULL, '', 'download', NULL, 'active', NULL, '2025-06-24 16:49:13', '2025-08-08 22:57:24', NULL),
+(13, 2, 'ทุนทําวิจัยในต่างประเทศ', NULL, NULL, 'download', NULL, 'active', NULL, '2025-06-24 16:49:13', '2025-08-11 11:50:06', NULL),
+(14, 2, 'เงินรางวัลการตีพิมพ์เผยแพร่ผลงานวิจัยที่ได้รับการตีพิมพ์ในสาขาวิทยาศาสตร์และเทคโนโลยี (กรณีเป็นผู้แต่งชื่อแรก)', NULL, NULL, 'publication_reward', NULL, 'active', NULL, '2025-06-24 16:49:13', '2025-08-08 22:57:15', NULL),
+(15, 2, 'เงินรางวัลการตีพิมพ์เผยแพร่ผลงานวิจัยที่ได้รับการตีพิมพ์ในสาขาวิทยาศาสตร์และเทคโนโลยี (กรณีเป็นผู้ประพันธ์บรรณกิจ)', NULL, '[\"1\",\"2\"]', 'publication_reward', NULL, 'active', NULL, NULL, '2025-08-11 11:49:58', NULL),
+(16, 2, '123', '123', '[\"1\"]', '', '', 'active', NULL, '2025-08-08 23:04:31', '2025-08-11 12:52:11', '2025-08-11 12:52:23'),
+(17, 2, 'das', NULL, '[\"2\",\"1\"]', '', '', 'active', NULL, '2025-08-11 12:52:31', '2025-08-11 13:20:08', '2025-08-11 13:56:03'),
+(18, 5, 'ฟหก', NULL, NULL, '', '', 'active', NULL, '2025-08-11 13:39:22', '2025-08-11 13:39:22', '2025-08-11 13:39:28');
 
 -- --------------------------------------------------------
 
@@ -490,38 +574,62 @@ CREATE TABLE `publication_reward_details` (
   `author_type` enum('first_author','corresponding_author','coauthor') DEFAULT 'coauthor',
   `has_university_funding` enum('yes','no') DEFAULT 'no' COMMENT 'ได้รับการสนับสนุนทุนจากมหาวิทยาลัยหรือไม่',
   `funding_references` text DEFAULT NULL COMMENT 'หมายเลขอ้างอิงทุน (คั่นด้วยจุลภาค)',
-  `university_rankings` text DEFAULT NULL COMMENT 'อันดับมหาวิทยาลัย/สถาบัน (คั่นด้วยจุลภาค)'
+  `university_rankings` text DEFAULT NULL COMMENT 'อันดับมหาวิทยาลัย/สถาบัน (คั่นด้วยจุลภาค)',
+  `approved_amount` decimal(15,2) DEFAULT NULL,
+  `approval_comment` text DEFAULT NULL,
+  `approved_by` int(11) DEFAULT NULL,
+  `approved_at` datetime DEFAULT NULL,
+  `rejection_reason` text DEFAULT NULL,
+  `rejected_by` int(11) DEFAULT NULL,
+  `rejected_at` datetime DEFAULT NULL,
+  `revision_request` text DEFAULT NULL,
+  `revision_requested_by` int(11) DEFAULT NULL,
+  `revision_requested_at` datetime DEFAULT NULL,
+  `create_at` datetime NOT NULL DEFAULT current_timestamp(),
+  `update_at` datetime NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `delete_at` datetime NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='ตารางเก็บรายละเอียดการขอรับเงินรางวัลผลงานวิชาการ พร้อมข้อมูลเพิ่มเติม';
 
 --
 -- Dumping data for table `publication_reward_details`
 --
 
-INSERT INTO `publication_reward_details` (`detail_id`, `submission_id`, `paper_title`, `journal_name`, `publication_date`, `publication_type`, `quartile`, `impact_factor`, `doi`, `url`, `page_numbers`, `volume_issue`, `indexing`, `reward_amount`, `reward_approve_amount`, `revision_fee`, `publication_fee`, `external_funding_amount`, `total_amount`, `total_approve_amount`, `announce_reference_number`, `author_count`, `author_type`, `has_university_funding`, `funding_references`, `university_rankings`) VALUES
-(1, 1, 'asd', 'asdasd', '2025-07-31', 'journal', 'Q3', '0.000', '', '', '', '', '', '20000.00', '0.00', '123.00', '321.00', '2.00', '20442.00', '0.00', '', 3, 'corresponding_author', 'no', NULL, NULL),
-(2, 2, 'asdasd', 'asd', '2025-07-31', 'journal', 'Q2', '0.000', '', '', '', '', '', '30000.00', '0.00', '0.00', '0.00', '0.00', '30000.00', '0.00', '', 3, 'corresponding_author', 'no', NULL, NULL),
-(3, 3, 'asd', 'asd', '2025-07-31', 'journal', 'Q1', '0.000', '', '', '', '', '', '40000.00', '0.00', '0.00', '0.00', '0.00', '40000.00', '0.00', '', 3, 'first_author', 'no', NULL, NULL),
-(4, 4, 'asdasd', 'asd', '2025-07-31', 'journal', 'Q4', '0.000', '', '', '', '', '', '10000.00', '0.00', '0.00', '0.00', '0.00', '10000.00', '0.00', '', 3, 'corresponding_author', 'no', NULL, NULL),
-(5, 5, 'polow', 'asd', '2025-07-31', 'journal', 'Q3', '0.000', '', '', '', '', '', '20000.00', '0.00', '0.00', '0.00', '0.00', '20000.00', '0.00', '', 3, 'first_author', 'no', NULL, NULL),
-(6, 6, 'ฟหกฟหก', 'ฟฟฟ', '2025-08-01', 'journal', 'T5', '0.000', '', '', '', '', '', '50000.00', '0.00', '0.00', '0.00', '0.00', '50000.00', '0.00', '', 3, 'first_author', 'no', NULL, NULL),
-(7, 7, 'asdasd', 'asd', '2025-08-01', 'journal', 'Q3', '0.000', '', '', '', '', '', '20000.00', '0.00', '0.00', '0.00', '0.00', '20000.00', '0.00', '', 3, 'first_author', 'no', NULL, NULL),
-(8, 8, 'asdasd', 'asd', '2025-08-01', 'journal', 'Q1', '0.000', '', '', '', '', '', '40000.00', '0.00', '0.00', '0.00', '0.00', '40000.00', '0.00', '', 3, 'corresponding_author', 'no', NULL, NULL),
-(9, 9, 'ฟหกฟหก', 'asd', '2025-08-01', 'journal', 'Q2', '0.000', '', '', '', '', '', '30000.00', '0.00', '0.00', '0.00', '0.00', '30000.00', '0.00', '', 3, 'first_author', 'no', NULL, NULL),
-(10, 10, 'ฟหกฟหก', 'mom', '2025-08-01', 'journal', 'Q2', '0.000', '', '', '', '', '', '30000.00', '0.00', '0.00', '0.00', '0.00', '30000.00', '0.00', '', 3, 'first_author', 'no', NULL, NULL),
-(11, 11, 'ฟหกฟหก', 'asd', '2025-08-01', 'journal', 'Q4', '0.000', '', '', '', '', '', '10000.00', '0.00', '0.00', '0.00', '0.00', '10000.00', '0.00', '', 3, 'first_author', 'no', NULL, NULL),
-(12, 12, 'ฟหกฟหก', 'asd', '2025-08-01', 'journal', 'Q4', '0.000', '', '', '', '', '', '10000.00', '0.00', '0.00', '0.00', '0.00', '10000.00', '0.00', '', 3, 'first_author', 'no', NULL, NULL),
-(13, 13, 'ฟหกฟหก', 'asd', '2025-08-01', 'journal', 'T5', '0.000', '', '', '', '', '', '50000.00', '0.00', '0.00', '0.00', '0.00', '50000.00', '0.00', '', 3, 'corresponding_author', 'no', NULL, NULL),
-(14, 14, 'polow', 'ฟฟฟ', '2025-08-01', 'journal', 'T10', '0.000', '', '', '', '', '', '45000.00', '0.00', '0.00', '0.00', '0.00', '45000.00', '0.00', '', 3, 'first_author', 'no', NULL, NULL),
-(15, 15, 'ฟหกฟหก', 'asd', '2025-08-01', 'journal', 'Q1', '0.000', '', '', '', '', '', '40000.00', '0.00', '0.00', '0.00', '0.00', '40000.00', '0.00', '', 3, 'first_author', 'no', NULL, NULL),
-(16, 16, 'polow', 'asd', '2025-08-01', 'journal', 'T10', '0.000', '', '', '', '', '', '45000.00', '0.00', '0.00', '0.00', '0.00', '45000.00', '0.00', '', 3, 'corresponding_author', 'no', NULL, NULL),
-(17, 17, 'ฟหกฟหก', 'mom', '2025-08-01', 'journal', 'Q4', '0.000', '', '', '', '', '', '10000.00', '0.00', '0.00', '0.00', '0.00', '10000.00', '0.00', '', 3, 'first_author', 'no', NULL, NULL),
-(18, 18, 'polow', 'ฟฟฟ', '2025-08-01', 'journal', 'Q2', '0.000', '', '', '', '', '', '30000.00', '0.00', '0.00', '0.00', '0.00', '30000.00', '0.00', '', 3, 'corresponding_author', 'no', NULL, NULL),
-(19, 19, 'ฟหกฟหก', 'ฟหกฟหกฟหก', '2025-08-01', 'journal', 'Q1', '0.000', '', '', '', '', '', '40000.00', '0.00', '0.00', '0.00', '0.00', '40000.00', '0.00', '', 3, 'first_author', 'no', NULL, NULL),
-(20, 20, 'ฟหกฟหก', 'ฟหกฟหกฟหก', '2025-08-01', 'journal', 'Q2', '0.000', '', '', '', '', '', '30000.00', '0.00', '0.00', '0.00', '0.00', '30000.00', '0.00', '', 3, 'first_author', 'no', NULL, NULL),
-(21, 21, 'ฟหกฟหก', 'asdasd', '2025-03-01', 'journal', 'T10', '0.000', '123', '123', '123', '123', '', '45000.00', '0.00', '123.00', '123.00', '500.00', '44746.00', '0.00', '', 3, 'first_author', 'no', NULL, NULL),
-(22, 22, 'polow', 'asdasd', '2025-02-01', 'journal', 'Q3', '0.000', '', '', '', '', '', '20000.00', '0.00', '5000.00', '27000.00', '5000.00', '47000.00', '0.00', '', 1, 'first_author', 'no', NULL, NULL),
-(23, 23, 'ฟหกฟหก', 'asdasd', '2025-01-01', 'journal', 'Q2', '0.000', '123', '123', '123', '123', '', '30000.00', '0.00', '0.00', '0.00', '0.00', '30000.00', '0.00', '', 3, 'first_author', 'no', NULL, NULL),
-(24, 24, 'ฟหกฟหก', 'asdasd', '2025-03-01', 'journal', 'T5', '0.000', '', '', '', '123', '', '50000.00', '0.00', '1000.00', '5000.00', '300.00', '55700.00', '0.00', '', 2, 'first_author', 'no', NULL, NULL);
+INSERT INTO `publication_reward_details` (`detail_id`, `submission_id`, `paper_title`, `journal_name`, `publication_date`, `publication_type`, `quartile`, `impact_factor`, `doi`, `url`, `page_numbers`, `volume_issue`, `indexing`, `reward_amount`, `reward_approve_amount`, `revision_fee`, `publication_fee`, `external_funding_amount`, `total_amount`, `total_approve_amount`, `announce_reference_number`, `author_count`, `author_type`, `has_university_funding`, `funding_references`, `university_rankings`, `approved_amount`, `approval_comment`, `approved_by`, `approved_at`, `rejection_reason`, `rejected_by`, `rejected_at`, `revision_request`, `revision_requested_by`, `revision_requested_at`, `create_at`, `update_at`, `delete_at`) VALUES
+(1, 1, 'asd', 'asdasd', '2025-07-31', 'journal', 'Q3', '0.000', '', '', '', '', '', '20000.00', '0.00', '123.00', '321.00', '2.00', '20442.00', '0.00', '', 3, 'corresponding_author', 'no', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-08-12 10:46:01', '2025-08-13 12:56:03', '0000-00-00 00:00:00'),
+(2, 2, 'asdasd', 'asd', '2025-07-31', 'journal', 'Q2', '0.000', '', '', '', '', '', '30000.00', '0.00', '0.00', '0.00', '0.00', '30000.00', '0.00', '', 3, 'corresponding_author', 'no', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-08-12 10:46:01', '2025-08-12 10:46:01', '0000-00-00 00:00:00'),
+(3, 3, 'asd', 'asd', '2025-07-31', 'journal', 'Q1', '0.000', '', '', '', '', '', '40000.00', '0.00', '0.00', '0.00', '0.00', '40000.00', '0.00', '', 3, 'first_author', 'no', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-08-12 10:46:01', '2025-08-12 10:46:01', '0000-00-00 00:00:00'),
+(4, 4, 'asdasd', 'asd', '2025-07-31', 'journal', 'Q4', '0.000', '', '', '', '', '', '10000.00', '0.00', '0.00', '0.00', '0.00', '10000.00', '0.00', '', 3, 'corresponding_author', 'no', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-08-12 10:46:01', '2025-08-12 10:46:01', '0000-00-00 00:00:00'),
+(5, 5, 'polow', 'asd', '2025-07-31', 'journal', 'Q3', '0.000', '', '', '', '', '', '20000.00', '0.00', '0.00', '0.00', '0.00', '20000.00', '0.00', '', 3, 'first_author', 'no', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-08-12 10:46:01', '2025-08-12 10:46:01', '0000-00-00 00:00:00'),
+(6, 6, 'ฟหกฟหก', 'ฟฟฟ', '2025-08-01', 'journal', 'T5', '0.000', '', '', '', '', '', '50000.00', '0.00', '0.00', '0.00', '0.00', '50000.00', '0.00', '', 3, 'first_author', 'no', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-08-12 10:46:01', '2025-08-12 10:46:01', '0000-00-00 00:00:00'),
+(7, 7, 'asdasd', 'asd', '2025-08-01', 'journal', 'Q3', '0.000', '', '', '', '', '', '20000.00', '0.00', '0.00', '0.00', '0.00', '20000.00', '0.00', '', 3, 'first_author', 'no', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-08-12 10:46:01', '2025-08-12 10:46:01', '0000-00-00 00:00:00'),
+(8, 8, 'asdasd', 'asd', '2025-08-01', 'journal', 'Q1', '0.000', '', '', '', '', '', '40000.00', '0.00', '0.00', '0.00', '0.00', '40000.00', '0.00', '', 3, 'corresponding_author', 'no', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-08-12 10:46:01', '2025-08-12 10:46:01', '0000-00-00 00:00:00'),
+(9, 9, 'ฟหกฟหก', 'asd', '2025-08-01', 'journal', 'Q2', '0.000', '', '', '', '', '', '30000.00', '0.00', '0.00', '0.00', '0.00', '30000.00', '0.00', '', 3, 'first_author', 'no', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-08-12 10:46:01', '2025-08-12 10:46:01', '0000-00-00 00:00:00'),
+(10, 10, 'ฟหกฟหก', 'mom', '2025-08-01', 'journal', 'Q2', '0.000', '', '', '', '', '', '30000.00', '0.00', '0.00', '0.00', '0.00', '30000.00', '0.00', '', 3, 'first_author', 'no', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-08-12 10:46:01', '2025-08-12 10:46:01', '0000-00-00 00:00:00'),
+(11, 11, 'ฟหกฟหก', 'asd', '2025-08-01', 'journal', 'Q4', '0.000', '', '', '', '', '', '10000.00', '0.00', '0.00', '0.00', '0.00', '10000.00', '0.00', '', 3, 'first_author', 'no', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-08-12 10:46:01', '2025-08-12 10:46:01', '0000-00-00 00:00:00'),
+(12, 12, 'ฟหกฟหก', 'asd', '2025-08-01', 'journal', 'Q4', '0.000', '', '', '', '', '', '10000.00', '0.00', '0.00', '0.00', '0.00', '10000.00', '0.00', '', 3, 'first_author', 'no', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-08-12 10:46:01', '2025-08-12 10:46:01', '0000-00-00 00:00:00'),
+(13, 13, 'ฟหกฟหก', 'asd', '2025-08-01', 'journal', 'T5', '0.000', '', '', '', '', '', '50000.00', '0.00', '0.00', '0.00', '0.00', '50000.00', '0.00', '', 3, 'corresponding_author', 'no', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-08-12 10:46:01', '2025-08-12 10:46:01', '0000-00-00 00:00:00'),
+(14, 14, 'polow', 'ฟฟฟ', '2025-08-01', 'journal', 'T10', '0.000', '', '', '', '', '', '45000.00', '0.00', '0.00', '0.00', '0.00', '45000.00', '0.00', '', 3, 'first_author', 'no', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-08-12 10:46:01', '2025-08-12 10:46:01', '0000-00-00 00:00:00'),
+(15, 15, 'ฟหกฟหก', 'asd', '2025-08-01', 'journal', 'Q1', '0.000', '', '', '', '', '', '40000.00', '0.00', '0.00', '0.00', '0.00', '40000.00', '0.00', '', 3, 'first_author', 'no', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-08-12 10:46:01', '2025-08-12 10:46:01', '0000-00-00 00:00:00'),
+(16, 16, 'polow', 'asd', '2025-08-01', 'journal', 'T10', '0.000', '', '', '', '', '', '45000.00', '0.00', '0.00', '0.00', '0.00', '45000.00', '0.00', '', 3, 'corresponding_author', 'no', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-08-12 10:46:01', '2025-08-12 10:46:01', '0000-00-00 00:00:00'),
+(17, 17, 'ฟหกฟหก', 'mom', '2025-08-01', 'journal', 'Q4', '0.000', '', '', '', '', '', '10000.00', '0.00', '0.00', '0.00', '0.00', '10000.00', '0.00', '', 3, 'first_author', 'no', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-08-12 10:46:01', '2025-08-12 10:46:01', '0000-00-00 00:00:00'),
+(18, 18, 'polow', 'ฟฟฟ', '2025-08-01', 'journal', 'Q2', '0.000', '', '', '', '', '', '30000.00', '0.00', '0.00', '0.00', '0.00', '30000.00', '0.00', '', 3, 'corresponding_author', 'no', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-08-12 10:46:01', '2025-08-12 10:46:01', '0000-00-00 00:00:00'),
+(19, 19, 'ฟหกฟหก', 'ฟหกฟหกฟหก', '2025-08-01', 'journal', 'Q1', '0.000', '', '', '', '', '', '40000.00', '0.00', '0.00', '0.00', '0.00', '40000.00', '0.00', '', 3, 'first_author', 'no', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-08-12 10:46:01', '2025-08-12 10:46:01', '0000-00-00 00:00:00'),
+(20, 20, 'ฟหกฟหก', 'ฟหกฟหกฟหก', '2025-08-01', 'journal', 'Q2', '0.000', '', '', '', '', '', '30000.00', '0.00', '0.00', '0.00', '0.00', '30000.00', '0.00', '', 3, 'first_author', 'no', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-08-12 10:46:01', '2025-08-12 10:46:01', '0000-00-00 00:00:00'),
+(21, 21, 'ฟหกฟหก', 'asdasd', '2025-03-01', 'journal', 'T10', '0.000', '123', '123', '123', '123', '', '45000.00', '0.00', '123.00', '123.00', '500.00', '44746.00', '0.00', '', 3, 'first_author', 'no', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-08-12 10:46:01', '2025-08-12 10:46:01', '0000-00-00 00:00:00'),
+(22, 22, 'polow', 'asdasd', '2025-02-01', 'journal', 'Q3', '0.000', '', '', '', '', '', '20000.00', '0.00', '5000.00', '27000.00', '5000.00', '47000.00', '0.00', '', 1, 'first_author', 'no', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-08-12 10:46:01', '2025-08-12 10:46:01', '0000-00-00 00:00:00'),
+(23, 23, 'ฟหกฟหก', 'asdasd', '2025-01-01', 'journal', 'Q2', '0.000', '123', '123', '123', '123', '', '30000.00', '0.00', '0.00', '0.00', '0.00', '30000.00', '0.00', '', 3, 'first_author', 'no', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-08-12 10:46:01', '2025-08-12 10:46:01', '0000-00-00 00:00:00'),
+(24, 24, 'ฟหกฟหก', 'asdasd', '2025-03-01', 'journal', 'T5', '0.000', '', '', '', '123', '', '50000.00', '0.00', '1000.00', '5000.00', '300.00', '55700.00', '0.00', '', 2, 'first_author', 'no', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-08-12 10:46:01', '2025-08-12 10:46:01', '0000-00-00 00:00:00'),
+(25, 25, 'Article Title', 'Journal Name', '2025-01-01', 'journal', 'T5', '0.000', '10.1016/j', 'https://example.ac.th', '123-145', 'Vol.10', 'TCI', '50000.00', '0.00', '4600.00', '7800.00', '500.00', '61900.00', '0.00', '', 3, 'first_author', 'no', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-08-12 10:46:01', '2025-08-16 11:30:24', '0000-00-00 00:00:00'),
+(26, 26, 'Article Title', 'Journal Name', '2025-03-01', 'journal', 'Q2', '0.000', '10.1016/j', 'https://example.ac.th', '123', '123', 'ISI, Web of Science, TCI', '30000.00', '0.00', '0.00', '0.00', '0.00', '30000.00', '0.00', '', 2, 'first_author', 'no', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-08-12 10:46:01', '2025-08-12 10:46:01', '0000-00-00 00:00:00'),
+(27, 29, 'Article Title', 'Journal Name', '2025-04-01', 'journal', 'Q1', '0.000', '10.1016/j', 'https://example.ac.th', '123-145', 'Vol.10', 'ISI, Web of Science', '40000.00', '0.00', '123.00', '321.00', '123.00', '40321.00', '0.00', '', 2, 'first_author', 'no', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-08-12 10:46:01', '2025-08-12 10:46:01', '0000-00-00 00:00:00'),
+(28, 30, 'Article Title', 'Journal Name', '2025-05-01', 'journal', 'Q1', '0.000', '10.1016/j', 'https://example.ac.th', '123-145', 'Vol.10', 'Scopus, Web of Science', '40000.00', '0.00', '0.00', '0.00', '0.00', '40000.00', '0.00', '', 2, 'first_author', 'no', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-08-12 10:46:01', '2025-08-12 10:46:01', '0000-00-00 00:00:00'),
+(29, 31, 'Article Title', 'Journal Name', '2025-05-01', 'journal', 'Q1', '0.000', '10.1016/j', 'https://example.ac.th', '123-145', 'Vol.10', 'Scopus, Web of Science', '40000.00', '0.00', '0.00', '0.00', '0.00', '40000.00', '0.00', '', 2, 'first_author', 'no', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-08-12 10:46:01', '2025-08-12 10:46:01', '0000-00-00 00:00:00'),
+(30, 32, 'Article Title', 'Journal Name', '2025-03-01', 'journal', 'Q2', '0.000', '10.1016/j', 'https://example.ac.th', '123-145', 'Vol.10', 'ISI, Web of Science', '30000.00', '0.00', '0.00', '0.00', '0.00', '30000.00', '0.00', '', 2, 'first_author', 'no', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-08-12 10:46:01', '2025-08-12 10:46:01', '0000-00-00 00:00:00'),
+(31, 33, 'Article Title', 'Journal Name', '2025-06-01', 'journal', 'Q4', '0.000', '10.1016/j', 'https://example.ac.th', '123-145', 'Vol.10', 'ISI, Web of Science', '10000.00', '0.00', '0.00', '0.00', '0.00', '10000.00', '0.00', '', 1, 'first_author', 'no', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-08-12 10:46:01', '2025-08-12 10:46:01', '0000-00-00 00:00:00'),
+(32, 34, 'Article Title', 'Journal Name', '2025-07-01', 'journal', 'Q2', '0.000', '10.1016/j', 'https://example.ac.th', '123-145', 'Vol.10', 'ISI, TCI', '30000.00', '0.00', '0.00', '0.00', '0.00', '30000.00', '0.00', '', 2, 'first_author', 'no', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-08-12 10:46:01', '2025-08-12 10:46:01', '0000-00-00 00:00:00'),
+(33, 35, 'Article Title', 'Journal Name', '2025-05-01', 'journal', 'Q2', '0.000', '10.1016/j', 'https://example.ac.th', '123-145', 'Vol.10', 'Scopus, TCI', '30000.00', '0.00', '0.00', '0.00', '0.00', '30000.00', '0.00', '', 2, 'first_author', 'no', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-08-12 10:46:01', '2025-08-12 10:46:01', '0000-00-00 00:00:00'),
+(34, 36, 'Article Title', 'Journal Name', '2025-03-01', 'journal', 'T10', '0.000', '10.1016/j', 'https://example.ac.th', '123-145', 'Vol.10', 'Scopus, Web of Science', '45000.00', '0.00', '1500.00', '20000.00', '900.00', '65600.00', '0.00', '', 2, 'first_author', 'yes', 'PR-20250731-0001', 'QS World University Rankings #543', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-08-12 10:46:01', '2025-08-12 10:46:01', '0000-00-00 00:00:00'),
+(35, 37, 'Article Title', 'Journal Name', '2025-05-01', 'journal', 'Q3', '0.000', '10.1016/j', '', '123-145', 'Vol.10', 'ISI, TCI', '20000.00', '0.00', '0.00', '0.00', '0.00', '20000.00', '0.00', '', 1, 'corresponding_author', 'no', '', 'QS World University Rankings #543', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-08-12 10:46:01', '2025-08-12 10:46:01', '0000-00-00 00:00:00');
 
 -- --------------------------------------------------------
 
@@ -545,7 +653,7 @@ CREATE TABLE `publication_reward_rates` (
 --
 
 INSERT INTO `publication_reward_rates` (`rate_id`, `year`, `author_status`, `journal_quartile`, `reward_amount`, `is_active`, `create_at`, `update_at`) VALUES
-(1, '2568', 'first_author', 'Q1', '40000.00', 1, '2025-07-02 09:35:58', '2025-08-04 15:33:26'),
+(1, '2568', 'first_author', 'Q1', '40000.00', 1, '2025-07-02 09:35:58', '2025-08-08 16:07:17'),
 (2, '2568', 'first_author', 'Q2', '30000.00', 1, '2025-07-02 09:35:58', '2025-08-04 15:33:28'),
 (3, '2568', 'first_author', 'Q3', '20000.00', 1, '2025-07-02 09:35:58', '2025-08-04 15:33:29'),
 (4, '2568', 'first_author', 'Q4', '10000.00', 1, '2025-07-02 09:35:58', '2025-08-04 15:33:30'),
@@ -558,7 +666,21 @@ INSERT INTO `publication_reward_rates` (`rate_id`, `year`, `author_status`, `jou
 (11, '2568', 'first_author', 'TCI', '5000.00', 1, '2025-08-04 12:18:24', '2025-08-04 15:33:35'),
 (12, '2568', 'corresponding_author', 'T5', '50000.00', 1, '2025-08-04 12:19:45', '2025-08-04 15:33:36'),
 (13, '2568', 'corresponding_author', 'T10', '45000.00', 1, '2025-08-04 12:19:54', '2025-08-04 15:33:37'),
-(14, '2568', 'corresponding_author', 'TCI', '5000.00', 1, '2025-08-04 12:20:04', '2025-08-04 15:33:38');
+(14, '2568', 'corresponding_author', 'TCI', '5000.00', 1, '2025-08-04 12:20:04', '2025-08-04 15:33:38'),
+(15, '2569', 'first_author', 'Q1', '40000.00', 1, '2025-08-08 02:50:39', '2025-08-08 02:50:39'),
+(16, '2569', 'corresponding_author', 'Q2', '30000.00', 1, '2025-08-08 02:50:40', '2025-08-08 02:50:40'),
+(17, '2569', 'first_author', 'Q3', '20000.00', 1, '2025-08-08 02:50:40', '2025-08-08 02:50:40'),
+(18, '2569', 'first_author', 'Q4', '10000.00', 1, '2025-08-08 02:50:40', '2025-08-08 02:50:40'),
+(19, '2569', 'corresponding_author', 'Q3', '20000.00', 1, '2025-08-08 02:50:40', '2025-08-08 02:50:40'),
+(20, '2569', 'first_author', 'Q2', '30000.00', 1, '2025-08-08 02:50:40', '2025-08-08 02:50:40'),
+(21, '2569', 'corresponding_author', 'Q1', '40000.00', 1, '2025-08-08 02:50:40', '2025-08-08 02:50:40'),
+(22, '2569', 'corresponding_author', 'Q4', '10000.00', 1, '2025-08-08 02:50:40', '2025-08-08 02:50:40'),
+(23, '2569', 'first_author', 'T5', '50000.00', 1, '2025-08-08 02:50:40', '2025-08-08 17:14:51'),
+(24, '2569', 'first_author', 'T10', '45000.00', 1, '2025-08-08 02:50:40', '2025-08-08 02:50:40'),
+(25, '2569', 'corresponding_author', 'T5', '50000.00', 1, '2025-08-08 02:50:40', '2025-08-08 21:02:41'),
+(26, '2569', 'corresponding_author', 'T10', '45000.00', 1, '2025-08-08 02:50:40', '2025-08-08 02:50:40'),
+(27, '2569', 'first_author', 'TCI', '5000.00', 1, '2025-08-08 02:50:40', '2025-08-08 02:50:40'),
+(28, '2569', 'corresponding_author', 'TCI', '5000.00', 1, '2025-08-08 02:50:40', '2025-08-08 02:50:40');
 
 -- --------------------------------------------------------
 
@@ -583,10 +705,10 @@ CREATE TABLE `reward_config` (
 --
 
 INSERT INTO `reward_config` (`config_id`, `year`, `journal_quartile`, `max_amount`, `condition_description`, `is_active`, `create_at`, `update_at`, `delete_at`) VALUES
-(1, '2568', 'T5', '50000.00', 'วงเงินสูงสุดสำหรับ T5 วารสาร', 1, '2025-08-04 15:33:53', '2025-08-04 15:35:52', NULL),
+(1, '2568', 'T5', '50000.00', 'วงเงินสูงสุดสำหรับ T5 วารสาร', 1, '2025-08-04 15:33:53', '2025-08-08 12:16:38', NULL),
 (2, '2568', 'T10', '40000.00', 'วงเงินสูงสุดสำหรับ T10 วารสาร', 1, '2025-08-04 15:33:53', '2025-08-04 15:35:55', NULL),
 (3, '2568', 'Q1', '30000.00', 'วงเงินสูงสุดสำหรับ Q1 วารสาร', 1, '2025-08-04 15:33:53', '2025-08-04 15:37:32', NULL),
-(4, '2568', 'Q2', '20000.00', 'วงเงินสูงสุดสำหรับ Q2 วารสาร', 0, '2025-08-04 15:33:53', '2025-08-04 15:37:42', NULL),
+(4, '2568', 'Q2', '20000.00', 'วงเงินสูงสุดสำหรับ Q2 วารสาร', 0, '2025-08-04 15:33:53', '2025-08-08 15:55:07', NULL),
 (5, '2568', 'Q3', '15000.00', 'วงเงินสูงสุดสำหรับ Q3 วารสาร', 0, '2025-08-04 15:33:53', '2025-08-04 15:37:44', NULL),
 (6, '2568', 'Q4', '10000.00', 'วงเงินสูงสุดสำหรับ Q4 วารสาร', 0, '2025-08-04 15:33:53', '2025-08-04 15:37:46', NULL),
 (7, '2568', 'TCI', '5000.00', 'วงเงินสูงสุดสำหรับ TCI วารสาร', 0, '2025-08-04 15:33:53', '2025-08-04 15:37:49', NULL);
@@ -658,16 +780,21 @@ INSERT INTO `subcategory_budgets` (`subcategory_budget_id`, `subcategory_id`, `a
 (13, 11, '500000.00', '500000.00', '0.00', '100000.00', NULL, NULL, 'ต้น', 'active', 'ต้น', NULL, '2025-06-30 11:46:07', '2025-07-20 20:25:26', NULL),
 (14, 11, '500000.00', '500000.00', '0.00', '200000.00', NULL, NULL, 'กลาง', 'active', 'กลาง', NULL, '2025-06-30 11:46:07', '2025-07-20 20:25:30', NULL),
 (15, 11, '500000.00', '500000.00', '0.00', '250000.00', NULL, NULL, 'สูง', 'active', 'สูง', NULL, '2025-06-30 11:46:07', '2025-07-20 20:25:33', NULL),
-(16, 12, '200000.00', '200000.00', '0.00', '100000.00', 2, 2, NULL, 'active', NULL, 'ไม่เกิน 10% ของเงินทุนที่ได้รับจากภายนอก แต่ไม่เกิน 100,000 บาท', '2025-06-30 11:48:03', '2025-07-23 12:34:42', NULL),
-(17, 13, '400000.00', '400000.00', '0.00', '150000.00', NULL, NULL, NULL, 'active', 'ประเทศต่างๆ ยกเว้นประเทศกลุ่มอาเซียน', 'กรณีเดินทางไปทําวิจัยในสถาบันการศึกษาที่อยู่ในอันดับ 1-300 ของโลกหรือสถาบันวิจัยที่มีชื่อเสียง', '2025-06-30 11:48:03', '2025-07-20 17:59:09', NULL),
-(18, 13, '400000.00', '400000.00', '0.00', '100000.00', NULL, NULL, NULL, 'active', 'ประเทศกลุ่มอาเซียน', 'กรณีเดินทางไปทําวิจัยในสถาบันการศึกษาที่อยู่ในอันดับ 1-300 ของโลกหรือสถาบันวิจัยที่มีชื่อเสียง', '2025-06-30 11:48:03', '2025-07-20 17:59:37', NULL),
-(19, 14, '3500000.00', '3500000.00', '0.00', '150000.00', NULL, NULL, NULL, 'active', 'วารสารระดับนานาชาติในฐานข้อมูล WOS หรือ ISI หรือ SCOPUS (ลําดับ 5% แรก)', NULL, '2025-06-30 11:48:03', '2025-08-02 10:32:46', NULL),
-(20, 14, '3500000.00', '3500000.00', '0.00', '125000.00', NULL, NULL, NULL, 'active', 'วารสารระดับนานาชาติในฐานข้อมูล WOS หรือ ISI หรือ SCOPUS (ลําดับ 10% แรก)', NULL, '2025-06-30 11:48:03', '2025-08-02 10:32:46', NULL),
-(21, 14, '3500000.00', '3500000.00', '0.00', '100000.00', NULL, NULL, NULL, 'active', 'วารสารระดับนานาชาติในฐานข้อมูล WOS หรือ ISI หรือ SCOPUS ควอร์ไทล์ 1', NULL, '2025-06-30 11:48:03', '2025-08-02 10:32:46', NULL),
-(22, 14, '3500000.00', '3500000.00', '0.00', '75000.00', NULL, NULL, NULL, 'active', 'วารสารระดับนานาชาติในฐานข้อมูล WOS หรือ ISI หรือ SCOPUS ควอร์ไทล์ 2', NULL, '2025-06-30 11:48:03', '2025-08-02 10:32:46', NULL),
-(23, 15, '3500000.00', '3500000.00', '0.00', '80000.00', NULL, NULL, NULL, 'active', 'วารสารระดับนานาชาติในฐานข้อมูล WOS หรือ ISI หรือ SCOPUS (ลําดับ 5% แรก)', NULL, '2025-06-30 11:48:03', '2025-08-02 12:28:55', NULL),
-(24, 15, '3500000.00', '3500000.00', '0.00', '60000.00', NULL, NULL, NULL, 'active', 'วารสารระดับนานาชาติในฐานข้อมูล WOS หรือ ISI หรือ SCOPUS (ลําดับ 10% แรก)', NULL, '2025-06-30 11:48:03', '2025-08-02 12:28:55', NULL),
-(25, 15, '3500000.00', '3500000.00', '0.00', '50000.00', NULL, NULL, NULL, 'active', 'วารสารระดับนานาชาติในฐานข้อมูล WOS หรือ ISI หรือ SCOPUS ควอร์ไทล์ 1', NULL, '2025-06-30 11:48:03', '2025-08-02 12:28:55', NULL);
+(16, 12, '200000.00', '200000.00', '0.00', '100000.00', 2, 2, NULL, 'active', NULL, 'ไม่เกิน 10% ของเงินทุนที่ได้รับจากภายนอก แต่ไม่เกิน 100,000 บาท', '2025-06-30 11:48:03', '2025-08-08 22:57:24', NULL),
+(17, 13, '400000.00', '400000.00', '0.00', '150000.00', NULL, NULL, NULL, 'active', 'ประเทศต่างๆ ยกเว้นประเทศกลุ่มอาเซียน', 'กรณีเดินทางไปทําวิจัยในสถาบันการศึกษาที่อยู่ในอันดับ 1-300 ของโลกหรือสถาบันวิจัยที่มีชื่อเสียง', '2025-06-30 11:48:03', '2025-08-11 11:50:06', NULL),
+(18, 13, '400000.00', '400000.00', '0.00', '100000.00', NULL, NULL, NULL, 'active', 'ประเทศกลุ่มอาเซียน', 'กรณีเดินทางไปทําวิจัยในสถาบันการศึกษาที่อยู่ในอันดับ 1-300 ของโลกหรือสถาบันวิจัยที่มีชื่อเสียง', '2025-06-30 11:48:03', '2025-08-11 11:50:06', NULL),
+(19, 14, '3500000.00', '3500000.00', '0.00', '150000.00', NULL, NULL, NULL, 'active', 'วารสารระดับนานาชาติในฐานข้อมูล WOS หรือ ISI หรือ SCOPUS (ลําดับ 5% แรก)', NULL, '2025-06-30 11:48:03', '2025-08-08 22:57:15', NULL),
+(20, 14, '3500000.00', '3500000.00', '0.00', '125000.00', NULL, NULL, NULL, 'active', 'วารสารระดับนานาชาติในฐานข้อมูล WOS หรือ ISI หรือ SCOPUS (ลําดับ 10% แรก)', NULL, '2025-06-30 11:48:03', '2025-08-08 22:57:15', NULL),
+(21, 14, '3500000.00', '3500000.00', '0.00', '100000.00', NULL, NULL, NULL, 'active', 'วารสารระดับนานาชาติในฐานข้อมูล WOS หรือ ISI หรือ SCOPUS ควอร์ไทล์ 1', NULL, '2025-06-30 11:48:03', '2025-08-08 22:57:15', NULL),
+(22, 14, '3500000.00', '3500000.00', '0.00', '75000.00', NULL, NULL, NULL, 'active', 'วารสารระดับนานาชาติในฐานข้อมูล WOS หรือ ISI หรือ SCOPUS ควอร์ไทล์ 2', NULL, '2025-06-30 11:48:03', '2025-08-08 22:57:15', NULL),
+(23, 15, '3500000.00', '3500000.00', '0.00', '80000.00', NULL, NULL, NULL, 'active', 'วารสารระดับนานาชาติในฐานข้อมูล WOS หรือ ISI หรือ SCOPUS (ลําดับ 5% แรก)', NULL, '2025-06-30 11:48:03', '2025-08-11 11:49:58', NULL),
+(24, 15, '3500000.00', '3500000.00', '0.00', '60000.00', NULL, NULL, NULL, 'active', 'วารสารระดับนานาชาติในฐานข้อมูล WOS หรือ ISI หรือ SCOPUS (ลําดับ 10% แรก)', NULL, '2025-06-30 11:48:03', '2025-08-11 11:49:58', NULL),
+(25, 15, '3500000.00', '3500000.00', '0.00', '50000.00', NULL, NULL, NULL, 'active', 'วารสารระดับนานาชาติในฐานข้อมูล WOS หรือ ISI หรือ SCOPUS ควอร์ไทล์ 1', NULL, '2025-06-30 11:48:03', '2025-08-11 11:49:58', NULL),
+(26, 16, '321.00', '321.00', '0.00', '312.00', NULL, NULL, NULL, 'active', NULL, NULL, '2025-08-08 23:09:28', '2025-08-08 23:09:43', '2025-08-08 23:09:43'),
+(27, 16, '123.00', '123.00', '0.00', '123333.00', NULL, NULL, NULL, 'active', NULL, NULL, '2025-08-11 11:51:19', '2025-08-11 12:52:07', '2025-08-11 12:52:07'),
+(28, 17, '1123123.00', '1123123.00', '0.00', '11233.00', NULL, NULL, NULL, 'active', 'งำ', NULL, '2025-08-11 12:52:40', '2025-08-11 13:19:39', '2025-08-11 13:19:39'),
+(29, 17, '0.00', '0.00', '0.00', '123.00', NULL, NULL, NULL, 'active', 'aaa', NULL, '2025-08-11 13:19:51', '2025-08-11 13:55:52', '2025-08-11 13:55:52'),
+(30, 17, '0.00', '0.00', '0.00', '123.00', NULL, NULL, NULL, 'active', NULL, NULL, '2025-08-11 13:55:58', '2025-08-11 13:56:01', '2025-08-11 13:56:01');
 
 -- --------------------------------------------------------
 
@@ -677,7 +804,7 @@ INSERT INTO `subcategory_budgets` (`subcategory_budget_id`, `subcategory_id`, `a
 
 CREATE TABLE `submissions` (
   `submission_id` int(11) NOT NULL,
-  `submission_type` enum('fund_application','publication_reward','conference_grant','training_request') NOT NULL,
+  `submission_type` enum('fund_application','publication_reward') NOT NULL,
   `submission_number` varchar(255) DEFAULT NULL,
   `user_id` int(11) NOT NULL,
   `year_id` int(11) NOT NULL,
@@ -697,9 +824,9 @@ CREATE TABLE `submissions` (
 --
 
 INSERT INTO `submissions` (`submission_id`, `submission_type`, `submission_number`, `user_id`, `year_id`, `status_id`, `submitted_at`, `reviewed_at`, `approved_at`, `approved_by`, `completed_at`, `created_at`, `updated_at`, `deleted_at`) VALUES
-(1, 'publication_reward', 'PR-20250731-0001', 8, 3, 1, '2025-07-31 12:58:57', NULL, NULL, NULL, NULL, '2025-07-31 12:58:57', '2025-07-31 12:58:57', NULL),
-(2, 'publication_reward', 'PR-20250731-0002', 8, 3, 1, '2025-07-31 13:28:34', NULL, NULL, NULL, NULL, '2025-07-31 13:28:33', '2025-07-31 13:28:34', NULL),
-(3, 'publication_reward', 'PR-20250731-0003', 8, 3, 1, '2025-07-31 13:38:11', NULL, NULL, NULL, NULL, '2025-07-31 13:38:11', '2025-07-31 13:38:11', NULL),
+(1, 'publication_reward', 'PR-20250731-0001', 8, 3, 1, '2025-07-31 12:58:57', NULL, NULL, NULL, NULL, '2025-07-31 12:58:57', '2025-08-16 11:27:36', NULL),
+(2, 'publication_reward', 'PR-20250731-0002', 8, 3, 1, '2025-07-31 13:28:34', NULL, NULL, NULL, NULL, '2025-07-31 13:28:33', '2025-08-15 12:13:44', NULL),
+(3, 'publication_reward', 'PR-20250731-0003', 8, 3, 2, '2025-07-31 13:38:11', NULL, NULL, NULL, NULL, '2025-07-31 13:38:11', '2025-08-15 12:14:11', NULL),
 (4, 'publication_reward', 'PR-20250731-0004', 8, 3, 1, '2025-07-31 13:42:38', NULL, NULL, NULL, NULL, '2025-07-31 13:42:38', '2025-07-31 13:42:38', NULL),
 (5, 'publication_reward', 'PR-20250731-0005', 8, 3, 1, '2025-07-31 13:44:25', NULL, NULL, NULL, NULL, '2025-07-31 13:44:25', '2025-07-31 13:44:25', NULL),
 (6, 'publication_reward', 'PR-20250801-0001', 8, 3, 1, '2025-08-01 10:24:29', NULL, NULL, NULL, NULL, '2025-08-01 10:24:28', '2025-08-01 10:24:29', NULL),
@@ -720,7 +847,20 @@ INSERT INTO `submissions` (`submission_id`, `submission_type`, `submission_numbe
 (21, 'publication_reward', 'PR-20250801-0016', 8, 3, 1, '2025-08-01 22:29:44', NULL, NULL, NULL, NULL, '2025-08-01 22:29:44', '2025-08-01 22:29:44', NULL),
 (22, 'publication_reward', 'PR-20250802-0001', 8, 3, 1, '2025-08-02 12:18:25', NULL, NULL, NULL, NULL, '2025-08-02 12:18:25', '2025-08-02 12:18:25', NULL),
 (23, 'publication_reward', 'PR-20250805-0001', 8, 3, 1, '2025-08-05 22:41:57', NULL, NULL, NULL, NULL, '2025-08-05 22:41:57', '2025-08-05 22:41:57', NULL),
-(24, 'publication_reward', 'PR-20250805-0002', 8, 3, 1, '2025-08-05 22:46:59', NULL, NULL, NULL, NULL, '2025-08-05 22:46:58', '2025-08-05 22:46:59', NULL);
+(24, 'publication_reward', 'PR-20250805-0002', 8, 3, 1, '2025-08-05 22:46:59', NULL, NULL, NULL, NULL, '2025-08-05 22:46:58', '2025-08-05 22:46:59', NULL),
+(25, 'publication_reward', 'PR-20250807-0001', 8, 3, 1, '2025-08-07 01:19:18', NULL, NULL, NULL, NULL, '2025-08-07 01:19:17', '2025-08-16 11:29:38', NULL),
+(26, 'publication_reward', 'PR-20250807-0002', 8, 3, 1, '2025-08-07 02:34:34', NULL, NULL, NULL, NULL, '2025-08-07 02:34:33', '2025-08-07 02:34:34', NULL),
+(27, 'publication_reward', 'PR-20250807-0003', 8, 3, 1, NULL, NULL, NULL, NULL, NULL, '2025-08-07 02:56:56', '2025-08-07 02:56:56', NULL),
+(28, 'publication_reward', 'PR-20250807-0004', 8, 3, 1, NULL, NULL, NULL, NULL, NULL, '2025-08-07 02:57:59', '2025-08-07 02:57:59', NULL),
+(29, 'publication_reward', 'PR-20250807-0005', 8, 3, 1, '2025-08-07 03:28:43', NULL, NULL, NULL, NULL, '2025-08-07 03:27:58', '2025-08-07 03:28:43', NULL),
+(30, 'publication_reward', 'PR-20250807-0006', 8, 3, 1, NULL, NULL, NULL, NULL, NULL, '2025-08-07 04:00:14', '2025-08-07 04:00:14', NULL),
+(31, 'publication_reward', 'PR-20250807-0007', 8, 3, 1, '2025-08-07 06:11:59', NULL, NULL, NULL, NULL, '2025-08-07 06:11:59', '2025-08-07 06:11:59', NULL),
+(32, 'publication_reward', 'PR-20250807-0008', 8, 3, 1, '2025-08-07 13:34:30', NULL, NULL, NULL, NULL, '2025-08-07 13:34:30', '2025-08-07 13:34:30', NULL),
+(33, 'publication_reward', 'PR-20250807-0009', 8, 3, 1, '2025-08-07 13:38:22', NULL, NULL, NULL, NULL, '2025-08-07 13:38:22', '2025-08-07 13:38:22', NULL),
+(34, 'publication_reward', 'PR-20250807-0010', 8, 3, 1, '2025-08-07 13:41:31', NULL, NULL, NULL, NULL, '2025-08-07 13:41:31', '2025-08-07 13:41:31', NULL),
+(35, 'publication_reward', 'PR-20250807-0011', 8, 3, 1, '2025-08-07 13:53:27', NULL, NULL, NULL, NULL, '2025-08-07 13:53:27', '2025-08-07 13:53:27', NULL),
+(36, 'publication_reward', 'PR-20250807-0012', 8, 3, 1, '2025-08-07 13:58:00', NULL, NULL, NULL, NULL, '2025-08-07 13:58:00', '2025-08-07 13:58:00', NULL),
+(37, 'fund_application', 'PR-20250807-0013', 8, 3, 1, '2025-08-07 14:01:47', NULL, NULL, NULL, NULL, '2025-08-07 14:01:47', '2025-08-18 11:39:40', NULL);
 
 --
 -- Triggers `submissions`
@@ -884,7 +1024,32 @@ INSERT INTO `submission_documents` (`document_id`, `submission_id`, `file_id`, `
 (43, 24, 43, 2, 'pdf-sample_1.pdf (ประเภท 2)', 1, 0, 0, NULL, NULL, '2025-08-05 22:46:59'),
 (44, 24, 44, 3, 'pdf-sample_2.pdf (ประเภท 3)', 2, 0, 0, NULL, NULL, '2025-08-05 22:46:59'),
 (45, 24, 45, 11, 'เอกสารเบิกจ่ายภายนอก - pdf-sample_0.pdf', 3, 0, 0, NULL, NULL, '2025-08-05 22:46:59'),
-(46, 24, 46, 12, 'เอกสารเบิกจ่ายภายนอก: ทุนที่ 1', 4, 0, 0, NULL, NULL, '2025-08-05 22:46:59');
+(46, 24, 46, 12, 'เอกสารเบิกจ่ายภายนอก: ทุนที่ 1', 4, 0, 0, NULL, NULL, '2025-08-05 22:46:59'),
+(47, 25, 47, 2, 'pdf-sample_1.pdf (ประเภท 2)', 1, 0, 0, NULL, NULL, '2025-08-07 01:19:18'),
+(48, 25, 48, 3, 'pdf-sample_2.pdf (ประเภท 3)', 2, 0, 0, NULL, NULL, '2025-08-07 01:19:18'),
+(49, 25, 49, 11, 'เอกสารเบิกจ่ายภายนอก - pdf-sample_0.pdf', 3, 0, 0, NULL, NULL, '2025-08-07 01:19:18'),
+(50, 25, 50, 12, 'เอกสารเบิกจ่ายภายนอก: ทุนที่ 1', 4, 0, 0, NULL, NULL, '2025-08-07 01:19:18'),
+(51, 26, 51, 2, 'pdf-sample_0.pdf (ประเภท 2)', 1, 0, 0, NULL, NULL, '2025-08-07 02:34:34'),
+(52, 26, 52, 3, 'pdf-sample_3.pdf (ประเภท 3)', 2, 0, 0, NULL, NULL, '2025-08-07 02:34:34'),
+(53, 29, 53, 2, 'pdf-sample_0.pdf (ประเภท 2)', 1, 0, 0, NULL, NULL, '2025-08-07 03:28:42'),
+(54, 29, 54, 3, 'pdf-sample_1.pdf (ประเภท 3)', 2, 0, 0, NULL, NULL, '2025-08-07 03:28:42'),
+(55, 29, 55, 1, 'เอกสารรวม (Merged PDF)', 3, 0, 0, NULL, NULL, '2025-08-07 03:28:43'),
+(56, 31, 56, 2, 'pdf-sample_0.pdf (ประเภท 2)', 1, 0, 0, NULL, NULL, '2025-08-07 06:11:59'),
+(57, 31, 57, 3, 'pdf-sample_1.pdf (ประเภท 3)', 2, 0, 0, NULL, NULL, '2025-08-07 06:11:59'),
+(58, 32, 58, 2, 'pdf-sample_0.pdf (ประเภท 2)', 1, 0, 0, NULL, NULL, '2025-08-07 13:34:30'),
+(59, 32, 59, 3, 'pdf-sample_3.pdf (ประเภท 3)', 2, 0, 0, NULL, NULL, '2025-08-07 13:34:30'),
+(60, 33, 60, 2, 'pdf-sample_2.pdf (ประเภท 2)', 1, 0, 0, NULL, NULL, '2025-08-07 13:38:22'),
+(61, 33, 61, 3, 'pdf-sample_0.pdf (ประเภท 3)', 2, 0, 0, NULL, NULL, '2025-08-07 13:38:22'),
+(62, 34, 62, 2, 'pdf-sample_1.pdf (ประเภท 2)', 1, 0, 0, NULL, NULL, '2025-08-07 13:41:31'),
+(63, 34, 63, 3, 'pdf-sample_0.pdf (ประเภท 3)', 2, 0, 0, NULL, NULL, '2025-08-07 13:41:31'),
+(64, 35, 64, 2, 'pdf-sample_0.pdf (ประเภท 2)', 1, 0, 0, NULL, NULL, '2025-08-07 13:53:27'),
+(65, 35, 65, 3, 'pdf-sample_3.pdf (ประเภท 3)', 2, 0, 0, NULL, NULL, '2025-08-07 13:53:27'),
+(66, 36, 66, 2, 'pdf-sample_3.pdf (ประเภท 2)', 1, 0, 0, NULL, NULL, '2025-08-07 13:58:00'),
+(67, 36, 67, 3, 'pdf-sample_0.pdf (ประเภท 3)', 2, 0, 0, NULL, NULL, '2025-08-07 13:58:00'),
+(68, 36, 68, 11, 'เอกสารเบิกจ่ายภายนอก - pdf-sample_1.pdf', 3, 0, 0, NULL, NULL, '2025-08-07 13:58:00'),
+(69, 36, 69, 12, 'เอกสารเบิกจ่ายภายนอก: ทุนที่ 1', 4, 0, 0, NULL, NULL, '2025-08-07 13:58:00'),
+(70, 37, 70, 2, 'pdf-sample_0.pdf (ประเภท 2)', 1, 0, 0, NULL, NULL, '2025-08-07 14:01:47'),
+(71, 37, 71, 3, 'pdf-sample_1.pdf (ประเภท 3)', 2, 0, 0, NULL, NULL, '2025-08-07 14:01:47');
 
 -- --------------------------------------------------------
 
@@ -975,7 +1140,30 @@ INSERT INTO `submission_users` (`id`, `submission_id`, `user_id`, `role`, `is_pr
 (32, 23, 1, 'coauthor', 0, 2, '2025-08-05 22:41:57'),
 (33, 23, 9, 'coauthor', 0, 3, '2025-08-05 22:41:57'),
 (34, 24, 8, 'owner', 1, 1, '2025-08-05 22:46:59'),
-(35, 24, 1, 'coauthor', 0, 2, '2025-08-05 22:46:59');
+(35, 24, 1, 'coauthor', 0, 2, '2025-08-05 22:46:59'),
+(36, 25, 8, 'owner', 1, 1, '2025-08-07 01:19:17'),
+(37, 25, 1, 'coauthor', 0, 2, '2025-08-07 01:19:18'),
+(38, 25, 9, 'coauthor', 0, 3, '2025-08-07 01:19:18'),
+(39, 26, 8, 'owner', 1, 1, '2025-08-07 02:34:34'),
+(40, 26, 1, 'coauthor', 0, 2, '2025-08-07 02:34:34'),
+(41, 27, 8, 'owner', 1, 1, '2025-08-07 02:56:56'),
+(42, 28, 8, 'owner', 1, 1, '2025-08-07 02:57:59'),
+(43, 29, 8, 'owner', 1, 1, '2025-08-07 03:27:58'),
+(44, 29, 1, 'coauthor', 0, 2, '2025-08-07 03:27:58'),
+(45, 30, 8, 'owner', 1, 1, '2025-08-07 04:00:15'),
+(46, 30, 1, 'coauthor', 0, 2, '2025-08-07 04:00:15'),
+(47, 31, 8, 'owner', 1, 1, '2025-08-07 06:11:59'),
+(48, 31, 1, 'coauthor', 0, 2, '2025-08-07 06:11:59'),
+(49, 32, 8, 'owner', 1, 1, '2025-08-07 13:34:30'),
+(50, 32, 1, 'coauthor', 0, 2, '2025-08-07 13:34:30'),
+(51, 33, 8, 'owner', 1, 1, '2025-08-07 13:38:22'),
+(52, 34, 8, 'owner', 1, 1, '2025-08-07 13:41:31'),
+(53, 34, 1, 'coauthor', 0, 2, '2025-08-07 13:41:31'),
+(54, 35, 8, 'owner', 1, 1, '2025-08-07 13:53:27'),
+(55, 35, 1, 'coauthor', 0, 2, '2025-08-07 13:53:27'),
+(56, 36, 8, 'owner', 1, 1, '2025-08-07 13:58:00'),
+(57, 36, 9, 'coauthor', 0, 2, '2025-08-07 13:58:00'),
+(58, 37, 8, 'owner', 1, 1, '2025-08-07 14:01:47');
 
 -- --------------------------------------------------------
 
@@ -1104,7 +1292,45 @@ INSERT INTO `user_sessions` (`session_id`, `user_id`, `access_token_jti`, `refre
 (20, 8, '35b471e0-3892-4446-9580-1f89fd7396ad', 'mqWtgKjFHhlQO77MikMrljHlIZbUqnRnGY5AQHKTazE=', 'Chrome Browser', 'web', '58.11.71.81', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36', '2025-08-05 12:47:41', '2025-09-04 12:01:21', 1, '2025-08-05 12:01:21', '2025-08-05 12:47:41'),
 (21, 8, '92904a9f-aa67-4327-8d09-950d8338dcce', 'fmnJrIYgYGGLftYtEwIgi-rJaFgEjn7W-JViZZvY-hE=', 'Chrome Browser', 'web', '58.11.71.81', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36', '2025-08-05 13:10:28', '2025-09-04 13:10:04', 1, '2025-08-05 13:10:04', '2025-08-05 13:10:28'),
 (22, 8, 'cf2856f9-b3cd-4961-bc7d-0c16be3780ef', 'UuvjFwMCJUuPx3GDXZlL9lasHOU8BnqCbmxSHWitA1U=', 'Chrome Browser', 'web', '58.11.71.81', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36', '2025-08-05 22:50:58', '2025-09-04 22:50:52', 1, '2025-08-05 22:50:52', '2025-08-05 22:50:58'),
-(23, 8, '9c452368-1a61-4e8e-b7d9-d68140c5dfda', 'h2_uVFJ_W2GG4726q0cNkZEjMU4BsASAKMP3Ido5G7w=', 'Chrome Browser', 'web', '58.11.71.81', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36', '2025-08-06 12:04:59', '2025-09-05 11:40:43', 1, '2025-08-06 11:40:43', '2025-08-06 12:04:59');
+(23, 8, '9c452368-1a61-4e8e-b7d9-d68140c5dfda', 'h2_uVFJ_W2GG4726q0cNkZEjMU4BsASAKMP3Ido5G7w=', 'Chrome Browser', 'web', '58.11.71.81', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36', '2025-08-06 12:04:59', '2025-09-05 11:40:43', 1, '2025-08-06 11:40:43', '2025-08-06 12:04:59'),
+(24, 7, 'ad02a5db-95aa-4696-ae7e-30a937694fe1', '8amfrnG6pKEDlzI4AOK4IJqyqy1xu4iITV2QK611fHA=', 'Chrome Browser', 'web', '58.11.85.73', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36', '2025-08-07 01:15:50', '2025-09-05 22:03:49', 0, '2025-08-06 22:03:49', '2025-08-07 01:15:50'),
+(25, 8, '3c8f1b54-11fb-4ec0-8813-25543e237d83', 'ZkKXFYm2Ph-st0HezFOH1KSTZcx6nbVfv_y48-L2hM8=', 'Chrome Browser', 'web', '58.11.85.73', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36', '2025-08-07 06:11:59', '2025-09-06 01:15:59', 1, '2025-08-07 01:15:59', '2025-08-07 06:11:59'),
+(26, 8, '9dfd4664-ec7b-4b69-ba74-6efc3f93b5bc', 'yXI19rJ0peiTAJR3pObJ30SedqpOHQO41pOZ6hrrgpY=', 'Chrome Browser', 'web', '58.11.85.73', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36', '2025-08-07 14:01:47', '2025-09-06 13:33:42', 1, '2025-08-07 13:33:42', '2025-08-07 14:01:47'),
+(27, 7, '1038c846-1075-4783-b694-827ce31baba3', 'NrQYwvk--sVk3NqWHMWDtrEqvpQHsxCsEMaHHdxY5o0=', 'Chrome Browser', 'web', '58.11.85.73', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36', '2025-08-07 20:17:42', '2025-09-06 16:49:03', 1, '2025-08-07 16:49:03', '2025-08-07 20:17:42'),
+(28, 7, 'd5405339-1bb9-4d0e-983f-75003bee696b', '_pZeHz6qf7AzqYvrNjDue7n9biAUV_Vtl-_GxLp2xRE=', 'Chrome Browser', 'web', '58.11.85.73', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36', '2025-08-08 12:18:12', '2025-09-07 02:33:09', 1, '2025-08-08 02:33:09', '2025-08-08 12:18:12'),
+(29, 7, '673eced7-2284-441e-a38f-3507562624ab', 'L_YZpdgZYWhwOSxNMP4AnpL-Rl_ENfZ0kKbZeHEtx1w=', 'Chrome Browser', 'web', '58.11.85.73', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36', '2025-08-08 14:58:51', '2025-09-07 14:21:38', 1, '2025-08-08 14:21:38', '2025-08-08 14:58:51'),
+(30, 7, 'aa0439b1-cbf5-41b1-9a1a-24f33993fef4', 'hnsuVtjVScBDfg6wWB4PCWHXPS70IaJg7HKeCni3_Sk=', 'Chrome Browser', 'web', '58.11.85.73', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36', '2025-08-08 18:10:44', '2025-09-07 15:40:31', 1, '2025-08-08 15:40:31', '2025-08-08 18:10:44'),
+(31, 7, 'd2100b6f-b3df-4850-84fa-71ee185e3db3', 'b6A0SuteEP1MdHwP9b5HxM8CVxxJFZ7J5Gg5jjrjR0k=', '', 'api_client', '110.168.238.46', 'PostmanRuntime/7.45.0', '2025-08-08 16:07:17', '2025-09-07 16:06:12', 1, '2025-08-08 16:06:12', '2025-08-08 16:07:17'),
+(32, 7, '32d78ca4-4e73-476b-b916-989094b55c3c', 'psKmPkYcoYCCXd-fK7N8YfU5aWCQX7WbHg6j4lnNjWQ=', 'Chrome Browser', 'web', '58.11.85.73', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36', '2025-08-08 21:37:45', '2025-09-07 19:36:30', 1, '2025-08-08 19:36:30', '2025-08-08 21:37:45'),
+(33, 7, '6d056236-3ae0-4d46-ac2a-33249292b20b', '26HwD33jydwP4ur37hPNWxwumGRhEcJR32h2eEk9Zs8=', 'Chrome Browser', 'web', '58.11.85.73', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36', '2025-08-08 23:15:04', '2025-09-07 21:51:58', 1, '2025-08-08 21:51:58', '2025-08-08 23:15:04'),
+(34, 7, 'f877555a-0393-4ef8-b812-a8d4cbbcbd2e', 'gm21KeuRY_yYCchc6g2lqhLRUjGPRDi0gRuctmr0UpI=', 'Chrome Browser', 'web', '58.10.128.241', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36', '2025-08-10 13:13:24', '2025-09-09 12:34:52', 1, '2025-08-10 12:34:52', '2025-08-10 13:13:24'),
+(35, 7, 'fbb38821-d672-4a58-8281-6a7b54daf88f', 'zeOfHeY0_oCp1iHku1MP3ovzT1AdXMm6TQ3nCQ0zjCQ=', 'Chrome Browser', 'web', '58.10.128.241', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36', '2025-08-10 16:17:07', '2025-09-09 14:40:27', 1, '2025-08-10 14:40:27', '2025-08-10 16:17:07'),
+(36, 7, '71d90938-ffde-40ee-abdf-2b37d563731b', 'OaWrbI5YN_2ANsFDOFVNo7B6MvRWHanWWIzryWvSWNQ=', 'Chrome Browser', 'web', '58.10.128.241', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36', '2025-08-10 23:25:26', '2025-09-09 18:37:16', 1, '2025-08-10 18:37:16', '2025-08-10 23:25:26'),
+(37, 7, '6bb3f0f2-16ac-435f-9db8-36dceefb18e5', 'kbV58DjZt7Vv482MW9p7d0LHcuW-kfR8DGw1DA24iLs=', 'Chrome Browser', 'web', '58.10.128.241', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36', '2025-08-11 12:10:58', '2025-09-10 11:48:46', 0, '2025-08-11 11:48:46', '2025-08-11 12:10:58'),
+(38, 8, 'b2558194-5108-4ccf-8cd1-a4b4c7718966', 'fwkRgmgs1wu4RCJ1V1j7JlB4PuHCSg6IhYLPoWG2pdc=', 'Chrome Browser', 'web', '110.168.238.46', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36', '2025-08-11 12:07:59', '2025-09-10 12:04:26', 1, '2025-08-11 12:04:26', '2025-08-11 12:07:59'),
+(39, 8, '2e7b2cd4-26a3-4b76-8ce9-57afb257ee44', 'N7yzEXoJiIFLxDN55tbs6hxUGGh4FGOT6hXKAAt5Lfs=', 'Chrome Browser', 'web', '58.10.128.241', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36', '2025-08-11 12:14:58', '2025-09-10 12:11:04', 0, '2025-08-11 12:11:04', '2025-08-11 12:14:58'),
+(40, 7, '024be4c9-9002-4bbf-bedf-5cb12146d138', 'TRaeEZ4VDx2V6gTLdTKTbd2YKXQFMqyN_tF-_3G5p7s=', 'Chrome Browser', 'web', '58.10.128.241', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36', '2025-08-11 13:14:19', '2025-09-10 12:15:03', 1, '2025-08-11 12:15:03', '2025-08-11 13:14:19'),
+(41, 7, 'b6d68c42-2ac6-494c-a58d-323b5cabe4a5', 'iAjnkwYNartyyJUy1K3ExGqFcFABFexI1ZRlmISb51Q=', 'Chrome Browser', 'web', '58.10.128.241', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36', '2025-08-11 13:56:03', '2025-09-10 13:15:19', 1, '2025-08-11 13:15:19', '2025-08-11 13:56:03'),
+(42, 8, 'bd0c9df4-12d0-4519-8c66-ba559a3b95f5', 'jkFrX8YMasUmiKJ07vtsjc1ASPL9qT0Fs6NYZjc3zLg=', 'Chrome Browser', 'web', '110.168.238.46', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36', '2025-08-11 14:16:19', '2025-09-10 13:35:18', 1, '2025-08-11 13:35:18', '2025-08-11 14:16:19'),
+(43, 8, '4a3b1bfc-4f2d-4acb-9ec6-e76071d5c0b1', 'VctAjiipLu81JtbhK5KH-uu1NnoWfjmUbEZ5FszLTBs=', 'Chrome Browser', 'web', '110.168.238.46', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36', '2025-08-11 22:14:31', '2025-09-10 20:11:29', 1, '2025-08-11 20:11:29', '2025-08-11 22:14:31'),
+(44, 8, '8270dd78-dc35-43ae-8690-6b881520df6a', 'IXFyHy46RSfjtGoy171aYO21NSHQQ6y1wMKWJJ54qCc=', 'Chrome Browser', 'web', '58.11.84.239', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36', '2025-08-12 05:09:35', '2025-09-11 05:08:41', 0, '2025-08-12 05:08:41', '2025-08-12 05:09:35'),
+(45, 7, 'dc875c4f-2038-4b43-93ad-dd9559eb49a0', 'FoOd1dkiuA3mpwzaKQncos7ktpidbmLEGhBx-24baNk=', 'Chrome Browser', 'web', '58.11.84.239', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36', '2025-08-12 05:35:26', '2025-09-11 05:09:39', 0, '2025-08-12 05:09:39', '2025-08-12 05:35:26'),
+(46, 7, '5b6b14b3-ab5d-4db9-a1a3-ea2f58d41b49', 'bwg9ZafDSKoEZ9QxeIk-N_L-jk4ByrNM87Pwj1Wlb6s=', 'Chrome Browser', 'web', '58.10.128.241', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36', '2025-08-12 05:17:46', '2025-09-11 05:14:30', 0, '2025-08-12 05:14:30', '2025-08-12 05:17:46'),
+(47, 8, '9f02833e-b5c4-48a5-a1d5-73c4205625b6', '2IoetuIMkYs-w7X_i5LOl3aS-13uiTRv3Wywwo-FahQ=', 'Chrome Browser', 'web', '58.10.128.241', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36', '2025-08-12 06:03:48', '2025-09-11 05:17:57', 1, '2025-08-12 05:17:57', '2025-08-12 06:03:48'),
+(48, 8, 'b598c193-6e30-4be1-a9ae-4c35e9cda80a', 'phBNr1qYw2w51aud1Z6tieJ92BZtQ0HrBA5eovKlwBM=', 'Chrome Browser', 'web', '58.11.84.239', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36', '2025-08-13 13:18:19', '2025-09-12 11:42:59', 1, '2025-08-13 11:42:59', '2025-08-13 13:18:19'),
+(49, 8, '02471e2e-e7b0-4c1d-8a00-ac3e8b44f10d', 'hsoMuTwW7o2ZBVsqx1OCapUBlv5xbWDry6BxNG_8gg0=', 'Chrome Browser', 'web', '58.11.84.239', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36', '2025-08-15 12:15:07', '2025-09-14 11:37:05', 1, '2025-08-15 11:37:05', '2025-08-15 12:15:07'),
+(50, 8, 'd409b552-abb7-4136-81c3-d7dd31001f62', 'Gy-6dbq7KGtG-A8JVQMaASP52Dq28Te_66nnGMT4xt0=', 'Chrome Browser', 'web', '58.11.84.239', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36', '2025-08-15 18:27:28', '2025-09-14 17:44:19', 1, '2025-08-15 17:44:19', '2025-08-15 18:27:28'),
+(51, 8, 'fcc9b58f-a30d-4033-bc39-a33808093c3d', 'h7PLs6dU27wd7R-mMClhhLJokiCSlOB8KFsXidb8eeo=', 'Chrome Browser', 'web', '58.11.84.239', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36', '2025-08-15 22:42:45', '2025-09-14 22:02:31', 1, '2025-08-15 22:02:31', '2025-08-15 22:42:45'),
+(52, 8, 'e079e4cc-b0a3-43b5-bcd0-1bb98cf38df2', 'p7YYvscatu-GtkTDd2eOYgkyUyqY5klGCYx4Lf1oV_M=', 'Chrome Browser', 'web', '58.11.84.239', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36', '2025-08-16 11:55:41', '2025-09-15 11:22:23', 1, '2025-08-16 11:22:23', '2025-08-16 11:55:41'),
+(53, 8, '23098be3-a9f9-4f18-9380-0b9009e7d04e', 'iud6o_YnknREU2ZudtWtuwCv1rvNsRIYy3M0mesrh-U=', 'Chrome Browser', 'web', '58.11.84.239', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36', '2025-08-16 17:18:38', '2025-09-15 17:18:20', 1, '2025-08-16 17:18:20', '2025-08-16 17:18:38'),
+(54, 8, '8f6e9a09-f247-4158-8373-63fb24194672', 'Od8MoBHOugpZzJcD9wT-v4TSaQsSbh8FEyZmQBea2TQ=', 'Chrome Browser', 'web', '58.11.84.239', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36', '2025-08-16 23:25:07', '2025-09-15 22:40:32', 1, '2025-08-16 22:40:32', '2025-08-16 23:25:07'),
+(55, 8, 'caa87d66-e49e-44e7-b60b-5a14b40c8da5', 'gfrLMUYBAKQqaIdFVDA6bnasF1bgrExuJHbNoWeOvGM=', 'Chrome Browser', 'web', '58.11.84.239', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36', '2025-08-17 09:00:57', '2025-09-16 08:56:04', 0, '2025-08-17 08:56:04', '2025-08-17 09:00:57'),
+(56, 7, '60938321-5ae9-4318-a289-544c597de98e', '-uAin-AvWvdaZwBfLWHwD4_jFPwCpsbFpsiWpUuA5gg=', 'Chrome Browser', 'web', '58.11.84.239', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36', '2025-08-17 09:00:48', '2025-09-16 09:00:41', 1, '2025-08-17 09:00:41', '2025-08-17 09:00:48'),
+(57, 8, '411e242a-c558-4c45-ab67-42ba0f3398d5', 'fZhVhKszDMkdl6Usyrw--x1ZHRAccYH4I81UyTxR_0g=', 'Chrome Browser', 'web', '58.11.84.239', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36', '2025-08-17 09:49:01', '2025-09-16 09:01:00', 1, '2025-08-17 09:01:00', '2025-08-17 09:49:01'),
+(58, 8, '738f887d-786e-45c5-a12f-789db51a92f7', '8S8qQ126HW4pnZAE1PeAg-MyQKyqUlA_gAlWWP7N260=', 'Chrome Browser', 'web', '58.11.84.239', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36', '2025-08-17 19:27:48', '2025-09-16 19:19:04', 1, '2025-08-17 19:19:04', '2025-08-17 19:27:48'),
+(59, 8, '2ec9e000-2fb0-4e5c-90a2-557f9dcdeca5', 'dTUjHjPRWgTBuy4OqKzlDblDQYd8JlAZcH-q6LAtydc=', 'Chrome Browser', 'web', '58.11.84.239', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36', '2025-08-18 12:47:49', '2025-09-17 10:57:49', 1, '2025-08-18 10:57:49', '2025-08-18 12:47:49'),
+(60, 8, 'a5282275-aa7c-4509-ae2a-c72a4787b42e', '2Ic2IZTbUCkIqWltTJ1EyIpsxrC4E8qqmrRNE-6UA2M=', 'Chrome Browser', 'web', '58.11.84.239', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36', '2025-08-18 11:44:35', '2025-09-17 11:27:11', 1, '2025-08-18 11:27:11', '2025-08-18 11:44:35'),
+(61, 8, 'fcb318a8-be6c-4a2a-95a9-a72f7ef9c7d2', 'byIbHv1zmuhDU0U81JxT0Can0kbqizmU8QJ2Wyjtdmc=', 'Chrome Browser', 'web', '58.11.83.106', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36', '2025-08-18 11:45:14', '2025-09-17 11:29:03', 1, '2025-08-18 11:29:03', '2025-08-18 11:45:14');
 
 -- --------------------------------------------------------
 
@@ -1152,7 +1378,45 @@ INSERT INTO `user_tokens` (`token_id`, `user_id`, `token_type`, `token`, `expire
 (20, 8, 'refresh', 'mqWtgKjFHhlQO77MikMrljHlIZbUqnRnGY5AQHKTazE=', '2025-09-04 12:01:21', 0, 'Chrome Browser / web', '58.11.71.81', '2025-08-05 12:01:21', '2025-08-05 12:01:21'),
 (21, 8, 'refresh', 'fmnJrIYgYGGLftYtEwIgi-rJaFgEjn7W-JViZZvY-hE=', '2025-09-04 13:10:04', 0, 'Chrome Browser / web', '58.11.71.81', '2025-08-05 13:10:04', '2025-08-05 13:10:04'),
 (22, 8, 'refresh', 'UuvjFwMCJUuPx3GDXZlL9lasHOU8BnqCbmxSHWitA1U=', '2025-09-04 22:50:52', 0, 'Chrome Browser / web', '58.11.71.81', '2025-08-05 22:50:52', '2025-08-05 22:50:52'),
-(23, 8, 'refresh', 'h2_uVFJ_W2GG4726q0cNkZEjMU4BsASAKMP3Ido5G7w=', '2025-09-05 11:40:43', 0, 'Chrome Browser / web', '58.11.71.81', '2025-08-06 11:40:43', '2025-08-06 11:40:43');
+(23, 8, 'refresh', 'h2_uVFJ_W2GG4726q0cNkZEjMU4BsASAKMP3Ido5G7w=', '2025-09-05 11:40:43', 0, 'Chrome Browser / web', '58.11.71.81', '2025-08-06 11:40:43', '2025-08-06 11:40:43'),
+(24, 7, 'refresh', '8amfrnG6pKEDlzI4AOK4IJqyqy1xu4iITV2QK611fHA=', '2025-09-05 22:03:49', 1, 'Chrome Browser / web', '58.11.85.73', '2025-08-06 22:03:49', '2025-08-07 01:15:50'),
+(25, 8, 'refresh', 'ZkKXFYm2Ph-st0HezFOH1KSTZcx6nbVfv_y48-L2hM8=', '2025-09-06 01:15:59', 0, 'Chrome Browser / web', '58.11.85.73', '2025-08-07 01:15:59', '2025-08-07 01:15:59'),
+(26, 8, 'refresh', 'yXI19rJ0peiTAJR3pObJ30SedqpOHQO41pOZ6hrrgpY=', '2025-09-06 13:33:42', 0, 'Chrome Browser / web', '58.11.85.73', '2025-08-07 13:33:42', '2025-08-07 13:33:42'),
+(27, 7, 'refresh', 'NrQYwvk--sVk3NqWHMWDtrEqvpQHsxCsEMaHHdxY5o0=', '2025-09-06 16:49:03', 0, 'Chrome Browser / web', '58.11.85.73', '2025-08-07 16:49:03', '2025-08-07 16:49:03'),
+(28, 7, 'refresh', '_pZeHz6qf7AzqYvrNjDue7n9biAUV_Vtl-_GxLp2xRE=', '2025-09-07 02:33:09', 0, 'Chrome Browser / web', '58.11.85.73', '2025-08-08 02:33:09', '2025-08-08 02:33:09'),
+(29, 7, 'refresh', 'L_YZpdgZYWhwOSxNMP4AnpL-Rl_ENfZ0kKbZeHEtx1w=', '2025-09-07 14:21:38', 0, 'Chrome Browser / web', '58.11.85.73', '2025-08-08 14:21:38', '2025-08-08 14:21:38'),
+(30, 7, 'refresh', 'hnsuVtjVScBDfg6wWB4PCWHXPS70IaJg7HKeCni3_Sk=', '2025-09-07 15:40:31', 0, 'Chrome Browser / web', '58.11.85.73', '2025-08-08 15:40:31', '2025-08-08 15:40:31'),
+(31, 7, 'refresh', 'b6A0SuteEP1MdHwP9b5HxM8CVxxJFZ7J5Gg5jjrjR0k=', '2025-09-07 16:06:12', 0, ' / api_client', '110.168.238.46', '2025-08-08 16:06:12', '2025-08-08 16:06:12'),
+(32, 7, 'refresh', 'psKmPkYcoYCCXd-fK7N8YfU5aWCQX7WbHg6j4lnNjWQ=', '2025-09-07 19:36:30', 0, 'Chrome Browser / web', '58.11.85.73', '2025-08-08 19:36:30', '2025-08-08 19:36:30'),
+(33, 7, 'refresh', '26HwD33jydwP4ur37hPNWxwumGRhEcJR32h2eEk9Zs8=', '2025-09-07 21:51:58', 0, 'Chrome Browser / web', '58.11.85.73', '2025-08-08 21:51:58', '2025-08-08 21:51:58'),
+(34, 7, 'refresh', 'gm21KeuRY_yYCchc6g2lqhLRUjGPRDi0gRuctmr0UpI=', '2025-09-09 12:34:52', 0, 'Chrome Browser / web', '58.10.128.241', '2025-08-10 12:34:52', '2025-08-10 12:34:52'),
+(35, 7, 'refresh', 'zeOfHeY0_oCp1iHku1MP3ovzT1AdXMm6TQ3nCQ0zjCQ=', '2025-09-09 14:40:27', 0, 'Chrome Browser / web', '58.10.128.241', '2025-08-10 14:40:27', '2025-08-10 14:40:27'),
+(36, 7, 'refresh', 'OaWrbI5YN_2ANsFDOFVNo7B6MvRWHanWWIzryWvSWNQ=', '2025-09-09 18:37:16', 0, 'Chrome Browser / web', '58.10.128.241', '2025-08-10 18:37:16', '2025-08-10 18:37:16'),
+(37, 7, 'refresh', 'kbV58DjZt7Vv482MW9p7d0LHcuW-kfR8DGw1DA24iLs=', '2025-09-10 11:48:46', 1, 'Chrome Browser / web', '58.10.128.241', '2025-08-11 11:48:46', '2025-08-11 12:10:58'),
+(38, 8, 'refresh', 'fwkRgmgs1wu4RCJ1V1j7JlB4PuHCSg6IhYLPoWG2pdc=', '2025-09-10 12:04:26', 0, 'Chrome Browser / web', '110.168.238.46', '2025-08-11 12:04:26', '2025-08-11 12:04:26'),
+(39, 8, 'refresh', 'N7yzEXoJiIFLxDN55tbs6hxUGGh4FGOT6hXKAAt5Lfs=', '2025-09-10 12:11:04', 1, 'Chrome Browser / web', '58.10.128.241', '2025-08-11 12:11:04', '2025-08-11 12:14:58'),
+(40, 7, 'refresh', 'TRaeEZ4VDx2V6gTLdTKTbd2YKXQFMqyN_tF-_3G5p7s=', '2025-09-10 12:15:03', 0, 'Chrome Browser / web', '58.10.128.241', '2025-08-11 12:15:03', '2025-08-11 12:15:03'),
+(41, 7, 'refresh', 'iAjnkwYNartyyJUy1K3ExGqFcFABFexI1ZRlmISb51Q=', '2025-09-10 13:15:19', 0, 'Chrome Browser / web', '58.10.128.241', '2025-08-11 13:15:19', '2025-08-11 13:15:19'),
+(42, 8, 'refresh', 'jkFrX8YMasUmiKJ07vtsjc1ASPL9qT0Fs6NYZjc3zLg=', '2025-09-10 13:35:18', 0, 'Chrome Browser / web', '110.168.238.46', '2025-08-11 13:35:18', '2025-08-11 13:35:18'),
+(43, 8, 'refresh', 'VctAjiipLu81JtbhK5KH-uu1NnoWfjmUbEZ5FszLTBs=', '2025-09-10 20:11:29', 0, 'Chrome Browser / web', '110.168.238.46', '2025-08-11 20:11:29', '2025-08-11 20:11:29'),
+(44, 8, 'refresh', 'IXFyHy46RSfjtGoy171aYO21NSHQQ6y1wMKWJJ54qCc=', '2025-09-11 05:08:41', 1, 'Chrome Browser / web', '58.11.84.239', '2025-08-12 05:08:41', '2025-08-12 05:09:35'),
+(45, 7, 'refresh', 'FoOd1dkiuA3mpwzaKQncos7ktpidbmLEGhBx-24baNk=', '2025-09-11 05:09:39', 1, 'Chrome Browser / web', '58.11.84.239', '2025-08-12 05:09:39', '2025-08-12 05:35:26'),
+(46, 7, 'refresh', 'bwg9ZafDSKoEZ9QxeIk-N_L-jk4ByrNM87Pwj1Wlb6s=', '2025-09-11 05:14:30', 1, 'Chrome Browser / web', '58.10.128.241', '2025-08-12 05:14:30', '2025-08-12 05:17:46'),
+(47, 8, 'refresh', '2IoetuIMkYs-w7X_i5LOl3aS-13uiTRv3Wywwo-FahQ=', '2025-09-11 05:17:57', 0, 'Chrome Browser / web', '58.10.128.241', '2025-08-12 05:17:57', '2025-08-12 05:17:57'),
+(48, 8, 'refresh', 'phBNr1qYw2w51aud1Z6tieJ92BZtQ0HrBA5eovKlwBM=', '2025-09-12 11:42:59', 0, 'Chrome Browser / web', '58.11.84.239', '2025-08-13 11:42:59', '2025-08-13 11:42:59'),
+(49, 8, 'refresh', 'hsoMuTwW7o2ZBVsqx1OCapUBlv5xbWDry6BxNG_8gg0=', '2025-09-14 11:37:05', 0, 'Chrome Browser / web', '58.11.84.239', '2025-08-15 11:37:05', '2025-08-15 11:37:05'),
+(50, 8, 'refresh', 'Gy-6dbq7KGtG-A8JVQMaASP52Dq28Te_66nnGMT4xt0=', '2025-09-14 17:44:19', 0, 'Chrome Browser / web', '58.11.84.239', '2025-08-15 17:44:19', '2025-08-15 17:44:19'),
+(51, 8, 'refresh', 'h7PLs6dU27wd7R-mMClhhLJokiCSlOB8KFsXidb8eeo=', '2025-09-14 22:02:31', 0, 'Chrome Browser / web', '58.11.84.239', '2025-08-15 22:02:31', '2025-08-15 22:02:31'),
+(52, 8, 'refresh', 'p7YYvscatu-GtkTDd2eOYgkyUyqY5klGCYx4Lf1oV_M=', '2025-09-15 11:22:23', 0, 'Chrome Browser / web', '58.11.84.239', '2025-08-16 11:22:23', '2025-08-16 11:22:23'),
+(53, 8, 'refresh', 'iud6o_YnknREU2ZudtWtuwCv1rvNsRIYy3M0mesrh-U=', '2025-09-15 17:18:20', 0, 'Chrome Browser / web', '58.11.84.239', '2025-08-16 17:18:20', '2025-08-16 17:18:20'),
+(54, 8, 'refresh', 'Od8MoBHOugpZzJcD9wT-v4TSaQsSbh8FEyZmQBea2TQ=', '2025-09-15 22:40:32', 0, 'Chrome Browser / web', '58.11.84.239', '2025-08-16 22:40:32', '2025-08-16 22:40:32'),
+(55, 8, 'refresh', 'gfrLMUYBAKQqaIdFVDA6bnasF1bgrExuJHbNoWeOvGM=', '2025-09-16 08:56:04', 1, 'Chrome Browser / web', '58.11.84.239', '2025-08-17 08:56:04', '2025-08-17 09:00:57'),
+(56, 7, 'refresh', '-uAin-AvWvdaZwBfLWHwD4_jFPwCpsbFpsiWpUuA5gg=', '2025-09-16 09:00:41', 0, 'Chrome Browser / web', '58.11.84.239', '2025-08-17 09:00:41', '2025-08-17 09:00:41'),
+(57, 8, 'refresh', 'fZhVhKszDMkdl6Usyrw--x1ZHRAccYH4I81UyTxR_0g=', '2025-09-16 09:01:00', 0, 'Chrome Browser / web', '58.11.84.239', '2025-08-17 09:01:00', '2025-08-17 09:01:00'),
+(58, 8, 'refresh', '8S8qQ126HW4pnZAE1PeAg-MyQKyqUlA_gAlWWP7N260=', '2025-09-16 19:19:04', 0, 'Chrome Browser / web', '58.11.84.239', '2025-08-17 19:19:04', '2025-08-17 19:19:04'),
+(59, 8, 'refresh', 'dTUjHjPRWgTBuy4OqKzlDblDQYd8JlAZcH-q6LAtydc=', '2025-09-17 10:57:49', 0, 'Chrome Browser / web', '58.11.84.239', '2025-08-18 10:57:49', '2025-08-18 10:57:49'),
+(60, 8, 'refresh', '2Ic2IZTbUCkIqWltTJ1EyIpsxrC4E8qqmrRNE-6UA2M=', '2025-09-17 11:27:11', 0, 'Chrome Browser / web', '58.11.84.239', '2025-08-18 11:27:11', '2025-08-18 11:27:11'),
+(61, 8, 'refresh', 'byIbHv1zmuhDU0U81JxT0Can0kbqizmU8QJ2Wyjtdmc=', '2025-09-17 11:29:03', 0, 'Chrome Browser / web', '58.11.83.106', '2025-08-18 11:29:03', '2025-08-18 11:29:03');
 
 -- --------------------------------------------------------
 
@@ -1334,7 +1598,7 @@ CREATE TABLE `v_recent_audit_logs` (
 --
 CREATE TABLE `v_submission_audit_trail` (
 `submission_number` varchar(255)
-,`submission_type` enum('fund_application','publication_reward','conference_grant','training_request')
+,`submission_type` enum('fund_application','publication_reward')
 ,`created_at` datetime
 ,`action_by` varchar(511)
 ,`action` enum('create','update','delete','login','logout','view','download','approve','reject','submit','review')
@@ -1381,8 +1645,8 @@ CREATE TABLE `years` (
 
 INSERT INTO `years` (`year_id`, `year`, `budget`, `status`, `create_at`, `update_at`, `delete_at`) VALUES
 (1, '2566', '1000000.00', 'active', '2025-06-24 16:49:13', '2025-07-23 10:18:36', NULL),
-(2, '2567', '1500000.00', 'active', '2025-06-24 16:49:13', '2025-06-24 16:49:13', NULL),
-(3, '2568', '2000000.00', 'active', '2025-07-08 10:44:10', '2025-07-08 10:44:10', NULL);
+(2, '2567', '1500000.00', 'active', '2025-06-24 16:49:13', '2025-08-08 21:22:24', NULL),
+(3, '2568', '2000000.00', 'active', '2025-07-08 10:44:10', '2025-08-10 19:49:28', NULL);
 
 -- --------------------------------------------------------
 
@@ -1523,7 +1787,9 @@ ALTER TABLE `fund_application_details`
   ADD PRIMARY KEY (`detail_id`),
   ADD UNIQUE KEY `submission_id` (`submission_id`),
   ADD UNIQUE KEY `idx_submission` (`submission_id`),
-  ADD KEY `idx_subcategory` (`subcategory_id`);
+  ADD KEY `idx_subcategory` (`subcategory_id`),
+  ADD KEY `idx_approved_by` (`approved_by`),
+  ADD KEY `idx_rejected_by` (`rejected_by`);
 
 --
 -- Indexes for table `fund_categories`
@@ -1565,7 +1831,12 @@ ALTER TABLE `publication_reward_details`
   ADD UNIQUE KEY `submission_id` (`submission_id`),
   ADD UNIQUE KEY `idx_submission` (`submission_id`),
   ADD KEY `idx_publication_date` (`publication_date`),
-  ADD KEY `idx_quartile` (`quartile`);
+  ADD KEY `idx_quartile` (`quartile`),
+  ADD KEY `idx_approved_by` (`approved_by`),
+  ADD KEY `idx_rejected_by` (`rejected_by`),
+  ADD KEY `idx_revision_requested_by` (`revision_requested_by`),
+  ADD KEY `idx_approved_at` (`approved_at`),
+  ADD KEY `idx_rejected_at` (`rejected_at`);
 
 --
 -- Indexes for table `publication_reward_rates`
@@ -1717,13 +1988,13 @@ ALTER TABLE `years`
 -- AUTO_INCREMENT for table `application_status`
 --
 ALTER TABLE `application_status`
-  MODIFY `application_status_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
+  MODIFY `application_status_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=6;
 
 --
 -- AUTO_INCREMENT for table `audit_logs`
 --
 ALTER TABLE `audit_logs`
-  MODIFY `log_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=49;
+  MODIFY `log_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=96;
 
 --
 -- AUTO_INCREMENT for table `document_types`
@@ -1735,7 +2006,7 @@ ALTER TABLE `document_types`
 -- AUTO_INCREMENT for table `file_uploads`
 --
 ALTER TABLE `file_uploads`
-  MODIFY `file_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=47;
+  MODIFY `file_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=72;
 
 --
 -- AUTO_INCREMENT for table `fund_application_details`
@@ -1747,13 +2018,13 @@ ALTER TABLE `fund_application_details`
 -- AUTO_INCREMENT for table `fund_categories`
 --
 ALTER TABLE `fund_categories`
-  MODIFY `category_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
+  MODIFY `category_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=6;
 
 --
 -- AUTO_INCREMENT for table `fund_subcategories`
 --
 ALTER TABLE `fund_subcategories`
-  MODIFY `subcategory_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=16;
+  MODIFY `subcategory_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=19;
 
 --
 -- AUTO_INCREMENT for table `notifications`
@@ -1771,19 +2042,19 @@ ALTER TABLE `positions`
 -- AUTO_INCREMENT for table `publication_reward_details`
 --
 ALTER TABLE `publication_reward_details`
-  MODIFY `detail_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=25;
+  MODIFY `detail_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=36;
 
 --
 -- AUTO_INCREMENT for table `publication_reward_rates`
 --
 ALTER TABLE `publication_reward_rates`
-  MODIFY `rate_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=15;
+  MODIFY `rate_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=29;
 
 --
 -- AUTO_INCREMENT for table `reward_config`
 --
 ALTER TABLE `reward_config`
-  MODIFY `config_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=21;
+  MODIFY `config_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=24;
 
 --
 -- AUTO_INCREMENT for table `roles`
@@ -1795,19 +2066,19 @@ ALTER TABLE `roles`
 -- AUTO_INCREMENT for table `subcategory_budgets`
 --
 ALTER TABLE `subcategory_budgets`
-  MODIFY `subcategory_budget_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=26;
+  MODIFY `subcategory_budget_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=31;
 
 --
 -- AUTO_INCREMENT for table `submissions`
 --
 ALTER TABLE `submissions`
-  MODIFY `submission_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=25;
+  MODIFY `submission_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=38;
 
 --
 -- AUTO_INCREMENT for table `submission_documents`
 --
 ALTER TABLE `submission_documents`
-  MODIFY `document_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=47;
+  MODIFY `document_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=72;
 
 --
 -- AUTO_INCREMENT for table `submission_reviews`
@@ -1825,7 +2096,7 @@ ALTER TABLE `submission_status_history`
 -- AUTO_INCREMENT for table `submission_users`
 --
 ALTER TABLE `submission_users`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=36;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=59;
 
 --
 -- AUTO_INCREMENT for table `system_config`
@@ -1849,13 +2120,13 @@ ALTER TABLE `user_fund_eligibilities`
 -- AUTO_INCREMENT for table `user_sessions`
 --
 ALTER TABLE `user_sessions`
-  MODIFY `session_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=24;
+  MODIFY `session_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=62;
 
 --
 -- AUTO_INCREMENT for table `user_tokens`
 --
 ALTER TABLE `user_tokens`
-  MODIFY `token_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=24;
+  MODIFY `token_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=62;
 
 --
 -- AUTO_INCREMENT for table `years`
@@ -1883,8 +2154,10 @@ ALTER TABLE `file_uploads`
 -- Constraints for table `fund_application_details`
 --
 ALTER TABLE `fund_application_details`
+  ADD CONSTRAINT `fk_fund_approved_by_user` FOREIGN KEY (`approved_by`) REFERENCES `users` (`user_id`) ON DELETE SET NULL,
   ADD CONSTRAINT `fk_fund_detail_subcategory` FOREIGN KEY (`subcategory_id`) REFERENCES `fund_subcategories` (`subcategory_id`),
-  ADD CONSTRAINT `fk_fund_detail_submission` FOREIGN KEY (`submission_id`) REFERENCES `submissions` (`submission_id`);
+  ADD CONSTRAINT `fk_fund_detail_submission` FOREIGN KEY (`submission_id`) REFERENCES `submissions` (`submission_id`),
+  ADD CONSTRAINT `fk_fund_rejected_by_user` FOREIGN KEY (`rejected_by`) REFERENCES `users` (`user_id`) ON DELETE SET NULL;
 
 --
 -- Constraints for table `fund_categories`
@@ -1909,7 +2182,10 @@ ALTER TABLE `notifications`
 -- Constraints for table `publication_reward_details`
 --
 ALTER TABLE `publication_reward_details`
-  ADD CONSTRAINT `fk_pub_detail_submission` FOREIGN KEY (`submission_id`) REFERENCES `submissions` (`submission_id`);
+  ADD CONSTRAINT `fk_approved_by_user` FOREIGN KEY (`approved_by`) REFERENCES `users` (`user_id`) ON DELETE SET NULL,
+  ADD CONSTRAINT `fk_pub_detail_submission` FOREIGN KEY (`submission_id`) REFERENCES `submissions` (`submission_id`),
+  ADD CONSTRAINT `fk_rejected_by_user` FOREIGN KEY (`rejected_by`) REFERENCES `users` (`user_id`) ON DELETE SET NULL,
+  ADD CONSTRAINT `fk_revision_requested_by_user` FOREIGN KEY (`revision_requested_by`) REFERENCES `users` (`user_id`) ON DELETE SET NULL;
 
 --
 -- Constraints for table `subcategory_budgets`
