@@ -29,7 +29,7 @@ export default function ApplicationList({ onNavigate }) {
   const loadApplications = async () => {
     setLoading(true);
     try {
-      const response = await submissionAPI.getSubmissions();
+      const response = await submissionAPI.getSubmissions({ limit: 50 });
       
       // Debug log
       console.log('API Response:', response);
@@ -42,10 +42,11 @@ export default function ApplicationList({ onNavigate }) {
           project_title: getTitle(sub),
           subcategory_name: getSubmissionTypeName(sub.submission_type),
           requested_amount: getAmount(sub),
-          status: sub.Status?.status_name || getStatusName(sub.status_id),
+          // API returns lowercase keys; keep PascalCase fallback for backward compatibility
+          status: sub.status?.status_name || sub.Status?.status_name || getStatusName(sub.status_id),
           status_code: getStatusCode(sub.status_id),
           submitted_at: sub.created_at,
-          year: sub.Year?.year || '2568',
+          year: sub.year?.year || sub.Year?.year || '2568',
           // Keep original data for reference
           _original: sub
         }));
@@ -65,31 +66,34 @@ export default function ApplicationList({ onNavigate }) {
 
   // Helper functions to extract data
   const getTitle = (submission) => {
-    if (submission.submission_type === 'publication_reward') {
-      // แก้จาก paper_title เป็น article_title
-      return submission.PublicationRewardDetail?.paper_title || 
-            submission.publication_reward_detail?.paper_title ||
-            'เงินรางวัลตีพิมพ์';
-    } else if (submission.submission_type === 'fund_application') {
-      // แก้จาก project_title เป็น project_name_th/project_name_enz
-      return submission.FundApplicationDetail?.project_name_th ||
-            submission.FundApplicationDetail?.project_name_en ||
-            submission.FundApplicationDetail?.project_title ||
-            submission.fund_application_detail?.project_name_th ||
-            submission.fund_application_detail?.project_name_en ||
-            submission.fund_application_detail?.project_title ||
-            'ทุนวิจัย';
+    const pub = submission.PublicationRewardDetail || submission.publication_reward_detail;
+    const fund = submission.FundApplicationDetail || submission.fund_application_detail;
+
+    // Prefer fund details when available, otherwise fall back to publication reward
+    if (fund && submission.submission_type !== 'publication_reward') {
+      return (
+        fund.project_name_th ||
+        fund.project_name_en ||
+        fund.project_title ||
+        'ทุนวิจัย'
+      );
     }
-    return 'ไม่ระบุ';
+    if (pub) {
+      return pub.paper_title || pub.article_title || 'เงินรางวัลตีพิมพ์';
+    }
+    return submission.submission_type === 'publication_reward' ? 'เงินรางวัลตีพิมพ์' : 'ทุนวิจัย';
   };
 
   const getAmount = (submission) => {
-    if (submission.submission_type === 'publication_reward') {
-      return submission.PublicationRewardDetail?.reward_amount || 
-             submission.publication_reward_detail?.reward_amount || 0;
-    } else if (submission.submission_type === 'fund_application') {
-      return submission.FundApplicationDetail?.requested_amount ||
-             submission.fund_application_detail?.requested_amount || 0;
+    const pub = submission.PublicationRewardDetail || submission.publication_reward_detail;
+    const fund = submission.FundApplicationDetail || submission.fund_application_detail;
+
+    // Use fund amount when available, otherwise fall back to publication reward amount
+    if (fund && submission.submission_type !== 'publication_reward') {
+      return Number(fund.requested_amount ?? fund.approved_amount ?? 0);
+    }
+    if (pub) {
+      return Number(pub.total_amount ?? pub.reward_amount ?? pub.reward_approve_amount ?? 0);
     }
     return 0;
   };
@@ -168,7 +172,7 @@ export default function ApplicationList({ onNavigate }) {
     {
       header: "จำนวนเงิน",
       accessor: "requested_amount",
-      render: (value) => `฿${(value || 0).toLocaleString()}`
+      render: (value) => `฿${Number(value || 0).toLocaleString()}`
     },
     {
       header: "สถานะ",

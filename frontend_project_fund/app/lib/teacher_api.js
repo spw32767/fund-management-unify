@@ -169,7 +169,10 @@ export const submissionAPI = {
   // 1. Get user's submissions with filters
   async getSubmissions(params = {}) {
     try {
-      const response = await apiClient.get('/submissions', params);
+      // Use teacher specific endpoint and clamp limit to backend maximum of 50
+      const safeLimit = Math.min(50, params.limit || 50);
+      const query = { ...params, limit: safeLimit };
+      const response = await apiClient.get('/teacher/submissions', query);
       return response;
     } catch (error) {
       console.error('Error fetching submissions:', error);
