@@ -169,7 +169,8 @@ export const submissionAPI = {
   // 1. Get user's submissions with filters
   async getSubmissions(params = {}) {
     try {
-      const response = await apiClient.get('/submissions', params);
+      // Use teacher specific endpoint to include detail data (e.g. project title)
+      const response = await apiClient.get('/teacher/submissions', params);
       return response;
     } catch (error) {
       console.error('Error fetching submissions:', error);

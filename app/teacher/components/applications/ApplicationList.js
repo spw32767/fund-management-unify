@@ -42,10 +42,11 @@ export default function ApplicationList({ onNavigate }) {
           project_title: getTitle(sub),
           subcategory_name: getSubmissionTypeName(sub.submission_type),
           requested_amount: getAmount(sub),
-          status: sub.Status?.status_name || getStatusName(sub.status_id),
+          // API returns lowercase keys; keep PascalCase fallback for backward compatibility
+          status: sub.status?.status_name || sub.Status?.status_name || getStatusName(sub.status_id),
           status_code: getStatusCode(sub.status_id),
           submitted_at: sub.created_at,
-          year: sub.Year?.year || '2568',
+          year: sub.year?.year || sub.Year?.year || '2568',
           // Keep original data for reference
           _original: sub
         }));
@@ -66,12 +67,14 @@ export default function ApplicationList({ onNavigate }) {
   // Helper functions to extract data
   const getTitle = (submission) => {
     if (submission.submission_type === 'publication_reward') {
-      // แก้จาก paper_title เป็น article_title
-      return submission.PublicationRewardDetail?.paper_title || 
+      // Check both article_title and paper_title for compatibility
+      return submission.PublicationRewardDetail?.article_title ||
+            submission.publication_reward_detail?.article_title ||
+            submission.PublicationRewardDetail?.paper_title ||
             submission.publication_reward_detail?.paper_title ||
             'เงินรางวัลตีพิมพ์';
     } else if (submission.submission_type === 'fund_application') {
-      // แก้จาก project_title เป็น project_name_th/project_name_enz
+      // Prefer project_name fields but fall back to project_title
       return submission.FundApplicationDetail?.project_name_th ||
             submission.FundApplicationDetail?.project_name_en ||
             submission.FundApplicationDetail?.project_title ||
@@ -209,7 +212,7 @@ export default function ApplicationList({ onNavigate }) {
 
   const handleViewDetail = (id) => {
     const app = applications.find(a => a.application_id === id);
-    if (app._original.submission_type === 'publication_reward') {
+    if (app._original.submission_type === 'publication_reward') { 
       onNavigate('publication-reward-detail', { submissionId: id });
     } else {
       onNavigate('fund-application-detail', { submissionId: id });
