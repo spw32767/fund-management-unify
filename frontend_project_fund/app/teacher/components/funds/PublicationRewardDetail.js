@@ -22,7 +22,7 @@ import {
   Building,
   FileCheck
 } from "lucide-react";
-import { submissionAPI } from "@/app/lib/teacher_api";
+import { submissionAPI, submissionUsersAPI } from "@/app/lib/teacher_api";
 import PageLayout from "../common/PageLayout";
 import Card from "../common/Card";
 import StatusBadge from "../common/StatusBadge";
@@ -47,12 +47,18 @@ export default function PublicationRewardDetail({ submissionId, onNavigate }) {
       
       // ถ้า API ไม่ส่ง submission_users มา ให้โหลดแยก
       let submissionData = response.submission || response;
+
+      // นำข้อมูล submission_users จาก response ถ้ามีมาใช้ก่อน
+      if (response.submission_users && response.submission_users.length > 0) {
+        submissionData.submission_users = response.submission_users;
+      }
+
       
       // ตรวจสอบว่ามี submission_users หรือไม่
       if (!submissionData.submission_users || submissionData.submission_users.length === 0) {
         try {
           // โหลด users แยก (ถ้ามี API endpoint)
-          const usersResponse = await submissionAPI.getSubmissionUsers(submissionId);
+          const usersResponse = await submissionUsersAPI.getUsers(submissionId);
           if (usersResponse && usersResponse.users) {
             submissionData.submission_users = usersResponse.users;
           }
@@ -471,7 +477,7 @@ export default function PublicationRewardDetail({ submissionId, onNavigate }) {
                               <div>
                                 <div className="text-sm font-medium text-gray-900">
                                   {/* แก้ไขการแสดงชื่อให้ถูกต้อง */}
-                                  {user.User?.user_fname || user.user?.user_fname} {user.User?.user_lname || user.user?.user_lname}
+                                  {user.User?.user_fname || user.user?.user_fname || user.user_fname} {user.User?.user_lname || user.user?.user_lname || user.user_lname}
                                 </div>
                               </div>
                             </div>
@@ -514,10 +520,10 @@ export default function PublicationRewardDetail({ submissionId, onNavigate }) {
                   <User className="h-5 w-5 text-blue-600 mr-3" />
                   <div>
                     <div className="font-medium text-gray-900">
-                      {submission.User?.user_fname || submission.user?.user_fname} {submission.User?.user_lname || submission.user?.user_lname}
+                      {submission.User?.user_fname || submission.user?.user_fname || submission.user_fname} {submission.User?.user_lname || submission.user?.user_lname || submission.user_lname}
                     </div>
                     <div className="text-sm text-gray-500">
-                      {submission.User?.email || submission.user?.email}
+                      {submission.User?.email || submission.user?.email || submission.email}
                     </div>
                   </div>
                   <span className="ml-auto px-3 py-1 text-xs font-medium bg-blue-100 text-blue-700 rounded-full">
@@ -548,10 +554,10 @@ export default function PublicationRewardDetail({ submissionId, onNavigate }) {
                           <User className="h-5 w-5 text-gray-400 mr-3" />
                           <div className="flex-1">
                             <div className="font-medium text-gray-900">
-                              {user.User?.user_fname || user.user?.user_fname} {user.User?.user_lname || user.user?.user_lname}
+                              {user.User?.user_fname || user.user?.user_fname || user.user_fname} {user.User?.user_lname || user.user?.user_lname || user.user_lname}
                             </div>
                             <div className="text-sm text-gray-500">
-                              {user.User?.email || user.user?.email}
+                              {user.User?.email || user.user?.email || user.email}
                             </div>
                           </div>
                           {user.is_primary && (
