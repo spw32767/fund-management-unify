@@ -17,9 +17,13 @@ export default function ApplicationList({ onNavigate }) {
   const [yearFilter, setYearFilter] = useState("all");
   const [loading, setLoading] = useState(false);
 
+  // Map display year to year_id used by API
+  const YEAR_ID_MAP = { "2566": 1, "2567": 2, "2568": 3 };
+
+  // Load applications on mount and when year filter changes
   useEffect(() => {
     loadApplications();
-  }, []);
+  }, [yearFilter]);
 
   useEffect(() => {
     filterApplications();
@@ -29,7 +33,14 @@ export default function ApplicationList({ onNavigate }) {
   const loadApplications = async () => {
     setLoading(true);
     try {
-      const response = await submissionAPI.getSubmissions();
+      // Build query params for API
+      const params = { limit: 100 };
+      if (yearFilter !== "all") {
+        const yearId = YEAR_ID_MAP[yearFilter];
+        if (yearId) params.year_id = yearId;
+      }
+
+      const response = await submissionAPI.getSubmissions(params);
       
       // Debug log
       console.log('API Response:', response);
@@ -47,6 +58,7 @@ export default function ApplicationList({ onNavigate }) {
           status_code: getStatusCode(sub.status_id),
           submitted_at: sub.created_at,
           year: sub.year?.year || sub.Year?.year || '2568',
+          year_id: sub.year_id || sub.Year?.year_id,
           // Keep original data for reference
           _original: sub
         }));
