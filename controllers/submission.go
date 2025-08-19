@@ -34,7 +34,12 @@ func GetSubmissions(c *gin.Context) {
 	yearID := c.Query("year_id")
 
 	var submissions []models.Submission
-	query := config.DB.Preload("User").Preload("Year").Preload("Status").
+	query := config.DB.Preload("User").
+		Preload("Year").
+		Preload("Status").
+		Preload("Documents.File").
+		Preload("Documents.DocumentType").
+		Preload("SubmissionUsers.User").
 		Where("deleted_at IS NULL")
 
 	// Filter by user if not admin
@@ -58,6 +63,22 @@ func GetSubmissions(c *gin.Context) {
 		return
 	}
 
+	// เพิ่มการโหลด type-specific details สำหรับแต่ละ submission
+	for i := range submissions {
+		switch submissions[i].SubmissionType {
+		case "fund_application":
+			var fundDetail models.FundApplicationDetail
+			if err := config.DB.Preload("Subcategory").Where("submission_id = ?", submissions[i].SubmissionID).First(&fundDetail).Error; err == nil {
+				submissions[i].FundApplicationDetail = &fundDetail
+			}
+		case "publication_reward":
+			var pubDetail models.PublicationRewardDetail
+			if err := config.DB.Where("submission_id = ?", submissions[i].SubmissionID).First(&pubDetail).Error; err == nil {
+				submissions[i].PublicationRewardDetail = &pubDetail
+			}
+		}
+	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"success":     true,
 		"submissions": submissions,
@@ -72,8 +93,13 @@ func GetSubmission(c *gin.Context) {
 	roleID, _ := c.Get("roleID")
 
 	var submission models.Submission
-	query := config.DB.Preload("User").Preload("Year").Preload("Status").
-		Preload("Documents.File").Preload("Documents.DocumentType")
+	query := config.DB.
+		Preload("User").
+		Preload("Year").
+		Preload("Status").
+		Preload("Documents.File").
+		Preload("Documents.DocumentType").
+		Preload("SubmissionUsers.User")
 
 	// Check permission
 	if roleID.(int) != 3 { // Not admin
@@ -83,6 +109,16 @@ func GetSubmission(c *gin.Context) {
 	if err := query.Where("submission_id = ? AND deleted_at IS NULL", submissionID).First(&submission).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Submission not found"})
 		return
+	}
+
+	// เพิ่มการโหลด submission_users พร้อม User data
+	var submissionUsers []models.SubmissionUser
+	if err := config.DB.
+		Where("submission_id = ?", submissionID).
+		Preload("User").
+		Order("display_order ASC").
+		Find(&submissionUsers).Error; err == nil {
+		submission.SubmissionUsers = submissionUsers
 	}
 
 	// Load type-specific details
@@ -100,8 +136,9 @@ func GetSubmission(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"success":    true,
-		"submission": submission,
+		"success":          true,
+		"submission":       submission,
+		"submission_users": submissionUsers, // ส่ง submission_users แยก
 	})
 }
 
