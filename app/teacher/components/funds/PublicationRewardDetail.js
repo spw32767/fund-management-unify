@@ -41,15 +41,34 @@ export default function PublicationRewardDetail({ submissionId, onNavigate }) {
   const loadSubmissionDetail = async () => {
     setLoading(true);
     try {
+      // โหลด submission detail
       const response = await submissionAPI.getSubmission(submissionId);
       console.log('Submission Detail:', response);
-      setSubmission(response.submission || response);
+      
+      // ถ้า API ไม่ส่ง submission_users มา ให้โหลดแยก
+      let submissionData = response.submission || response;
+      
+      // ตรวจสอบว่ามี submission_users หรือไม่
+      if (!submissionData.submission_users || submissionData.submission_users.length === 0) {
+        try {
+          // โหลด users แยก (ถ้ามี API endpoint)
+          const usersResponse = await submissionAPI.getSubmissionUsers(submissionId);
+          if (usersResponse && usersResponse.users) {
+            submissionData.submission_users = usersResponse.users;
+          }
+        } catch (error) {
+          console.log('Could not load submission users separately');
+        }
+      }
+      
+      setSubmission(submissionData);
     } catch (error) {
       console.error('Error loading submission detail:', error);
     } finally {
       setLoading(false);
     }
   };
+
 
   const handleBack = () => {
     if (onNavigate) {
@@ -414,6 +433,7 @@ export default function PublicationRewardDetail({ submissionId, onNavigate }) {
       {activeTab === 'authors' && (
         <Card title="รายชื่อผู้แต่งร่วม" icon={Users}>
           <div className="space-y-4">
+            {/* ตรวจสอบว่ามีข้อมูล submission_users หรือไม่ */}
             {submission.submission_users && submission.submission_users.length > 0 ? (
               <div className="overflow-x-auto">
                 <table className="min-w-full divide-y divide-gray-200">
@@ -437,39 +457,42 @@ export default function PublicationRewardDetail({ submissionId, onNavigate }) {
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
-                    {submission.submission_users.map((user, index) => (
-                      <tr key={user.id}>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm">
-                          {user.display_order || index + 1}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="flex items-center">
-                            <User className="h-5 w-5 text-gray-400 mr-2" />
-                            <div>
-                              <div className="text-sm font-medium text-gray-900">
-                                {user.user?.user_fname} {user.user?.user_lname}
+                    {submission.submission_users
+                      .filter(user => user.role === 'coauthor' || user.role === 'co_author')
+                      .sort((a, b) => a.display_order - b.display_order)
+                      .map((user, index) => (
+                        <tr key={user.id}>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm">
+                            {index + 1}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="flex items-center">
+                              <User className="h-5 w-5 text-gray-400 mr-2" />
+                              <div>
+                                <div className="text-sm font-medium text-gray-900">
+                                  {/* แก้ไขการแสดงชื่อให้ถูกต้อง */}
+                                  {user.User?.user_fname || user.user?.user_fname} {user.User?.user_lname || user.user?.user_lname}
+                                </div>
                               </div>
                             </div>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          {user.user?.email}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm">
-                          <span className="px-2 py-1 text-xs rounded-full bg-gray-100">
-                            {user.role === 'owner' ? 'เจ้าของผลงาน' :
-                             user.role === 'coauthor' ? 'ผู้แต่งร่วม' : user.role}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm">
-                          {user.is_primary ? (
-                            <span className="text-green-600">หลัก</span>
-                          ) : (
-                            <span className="text-gray-400">ร่วม</span>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            {user.User?.email || user.user?.email}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm">
+                            <span className="px-2 py-1 text-xs rounded-full bg-gray-100">
+                              ผู้แต่งร่วม
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm">
+                            {user.is_primary ? (
+                              <span className="text-green-600">หลัก</span>
+                            ) : (
+                              <span className="text-gray-400">ร่วม</span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
                   </tbody>
                 </table>
               </div>
@@ -480,45 +503,72 @@ export default function PublicationRewardDetail({ submissionId, onNavigate }) {
         </Card>
       )}
 
-      {activeTab === 'documents' && (
-        <Card title="เอกสารแนบ" icon={FileText}>
-          <div className="space-y-4">
-            {submission.documents && submission.documents.length > 0 ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {submission.documents.map(doc => (
-                  <div key={doc.document_id} 
-                       className="border rounded-lg p-4 hover:bg-gray-50 transition-colors">
-                    <div className="flex justify-between items-start">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2">
-                          <FileText className="h-5 w-5 text-gray-400" />
-                          <div>
-                            <p className="font-medium text-sm">
-                              {doc.document_type?.document_type_name || 'เอกสาร'}
-                            </p>
-                            <p className="text-xs text-gray-500">
-                              {doc.file?.original_name || doc.original_filename}
-                            </p>
-                          </div>
-                        </div>
-                        <p className="text-xs text-gray-400 mt-2">
-                          อัปโหลดเมื่อ: {new Date(doc.uploaded_at).toLocaleDateString('th-TH')}
-                        </p>
-                      </div>
-                      <button
-                        onClick={() => handleDownload(doc.document_id)}
-                        className="text-blue-600 hover:text-blue-800"
-                        title="ดาวน์โหลด"
-                      >
-                        <Download size={18} />
-                      </button>
+      {activeTab === 'authors' && (
+        <Card title="รายชื่อผู้แต่ง" icon={Users}>
+          <div className="space-y-6">
+            {/* แสดงผู้แต่งหลัก */}
+            <div>
+              <h4 className="text-sm font-medium text-gray-700 mb-3">ผู้แต่งหลัก (เจ้าของผลงาน)</h4>
+              <div className="bg-blue-50 rounded-lg p-4">
+                <div className="flex items-center">
+                  <User className="h-5 w-5 text-blue-600 mr-3" />
+                  <div>
+                    <div className="font-medium text-gray-900">
+                      {submission.User?.user_fname || submission.user?.user_fname} {submission.User?.user_lname || submission.user?.user_lname}
+                    </div>
+                    <div className="text-sm text-gray-500">
+                      {submission.User?.email || submission.user?.email}
                     </div>
                   </div>
-                ))}
+                  <span className="ml-auto px-3 py-1 text-xs font-medium bg-blue-100 text-blue-700 rounded-full">
+                    เจ้าของผลงาน
+                  </span>
+                </div>
               </div>
-            ) : (
-              <p className="text-gray-500 text-center py-8">ไม่มีเอกสารแนบ</p>
-            )}
+            </div>
+
+            {/* แสดงผู้แต่งร่วม */}
+            <div>
+              <h4 className="text-sm font-medium text-gray-700 mb-3">
+                ผู้แต่งร่วม {submission.submission_users && submission.submission_users.filter(u => u.role === 'coauthor' || u.role === 'co_author').length > 0 && 
+                `(${submission.submission_users.filter(u => u.role === 'coauthor' || u.role === 'co_author').length} คน)`}
+              </h4>
+              
+              {submission.submission_users && submission.submission_users.filter(u => u.role === 'coauthor' || u.role === 'co_author').length > 0 ? (
+                <div className="space-y-2">
+                  {submission.submission_users
+                    .filter(user => user.role === 'coauthor' || user.role === 'co_author')
+                    .sort((a, b) => (a.display_order || 0) - (b.display_order || 0))
+                    .map((user, index) => (
+                      <div key={user.id} className="bg-gray-50 rounded-lg p-4">
+                        <div className="flex items-center">
+                          <span className="text-sm font-medium text-gray-500 w-8">
+                            {index + 1}.
+                          </span>
+                          <User className="h-5 w-5 text-gray-400 mr-3" />
+                          <div className="flex-1">
+                            <div className="font-medium text-gray-900">
+                              {user.User?.user_fname || user.user?.user_fname} {user.User?.user_lname || user.user?.user_lname}
+                            </div>
+                            <div className="text-sm text-gray-500">
+                              {user.User?.email || user.user?.email}
+                            </div>
+                          </div>
+                          {user.is_primary && (
+                            <span className="px-2 py-1 text-xs font-medium bg-green-100 text-green-700 rounded-full">
+                              หลัก
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                </div>
+              ) : (
+                <div className="bg-gray-50 rounded-lg p-8 text-center text-gray-500">
+                  ไม่มีผู้แต่งร่วม
+                </div>
+              )}
+            </div>
           </div>
         </Card>
       )}

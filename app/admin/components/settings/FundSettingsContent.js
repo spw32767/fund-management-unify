@@ -262,12 +262,20 @@ export default function FundSettingsContent({ onNavigate }) {
   };
 
   const handleDeleteCategory = async (category) => {
+    // บล็อกลบถ้ามี subcategory อยู่
+    const subCount = Array.isArray(category.subcategories) ? category.subcategories.length : 0;
+    if (subCount > 0) {
+      showWarning(
+        `ลบไม่ได้: หมวดหมู่ "${category.category_name}" ยังมีทุนย่อยอยู่ ${subCount} รายการ\nกรุณาลบทุนย่อยทั้งหมดก่อน`
+      );
+      return;
+    }
+
     const confirmed = await showConfirm(
       'ยืนยันการลบ',
-      `คุณต้องการลบหมวดหมู่ "${category.category_name}" ใช่หรือไม่?\n\nการลบหมวดหมู่จะลบทุนย่อยและงบประมาณที่เกี่ยวข้องทั้งหมด`,
+      `คุณต้องการลบหมวดหมู่ "${category.category_name}" ใช่หรือไม่?`,
       'ลบ'
     );
-    
     if (!confirmed) return;
 
     setLoading(true);
@@ -276,12 +284,16 @@ export default function FundSettingsContent({ onNavigate }) {
       setCategories(prev => prev.filter(c => c.category_id !== category.category_id));
       showSuccess("ลบหมวดหมู่เรียบร้อยแล้ว");
     } catch (error) {
-      console.error("Error deleting category:", error);
-      showError(`เกิดข้อผิดพลาดในการลบ: ${error.message}`);
+      if (/Cannot delete category/i.test(error.message)) {
+        showWarning('ลบไม่ได้: หมวดหมู่ยังมีทุนย่อยอยู่ กรุณาลบทุนย่อยทั้งหมดก่อน');
+      } else {
+        showError(`เกิดข้อผิดพลาดในการลบ: ${error.message}`);
+      }
     } finally {
       setLoading(false);
     }
   };
+
 
   const handleCategorySave = async (categoryData) => {
     setLoading(true);
@@ -370,12 +382,19 @@ export default function FundSettingsContent({ onNavigate }) {
   };
 
   const handleDeleteSubcategory = async (subcategory) => {
+    // บล็อกลบทันทีถ้ายังมี budget อยู่
+    if (Array.isArray(subcategory.budgets) && subcategory.budgets.length > 0) {
+      showWarning(
+        `ลบไม่ได้: ทุนย่อย "${subcategory.subcategory_name}" ยังมีงบประมาณอยู่ ${subcategory.budgets.length} รายการ\nกรุณาลบงบประมาณทั้งหมดก่อน`
+      );
+      return;
+    }
+
     const confirmed = await showConfirm(
       'ยืนยันการลบ',
-      `คุณต้องการลบทุนย่อย "${subcategory.subcategory_name}" ใช่หรือไม่?\n\nการลบทุนย่อยจะลบงบประมาณที่เกี่ยวข้องทั้งหมด`,
+      `คุณต้องการลบทุนย่อย "${subcategory.subcategory_name}" ใช่หรือไม่?`,
       'ลบ'
     );
-    
     if (!confirmed) return;
 
     setLoading(true);
@@ -387,35 +406,51 @@ export default function FundSettingsContent({ onNavigate }) {
       })));
       showSuccess("ลบทุนย่อยเรียบร้อยแล้ว");
     } catch (error) {
-      console.error("Error deleting subcategory:", error);
-      showError(`เกิดข้อผิดพลาดในการลบ: ${error.message}`);
+      // map error เฉพาะให้เป็นข้อความที่เข้าใจง่าย
+      if (/Cannot delete subcategory/i.test(error.message)) {
+        showWarning('ลบไม่ได้: ทุนย่อยนี้ยังมีงบประมาณอยู่ กรุณาลบงบประมาณทั้งหมดก่อน');
+      } else {
+        showError(`เกิดข้อผิดพลาดในการลบ: ${error.message}`);
+      }
     } finally {
       setLoading(false);
     }
   };
 
+
   const handleSubcategorySave = async (subcategoryData) => {
     setLoading(true);
     try {
-      // Validate data
+      // Validate data - ไม่ต้องบังคับ allocated_amount
       const dataWithCategory = { 
         ...subcategoryData, 
         category_id: selectedCategoryForSub.category_id 
       };
-      adminAPI.validateSubcategoryData(dataWithCategory);
+      
+      // ไม่ต้อง validate allocated_amount
+      if (!dataWithCategory.subcategory_name) {
+        throw new Error('กรุณากรอกชื่อทุนย่อย');
+      }
       
       if (editingSubcategory) {
-        // Update existing subcategory ก่อน
-        await adminAPI.updateSubcategory(editingSubcategory.subcategory_id, subcategoryData);
+        // Update existing subcategory - ไม่ส่ง allocated_amount
+        const updateData = {
+          subcategory_name: subcategoryData.subcategory_name,
+          fund_condition: subcategoryData.fund_condition || '',
+          target_roles: subcategoryData.target_roles || [],
+          status: editingSubcategory.status || 'active'
+        };
         
-        // อัพเดท state ของ subcategory
+        await adminAPI.updateSubcategory(editingSubcategory.subcategory_id, updateData);
+        
+        // อัพเดท state
         setCategories(prev => prev.map(cat => {
           if (cat.category_id === selectedCategoryForSub.category_id) {
             return {
               ...cat,
               subcategories: cat.subcategories.map(sub => 
                 sub.subcategory_id === editingSubcategory.subcategory_id
-                  ? { ...sub, ...subcategoryData, update_at: new Date().toISOString() }
+                  ? { ...sub, ...updateData, update_at: new Date().toISOString() }
                   : sub
               )
             };
@@ -423,60 +458,41 @@ export default function FundSettingsContent({ onNavigate }) {
           return cat;
         }));
         
-        // จากนั้นค่อยอัพเดทงบประมาณ (ถ้ามีการเปลี่ยนแปลง)
-        if (subcategoryData.allocated_amount !== undefined) {
-          const budgetsToUpdate = editingSubcategory.budgets || [];
-          
-          for (const budget of budgetsToUpdate) {
-            try {
-              await adminAPI.updateBudget(budget.subcategory_budget_id, {
-                allocated_amount: subcategoryData.allocated_amount,
-                remaining_budget: subcategoryData.allocated_amount - (budget.used_amount || 0)
-              });
-            } catch (error) {
-              console.error(`Error updating budget ${budget.subcategory_budget_id}:`, error);
-            }
-          }
-          
-          // อัพเดท state ของ budgets
-          setCategories(prev => prev.map(cat => ({
-            ...cat,
-            subcategories: cat.subcategories.map(sub => {
-              if (sub.subcategory_id === editingSubcategory.subcategory_id) {
-                return {
-                  ...sub,
-                  budgets: sub.budgets.map(budget => ({
-                    ...budget,
-                    allocated_amount: subcategoryData.allocated_amount,
-                    remaining_budget: subcategoryData.allocated_amount - (budget.used_amount || 0)
-                  }))
-                };
-              }
-              return sub;
-            })
-          })));
-        }
+        showSuccess("อัปเดตทุนย่อยเรียบร้อยแล้ว");
+        
       } else {
-        // Add new subcategory
-        const response = await adminAPI.createSubcategory(dataWithCategory);
+        // Add new subcategory - ไม่ส่ง allocated_amount
+        const createData = {
+          category_id: selectedCategoryForSub.category_id,
+          subcategory_name: subcategoryData.subcategory_name,
+          fund_condition: subcategoryData.fund_condition || '',
+          target_roles: subcategoryData.target_roles || [],
+          status: 'active'
+        };
+        
+        const response = await adminAPI.createSubcategory(createData);
+        
         if (response.subcategory) {
           const newSubcategory = {
             ...response.subcategory,
             target_roles: subcategoryData.target_roles || [],
-            budgets: []
+            budgets: [] // เริ่มต้นด้วย budget ว่าง
           };
+          
           setCategories(prev => prev.map(cat => 
             cat.category_id === selectedCategoryForSub.category_id
               ? { ...cat, subcategories: [...(cat.subcategories || []), newSubcategory] }
               : cat
           ));
+          
+          showSuccess("สร้างทุนย่อยเรียบร้อยแล้ว กรุณาเพิ่มงบประมาณเพื่อกำหนดจำนวนเงิน");
         }
       }
       
       setSubcategoryModalOpen(false);
       setEditingSubcategory(null);
       setSelectedCategoryForSub(null);
-      showSuccess(editingSubcategory ? "อัปเดตทุนย่อยเรียบร้อยแล้ว" : "สร้างทุนย่อยใหม่เรียบร้อยแล้ว");
+      
     } catch (error) {
       console.error("Error saving subcategory:", error);
       showError(`เกิดข้อผิดพลาด: ${error.message}`);
@@ -600,9 +616,13 @@ export default function FundSettingsContent({ onNavigate }) {
       } else {
         // Add new budget
         const response = await adminAPI.createBudget(dataWithSubcategory);
-        if (response.subcategory_budget_id) {
+        console.log('Create budget response:', response); // Debug log
+
+        // ตรวจสอบ response structure ให้ถูกต้อง
+        const budgetId = response.subcategory_budget_id || response.data?.subcategory_budget_id;
+        if (budgetId) {
           const newBudget = {
-            subcategory_budget_id: response.subcategory_budget_id,
+            subcategory_budget_id: budgetId,
             ...budgetData,
             remaining_budget: budgetData.allocated_amount,
             used_amount: 0,
