@@ -133,9 +133,20 @@ const FundManagementTab = ({
 
   // ====== Confirm delete wrappers (SweetAlert2) ======
   const confirmDeleteCategory = async (category) => {
+    const subCount = Array.isArray(category.subcategories) ? category.subcategories.length : 0;
+    if (subCount > 0) {
+      await Swal.fire({
+        icon: "info",
+        title: "ลบไม่ได้",
+        text: `หมวดหมู่ "${category.category_name}" ยังมีทุนย่อยอยู่ ${subCount} รายการ\nกรุณาลบทุนย่อยทั้งหมดก่อน`,
+        confirmButtonText: "ตกลง"
+      });
+      return;
+    }
+
     const res = await Swal.fire({
       title: "ยืนยันการลบ?",
-      text: `ต้องการลบหมวดหมู่ "${category.category_name}" หรือไม่? การลบนี้ไม่สามารถย้อนกลับได้`,
+      text: `ต้องการลบหมวดหมู่ "${category.category_name}" หรือไม่?`,
       icon: "warning",
       showCancelButton: true,
       confirmButtonText: "ลบ",
@@ -146,9 +157,20 @@ const FundManagementTab = ({
   };
 
   const confirmDeleteSubcategory = async (subcategory, category) => {
+    const budgetCount = Array.isArray(subcategory.budgets) ? subcategory.budgets.length : 0;
+    if (budgetCount > 0) {
+      await Swal.fire({
+        icon: "info",
+        title: "ลบไม่ได้",
+        text: `ทุนย่อย "${subcategory.subcategory_name}" ยังมีงบประมาณอยู่ ${budgetCount} รายการ\nกรุณาลบงบประมาณทั้งหมดก่อน`,
+        confirmButtonText: "ตกลง"
+      });
+      return;
+    }
+
     const res = await Swal.fire({
       title: "ยืนยันการลบ?",
-      text: `ต้องการลบทุนย่อย "${subcategory.subcategory_name}" หรือไม่? การลบนี้ไม่สามารถย้อนกลับได้`,
+      text: `ต้องการลบทุนย่อย "${subcategory.subcategory_name}" หรือไม่?`,
       icon: "warning",
       showCancelButton: true,
       confirmButtonText: "ลบ",
@@ -157,6 +179,7 @@ const FundManagementTab = ({
     });
     if (res.isConfirmed) onDeleteSubcategory(subcategory, category);
   };
+
 
   const confirmDeleteBudget = async (budget) => {
     const res = await Swal.fire({
