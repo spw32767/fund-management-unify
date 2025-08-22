@@ -60,9 +60,23 @@ export default function PublicationRewardDetail({ submissionId, onNavigate }) {
   const getUserFullName = (user) => {
     if (!user) return "-";
     
-    const firstName = user.user_fname || "";
-    const lastName = user.user_lname || "";
-    const fullName = `${firstName} ${lastName}`.trim();
+    const firstName =
+      user.user_fname ||
+      user.first_name ||
+      user.full_name?.split(" ")[0] ||
+      user.fullname?.split(" ")[0] ||
+      user.name?.split(" ")[0] ||
+      "";
+    const lastName =
+      user.user_lname ||
+      user.last_name ||
+      user.full_name?.split(" ").slice(1).join(" ") ||
+      user.fullname?.split(" ").slice(1).join(" ") ||
+      user.name?.split(" ").slice(1).join(" ") ||
+      "";
+
+    const fullName = (user.full_name || user.fullname || `${firstName} ${lastName}`).trim();
+
     
     return fullName || "-";
   };
@@ -538,7 +552,7 @@ const documents = submission.documents || submission.submission_documents || [];
           </Card>
         </div>
       )}
-      
+
       {/* Authors Tab */}
       {activeTab === 'authors' && (
         <Card title="รายชื่อผู้แต่ง" icon={Users} collapsible={false}>
@@ -577,8 +591,7 @@ const documents = submission.documents || submission.submission_documents || [];
                     .filter(user => user.role === 'coauthor' || user.role === 'co_author')
                     .sort((a, b) => (a.display_order || 0) - (b.display_order || 0))
                     .map((submissionUser, index) => {
-                      // API returns user data in submissionUser.user (lowercase)
-                      const userData = submissionUser.user;
+                      const userData = submissionUser.user || submissionUser.User;
                       
                       return (
                         <div key={submissionUser.user_id || index} className="bg-gray-50 rounded-lg p-4">
