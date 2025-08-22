@@ -14,6 +14,7 @@ import {
   XCircle,
   AlertCircle,
   Download,
+  Eye,
   Edit,
   Trash2,
   Users,
@@ -23,6 +24,7 @@ import {
   FileCheck
 } from "lucide-react";
 import { submissionAPI, submissionUsersAPI } from "@/app/lib/teacher_api";
+import apiClient from "@/app/lib/api";
 import PageLayout from "../common/PageLayout";
 import Card from "../common/Card";
 import StatusBadge from "../common/StatusBadge";
@@ -31,6 +33,34 @@ export default function PublicationRewardDetail({ submissionId, onNavigate }) {
   const [submission, setSubmission] = useState(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('details');
+
+  // Helper to safely get user's full name from various possible structures
+  const getUserFullName = (user) => {
+    if (!user) return "-";
+    const firstName =
+      user.user_fname || user.first_name || user.firstname || user.fname || "";
+    const lastName =
+      user.user_lname || user.last_name || user.lastname || user.lname || "";
+    const fullName = `${firstName} ${lastName}`.trim();
+    return fullName || "-";
+  };
+
+  // Helper to safely get email from various structures
+  const getUserEmail = (user) => {
+    if (!user) return "";
+    return user.email || user.user_email || "";
+  };
+
+  // Helper to get main author data
+  const getMainAuthor = () => {
+    if (!submission) return null;
+    const directAuthor = submission.User || submission.user;
+    if (directAuthor) return directAuthor;
+    const fromList = submission.submission_users?.find(
+      (u) => u.is_primary || u.role === "owner" || u.role === "first_author"
+    );
+    return fromList?.User || fromList?.user || null;
+  };
 
   useEffect(() => {
     if (submissionId) {
@@ -89,9 +119,29 @@ export default function PublicationRewardDetail({ submissionId, onNavigate }) {
     }
   };
 
-  const handleDownload = (documentId) => {
-    // Handle document download
-    console.log('Download document:', documentId);
+  const handleView = async (documentId) => {
+    try {
+      const token = apiClient.getToken();
+      const url = `${apiClient.baseURL}/documents/download/${documentId}`;
+      const response = await fetch(url, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!response.ok) throw new Error('File not found');
+      const blob = await response.blob();
+      const fileURL = window.URL.createObjectURL(blob);
+      window.open(fileURL, '_blank');
+      window.URL.revokeObjectURL(fileURL);
+    } catch (error) {
+      console.error('Error viewing document:', error);
+    }
+  };
+
+  const handleDownload = async (documentId, fileName = 'document') => {
+    try {
+      await apiClient.downloadFile(`/documents/download/${documentId}`, fileName);
+    } catch (error) {
+      console.error('Error downloading document:', error);
+    }
   };
 
   if (loading) {
@@ -132,8 +182,10 @@ export default function PublicationRewardDetail({ submissionId, onNavigate }) {
   }
 
   // Extract publication details
-  const pubDetail = submission.PublicationRewardDetail || 
+  const pubDetail = submission.PublicationRewardDetail ||
                     submission.publication_reward_detail || {};
+
+  const documents = submission.submission_documents || submission.documents || [];
   
   // Status icon
   const getStatusIcon = (statusId) => {
@@ -466,39 +518,41 @@ export default function PublicationRewardDetail({ submissionId, onNavigate }) {
                     {submission.submission_users
                       .filter(user => user.role === 'coauthor' || user.role === 'co_author')
                       .sort((a, b) => a.display_order - b.display_order)
-                      .map((user, index) => (
-                        <tr key={user.id}>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm">
-                            {index + 1}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="flex items-center">
-                              <User className="h-5 w-5 text-gray-400 mr-2" />
-                              <div>
-                                <div className="text-sm font-medium text-gray-900">
-                                  {/* แก้ไขการแสดงชื่อให้ถูกต้อง */}
-                                  {user.User?.user_fname || user.user?.user_fname || user.user_fname} {user.User?.user_lname || user.user?.user_lname || user.user_lname}
+                      .map((user, index) => {
+                        const userData = user.User || user.user || user;
+                        return (
+                          <tr key={user.id}>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm">
+                              {index + 1}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <div className="flex items-center">
+                                <User className="h-5 w-5 text-gray-400 mr-2" />
+                                <div>
+                                  <div className="text-sm font-medium text-gray-900">
+                                    {getUserFullName(userData)}
+                                  </div>
                                 </div>
                               </div>
-                            </div>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            {user.User?.email || user.user?.email}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm">
-                            <span className="px-2 py-1 text-xs rounded-full bg-gray-100">
-                              ผู้แต่งร่วม
-                            </span>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm">
-                            {user.is_primary ? (
-                              <span className="text-green-600">หลัก</span>
-                            ) : (
-                              <span className="text-gray-400">ร่วม</span>
-                            )}
-                          </td>
-                        </tr>
-                      ))}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                              {getUserEmail(userData)}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm">
+                              <span className="px-2 py-1 text-xs rounded-full bg-gray-100">
+                                ผู้แต่งร่วม
+                              </span>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm">
+                              {user.is_primary ? (
+                                <span className="text-green-600">หลัก</span>
+                              ) : (
+                                <span className="text-gray-400">ร่วม</span>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
                   </tbody>
                 </table>
               </div>
@@ -520,10 +574,10 @@ export default function PublicationRewardDetail({ submissionId, onNavigate }) {
                   <User className="h-5 w-5 text-blue-600 mr-3" />
                   <div>
                     <div className="font-medium text-gray-900">
-                      {submission.User?.user_fname || submission.user?.user_fname || submission.user_fname} {submission.User?.user_lname || submission.user?.user_lname || submission.user_lname}
+                      {getUserFullName(getMainAuthor())}
                     </div>
                     <div className="text-sm text-gray-500">
-                      {submission.User?.email || submission.user?.email || submission.email}
+                      {getUserEmail(getMainAuthor())}
                     </div>
                   </div>
                   <span className="ml-auto px-3 py-1 text-xs font-medium bg-blue-100 text-blue-700 rounded-full">
@@ -545,29 +599,32 @@ export default function PublicationRewardDetail({ submissionId, onNavigate }) {
                   {submission.submission_users
                     .filter(user => user.role === 'coauthor' || user.role === 'co_author')
                     .sort((a, b) => (a.display_order || 0) - (b.display_order || 0))
-                    .map((user, index) => (
-                      <div key={user.id} className="bg-gray-50 rounded-lg p-4">
-                        <div className="flex items-center">
-                          <span className="text-sm font-medium text-gray-500 w-8">
-                            {index + 1}.
-                          </span>
-                          <User className="h-5 w-5 text-gray-400 mr-3" />
-                          <div className="flex-1">
-                            <div className="font-medium text-gray-900">
-                              {user.User?.user_fname || user.user?.user_fname || user.user_fname} {user.User?.user_lname || user.user?.user_lname || user.user_lname}
-                            </div>
-                            <div className="text-sm text-gray-500">
-                              {user.User?.email || user.user?.email || user.email}
-                            </div>
-                          </div>
-                          {user.is_primary && (
-                            <span className="px-2 py-1 text-xs font-medium bg-green-100 text-green-700 rounded-full">
-                              หลัก
+                    .map((user, index) => {
+                      const userData = user.User || user.user || user;
+                      return (
+                        <div key={user.id} className="bg-gray-50 rounded-lg p-4">
+                          <div className="flex items-center">
+                            <span className="text-sm font-medium text-gray-500 w-8">
+                              {index + 1}.
                             </span>
-                          )}
+                            <User className="h-5 w-5 text-gray-400 mr-3" />
+                            <div className="flex-1">
+                              <div className="font-medium text-gray-900">
+                                {getUserFullName(userData)}
+                              </div>
+                              <div className="text-sm text-gray-500">
+                                {getUserEmail(userData)}
+                              </div>
+                            </div>
+                              {user.is_primary && (
+                              <span className="px-2 py-1 text-xs font-medium bg-green-100 text-green-700 rounded-full">
+                                หลัก
+                              </span>
+                            )}
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                 </div>
               ) : (
                 <div className="bg-gray-50 rounded-lg p-8 text-center text-gray-500">
@@ -575,6 +632,47 @@ export default function PublicationRewardDetail({ submissionId, onNavigate }) {
                 </div>
               )}
             </div>
+          </div>
+        </Card>
+      )}
+
+      {activeTab === 'documents' && (
+        <Card title="เอกสารแนบ" icon={FileText}>
+          <div className="space-y-4">
+            {documents.length > 0 ? (
+              <ul className="divide-y divide-gray-200">
+                {documents.map((doc, index) => {
+                  const docId = doc.document_id || doc.id || doc.file_id;
+                  const docName = doc.file_name || doc.name || doc.File?.file_name || doc.file?.file_name || `เอกสารที่ ${index + 1}`;
+                  return (
+                    <li key={docId || index} className="py-3 flex items-center justify-between">
+                      <div className="flex items-center">
+                        <FileText className="h-5 w-5 text-gray-400 mr-3" />
+                        <span className="text-sm text-gray-700">{docName}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => handleView(docId)}
+                          className="inline-flex items-center gap-1 px-3 py-1 text-sm text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-md"
+                        >
+                          <Eye className="h-4 w-4" />
+                          ดู
+                        </button>
+                        <button
+                          onClick={() => handleDownload(docId)}
+                          className="inline-flex items-center gap-1 px-3 py-1 text-sm text-green-600 bg-green-50 hover:bg-green-100 rounded-md"
+                        >
+                          <Download className="h-4 w-4" />
+                          ดาวน์โหลด
+                        </button>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            ) : (
+              <p className="text-center text-gray-500 py-8">ไม่มีเอกสารแนบ</p>
+            )}
           </div>
         </Card>
       )}

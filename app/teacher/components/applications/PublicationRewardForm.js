@@ -304,7 +304,10 @@ const mergePDFs = async (pdfFiles) => {
     for (const file of pdfFiles) {
       if (file.type === 'application/pdf') {
         const pdfBytes = await file.arrayBuffer();
-        const pdf = await PDFDocument.load(pdfBytes);
+        // เพิ่ม option ignoreEncryption: true เพื่อข้ามการเข้ารหัส
+        const pdf = await PDFDocument.load(pdfBytes, { 
+          ignoreEncryption: true 
+        });
         const pages = await mergedPdf.copyPages(pdf, pdf.getPageIndices());
         pages.forEach((page) => mergedPdf.addPage(page));
       }
@@ -663,10 +666,11 @@ export default function PublicationRewardForm({ onNavigate }) {
   // Co-authors and files
   const [coauthors, setCoauthors] = useState([]);
   const [uploadedFiles, setUploadedFiles] = useState({});
-  const [otherDocuments, setOtherDocuments] = useState([]);
+  const [otherDocuments, setOtherDocuments] = useState([]); // เก็บเฉพาะ Other Documents
+  const [externalFundingFiles, setExternalFundingFiles] = useState([]); // เพิ่ม state ใหม่สำหรับ External Funding Files
 
   // External funding sources
-  const [externalFundings, setExternalFundings] = useState([]);
+  const [externalFundings, setExternalFundings] = useState([])
 
   // =================================================================
   // EFFECT HOOKS
@@ -1259,14 +1263,8 @@ export default function PublicationRewardForm({ onNavigate }) {
 
   // Handle external funding removal
   const handleRemoveExternalFunding = (id) => {
-    // Find related file
-    const funding = externalFundings.find(f => f.id === id);
-    if (funding && funding.file) {
-      // Remove file from otherDocuments as well
-      setOtherDocuments(prev => prev.filter(doc => 
-        !(doc.type === 'external_funding' && doc.external_funding_id === id)
-      ));
-    }
+    // Remove file from externalFundingFiles
+    setExternalFundingFiles(prev => prev.filter(doc => doc.funding_id !== id));
     
     // Remove funding
     setExternalFundings(externalFundings.filter(f => f.id !== id));
@@ -1285,28 +1283,22 @@ export default function PublicationRewardForm({ onNavigate }) {
     
     if (files && files.length > 0) {
       if (documentTypeId === 'other') {
-        // For other documents, store as array
-        console.log('Setting other documents:', files);
-        setOtherDocuments(files);
+        // For other documents, ADD to existing array (don't replace)
+        console.log('Adding other documents:', files);
+        setOtherDocuments(prev => [...prev, ...files]); // เพิ่มไฟล์เข้าไป ไม่ทับ
       } else {
         // For specific document types, store first file only
         console.log(`Setting uploaded file for type ${documentTypeId}:`, files[0]);
-        setUploadedFiles(prev => {
-          const updated = {
-            ...prev,
-            [documentTypeId]: files[0]
-          };
-          console.log('Updated uploadedFiles state:', updated);
-          return updated;
-        });
+        setUploadedFiles(prev => ({
+          ...prev,
+          [documentTypeId]: files[0]
+        }));
       }
 
       // Clear error
       if (errors[`file_${documentTypeId}`]) {
         setErrors(prev => ({ ...prev, [`file_${documentTypeId}`]: '' }));
       }
-    } else {
-      console.log('No files provided to handleFileUpload');
     }
   };
 
@@ -1316,29 +1308,21 @@ export default function PublicationRewardForm({ onNavigate }) {
     
     if (file && file.type === 'application/pdf') {
       // Update file in funding table
-      setExternalFundings(prev => {
-        const updated = prev.map(funding => 
-          funding.id === id ? { ...funding, file: file } : funding
-        );
-        console.log('Updated externalFundings:', updated);
-        return updated;
-      });
+      setExternalFundings(prev => prev.map(funding => 
+        funding.id === id ? { ...funding, file: file } : funding
+      ));
       
-      // Add to otherDocuments with proper structure
-      const externalDoc = {
-        file: file,
-        documentTypeId: 12, // เอกสารเบิกจ่ายภายนอก
-        description: `เอกสารเบิกจ่ายภายนอก - ${file.name}`,
-        type: 'external_funding',
-        external_funding_id: id
-      };
-      
-      // Update otherDocuments - remove old file for this funding id and add new one
-      setOtherDocuments(prev => {
-        const filtered = prev.filter(doc => 
-          !(doc.type === 'external_funding' && doc.external_funding_id === id)
-        );
-        return [...filtered, externalDoc];
+      // Update external funding files separately
+      setExternalFundingFiles(prev => {
+        // Remove old file for this funding id if exists
+        const filtered = prev.filter(doc => doc.funding_id !== id);
+        // Add new file
+        return [...filtered, {
+          file: file,
+          funding_id: id,
+          description: `เอกสารเบิกจ่ายภายนอก - ${file.name}`,
+          timestamp: Date.now()
+        }];
       });
       
       console.log('External funding file added successfully');
@@ -1346,6 +1330,74 @@ export default function PublicationRewardForm({ onNavigate }) {
       console.error('Invalid file type for external funding:', file?.type);
       alert('กรุณาเลือกไฟล์ PDF เท่านั้น');
     }
+  };
+
+  // ฟังก์ชันรวมไฟล์ทั้งหมดเพื่อแสดงผล
+  const getAllAttachedFiles = () => {
+    const allFiles = [];
+    
+    // 1. Main document files
+    Object.entries(uploadedFiles).forEach(([key, file]) => {
+      if (file) {
+        const docType = documentTypes.find(dt => dt.id == key);
+        allFiles.push({
+          id: `uploaded-${key}`,
+          name: file.name,
+          type: docType?.name || 'เอกสาร',
+          size: file.size,
+          file: file,
+          source: 'uploaded',
+          canDelete: true
+        });
+      }
+    });
+    
+    // 2. Other documents
+    otherDocuments.forEach((file, index) => {
+      allFiles.push({
+        id: `other-${index}`,
+        name: file.name || 'ไม่ระบุชื่อ',
+        type: 'เอกสารอื่นๆ',
+        size: file.size || 0,
+        file: file,
+        source: 'other',
+        canDelete: true,
+        index: index // เก็บ index เพื่อใช้ลบ
+      });
+    });
+    
+    // 3. External funding files
+    externalFundingFiles.forEach((doc, index) => {
+      const funding = externalFundings.find(f => f.id === doc.funding_id);
+      allFiles.push({
+        id: `external-${doc.funding_id}`,
+        name: doc.file.name,
+        type: `หลักฐานทุนภายนอก - ${funding?.fundName || 'ไม่ระบุชื่อ'}`,
+        size: doc.file.size,
+        file: doc.file,
+        source: 'external',
+        canDelete: false // ลบผ่าน table external funding แทน
+      });
+    });
+    
+    return allFiles;
+  };
+
+  // ฟังก์ชันลบไฟล์จาก Attached Files
+  const removeAttachedFile = (fileInfo) => {
+    if (fileInfo.source === 'uploaded') {
+      // Remove from uploadedFiles
+      const key = fileInfo.id.replace('uploaded-', '');
+      setUploadedFiles(prev => {
+        const updated = { ...prev };
+        delete updated[key];
+        return updated;
+      });
+    } else if (fileInfo.source === 'other') {
+      // Remove from otherDocuments by index
+      setOtherDocuments(prev => prev.filter((_, idx) => idx !== fileInfo.index));
+    }
+    // External files ไม่ลบที่นี่ ให้ลบผ่าน external funding table
   };
 
   // =================================================================
@@ -1618,55 +1670,63 @@ export default function PublicationRewardForm({ onNavigate }) {
   // SUBMISSION CONFIRMATION
   // =================================================================
 
-  // Show submission confirmation dialog
-  const showSubmissionConfirmation = async () => {
-    const publicationDate = formData.journal_month && formData.journal_year 
-      ? `${formData.journal_month}/${formData.journal_year}` 
-      : '-';
+// Show submission confirmation dialog
+const showSubmissionConfirmation = async () => {
+  const publicationDate = formData.journal_month && formData.journal_year 
+    ? `${formData.journal_month}/${formData.journal_year}` 
+    : '-';
 
-    // Collect all files for display and PDF merging
-    const allFiles = [];
-    const allFilesList = [];
-    
-    // Files from uploadedFiles
-    Object.entries(uploadedFiles).forEach(([key, file]) => {
-      if (file) {
-        const docType = documentTypes.find(dt => dt.id == key);
+  // Collect all files for display and PDF merging (ไม่ซ้ำกัน)
+  const allFiles = [];
+  const allFilesList = [];
+  const processedFileNames = new Set(); // เก็บชื่อไฟล์ที่ประมวลผลแล้ว
+  
+  // 1. Files from uploadedFiles
+  Object.entries(uploadedFiles).forEach(([key, file]) => {
+    if (file && !processedFileNames.has(file.name)) {
+      const docType = documentTypes.find(dt => dt.id == key);
+      allFiles.push(file);
+      allFilesList.push({
+        name: file.name,
+        type: docType?.name || 'เอกสาร',
+        size: file.size
+      });
+      processedFileNames.add(file.name);
+    }
+  });
+  
+  // 2. Files from otherDocuments (เฉพาะที่ไม่ซ้ำ)
+  if (otherDocuments && Array.isArray(otherDocuments) && otherDocuments.length > 0) {
+    otherDocuments.forEach(doc => {
+      const file = doc.file || doc;
+      const fileName = file.name || doc.name;
+      if (file && fileName && !processedFileNames.has(fileName)) {
         allFiles.push(file);
         allFilesList.push({
-          name: file.name,
-          type: docType?.name || 'เอกสาร',
-          size: file.size
+          name: fileName,
+          type: 'เอกสารอื่นๆ',
+          size: file.size || doc.size || 0
         });
+        processedFileNames.add(fileName);
       }
     });
-    
-    // Files from otherDocuments
-    if (otherDocuments && Array.isArray(otherDocuments) && otherDocuments.length > 0) {
-      otherDocuments.forEach(doc => {
-        const file = doc.file || doc;
-        if (file && (file.name || doc.name)) {
-          allFiles.push(file);
-          allFilesList.push({
-            name: file.name || doc.name,
-            type: 'เอกสารอื่นๆ',
-            size: file.size || doc.size || 0
-          });
-        }
-      });
-    }
-    
-    // Files from external funding
-    externalFundings.forEach(funding => {
-      if (funding.file) {
-        allFiles.push(funding.file);
+  }
+  
+  // 3. Files from externalFundingFiles (ใช้ externalFundingFiles แทน externalFundings)
+  if (externalFundingFiles && externalFundingFiles.length > 0) {
+    externalFundingFiles.forEach(doc => {
+      const funding = externalFundings.find(f => f.id === doc.funding_id);
+      if (doc.file && !processedFileNames.has(doc.file.name)) {
+        allFiles.push(doc.file);
         allFilesList.push({
-          name: funding.file.name,
-          type: 'หลักฐานทุนภายนอก',
-          size: funding.file.size
+          name: doc.file.name,
+          type: `หลักฐานทุนภายนอก - ${funding?.fundName || 'ไม่ระบุ'}`,
+          size: doc.file.size
         });
+        processedFileNames.add(doc.file.name);
       }
     });
+  }
 
     // Check if files exist
     if (allFiles.length === 0) {
@@ -1915,6 +1975,31 @@ export default function PublicationRewardForm({ onNavigate }) {
   // MAIN SUBMISSION FUNCTION
   // =================================================================
 
+  // Validate publication data before sending
+  const validatePublicationData = (data) => {
+    const errors = [];
+    
+    // Check required fields
+    if (!data.article_title) errors.push('ไม่มีชื่อบทความ');
+    if (!data.journal_name) errors.push('ไม่มีชื่อวารสาร');
+    if (!data.journal_quartile) errors.push('ไม่มี Quartile');
+    if (!data.publication_date) errors.push('ไม่มีวันที่ตีพิมพ์');
+    
+    // Check date format
+    if (data.publication_date && !data.publication_date.match(/^\d{4}-\d{2}-\d{2}$/)) {
+      errors.push('รูปแบบวันที่ไม่ถูกต้อง (ต้องเป็น YYYY-MM-DD)');
+    }
+    
+    // Check numeric fields
+    const numericFields = ['reward_amount', 'revision_fee', 'publication_fee', 'external_funding_amount', 'total_amount'];
+    numericFields.forEach(field => {
+      if (isNaN(data[field])) {
+        errors.push(`${field} ต้องเป็นตัวเลข`);
+      }
+    });
+    
+    return errors;
+  };
   // Submit application
   const submitApplication = async () => {
     // Validate form first
@@ -1948,15 +2033,17 @@ export default function PublicationRewardForm({ onNavigate }) {
 
       let submissionId = currentSubmissionId;
       const allFiles = [];
+      const processedFiles = new Set(); // ป้องกันไฟล์ซ้ำ
 
       // 1. Add main document files (document_type_id 1-10)
       Object.entries(uploadedFiles).forEach(([docTypeId, file]) => {
-        if (file) {
+        if (file && !processedFiles.has(file.name)) {
           allFiles.push({
             file: file,
             document_type_id: parseInt(docTypeId),
             description: `${file.name} (ประเภท ${docTypeId})`
           });
+          processedFiles.add(file.name);
         }
       });
 
@@ -1964,35 +2051,38 @@ export default function PublicationRewardForm({ onNavigate }) {
       if (otherDocuments && otherDocuments.length > 0) {
         otherDocuments.forEach((doc, index) => {
           const file = doc.file || doc;
-          if (file) {
+          if (file && !processedFiles.has(file.name)) {
             allFiles.push({
               file: file,
-              document_type_id: 11, // Other documents
+              document_type_id: 11,
               description: doc.description || `เอกสารอื่นๆ ${index + 1}: ${file.name}`
             });
+            processedFiles.add(file.name);
           }
         });
       }
 
-      // 3. Add external funding documents (document_type_id = 12)
-      if (externalFundings && externalFundings.length > 0) {
-        externalFundings.forEach((funding, index) => {
-          if (funding.file) {
+      // 3. Add external funding documents from externalFundingFiles (ใช้ externalFundingFiles)
+      if (externalFundingFiles && externalFundingFiles.length > 0) {
+        externalFundingFiles.forEach(doc => {
+          const funding = externalFundings.find(f => f.id === doc.funding_id);
+          if (doc.file && !processedFiles.has(doc.file.name)) {
             allFiles.push({
-              file: funding.file,
-              document_type_id: 12, // External funding documents
-              description: `เอกสารเบิกจ่ายภายนอก: ${funding.fundName || `ทุนที่ ${index + 1}`}`,
-              external_funding_id: funding.id || null
+              file: doc.file,
+              document_type_id: 12,
+              description: `เอกสารเบิกจ่ายภายนอก: ${funding?.fundName || 'ไม่ระบุ'}`,
+              external_funding_id: doc.funding_id
             });
+            processedFiles.add(doc.file.name);
           }
         });
       }
 
-      // Use merged PDF file if available
-      if (mergedPdfFile) {
+      // ไม่ต้องเพิ่ม merged PDF ถ้าไม่จำเป็น หรือเช็คก่อนว่าซ้ำหรือไม่
+      if (mergedPdfFile && !processedFiles.has(mergedPdfFile.name)) {
         allFiles.push({
           file: mergedPdfFile,
-          document_type_id: 1, // Main article
+          document_type_id: 1,
           description: 'เอกสารรวม (Merged PDF)'
         });
       }
@@ -2143,90 +2233,125 @@ export default function PublicationRewardForm({ onNavigate }) {
         html: 'กำลังบันทึกรายละเอียดบทความ...'
       });
 
+      // Format publication date
       const publicationDate = formData.journal_year && formData.journal_month 
         ? `${formData.journal_year}-${formData.journal_month.padStart(2, '0')}-01`
-        : new Date().toISOString().split('T')[0];
+        : `${new Date().getFullYear()}-01-01`;
+
+      // สร้าง external funding array สำหรับส่งไป backend (ถ้ามี)
+      const externalFundingData = externalFundings.map(funding => ({
+        fund_name: funding.fundName || '',
+        amount: parseFloat(funding.amount) || 0
+      }));
 
       const publicationData = {
-        article_title: formData.article_title,
-        journal_name: formData.journal_name,
+        // Basic article info
+        article_title: formData.article_title || '',
+        journal_name: formData.journal_name || '',
         publication_date: publicationDate,
-        publication_type: formData.journal_type || 'journal',
-        journal_quartile: formData.journal_quartile,
-        impact_factor: parseFloat(formData.impact_factor) || null,
+        journal_quartile: formData.journal_quartile || '',
+        
+        // Optional article details
+        publication_type: 'journal',
+        impact_factor: formData.impact_factor ? parseFloat(formData.impact_factor) : 0,
         doi: formData.doi || '',
         url: formData.journal_url || '',
         page_numbers: formData.journal_pages || '',
         volume_issue: formData.journal_issue || '',
         
-        // แก้ไข indexing ให้รวมค่าจาก checkboxes
+        // Indexing as single string
         indexing: [
           formData.in_isi && 'ISI',
           formData.in_scopus && 'Scopus',
           formData.in_web_of_science && 'Web of Science',
           formData.in_tci && 'TCI'
-        ].filter(Boolean).join(', '),
+        ].filter(Boolean).join(', ') || '',
         
-        // ส่ง checkboxes แยกด้วย (เผื่อ backend ต้องการ)
-        in_isi: formData.in_isi || false,
-        in_scopus: formData.in_scopus || false,
-        in_web_of_science: formData.in_web_of_science || false,
-        in_tci: formData.in_tci || false,
-        
-        // Reward and calculations
+        // Financial fields
         reward_amount: parseFloat(formData.publication_reward) || 0,
         revision_fee: parseFloat(formData.revision_fee) || 0,
         publication_fee: parseFloat(formData.publication_fee) || 0,
         external_funding_amount: parseFloat(formData.external_funding_amount) || 0,
         total_amount: parseFloat(formData.total_amount) || 0,
         
-        author_count: coauthors.length + 1,
+        // External fundings (ถ้า backend รองรับ)
+        // external_fundings: externalFundingData.length > 0 ? externalFundingData : [],
+        
+        // Author info
+        author_count: (coauthors?.length || 0) + 1,
         is_corresponding_author: formData.author_status === 'corresponding_author',
-        author_status: formData.author_status,
+        author_status: formData.author_status || '',
+        author_type: formData.author_status || '', // เพิ่ม field นี้ด้วย
         
         // Bank info
-        bank_account: formData.bank_account,
-        bank_name: formData.bank_name,
-        bank_account_name: formData.bank_account_name || '',
+        bank_account: formData.bank_account || '',
+        bank_name: formData.bank_name || '',
+        bank_account_name: '', // empty string
         phone_number: formData.phone_number || '',
         
-        // Additional info - ใช้ชื่อที่ตรงกับ database
+        // Additional info
         has_university_funding: formData.has_university_fund || 'no',
         funding_references: formData.university_fund_ref || '',
         university_rankings: formData.university_ranking || '',
         
-        // Other
-        announce_reference_number: formData.announce_reference_number || ''
+        // Required empty fields
+        announce_reference_number: ''
       };
 
-        // Debug: ตรวจสอบข้อมูลก่อนส่ง
-        console.log('=== DEBUG BEFORE SENDING ===');
-        console.log('formData values:');
-        console.log('- has_university_fund:', formData.has_university_fund);
-        console.log('- university_fund_ref:', formData.university_fund_ref);
-        console.log('- university_ranking:', formData.university_ranking);
+      console.log('=== Sending Publication Data ===');
+      console.log('Submission ID:', submissionId);
+      console.log('Publication Data:', JSON.stringify(publicationData, null, 2));
 
-        console.log('\npublicationData values:');
-        console.log('- has_university_funding:', publicationData.has_university_funding);
-        console.log('- funding_references:', publicationData.funding_references);
-        console.log('- university_rankings:', publicationData.university_rankings);
-
-        console.log('\nFull publicationData:', JSON.stringify(publicationData, null, 2));
-
-        try {
-          await publicationDetailsAPI.add(submissionId, publicationData);
-          console.log('Publication details saved successfully');
-        } catch (error) {
+      try {
+        // ส่ง publicationData โดยตรง
+        const response = await publicationDetailsAPI.add(submissionId, publicationData);
+        console.log('Publication details saved successfully:', response);
+      } catch (error) {
         console.error('Failed to save publication details:', error);
         
-        // Show detailed error
+        // เพิ่มการ log เพื่อดู error detail
+        if (error.response) {
+          console.error('Error response status:', error.response.status);
+          console.error('Error response data:', error.response.data);
+          console.error('Error response headers:', error.response.headers);
+        }
+        
+        let errorMessage = 'เกิดข้อผิดพลาดที่ server';
+        
+        if (error.response?.status === 400) {
+          errorMessage = error.response.data?.message || 'ข้อมูลที่ส่งไปไม่ถูกต้อง';
+        } else if (error.response?.status === 500) {
+          errorMessage = 'Server error - อาจมีปัญหากับ database หรือ backend logic';
+          
+          // Log สำหรับ debug
+          console.error('=== Debug Info for 500 Error ===');
+          console.error('Data that caused error:', publicationData);
+          console.error('Data types:', Object.entries(publicationData).map(([k, v]) => ({
+            field: k,
+            type: typeof v,
+            value: v
+          })));
+        }
+        
         Swal.fire({
           icon: 'error',
           title: 'ไม่สามารถบันทึกรายละเอียดบทความได้',
-          text: `Error: ${error.message}`,
-          confirmButtonColor: '#ef4444'
+          html: `
+            <div class="text-left">
+              <p><strong>Error:</strong> ${errorMessage}</p>
+              <p class="text-sm text-gray-600 mt-2">Submission ID: ${submissionId}</p>
+              <details class="mt-3">
+                <summary class="cursor-pointer text-sm text-blue-600">ดูรายละเอียด</summary>
+                <pre class="text-xs bg-gray-100 p-2 mt-2 rounded overflow-auto max-h-40">
+      ${JSON.stringify(publicationData, null, 2)}
+                </pre>
+              </details>
+            </div>
+          `,
+          confirmButtonColor: '#ef4444',
+          width: '600px'
         });
-        return; // Stop process
+        return;
       }
 
       // Upload files
@@ -3225,61 +3350,68 @@ export default function PublicationRewardForm({ onNavigate }) {
                           accept=".pdf"
                           multiple={true}
                           label="other"
-                        />
+                        />                   
                       </div>
                     );
                   }
                   
                   // Special handling for "เอกสารเบิกจ่ายภายนอก"
                   if (docType.id === 12) {
-                    const externalDocs = otherDocuments.filter(doc => 
-                      doc.type === 'external_funding' && doc.documentTypeId === 12
-                    );
-                    
                     return (
                       <div key={docType.id} className="border border-gray-200 rounded-lg p-4">
                         <label className="block text-sm font-medium text-gray-700 mb-2">
                           เอกสารเบิกจ่ายภายนอก (External Funding Documents)
-                          {externalDocs.length > 0 && (
-                            <span className="ml-2 text-sm text-green-600">
-                              ({externalDocs.length} ไฟล์/files)
-                            </span>
-                          )}
                         </label>
                         
-                        {externalDocs.length > 0 ? (
+                        {externalFundingFiles && externalFundingFiles.length > 0 ? (
                           <div className="space-y-2">
-                            {externalDocs.map((doc, index) => (
-                              <div key={index} className="flex items-center justify-between bg-gray-50 rounded-lg p-3">
-                                <div className="flex items-center gap-3">
-                                  <FileText className="h-5 w-5 text-gray-400" />
-                                  <div>
-                                    <p className="text-sm font-medium text-gray-700">{doc.file.name}</p>
-                                    <p className="text-xs text-gray-500">
-                                      {(doc.file.size / 1024 / 1024).toFixed(2)} MB
-                                    </p>
+                            <p className="text-sm font-medium text-gray-600">
+                              ไฟล์จากตารางทุนภายนอก ({externalFundingFiles.length} ไฟล์):
+                            </p>
+                            {externalFundingFiles.map((doc, index) => {
+                              const funding = externalFundings.find(f => f.id === doc.funding_id);
+                              return (
+                                <div key={`ext-${doc.funding_id}`} className="flex items-center justify-between bg-blue-50 rounded-lg p-2">
+                                  <div className="flex items-center gap-2">
+                                    <FileText className="h-4 w-4 text-blue-600" />
+                                    <div className="flex-1">
+                                      <span className="text-sm text-gray-700">{doc.file.name}</span>
+                                      <span className="text-xs text-gray-500 ml-2">
+                                        {(doc.file.size / 1024 / 1024).toFixed(2)} MB
+                                      </span>
+                                    </div>
+                                  </div>
+                                  <div className="flex gap-2">
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        const url = URL.createObjectURL(doc.file);
+                                        window.open(url, '_blank');
+                                      }}
+                                      className="text-blue-500 hover:text-blue-700"
+                                      title="ดูไฟล์"
+                                    >
+                                      <Eye className="h-4 w-4" />
+                                    </button>
+                                    <span className="text-gray-400" title="ลบผ่านตารางทุนภายนอก">
+                                      <X className="h-4 w-4" />
+                                    </span>
                                   </div>
                                 </div>
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    const url = URL.createObjectURL(doc.file);
-                                    window.open(url, '_blank');
-                                  }}
-                                  className="text-blue-500 hover:text-blue-700"
-                                  title="ดูไฟล์ (View file)"
-                                >
-                                  <Eye className="h-4 w-4" />
-                                </button>
-                              </div>
-                            ))}
+                              );
+                            })}
+                            <p className="text-xs text-gray-500 mt-2">
+                              * หากต้องการลบไฟล์ กรุณาลบจากตารางทุนภายนอก
+                            </p>
                           </div>
                         ) : (
-                          <div className="text-center py-4 text-gray-400">
-                            <p className="text-sm">
-                              ไฟล์จะถูกเพิ่มอัตโนมัติเมื่อแนบในตารางทุนภายนอก
-                              <br />
-                              <span className="text-xs">(Files will be added automatically when attached in external funding table)</span>
+                          <div className="text-center py-4 bg-gray-50 rounded-lg">
+                            <FileText className="mx-auto h-6 w-6 text-gray-400 mb-2" />
+                            <p className="text-sm text-gray-500">
+                              ไฟล์จะแสดงอัตโนมัติเมื่อแนบในตารางทุนภายนอก
+                            </p>
+                            <p className="text-xs text-gray-400 mt-1">
+                              (Files will appear automatically when attached in external funding table)
                             </p>
                           </div>
                         )}
@@ -3287,7 +3419,7 @@ export default function PublicationRewardForm({ onNavigate }) {
                     );
                   }
                   
-                  // Regular document types with English translations
+                  // Regular document types (ไม่เปลี่ยนแปลง)
                   const getDocumentNameWithEnglish = (docName) => {
                     const translations = {
                       'QS WUR 1-400': 'QS WUR 1-400',
@@ -3304,8 +3436,9 @@ export default function PublicationRewardForm({ onNavigate }) {
                     return translations[docName] || docName;
                   };
                   
+                  // Regular document types
                   return (
-                    <div key={docType.id} id={`file-upload-${docType.id}`} className="border border-gray-200 rounded-lg p-4 transition-all">
+                    <div key={docType.id} id={`file-upload-${docType.id}`} className="border border-gray-200 rounded-lg p-4">
                       <label className="block text-sm font-medium text-gray-700 mb-2">
                         {getDocumentNameWithEnglish(docType.name)}
                         {docType.required && <span className="text-red-500 ml-1">*</span>}
