@@ -191,7 +191,7 @@ export default function PublicationRewardDetail({ submissionId, onNavigate }) {
         subtitle="ไม่พบข้อมูลคำร้องที่ต้องการ"
         icon={AlertCircle}
       >
-        <Card>
+        <Card collapsible={false}>
           <div className="text-center py-12">
             <AlertCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
             <p className="text-gray-600">ไม่พบข้อมูลคำร้องที่ต้องการ</p>
@@ -204,12 +204,18 @@ export default function PublicationRewardDetail({ submissionId, onNavigate }) {
     );
   }
 
-  // Extract publication details
-  const pubDetail = submission.PublicationRewardDetail ||
-                    submission.publication_reward_detail || {};
+// Extract publication details
+const pubDetail = submission.PublicationRewardDetail ||
+                  submission.publication_reward_detail || {};
 
-  // documents may come from different property names depending on the API response
-  const documents = submission.documents || submission.submission_documents || [];
+// Normalize approved amount from possible field names
+const approvedAmount =
+  pubDetail.approved_amount ??
+  pubDetail.reward_approve_amount ??
+  pubDetail.total_approve_amount;
+
+// documents may come from different property names depending on the API response
+const documents = submission.documents || submission.submission_documents || [];
   
   return (
     <PageLayout
@@ -237,7 +243,7 @@ export default function PublicationRewardDetail({ submissionId, onNavigate }) {
       ]}
     >
       {/* Status Summary Card */}
-      <Card className="mb-6 border-l-4 border-blue-500">
+      <Card className="mb-6 border-l-4 border-blue-500" collapsible={false}>
         <div className="flex justify-between items-start">
           <div>
             <div className="flex flex-wrap items-center gap-3 mb-2">
@@ -292,6 +298,14 @@ export default function PublicationRewardDetail({ submissionId, onNavigate }) {
               ฿{(pubDetail.reward_amount || 0).toLocaleString()}
             </div>
             <div className="text-sm text-gray-500">จำนวนเงินที่ขอ</div>
+            {submission.status_id === 2 && approvedAmount && (
+              <div className="mt-2">
+                <div className="text-lg font-bold text-green-600">
+                  ฿{approvedAmount.toLocaleString()}
+                </div>
+                <div className="text-sm text-gray-500">จำนวนเงินที่อนุมัติ</div>
+              </div>
+            )}
           </div>
         </div>
       </Card>
@@ -346,7 +360,7 @@ export default function PublicationRewardDetail({ submissionId, onNavigate }) {
       {activeTab === 'details' && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Publication Information */}
-          <Card title="ข้อมูลบทความ" icon={BookOpen}>
+          <Card title="ข้อมูลบทความ" icon={BookOpen} collapsible={false}>
             <div className="space-y-4">
               <div>
                 <label className="text-sm text-gray-500">ชื่อบทความ</label>
@@ -396,7 +410,7 @@ export default function PublicationRewardDetail({ submissionId, onNavigate }) {
           </Card>
 
           {/* Journal Quality */}
-          <Card title="คุณภาพวารสาร" icon={Award}>
+          <Card title="คุณภาพวารสาร" icon={Award} collapsible={false}>
             <div className="space-y-4">
               <div>
                 <label className="text-sm text-gray-500">Quartile</label>
@@ -427,7 +441,7 @@ export default function PublicationRewardDetail({ submissionId, onNavigate }) {
           </Card>
 
           {/* Financial Information */}
-          <Card title="ข้อมูลการเงิน" icon={DollarSign}>
+          <Card title="ข้อมูลการเงิน" icon={DollarSign} collapsible={false}>
             <div className="space-y-4">
               <div className="flex justify-between items-center pb-2 border-b">
                 <span className="text-gray-600">เงินรางวัลที่ขอ</span>
@@ -461,11 +475,11 @@ export default function PublicationRewardDetail({ submissionId, onNavigate }) {
                   ฿{(pubDetail.total_amount || pubDetail.reward_amount || 0).toLocaleString()}
                 </span>
               </div>
-              {submission.status_id === 2 && pubDetail.reward_approve_amount && (
+              {submission.status_id === 2 && approvedAmount && (
                 <div className="flex justify-between items-center pt-2 border-t bg-green-50 -mx-4 px-4 py-2">
                   <span className="font-medium text-green-800">จำนวนที่อนุมัติ</span>
                   <span className="font-bold text-xl text-green-600">
-                    ฿{pubDetail.reward_approve_amount.toLocaleString()}
+                    ฿{approvedAmount.toLocaleString()}
                   </span>
                 </div>
               )}
@@ -473,7 +487,7 @@ export default function PublicationRewardDetail({ submissionId, onNavigate }) {
           </Card>
 
           {/* Additional Information */}
-          <Card title="ข้อมูลเพิ่มเติม" icon={FileCheck}>
+          <Card title="ข้อมูลเพิ่มเติม" icon={FileCheck} collapsible={false}>
             <div className="space-y-4">
               <div>
                 <label className="text-sm text-gray-500">สถานะผู้แต่ง</label>
@@ -505,7 +519,7 @@ export default function PublicationRewardDetail({ submissionId, onNavigate }) {
       )}
 
       {activeTab === 'authors' && (
-        <Card title="รายชื่อผู้แต่งร่วม" icon={Users}>
+        <Card title="รายชื่อผู้แต่งร่วม" icon={Users} collapsible={false}>
           <div className="space-y-4">
             {/* ตรวจสอบว่ามีข้อมูล submission_users หรือไม่ */}
             {submission.submission_users && submission.submission_users.length > 0 ? (
@@ -580,7 +594,7 @@ export default function PublicationRewardDetail({ submissionId, onNavigate }) {
       )}
 
       {activeTab === 'authors' && (
-        <Card title="รายชื่อผู้แต่ง" icon={Users}>
+        <Card title="รายชื่อผู้แต่ง" icon={Users} collapsible={false}>
           <div className="space-y-6">
             {/* แสดงผู้แต่งหลัก */}
             <div>
@@ -653,7 +667,7 @@ export default function PublicationRewardDetail({ submissionId, onNavigate }) {
       )}
 
       {activeTab === 'documents' && (
-        <Card title="เอกสารแนบ" icon={FileText}>
+        <Card title="เอกสารแนบ" icon={FileText} collapsible={false}>
           <div className="space-y-4">
             {documents.length > 0 ? (
               <ul className="divide-y divide-gray-200">
@@ -694,10 +708,11 @@ export default function PublicationRewardDetail({ submissionId, onNavigate }) {
       )}
 
       {activeTab === 'history' && (
-        <Card title="ประวัติการดำเนินการ" icon={Clock}>
+        <Card title="ประวัติการดำเนินการ" icon={Clock} collapsible={false}>
           <div className="space-y-4">
             <div className="flow-root">
-              <ul className="-mb-8">
+              {/* Using positive margin to ensure the timeline container grows with content */}
+              <ul className="mb-8">
                 {/* Created */}
                 <li>
                   <div className="relative pb-8">
@@ -772,6 +787,13 @@ export default function PublicationRewardDetail({ submissionId, onNavigate }) {
                               หมายเหตุ: {pubDetail.approval_comment}
                             </p>
                           )}
+                          {(pubDetail.reject_reason || pubDetail.rejection_reason) &&
+                            submission.status_id === 3 && (
+                              <p className="text-sm text-gray-600 mt-1">
+                                เหตุผลที่ไม่อนุมัติ: {pubDetail.reject_reason ||
+                                  pubDetail.rejection_reason}
+                              </p>
+                            )}
                         </div>
                       </div>
                     </div>
