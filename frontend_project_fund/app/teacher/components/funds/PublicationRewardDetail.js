@@ -57,28 +57,34 @@ export default function PublicationRewardDetail({ submissionId, onNavigate }) {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('details');
 
-  // Helper to safely get user's full name from various possible structures
   const getUserFullName = (user) => {
     if (!user) return "-";
-    const firstName =
-      user.user_fname || user.first_name || user.firstname || user.fname || "";
-    const lastName =
-      user.user_lname || user.last_name || user.lastname || user.lname || "";
+    
+    const firstName = user.user_fname || "";
+    const lastName = user.user_lname || "";
     const fullName = `${firstName} ${lastName}`.trim();
+    
     return fullName || "-";
   };
 
-  // Helper to safely get email from various structures
   const getUserEmail = (user) => {
     if (!user) return "";
-    return user.email || user.user_email || "";
+    return user.email || "";
   };
 
   // Helper to get main author data
   const getMainAuthor = () => {
     if (!submission) return null;
     const directAuthor = submission.User || submission.user;
-    if (directAuthor) return directAuthor;
+    const hasDirectData =
+      directAuthor &&
+      (directAuthor.user_id ||
+        directAuthor.user_fname ||
+        directAuthor.first_name ||
+        directAuthor.full_name ||
+        directAuthor.fullname ||
+        directAuthor.name);
+    if (hasDirectData) return directAuthor;
     const fromList = submission.submission_users?.find(
       (u) => u.is_primary || u.role === "owner" || u.role === "first_author"
     );
@@ -98,19 +104,34 @@ export default function PublicationRewardDetail({ submissionId, onNavigate }) {
       const response = await submissionAPI.getSubmission(submissionId);
       console.log('Submission Detail:', response);
       
-      // ถ้า API ไม่ส่ง submission_users มา ให้โหลดแยก
+       // เริ่มจากข้อมูล submission พื้นฐาน
       let submissionData = response.submission || response;
 
       // นำข้อมูล submission_users จาก response ถ้ามีมาใช้ก่อน
       if (response.submission_users && response.submission_users.length > 0) {
         submissionData.submission_users = response.submission_users;
       }
-
       
-      // ตรวจสอบว่ามี submission_users หรือไม่
-      if (!submissionData.submission_users || submissionData.submission_users.length === 0) {
+      // ถ้าผู้แต่งที่ได้มายังไม่มีข้อมูล User ให้โหลดแยก
+      const needsUserData =
+        !submissionData.submission_users ||
+        submissionData.submission_users.some((u) => {
+          const ud = u.User || u.user;
+          if (!ud) return true;
+          const idValid = ud.user_id && ud.user_id !== 0;
+          const hasName =
+            ud.user_fname ||
+            ud.user_lname ||
+            ud.first_name ||
+            ud.last_name ||
+            ud.full_name ||
+            ud.fullname ||
+            ud.name;
+          return !idValid || !hasName;
+        });
+
+      if (needsUserData) {
         try {
-          // โหลด users แยก (ถ้ามี API endpoint)
           const usersResponse = await submissionUsersAPI.getUsers(submissionId);
           if (usersResponse && usersResponse.users) {
             submissionData.submission_users = usersResponse.users;
@@ -258,7 +279,7 @@ const documents = submission.documents || submission.submission_documents || [];
             </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4 text-sm">
               <div>
-                <span className="text-gray-500">วันที่สร้าง:</span>
+                <span className="text-gray-500">วันที่สร้างคำร้อง:</span>
                 <span className="ml-2 font-medium">
                   {new Date(submission.created_at).toLocaleDateString('th-TH', {
                     year: 'numeric',
@@ -269,7 +290,7 @@ const documents = submission.documents || submission.submission_documents || [];
               </div>
               {submission.submitted_at && (
                 <div>
-                  <span className="text-gray-500">วันที่ส่ง:</span>
+                  <span className="text-gray-500">วันที่ส่งคำร้อง:</span>
                   <span className="ml-2 font-medium">
                     {new Date(submission.submitted_at).toLocaleDateString('th-TH', {
                       year: 'numeric',
@@ -517,82 +538,8 @@ const documents = submission.documents || submission.submission_documents || [];
           </Card>
         </div>
       )}
-
-      {activeTab === 'authors' && (
-        <Card title="รายชื่อผู้แต่งร่วม" icon={Users} collapsible={false}>
-          <div className="space-y-4">
-            {/* ตรวจสอบว่ามีข้อมูล submission_users หรือไม่ */}
-            {submission.submission_users && submission.submission_users.length > 0 ? (
-              <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                        ลำดับ
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                        ชื่อ-นามสกุล
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                        อีเมล
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                        บทบาท
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                        สถานะ
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
-                    {submission.submission_users
-                      .filter(user => user.role === 'coauthor' || user.role === 'co_author')
-                      .sort((a, b) => a.display_order - b.display_order)
-                      .map((user, index) => {
-                        const userData = user.User || user.user || user;
-                        return (
-                          <tr key={user.id}>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm">
-                              {index + 1}
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <div className="flex items-center">
-                                <User className="h-5 w-5 text-gray-400 mr-2" />
-                                <div>
-                                  <div className="text-sm font-medium text-gray-900">
-                                    {getUserFullName(userData)}
-                                  </div>
-                                </div>
-                              </div>
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                              {getUserEmail(userData)}
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm">
-                              <span className="px-2 py-1 text-xs rounded-full bg-gray-100">
-                                ผู้แต่งร่วม
-                              </span>
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm">
-                              {user.is_primary ? (
-                                <span className="text-green-600">หลัก</span>
-                              ) : (
-                                <span className="text-gray-400">ร่วม</span>
-                              )}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                  </tbody>
-                </table>
-              </div>
-            ) : (
-              <p className="text-gray-500 text-center py-8">ไม่มีข้อมูลผู้แต่งร่วม</p>
-            )}
-          </div>
-        </Card>
-      )}
-
+      
+      {/* Authors Tab */}
       {activeTab === 'authors' && (
         <Card title="รายชื่อผู้แต่ง" icon={Users} collapsible={false}>
           <div className="space-y-6">
@@ -629,16 +576,17 @@ const documents = submission.documents || submission.submission_documents || [];
                   {submission.submission_users
                     .filter(user => user.role === 'coauthor' || user.role === 'co_author')
                     .sort((a, b) => (a.display_order || 0) - (b.display_order || 0))
-                    .map((user, index) => {
-                      const userData = user.User || user.user || user;
+                    .map((submissionUser, index) => {
+                      // API returns user data in submissionUser.user (lowercase)
+                      const userData = submissionUser.user;
+                      
                       return (
-                        <div key={user.id} className="bg-gray-50 rounded-lg p-4">
+                        <div key={submissionUser.user_id || index} className="bg-gray-50 rounded-lg p-4">
                           <div className="flex items-center">
                             <span className="text-sm font-medium text-gray-500 w-8">
                               {index + 1}.
                             </span>
-                            <User className="h-5 w-5 text-gray-400 mr-3" />
-                            <div className="flex-1">
+                            <div className="flex-1 ml-3">
                               <div className="font-medium text-gray-900">
                                 {getUserFullName(userData)}
                               </div>
@@ -646,20 +594,16 @@ const documents = submission.documents || submission.submission_documents || [];
                                 {getUserEmail(userData)}
                               </div>
                             </div>
-                              {user.is_primary && (
-                              <span className="px-2 py-1 text-xs font-medium bg-green-100 text-green-700 rounded-full">
-                                หลัก
-                              </span>
-                            )}
+                            <span className="ml-auto px-3 py-1 text-xs font-medium bg-gray-100 text-gray-700 rounded-full">
+                              ผู้แต่งร่วม
+                            </span>
                           </div>
                         </div>
                       );
                     })}
                 </div>
               ) : (
-                <div className="bg-gray-50 rounded-lg p-8 text-center text-gray-500">
-                  ไม่มีผู้แต่งร่วม
-                </div>
+                <p className="text-gray-500 text-center py-8">ไม่มีข้อมูลผู้แต่งร่วม</p>
               )}
             </div>
           </div>
