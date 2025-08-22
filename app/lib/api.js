@@ -736,3 +736,110 @@ export { APIError, AuthError, PermissionError, NetworkError };
 
 // Export the main client for advanced usage
 export default apiClient;
+
+// ==================== ANNOUNCEMENT API METHODS ====================
+
+// Announcement API methods
+export const announcementAPI = {
+  async getAnnouncements(filters = {}) {
+    return apiClient.get('/announcements', filters);
+  },
+
+  async getAnnouncement(id) {
+    return apiClient.get(`/announcements/${id}`);
+  },
+
+  async downloadAnnouncementFile(id) {
+    const token = apiClient.getToken();
+    const url = `${apiClient.baseURL}/announcements/${id}/download`;
+    
+    // Create a temporary link to download the file
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('target', '_blank');
+    
+    if (token) {
+      fetch(url, {
+        headers: { Authorization: `Bearer ${token}` }
+      }).then(response => {
+        if (response.ok) {
+          return response.blob();
+        }
+        throw new Error('Download failed');
+      })
+      .then(blob => {
+        const downloadUrl = window.URL.createObjectURL(blob);
+        link.href = downloadUrl;
+        link.click();
+        window.URL.revokeObjectURL(downloadUrl);
+      })
+      .catch(error => {
+        console.error('Download error:', error);
+        alert('ไม่สามารถดาวน์โหลดไฟล์ได้');
+      });
+    } else {
+      link.click();
+    }
+  },
+
+  async viewAnnouncementFile(id) {
+    const token = apiClient.getToken();
+    const url = `${apiClient.baseURL}/announcements/${id}/view`;
+    
+    if (token) {
+      window.open(url, '_blank');
+    }
+  }
+};
+
+// Fund Forms API methods
+export const fundFormAPI = {
+  async getFundForms(filters = {}) {
+    return apiClient.get('/fund-forms', filters);
+  },
+
+  async getFundForm(id) {
+    return apiClient.get(`/fund-forms/${id}`);
+  },
+
+  async downloadFundForm(id) {
+    const token = apiClient.getToken();
+    const url = `${apiClient.baseURL}/fund-forms/${id}/download`;
+    
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('target', '_blank');
+    
+    if (token) {
+      fetch(url, {
+        headers: { Authorization: `Bearer ${token}` }
+      }).then(response => {
+        if (response.ok) {
+          return response.blob();
+        }
+        throw new Error('Download failed');
+      })
+      .then(blob => {
+        const downloadUrl = window.URL.createObjectURL(blob);
+        link.href = downloadUrl;
+        link.click();
+        window.URL.revokeObjectURL(downloadUrl);
+      })
+      .catch(error => {
+        console.error('Download error:', error);
+        alert('ไม่สามารถดาวน์โหลดไฟล์ได้');
+      });
+    } else {
+      link.click();
+    }
+  },
+
+  async viewFundForm(id) {
+    const token = apiClient.getToken();
+    const url = `${apiClient.baseURL}/fund-forms/${id}/view`;
+    
+    if (token) {
+      window.open(url, '_blank');
+    }
+  }
+};
