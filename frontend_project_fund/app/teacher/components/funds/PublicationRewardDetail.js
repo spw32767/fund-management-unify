@@ -29,6 +29,29 @@ import PageLayout from "../common/PageLayout";
 import Card from "../common/Card";
 import StatusBadge from "../common/StatusBadge";
 
+const getStatusName = (statusId) => {
+  const statuses = {
+    1: 'รอพิจารณา',
+    2: 'อนุมัติ',
+    3: 'ไม่อนุมัติ',
+    4: 'ต้องแก้ไข',
+  };
+  return statuses[statusId] || 'ไม่ทราบสถานะ';
+};
+
+const getStatusIcon = (statusId) => {
+  switch (statusId) {
+    case 2:
+      return <CheckCircle className="h-5 w-5 text-green-600" />;
+    case 3:
+      return <XCircle className="h-5 w-5 text-red-600" />;
+    case 4:
+      return <AlertCircle className="h-5 w-5 text-orange-600" />;
+    default:
+      return <Clock className="h-5 w-5 text-yellow-600" />;
+  }
+};
+
 export default function PublicationRewardDetail({ submissionId, onNavigate }) {
   const [submission, setSubmission] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -119,10 +142,10 @@ export default function PublicationRewardDetail({ submissionId, onNavigate }) {
     }
   };
 
-  const handleView = async (documentId) => {
+  const handleView = async (fileId) => {
     try {
       const token = apiClient.getToken();
-      const url = `${apiClient.baseURL}/documents/download/${documentId}`;
+      const url = `${apiClient.baseURL}/files/managed/${fileId}/download`;
       const response = await fetch(url, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
@@ -136,9 +159,9 @@ export default function PublicationRewardDetail({ submissionId, onNavigate }) {
     }
   };
 
-  const handleDownload = async (documentId, fileName = 'document') => {
+  const handleDownload = async (fileId, fileName = 'document') => {
     try {
-      await apiClient.downloadFile(`/documents/download/${documentId}`, fileName);
+      await apiClient.downloadFile(`/files/managed/${fileId}/download`, fileName);
     } catch (error) {
       console.error('Error downloading document:', error);
     }
@@ -185,18 +208,9 @@ export default function PublicationRewardDetail({ submissionId, onNavigate }) {
   const pubDetail = submission.PublicationRewardDetail ||
                     submission.publication_reward_detail || {};
 
-  const documents = submission.submission_documents || submission.documents || [];
+  // documents may come from different property names depending on the API response
+  const documents = submission.documents || submission.submission_documents || [];
   
-  // Status icon
-  const getStatusIcon = (statusId) => {
-    switch(statusId) {
-      case 2: return <CheckCircle className="h-5 w-5 text-green-600" />;
-      case 3: return <XCircle className="h-5 w-5 text-red-600" />;
-      case 4: return <AlertCircle className="h-5 w-5 text-orange-600" />;
-      default: return <Clock className="h-5 w-5 text-yellow-600" />;
-    }
-  };
-
   return (
     <PageLayout
       title={`เงินรางวัลตีพิมพ์ #${submission.submission_number}`}
@@ -226,13 +240,15 @@ export default function PublicationRewardDetail({ submissionId, onNavigate }) {
       <Card className="mb-6 border-l-4 border-blue-500">
         <div className="flex justify-between items-start">
           <div>
-            <div className="flex items-center gap-3 mb-2">
+            <div className="flex flex-wrap items-center gap-3 mb-2">
               {getStatusIcon(submission.status_id)}
               <h3 className="text-lg font-semibold">สถานะคำร้อง</h3>
-              <StatusBadge 
-                status={submission.Status?.status_name} 
-                statusId={submission.status_id} 
-              />
+              <div className="flex-shrink-0">
+                <StatusBadge
+                  status={submission.Status?.status_name}
+                  statusId={submission.status_id}
+                />
+              </div>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4 text-sm">
               <div>
@@ -642,24 +658,24 @@ export default function PublicationRewardDetail({ submissionId, onNavigate }) {
             {documents.length > 0 ? (
               <ul className="divide-y divide-gray-200">
                 {documents.map((doc, index) => {
-                  const docId = doc.document_id || doc.id || doc.file_id;
-                  const docName = doc.file_name || doc.name || doc.File?.file_name || doc.file?.file_name || `เอกสารที่ ${index + 1}`;
+                  const fileId = doc.file_id || doc.File?.file_id || doc.file?.file_id;
+                  const docName = doc.File?.original_name || doc.file?.original_name || doc.original_filename || doc.file_name || doc.name || `เอกสารที่ ${index + 1}`;
                   return (
-                    <li key={docId || index} className="py-3 flex items-center justify-between">
+                    <li key={doc.document_id || fileId || index} className="py-3 flex items-center justify-between">
                       <div className="flex items-center">
                         <FileText className="h-5 w-5 text-gray-400 mr-3" />
                         <span className="text-sm text-gray-700">{docName}</span>
                       </div>
                       <div className="flex items-center gap-2">
                         <button
-                          onClick={() => handleView(docId)}
+                          onClick={() => handleView(fileId)}
                           className="inline-flex items-center gap-1 px-3 py-1 text-sm text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-md"
                         >
                           <Eye className="h-4 w-4" />
                           ดู
                         </button>
                         <button
-                          onClick={() => handleDownload(docId)}
+                          onClick={() => handleDownload(fileId, docName)}
                           className="inline-flex items-center gap-1 px-3 py-1 text-sm text-green-600 bg-green-50 hover:bg-green-100 rounded-md"
                         >
                           <Download className="h-4 w-4" />
@@ -728,28 +744,30 @@ export default function PublicationRewardDetail({ submissionId, onNavigate }) {
                   </li>
                 )}
 
-                {/* Approved/Rejected */}
-                {submission.approved_at && (
+                {/* Status updates after submission */}
+                {submission.status_id !== 1 && submission.status_id !== 5 && (
                   <li>
                     <div className="relative">
                       <div className="relative flex space-x-3">
                         <div>
-                          <span className={`h-8 w-8 rounded-full flex items-center justify-center
-                            ${submission.status_id === 2 ? 'bg-green-500' : 'bg-red-500'}`}>
-                            {submission.status_id === 2 ? 
-                              <CheckCircle className="h-4 w-4 text-white" /> :
-                              <XCircle className="h-4 w-4 text-white" />
-                            }
+                          <span className={`h-8 w-8 rounded-full flex items-center justify-center ${
+                            submission.status_id === 2
+                              ? 'bg-green-500'
+                              : submission.status_id === 3
+                              ? 'bg-red-500'
+                              : 'bg-orange-500'
+                          }`}>
+                            {getStatusIcon(submission.status_id)}
                           </span>
                         </div>
                         <div className="flex-1 min-w-0">
                           <p className="text-sm text-gray-900">
-                            {submission.status_id === 2 ? 'อนุมัติ' : 'ปฏิเสธ'}
+                            {getStatusName(submission.status_id)}
                           </p>
                           <p className="text-xs text-gray-500">
-                            {new Date(submission.approved_at).toLocaleString('th-TH')}
+                            {new Date(submission.approved_at || submission.updated_at).toLocaleString('th-TH')}
                           </p>
-                          {pubDetail.approval_comment && (
+                          {pubDetail.approval_comment && submission.status_id === 2 && (
                             <p className="text-sm text-gray-600 mt-1">
                               หมายเหตุ: {pubDetail.approval_comment}
                             </p>
