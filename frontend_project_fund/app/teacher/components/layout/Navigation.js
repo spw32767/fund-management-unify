@@ -62,6 +62,12 @@ export default function Navigation({
       label: 'ทุนที่เคยได้รับ',
       icon: Gift,
       hasSubmenu: false
+    },
+    {
+    id: 'announcements',
+    label: 'ประกาศกองทุนวิจัยและนวัตกรรม',
+    icon: FileText,
+    hasSubmenu: false
     }
   ];
 
