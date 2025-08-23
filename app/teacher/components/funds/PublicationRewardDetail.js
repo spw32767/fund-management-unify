@@ -28,6 +28,7 @@ import apiClient from "@/app/lib/api";
 import PageLayout from "../common/PageLayout";
 import Card from "../common/Card";
 import StatusBadge from "../common/StatusBadge";
+import { formatCurrency } from "@/app/utils/format";
 
 const getStatusName = (statusId) => {
   const statuses = {
@@ -243,11 +244,16 @@ export default function PublicationRewardDetail({ submissionId, onNavigate }) {
 const pubDetail = submission.PublicationRewardDetail ||
                   submission.publication_reward_detail || {};
 
-// Normalize approved amount from possible field names
+// Approved amount only appears for approved submissions
+const approvedAmountRaw = pubDetail?.approved_amount;
 const approvedAmount =
-  pubDetail.approved_amount ??
-  pubDetail.reward_approve_amount ??
-  pubDetail.total_approve_amount;
+  approvedAmountRaw !== undefined && approvedAmountRaw !== null
+    ? Number(approvedAmountRaw)
+    : null;
+const showApprovedColumn =
+  submission.status_id === 2 &&
+  approvedAmount !== null &&
+  !Number.isNaN(approvedAmount);
 
 // documents may come from different property names depending on the API response
 const documents = submission.documents || submission.submission_documents || [];
@@ -330,13 +336,13 @@ const documents = submission.documents || submission.submission_documents || [];
           </div>
           <div className="text-right">
             <div className="text-2xl font-bold text-blue-600">
-              ฿{(pubDetail.reward_amount || 0).toLocaleString()}
+              {formatCurrency(pubDetail.reward_amount || 0)}
             </div>
             <div className="text-sm text-gray-500">จำนวนเงินที่ขอ</div>
-            {submission.status_id === 2 && approvedAmount && (
+            {showApprovedColumn && (
               <div className="mt-2">
                 <div className="text-lg font-bold text-green-600">
-                  ฿{approvedAmount.toLocaleString()}
+                  {formatCurrency(approvedAmount)}
                 </div>
                 <div className="text-sm text-gray-500">จำนวนเงินที่อนุมัติ</div>
               </div>
@@ -478,46 +484,83 @@ const documents = submission.documents || submission.submission_documents || [];
           {/* Financial Information */}
           <Card title="ข้อมูลการเงิน" icon={DollarSign} collapsible={false}>
             <div className="space-y-4">
-              <div className="flex justify-between items-center pb-2 border-b">
+              {/* Column headers */}
+              <div
+                className={`grid ${showApprovedColumn ? "grid-cols-3" : "grid-cols-2"} pb-2 border-b text-sm text-gray-600`}
+              >
+                <div></div>
+                <div className="text-right">จำนวนที่ขอ</div>
+                {showApprovedColumn && (
+                  <div className="text-right">จำนวนที่อนุมัติ</div>
+                )}
+              </div>
+
+              {/* Requested reward */}
+              <div
+                className={`grid ${showApprovedColumn ? "grid-cols-3" : "grid-cols-2"} items-center`}
+              >
                 <span className="text-gray-600">เงินรางวัลที่ขอ</span>
-                <span className="font-semibold text-lg">
-                  ฿{(pubDetail.reward_amount || 0).toLocaleString()}
+                <span className="text-right font-semibold">
+                  {formatCurrency(pubDetail.reward_amount || 0)}
                 </span>
+                {showApprovedColumn && <span></span>}
               </div>
+              
+              {/* Revision fee */}
               {pubDetail.revision_fee > 0 && (
-                <div className="flex justify-between items-center">
+                <div
+                  className={`grid ${showApprovedColumn ? "grid-cols-3" : "grid-cols-2"} items-center`}
+                >
                   <span className="text-gray-600">ค่าปรับปรุง</span>
-                  <span>฿{pubDetail.revision_fee.toLocaleString()}</span>
+                  <span className="text-right">
+                    {formatCurrency(pubDetail.revision_fee)}
+                  </span>
+                  {showApprovedColumn && <span></span>}
                 </div>
               )}
+              
+              {/* Publication fee */}
               {pubDetail.publication_fee > 0 && (
-                <div className="flex justify-between items-center">
+                <div
+                  className={`grid ${showApprovedColumn ? "grid-cols-3" : "grid-cols-2"} items-center`}
+                >
                   <span className="text-gray-600">ค่าตีพิมพ์</span>
-                  <span>฿{pubDetail.publication_fee.toLocaleString()}</span>
+                  <span className="text-right">
+                    {formatCurrency(pubDetail.publication_fee)}
+                  </span>
+                  {showApprovedColumn && <span></span>}
                 </div>
               )}
+              
+              {/* External funding */}
               {pubDetail.external_funding_amount > 0 && (
-                <div className="flex justify-between items-center">
+                <div
+                  className={`grid ${showApprovedColumn ? "grid-cols-3" : "grid-cols-2"} items-center`}
+                >
                   <span className="text-gray-600">เงินสนับสนุนจากภายนอก</span>
-                  <span className="text-red-600">
-                    -฿{pubDetail.external_funding_amount.toLocaleString()}
+                  <span className="text-right text-red-600">
+                    {formatCurrency(-pubDetail.external_funding_amount)}
                   </span>
+                  {showApprovedColumn && <span></span>}
                 </div>
               )}
-              <div className="flex justify-between items-center pt-2 border-t">
+
+              {/* Total */}
+              <div
+                className={`grid ${showApprovedColumn ? "grid-cols-3" : "grid-cols-2"} items-center pt-2 border-t`}
+              >
                 <span className="font-medium">ยอดรวมสุทธิ</span>
-                <span className="font-bold text-xl text-blue-600">
-                  ฿{(pubDetail.total_amount || pubDetail.reward_amount || 0).toLocaleString()}
+                <span className="text-right font-bold text-blue-600">
+                  {formatCurrency(
+                    pubDetail.total_amount || pubDetail.reward_amount || 0
+                  )}
                 </span>
-              </div>
-              {submission.status_id === 2 && approvedAmount && (
-                <div className="flex justify-between items-center pt-2 border-t bg-green-50 -mx-4 px-4 py-2">
-                  <span className="font-medium text-green-800">จำนวนที่อนุมัติ</span>
-                  <span className="font-bold text-xl text-green-600">
-                    ฿{approvedAmount.toLocaleString()}
+                {showApprovedColumn && (
+                  <span className="text-right font-bold text-green-600">
+                    {formatCurrency(approvedAmount)}
                   </span>
-                </div>
-              )}
+                )}
+              </div>
             </div>
           </Card>
 
