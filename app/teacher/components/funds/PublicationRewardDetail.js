@@ -2,12 +2,12 @@
 
 import { useState, useEffect } from "react";
 import { 
-  ArrowLeft, 
-  FileText, 
-  Calendar, 
-  User, 
-  BookOpen, 
-  Award, 
+  ArrowLeft,
+  FileText,
+  Calendar,
+  User,
+  BookOpen,
+  Award,
   DollarSign,
   Clock,
   CheckCircle,
@@ -21,7 +21,7 @@ import {
   Link,
   Hash,
   Building,
-  FileCheck
+  FileCheck,
 } from "lucide-react";
 import { submissionAPI, submissionUsersAPI } from "@/app/lib/teacher_api";
 import apiClient from "@/app/lib/api";
@@ -32,12 +32,12 @@ import { formatCurrency } from "@/app/utils/format";
 
 const getStatusName = (statusId) => {
   const statuses = {
-    1: 'รอพิจารณา',
-    2: 'อนุมัติ',
-    3: 'ไม่อนุมัติ',
-    4: 'ต้องแก้ไข',
+    1: "รอพิจารณา",
+    2: "อนุมัติ",
+    3: "ไม่อนุมัติ",
+    4: "ต้องแก้ไข",
   };
-  return statuses[statusId] || 'ไม่ทราบสถานะ';
+  return statuses[statusId] || "ไม่ทราบสถานะ";
 };
 
 const getStatusIcon = (statusId) => {
@@ -56,11 +56,11 @@ const getStatusIcon = (statusId) => {
 export default function PublicationRewardDetail({ submissionId, onNavigate }) {
   const [submission, setSubmission] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState('details');
+  const [activeTab, setActiveTab] = useState("details");
 
   const getUserFullName = (user) => {
     if (!user) return "-";
-    
+
     const firstName =
       user.user_fname ||
       user.first_name ||
@@ -87,23 +87,31 @@ export default function PublicationRewardDetail({ submissionId, onNavigate }) {
     return user.email || "";
   };
 
-  // Helper to get main author data
-  const getMainAuthor = () => {
-    if (!submission) return null;
-    const directAuthor = submission.User || submission.user;
-    const hasDirectData =
-      directAuthor &&
-      (directAuthor.user_id ||
-        directAuthor.user_fname ||
-        directAuthor.first_name ||
-        directAuthor.full_name ||
-        directAuthor.fullname ||
-        directAuthor.name);
-    if (hasDirectData) return directAuthor;
-    const fromList = submission.submission_users?.find(
-      (u) => u.is_primary || u.role === "owner" || u.role === "first_author"
+  // Helper to get applicant data
+  const getApplicant = () => {
+    return (
+      submission?.applicant_user ||
+      submission?.user ||
+      submission?.User ||
+      null
     );
-    return fromList?.User || fromList?.user || null;
+  };
+  // Helper to get co-authors sorted by display_order and excluding applicant
+  const getCoAuthors = () => {
+    if (!submission?.submission_users) return [];
+    const applicant = getApplicant();
+    const applicantId = applicant?.user_id || applicant?.id;
+    return submission.submission_users
+      .filter((u) => {
+        const userData = u.user || u.User;
+        const uid =
+          userData?.user_id ||
+          userData?.id ||
+          u.user_id ||
+          u.UserID;
+        return uid !== applicantId;
+      })
+      .sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
   };
 
   useEffect(() => {
@@ -121,6 +129,14 @@ export default function PublicationRewardDetail({ submissionId, onNavigate }) {
       
        // เริ่มจากข้อมูล submission พื้นฐาน
       let submissionData = response.submission || response;
+
+      // แนบข้อมูลผู้ยื่นคำร้องจาก response หากมี
+      if (response.applicant_user) {
+        submissionData.applicant_user = response.applicant_user;
+        if (!submissionData.user && !submissionData.User) {
+          submissionData.user = response.applicant_user;
+        }
+      }
 
       // นำข้อมูล submission_users จาก response ถ้ามีมาใช้ก่อน
       if (response.submission_users && response.submission_users.length > 0) {
@@ -163,7 +179,6 @@ export default function PublicationRewardDetail({ submissionId, onNavigate }) {
       setLoading(false);
     }
   };
-
 
   const handleBack = () => {
     if (onNavigate) {
@@ -240,44 +255,46 @@ export default function PublicationRewardDetail({ submissionId, onNavigate }) {
     );
   }
 
-// Extract publication details
-const pubDetail = submission.PublicationRewardDetail ||
-                  submission.publication_reward_detail || {};
+  // Extract publication details
+  const pubDetail =
+    submission.PublicationRewardDetail ||
+    submission.publication_reward_detail ||
+    {};
 
-// Approved amounts may come from different fields depending on API version
-const toNumber = (val) =>
-  val !== undefined && val !== null ? Number(val) : null;
+  // Approved amounts may come from different fields depending on API version
+  const toNumber = (val) =>
+    val !== undefined && val !== null ? Number(val) : null;
 
-const approvedReward = toNumber(
-  pubDetail?.reward_approve_amount ??
-    pubDetail?.reward_approved_amount
-);
-const approvedRevision = toNumber(
-  pubDetail?.revision_fee_approve_amount ??
-    pubDetail?.revision_fee_approved_amount
-);
-const approvedPublication = toNumber(
-  pubDetail?.publication_fee_approve_amount ??
-    pubDetail?.publication_fee_approved_amount
-);
+  const approvedReward = toNumber(
+    pubDetail?.reward_approve_amount ?? pubDetail?.reward_approved_amount,
+  );
+  const approvedRevision = toNumber(
+    pubDetail?.revision_fee_approve_amount ??
+      pubDetail?.revision_fee_approved_amount,
+  );
+  const approvedPublication = toNumber(
+    pubDetail?.publication_fee_approve_amount ??
+      pubDetail?.publication_fee_approved_amount,
+  );
 
-const approvedTotalRaw =
-  pubDetail?.total_approve_amount ??
-  pubDetail?.approved_amount ??
-  submission.approved_amount ??
-  (approvedReward ?? 0) +
-    (approvedRevision ?? 0) +
-    (approvedPublication ?? 0);
+  const approvedTotalRaw =
+    pubDetail?.total_approve_amount ??
+    pubDetail?.approved_amount ??
+    submission.approved_amount ??
+    (approvedReward ?? 0) +
+      (approvedRevision ?? 0) +
+      (approvedPublication ?? 0);
 
-const approvedTotal = toNumber(approvedTotalRaw);
+  const approvedTotal = toNumber(approvedTotalRaw);
 
-const showApprovedColumn =
-  submission.status_id === 2 &&
-  approvedTotal !== null &&
-  !Number.isNaN(approvedTotal);
+  const showApprovedColumn =
+    submission.status_id === 2 &&
+    approvedTotal !== null &&
+    !Number.isNaN(approvedTotal);
 
-// documents may come from different property names depending on the API response
-const documents = submission.documents || submission.submission_documents || [];
+  // documents may come from different property names depending on the API response
+  const documents =
+    submission.documents || submission.submission_documents || [];
   
   return (
     <PageLayout
@@ -341,18 +358,38 @@ const documents = submission.documents || submission.submission_documents || [];
                   </span>
                 </div>
               )}
+              {submission.status_id === 2 && submission.announce_reference_number && (
+                <div className="md:col-span-3">
+                  <span className="text-gray-500">เลขอ้างอิงประกาศ:</span>
+                  <span className="ml-2 font-medium">
+                    {submission.announce_reference_number}
+                  </span>
+                </div>
+              )}
               {submission.approved_at && (
                 <div>
                   <span className="text-gray-500">วันที่อนุมัติ:</span>
                   <span className="ml-2 font-medium">
-                    {new Date(submission.approved_at).toLocaleDateString('th-TH', {
-                      year: 'numeric',
-                      month: 'long',
-                      day: 'numeric'
-                    })}
+                    {new Date(submission.approved_at).toLocaleDateString(
+                      "th-TH",
+                      {
+                        year: "numeric",
+                        month: "long",
+                        day: "numeric",
+                      },
+                    )}
                   </span>
                 </div>
               )}
+              {submission.status_id === 2 &&
+                pubDetail.announce_reference_number && (
+                  <div className="md:col-span-3">
+                    <span className="text-gray-500">เลขอ้างอิงประกาศ:</span>
+                    <span className="ml-2 font-medium">
+                      {pubDetail.announce_reference_number}
+                    </span>
+                  </div>
+                )}
             </div>
           </div>
           <div className="text-right">
@@ -609,9 +646,9 @@ const documents = submission.documents || submission.submission_documents || [];
               <div>
                 <label className="text-sm text-gray-500">สถานะผู้แต่ง</label>
                 <p className="font-medium">
-                  {pubDetail.author_type === 'first_author' ? 'ผู้แต่งหลัก' :
-                   pubDetail.author_type === 'corresponding_author' ? 'Corresponding Author' :
-                   pubDetail.author_type === 'coauthor' ? 'ผู้แต่งร่วม' : '-'}
+                  {pubDetail.author_type === 'first_author' ? 'ผู้แต่งหลัก (First Author)' :
+                   pubDetail.author_type === 'corresponding_author' ? 'ผู้แต่งที่รับผิดชอบบทความ (Corresponding Author)' :
+                   pubDetail.author_type === 'coauthor' ? 'ผู้แต่งร่วม (Co-Author)' : '-'}
                 </p>
               </div>
               <div>
@@ -635,44 +672,37 @@ const documents = submission.documents || submission.submission_documents || [];
         </div>
       )}
 
-      {/* Authors Tab */}
-      {activeTab === 'authors' && (
-        <Card title="รายชื่อผู้แต่ง" icon={Users} collapsible={false}>
-          <div className="space-y-6">
-            {/* แสดงผู้แต่งหลัก */}
-            <div>
-              <h4 className="text-sm font-medium text-gray-700 mb-3">ผู้แต่งหลัก (เจ้าของผลงาน)</h4>
-              <div className="bg-blue-50 rounded-lg p-4">
-                <div className="flex items-center">
-                  <User className="h-5 w-5 text-blue-600 mr-3" />
-                  <div>
-                    <div className="font-medium text-gray-900">
-                      {getUserFullName(getMainAuthor())}
-                    </div>
-                    <div className="text-sm text-gray-500">
-                      {getUserEmail(getMainAuthor())}
+        {/* Authors Tab */}
+        {activeTab === 'authors' && (
+          <Card title="รายชื่อผู้แต่ง" icon={Users} collapsible={false}>
+            <div className="space-y-6">
+              {/* Applicant */}
+              <div>
+                <h4 className="text-sm font-medium text-gray-700 mb-3">ผู้ยื่นคำร้อง</h4>
+                <div className="bg-blue-50 rounded-lg p-4">
+                  <div className="flex items-center">
+                    <User className="h-5 w-5 text-blue-600 mr-3" />
+                    <div>
+                      <div className="font-medium text-gray-900">
+                        {getUserFullName(getApplicant())}
+                      </div>
+                      <div className="text-sm text-gray-500">
+                        {getUserEmail(getApplicant())}
+                      </div>
                     </div>
                   </div>
-                  <span className="ml-auto px-3 py-1 text-xs font-medium bg-blue-100 text-blue-700 rounded-full">
-                    เจ้าของผลงาน
-                  </span>
                 </div>
               </div>
-            </div>
 
-            {/* แสดงผู้แต่งร่วม */}
-            <div>
-              <h4 className="text-sm font-medium text-gray-700 mb-3">
-                ผู้แต่งร่วม {submission.submission_users && submission.submission_users.filter(u => u.role === 'coauthor' || u.role === 'co_author').length > 0 && 
-                `(${submission.submission_users.filter(u => u.role === 'coauthor' || u.role === 'co_author').length} คน)`}
-              </h4>
-              
-              {submission.submission_users && submission.submission_users.filter(u => u.role === 'coauthor' || u.role === 'co_author').length > 0 ? (
-                <div className="space-y-2">
-                  {submission.submission_users
-                    .filter(user => user.role === 'coauthor' || user.role === 'co_author')
-                    .sort((a, b) => (a.display_order || 0) - (b.display_order || 0))
-                    .map((submissionUser, index) => {
+              {/* Co-authors */}
+              <div>
+                <h4 className="text-sm font-medium text-gray-700 mb-3">
+                  รายชื่อผู้แต่งร่วม {getCoAuthors().length > 0 && `(${getCoAuthors().length} คน)`}
+                </h4>
+
+                {getCoAuthors().length > 0 ? (
+                  <div className="space-y-2">
+                    {getCoAuthors().map((submissionUser, index) => {
                       const userData = submissionUser.user || submissionUser.User;
                       
                       return (
@@ -689,21 +719,18 @@ const documents = submission.documents || submission.submission_documents || [];
                                 {getUserEmail(userData)}
                               </div>
                             </div>
-                            <span className="ml-auto px-3 py-1 text-xs font-medium bg-gray-100 text-gray-700 rounded-full">
-                              ผู้แต่งร่วม
-                            </span>
                           </div>
                         </div>
                       );
                     })}
-                </div>
-              ) : (
-                <p className="text-gray-500 text-center py-8">ไม่มีข้อมูลผู้แต่งร่วม</p>
-              )}
+                  </div>
+                ) : (
+                  <p className="text-gray-500 text-center py-8">ไม่มีข้อมูลผู้แต่งร่วม</p>
+                )}
+              </div>
             </div>
-          </div>
-        </Card>
-      )}
+          </Card>
+        )}
 
       {activeTab === 'documents' && (
         <Card title="เอกสารแนบ" icon={FileText} collapsible={false}>
