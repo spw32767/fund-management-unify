@@ -76,13 +76,15 @@ type PublicationRewardDetail struct {
 	Indexing        string    `gorm:"column:indexing" json:"indexing"`
 
 	// === เงินรางวัลและการคำนวณ ===
-	RewardAmount          float64 `gorm:"column:reward_amount" json:"reward_amount"`                     // เงินรางวัลฐาน (อ้างอิงจาก Author และ Quartile)
-	RewardApproveAmount   float64 `gorm:"column:reward_approve_amount" json:"reward_approve_amount"`     // จำนวนเงินรางวัลที่อนุมัติ
-	RevisionFee           float64 `gorm:"column:revision_fee" json:"revision_fee"`                       // ค่าปรับปรุง
-	PublicationFee        float64 `gorm:"column:publication_fee" json:"publication_fee"`                 // ค่าตีพิมพ์
-	ExternalFundingAmount float64 `gorm:"column:external_funding_amount" json:"external_funding_amount"` // รวมจำนวนเงินจากทุนที่ user แนบเข้ามา
-	TotalAmount           float64 `gorm:"column:total_amount" json:"total_amount"`                       // เกิดจากการหักลบค่าปรับปรุง+ค่าตีพิมพ์ ลบกับ รายการที่เบิกจากหน่วยงานนอก
-	TotalApproveAmount    float64 `gorm:"column:total_approve_amount" json:"total_approve_amount"`       // จำนวนเงินจริงที่วิทยาลัยจ่ายให้ (หลังจากได้รับการอนุมัติ)
+	RewardAmount                float64 `gorm:"column:reward_amount" json:"reward_amount"`                 // เงินรางวัลฐาน (อ้างอิงจาก Author และ Quartile)
+	RewardApproveAmount         float64 `gorm:"column:reward_approve_amount" json:"reward_approve_amount"` // จำนวนเงินรางวัลที่อนุมัติ
+	RevisionFee                 float64 `gorm:"column:revision_fee" json:"revision_fee"`                   // ค่าปรับปรุง
+	RevisionFeeApproveAmount    float64 `gorm:"column:revision_fee_approve_amount" json:"revision_fee_approve_amount"`
+	PublicationFee              float64 `gorm:"column:publication_fee" json:"publication_fee"` // ค่าตีพิมพ์
+	PublicationFeeApproveAmount float64 `gorm:"column:publication_fee_approve_amount" json:"publication_fee_approve_amount"`
+	ExternalFundingAmount       float64 `gorm:"column:external_funding_amount" json:"external_funding_amount"` // รวมจำนวนเงินจากทุนที่ user แนบเข้ามา
+	TotalAmount                 float64 `gorm:"column:total_amount" json:"total_amount"`                       // เกิดจากการหักลบค่าปรับปรุง+ค่าตีพิมพ์ ลบกับ รายการที่เบิกจากหน่วยงานนอก
+	TotalApproveAmount          float64 `gorm:"column:total_approve_amount" json:"total_approve_amount"`       // จำนวนเงินจริงที่วิทยาลัยจ่ายให้ (หลังจากได้รับการอนุมัติ)
 
 	// === ข้อมูลผู้แต่ง ===
 	AuthorCount int    `gorm:"column:author_count" json:"author_count"`
@@ -96,7 +98,7 @@ type PublicationRewardDetail struct {
 	UniversityRankings   *string `json:"university_rankings" gorm:"column:university_rankings"`
 
 	// ========== เพิ่ม fields ใหม่สำหรับ Admin Management ==========
-	ApprovedAmount  *float64   `json:"approved_amount" gorm:"column:approved_amount"`
+	ApprovedAmount  *float64   `json:"approved_amount,omitempty" gorm:"column:approved_amount"`
 	ApprovalComment *string    `json:"approval_comment" gorm:"column:approval_comment"`
 	ApprovedBy      *int       `json:"approved_by" gorm:"column:approved_by"`
 	ApprovedAt      *time.Time `json:"approved_at" gorm:"column:approved_at"`
