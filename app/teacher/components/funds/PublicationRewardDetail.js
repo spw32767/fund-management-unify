@@ -90,6 +90,7 @@ export default function PublicationRewardDetail({ submissionId, onNavigate }) {
   // Helper to get applicant data
   const getApplicant = () => {
     return (
+      submission?.applicant ||
       submission?.applicant_user ||
       submission?.user ||
       submission?.User ||
@@ -105,6 +106,8 @@ export default function PublicationRewardDetail({ submissionId, onNavigate }) {
       getApplicant()?.id;
     return submission.submission_users
       .filter((u) => {
+        const isApplicant = u.is_applicant || u.IsApplicant;
+        if (isApplicant) return false;
         const userData = u.user || u.User;
         const uid =
           userData?.user_id ||
@@ -134,10 +137,10 @@ export default function PublicationRewardDetail({ submissionId, onNavigate }) {
       let submissionData = response.submission || response;
 
       // แนบข้อมูลผู้ยื่นคำร้องจาก response หากมี
-      if (response.applicant_user) {
-        submissionData.applicant_user = response.applicant_user;
+      if (response.applicant || response.applicant_user) {
+        submissionData.applicant = response.applicant || response.applicant_user;
         if (!submissionData.user && !submissionData.User) {
-          submissionData.user = response.applicant_user;
+          submissionData.user = submissionData.applicant;
         }
       }
       if (response.applicant_user_id) {
