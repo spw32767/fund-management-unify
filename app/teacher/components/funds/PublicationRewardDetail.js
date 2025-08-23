@@ -99,8 +99,10 @@ export default function PublicationRewardDetail({ submissionId, onNavigate }) {
   // Helper to get co-authors sorted by display_order and excluding applicant
   const getCoAuthors = () => {
     if (!submission?.submission_users) return [];
-    const applicant = getApplicant();
-    const applicantId = applicant?.user_id || applicant?.id;
+    const applicantId =
+      submission?.applicant_user_id ||
+      getApplicant()?.user_id ||
+      getApplicant()?.id;
     return submission.submission_users
       .filter((u) => {
         const userData = u.user || u.User;
@@ -125,7 +127,8 @@ export default function PublicationRewardDetail({ submissionId, onNavigate }) {
     try {
       // โหลด submission detail
       const response = await submissionAPI.getSubmission(submissionId);
-      console.log('Submission Detail:', response);
+      //console.log('Submission Detail:', response);
+      console.log('Submission Detail:', JSON.stringify(response, null, 2));
       
        // เริ่มจากข้อมูล submission พื้นฐาน
       let submissionData = response.submission || response;
@@ -137,7 +140,10 @@ export default function PublicationRewardDetail({ submissionId, onNavigate }) {
           submissionData.user = response.applicant_user;
         }
       }
-
+      if (response.applicant_user_id) {
+        submissionData.applicant_user_id = response.applicant_user_id;
+      }
+      
       // นำข้อมูล submission_users จาก response ถ้ามีมาใช้ก่อน
       if (response.submission_users && response.submission_users.length > 0) {
         submissionData.submission_users = response.submission_users;
