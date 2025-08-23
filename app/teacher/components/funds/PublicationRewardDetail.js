@@ -244,16 +244,37 @@ export default function PublicationRewardDetail({ submissionId, onNavigate }) {
 const pubDetail = submission.PublicationRewardDetail ||
                   submission.publication_reward_detail || {};
 
-// Approved amount only appears for approved submissions
-const approvedAmountRaw = pubDetail?.approved_amount;
-const approvedAmount =
-  approvedAmountRaw !== undefined && approvedAmountRaw !== null
-    ? Number(approvedAmountRaw)
-    : null;
+// Approved amounts may come from different fields depending on API version
+const toNumber = (val) =>
+  val !== undefined && val !== null ? Number(val) : null;
+
+const approvedReward = toNumber(
+  pubDetail?.reward_approve_amount ??
+    pubDetail?.reward_approved_amount
+);
+const approvedRevision = toNumber(
+  pubDetail?.revision_fee_approve_amount ??
+    pubDetail?.revision_fee_approved_amount
+);
+const approvedPublication = toNumber(
+  pubDetail?.publication_fee_approve_amount ??
+    pubDetail?.publication_fee_approved_amount
+);
+
+const approvedTotalRaw =
+  pubDetail?.total_approve_amount ??
+  pubDetail?.approved_amount ??
+  submission.approved_amount ??
+  (approvedReward ?? 0) +
+    (approvedRevision ?? 0) +
+    (approvedPublication ?? 0);
+
+const approvedTotal = toNumber(approvedTotalRaw);
+
 const showApprovedColumn =
   submission.status_id === 2 &&
-  approvedAmount !== null &&
-  !Number.isNaN(approvedAmount);
+  approvedTotal !== null &&
+  !Number.isNaN(approvedTotal);
 
 // documents may come from different property names depending on the API response
 const documents = submission.documents || submission.submission_documents || [];
@@ -342,7 +363,7 @@ const documents = submission.documents || submission.submission_documents || [];
             {showApprovedColumn && (
               <div className="mt-2">
                 <div className="text-lg font-bold text-green-600">
-                  {formatCurrency(approvedAmount)}
+                  {formatCurrency(approvedTotal)}
                 </div>
                 <div className="text-sm text-gray-500">จำนวนเงินที่อนุมัติ</div>
               </div>
@@ -503,7 +524,13 @@ const documents = submission.documents || submission.submission_documents || [];
                 <span className="text-right font-semibold">
                   {formatCurrency(pubDetail.reward_amount || 0)}
                 </span>
-                {showApprovedColumn && <span></span>}
+                {showApprovedColumn && (
+                  <span className="text-right font-semibold">
+                    {approvedReward !== null
+                      ? formatCurrency(approvedReward)
+                      : '-'}
+                  </span>
+                )}
               </div>
               
               {/* Revision fee */}
@@ -515,7 +542,13 @@ const documents = submission.documents || submission.submission_documents || [];
                   <span className="text-right">
                     {formatCurrency(pubDetail.revision_fee)}
                   </span>
-                  {showApprovedColumn && <span></span>}
+                  {showApprovedColumn && (
+                    <span className="text-right">
+                      {approvedRevision !== null
+                        ? formatCurrency(approvedRevision)
+                        : '-'}
+                    </span>
+                  )}
                 </div>
               )}
               
@@ -528,7 +561,13 @@ const documents = submission.documents || submission.submission_documents || [];
                   <span className="text-right">
                     {formatCurrency(pubDetail.publication_fee)}
                   </span>
-                  {showApprovedColumn && <span></span>}
+                  {showApprovedColumn && (
+                    <span className="text-right">
+                      {approvedPublication !== null
+                        ? formatCurrency(approvedPublication)
+                        : '-'}
+                    </span>
+                  )}
                 </div>
               )}
               
@@ -557,7 +596,7 @@ const documents = submission.documents || submission.submission_documents || [];
                 </span>
                 {showApprovedColumn && (
                   <span className="text-right font-bold text-green-600">
-                    {formatCurrency(approvedAmount)}
+                    {formatCurrency(approvedTotal)}
                   </span>
                 )}
               </div>
