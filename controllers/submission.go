@@ -121,7 +121,15 @@ func GetSubmission(c *gin.Context) {
 		Preload("User").
 		Order("display_order ASC").
 		Find(&submissionUsers).Error; err == nil {
-		submission.SubmissionUsers = submissionUsers
+		filtered := make([]models.SubmissionUser, 0, len(submissionUsers))
+		for _, su := range submissionUsers {
+			if su.UserID == submission.UserID {
+				su.IsApplicant = true
+				continue
+			}
+			filtered = append(filtered, su)
+		}
+		submission.SubmissionUsers = filtered
 	}
 
 	// Load type-specific details
@@ -143,9 +151,11 @@ func GetSubmission(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"success":        true,
-		"submission":     submission,
-		"applicant_user": submission.User,
+		"success":           true,
+		"submission":        submission,
+		"applicant_user":    submission.User,
+		"applicant_user_id": submission.UserID,
+		"submission_users":  submission.SubmissionUsers,
 	})
 }
 
