@@ -91,7 +91,7 @@ type PublicationRewardDetail struct {
 	AuthorType  string `gorm:"column:author_type;type:enum('first_author','corresponding_author','coauthor')" json:"author_type"` // เปลี่ยนจาก author_status
 
 	// === อื่นๆ ===
-	AnnounceReferenceNumber string `gorm:"column:announce_reference_number" json:"announce_reference_number"`
+	AnnounceReferenceNumber string `gorm:"column:announce_reference_number" json:"announce_reference_number,omitempty"`
 
 	HasUniversityFunding string  `json:"has_university_funding" gorm:"column:has_university_funding"`
 	FundingReferences    *string `json:"funding_references" gorm:"column:funding_references"`
@@ -153,6 +153,11 @@ type SubmissionUser struct {
 	// Relations
 	Submission Submission `gorm:"foreignKey:SubmissionID" json:"submission,omitempty"`
 	User       *User      `gorm:"foreignKey:UserID" json:"user,omitempty"`
+
+	// Computed fields (not stored in DB)
+	AuthorRole            string `gorm:"-" json:"author_role,omitempty"`
+	IsFirstAuthor         bool   `gorm:"-" json:"is_first_author,omitempty"`
+	IsCorrespondingAuthor bool   `gorm:"-" json:"is_corresponding_author,omitempty"`
 }
 
 // TableName overrides
@@ -250,11 +255,33 @@ func (su *SubmissionUser) GetAuthorTypeDisplay() string {
 // JSON serialization helper - เพิ่ม order_sequence field สำหรับ backward compatibility
 func (su *SubmissionUser) MarshalJSON() ([]byte, error) {
 	type Alias SubmissionUser
+
+	authorRole := su.Role
+	isFirst := false
+	isCorresponding := false
+
+	if su.Role == "owner" {
+		if su.IsPrimary {
+			authorRole = "first_author"
+			isFirst = true
+		} else {
+			authorRole = "corresponding_author"
+			isCorresponding = true
+		}
+	} else if su.Role == "coauthor" || su.Role == "co_author" {
+		authorRole = "co_author"
+	}
 	return json.Marshal(&struct {
-		OrderSequence int `json:"order_sequence"` // เพิ่ม field นี้สำหรับ Frontend
+		OrderSequence         int    `json:"order_sequence"`
+		AuthorRole            string `json:"author_role"`
+		IsFirstAuthor         bool   `json:"is_first_author"`
+		IsCorrespondingAuthor bool   `json:"is_corresponding_author"`
 		*Alias
 	}{
-		OrderSequence: su.DisplayOrder, // Map display_order to order_sequence
-		Alias:         (*Alias)(su),
+		OrderSequence:         su.DisplayOrder,
+		AuthorRole:            authorRole,
+		IsFirstAuthor:         isFirst,
+		IsCorrespondingAuthor: isCorresponding,
+		Alias:                 (*Alias)(su),
 	})
 }
