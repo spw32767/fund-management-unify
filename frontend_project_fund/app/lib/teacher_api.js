@@ -6,7 +6,7 @@ import { targetRolesUtils } from '../lib/target_roles_utils';
 // Teacher API methods for role-based fund access
 export const teacherAPI = {
   
-  // Get all categories and subcategories visible to teacher
+  // Get all categories and subcategories visible to teacher - Using NEW API
   async getVisibleFundsStructure(year = '2568') {
     try {
       console.log('Getting teacher funds structure for year:', year);
@@ -27,53 +27,15 @@ export const teacherAPI = {
         throw new Error(`Year ${year} not found`);
       }
 
-      // Step 2: Get categories for the year
-      const categoriesResponse = await apiClient.get('/categories', { 
-        year_id: targetYear.year_id 
+      // Step 2: Use NEW fund structure API
+      const response = await apiClient.get('/funds/structure', {
+        year_id: targetYear.year_id
       });
-      console.log('Categories response:', categoriesResponse);
-
-      if (!categoriesResponse.categories) {
-        return { categories: [] };
-      }
-
-      // Step 3: Get subcategories for each category - Teacher specific endpoint
-      const categoriesWithSubs = await Promise.all(
-        categoriesResponse.categories.map(async (category) => {
-          try {
-            console.log(`Getting teacher subcategories for category ${category.category_id}`);
-            
-            // เรียก Teacher specific endpoint
-            const subResponse = await apiClient.get('/teacher/subcategories', {
-              category_id: category.category_id,
-              year_id: targetYear.year_id
-            });
-            
-            console.log(`Teacher subcategories for category ${category.category_id}:`, subResponse);
-            
-            return {
-              ...category,
-              subcategories: subResponse.subcategories || []
-            };
-          } catch (error) {
-            console.error(`Error fetching teacher subcategories for category ${category.category_id}:`, error);
-            return {
-              ...category,
-              subcategories: []
-            };
-          }
-        })
-      );
-
-      // Filter out categories with no visible subcategories
-      const filteredCategories = categoriesWithSubs.filter(
-        cat => cat.subcategories && cat.subcategories.length > 0
-      );
-
-      console.log('Final teacher result:', filteredCategories);
+      
+      console.log('Fund structure response:', response);
 
       return {
-        categories: filteredCategories,
+        categories: response.categories || [],
         year: year,
         year_id: targetYear.year_id
       };
@@ -83,7 +45,7 @@ export const teacherAPI = {
     }
   },
 
-  // Get subcategories visible to teacher role
+  // Get subcategories visible to teacher role (legacy - keep for compatibility)
   async getVisibleSubcategories(categoryId = null, yearId = null) {
     try {
       const params = {};
@@ -139,7 +101,7 @@ export const teacherAPI = {
     }
   },
 
-  // Submit new application (legacy method - ใช้งานเก่า)
+  // Submit new application (legacy method)
   async submitApplication(applicationData) {
     try {
       const response = await apiClient.post('/applications', applicationData);
@@ -169,7 +131,6 @@ export const submissionAPI = {
   // 1. Get user's submissions with filters
   async getSubmissions(params = {}) {
     try {
-      // Use teacher specific endpoint to include detail data (e.g. project title)
       const response = await apiClient.get('/teacher/submissions', params);
       return response;
     } catch (error) {
@@ -178,7 +139,6 @@ export const submissionAPI = {
     }
   },
 
-  // 2. Create new submission
   async createSubmission(submissionData) {
     try {
       const response = await apiClient.post('/submissions', submissionData);
@@ -189,7 +149,6 @@ export const submissionAPI = {
     }
   },
 
-  // 3. Get specific submission with details
   async getSubmission(submissionId) {
     try {
       const response = await apiClient.get(`/submissions/${submissionId}`);
