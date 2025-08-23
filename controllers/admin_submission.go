@@ -4,10 +4,7 @@ package controllers
 import (
 	"fund-management-api/config"
 	"fund-management-api/models"
-	"log"
 	"net/http"
-	"strconv"
-	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -16,6 +13,12 @@ import (
 // GetSubmissionDetails - ดึงข้อมูล submission แบบละเอียด
 func GetSubmissionDetails(c *gin.Context) {
 	submissionID := c.Param("id")
+
+	// Validate submissionID
+	if submissionID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Submission ID is required"})
+		return
+	}
 
 	var submission models.Submission
 
@@ -35,12 +38,16 @@ func GetSubmissionDetails(c *gin.Context) {
 		return
 	}
 
-	// ดึง submission users (co-authors)
+	// ดึง submission users (co-authors) พร้อม error handling ที่ดีขึ้น
 	var submissionUsers []models.SubmissionUser
-	config.DB.Where("submission_id = ?", submissionID).
+	if err := config.DB.Where("submission_id = ?", submissionID).
 		Preload("User").
 		Order("display_order ASC").
-		Find(&submissionUsers)
+		Find(&submissionUsers).Error; err != nil {
+		// Log error but don't fail the whole request
+		// submissionUsers will be empty slice
+		submissionUsers = []models.SubmissionUser{}
+	}
 
 	// ดึง documents
 	var documents []models.SubmissionDocument
@@ -83,8 +90,20 @@ func GetSubmissionDetails(c *gin.Context) {
 		}
 	}
 
-	// Format submission users
+	// Format submission users - เพิ่ม NIL CHECK
 	for _, su := range submissionUsers {
+		// ✅ เพิ่ม nil check เพื่อป้องกัน panic
+		if su.User == nil {
+			// ถ้า User เป็น nil ให้พยายามโหลดข้อมูล User แยก
+			var user models.User
+			if err := config.DB.Where("user_id = ?", su.UserID).First(&user).Error; err == nil {
+				su.User = &user
+			} else {
+				// ถ้าโหลด User ไม่ได้ให้ skip หรือใส่ข้อมูลเปล่า
+				continue // หรือใส่ข้อมูลเปล่าแทน
+			}
+		}
+
 		userInfo := gin.H{
 			"user_id":       su.UserID,
 			"role":          su.Role,
@@ -105,19 +124,32 @@ func GetSubmissionDetails(c *gin.Context) {
 	for _, doc := range documents {
 		docInfo := gin.H{
 			"document_id":      doc.DocumentID,
-			"document_type_id": doc.DocumentTypeID,
+			"submission_id":    doc.SubmissionID,
 			"file_id":          doc.FileID,
-			"uploaded_at":      doc.CreatedAt,
-			"document_type":    doc.DocumentType,
+			"document_type_id": doc.DocumentTypeID,
+			"description":      doc.Description,
+			"display_order":    doc.DisplayOrder,
+			"is_required":      doc.IsRequired,
+			"created_at":       doc.CreatedAt,
 		}
 
-		// เพิ่มข้อมูลไฟล์ถ้ามี
+		// Add document type info if available
+		if doc.DocumentType.DocumentTypeID != 0 {
+			docInfo["document_type"] = gin.H{
+				"document_type_id":   doc.DocumentType.DocumentTypeID,
+				"document_type_name": doc.DocumentType.DocumentTypeName,
+				"required":           doc.DocumentType.Required,
+			}
+		}
+
+		// Add file info if available
 		if doc.File.FileID != 0 {
 			docInfo["file"] = gin.H{
 				"file_id":       doc.File.FileID,
 				"original_name": doc.File.OriginalName,
 				"file_size":     doc.File.FileSize,
 				"mime_type":     doc.File.MimeType,
+				"uploaded_at":   doc.File.UploadedAt,
 			}
 		}
 
@@ -419,183 +451,6 @@ func RequestRevision(c *gin.Context) {
 			"submission_number": submission.SubmissionNumber,
 			"status_id":         submission.StatusID,
 			"revision_request":  request.RevisionRequest,
-		},
-	})
-}
-
-// GetAdminSubmissions - รายการคำร้องสำหรับหน้าแอดมิน (มี filter/pagination/sort + debug)
-func GetAdminSubmissions(c *gin.Context) {
-	// ===== Params =====
-	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
-	if page < 1 {
-		page = 1
-	}
-	if limit <= 0 || limit > 200 {
-		limit = 20
-	}
-
-	submissionType := c.DefaultQuery("type", "") // 'fund_application' | 'publication_reward' | ...
-	statusID := c.DefaultQuery("status", "")     // 1,2,3,4
-	yearID := c.DefaultQuery("year_id", "")
-	search := strings.TrimSpace(c.DefaultQuery("search", ""))
-
-	dateFrom := c.Query("date_from")
-	dateTo := c.Query("date_to")
-
-	sortBy := c.DefaultQuery("sort_by", "created_at") // created_at | submitted_at | submission_number
-	sortOrder := strings.ToUpper(c.DefaultQuery("sort_order", "DESC"))
-	if sortOrder != "ASC" && sortOrder != "DESC" {
-		sortOrder = "DESC"
-	}
-
-	// ===== Base query =====
-	base := config.DB.Model(&models.Submission{}).
-		Preload("User").
-		Preload("Year").
-		Preload("Status").
-		Where("deleted_at IS NULL")
-
-	// ===== Filters =====
-	if submissionType != "" {
-		base = base.Where("submission_type = ?", submissionType)
-	}
-	if statusID != "" {
-		base = base.Where("status_id = ?", statusID)
-	}
-	if yearID != "" {
-		base = base.Where("year_id = ?", yearID)
-	}
-	if dateFrom != "" && dateTo != "" {
-		base = base.Where("DATE(created_at) BETWEEN ? AND ?", dateFrom, dateTo)
-	}
-	if search != "" {
-		// ค้นหาเบื้องต้นจากเลขที่คำร้อง + ชื่อผู้ใช้
-		like := "%" + search + "%"
-		base = base.
-			Joins("LEFT JOIN users ON users.user_id = submissions.user_id").
-			Where("submission_number LIKE ? OR users.user_fname LIKE ? OR users.user_lname LIKE ?", like, like, like)
-	}
-
-	// ===== Count ก่อนแบ่งหน้า =====
-	var totalCount int64
-	if err := base.Count(&totalCount).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to count submissions"})
-		return
-	}
-
-	// ===== Sorting =====
-	// whitelist column ป้องกัน SQL injection
-	switch sortBy {
-	case "created_at", "submitted_at", "submission_number":
-		// ok
-	default:
-		sortBy = "created_at"
-	}
-
-	// ===== Query data (pagination) =====
-	var submissions []models.Submission
-	if err := base.
-		Order(sortBy + " " + sortOrder).
-		Offset((page - 1) * limit).
-		Limit(limit).
-		Find(&submissions).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch submissions"})
-		return
-	}
-
-	// ===== เติมรายละเอียด type-specific (เหมือน GetSubmissions ใน submission.go) =====
-	for i := range submissions {
-		switch submissions[i].SubmissionType {
-		case "fund_application":
-			var detail models.FundApplicationDetail
-			if err := config.DB.Preload("Subcategory").Where("submission_id = ?", submissions[i].SubmissionID).First(&detail).Error; err == nil {
-				submissions[i].FundApplicationDetail = &detail
-			}
-		case "publication_reward":
-			var detail models.PublicationRewardDetail
-			if err := config.DB.Where("submission_id = ?", submissions[i].SubmissionID).First(&detail).Error; err == nil {
-				submissions[i].PublicationRewardDetail = &detail
-			}
-		}
-	}
-
-	// ===== สถิติ =====
-	typeCounts := map[int]int64{} // status_id -> count
-	// นับ 1..4 โดยยังคง filter อื่น ๆ ไว้เหมือนเดิม (ยกเว้นสถานะที่จะสลับ)
-	for _, s := range []int{1, 2, 3, 4} {
-		q := config.DB.Model(&models.Submission{}).Where("deleted_at IS NULL")
-		if submissionType != "" {
-			q = q.Where("submission_type = ?", submissionType)
-		}
-		if yearID != "" {
-			q = q.Where("year_id = ?", yearID)
-		}
-		if dateFrom != "" && dateTo != "" {
-			q = q.Where("DATE(created_at) BETWEEN ? AND ?", dateFrom, dateTo)
-		}
-		if search != "" {
-			like := "%" + search + "%"
-			q = q.Joins("LEFT JOIN users ON users.user_id = submissions.user_id").
-				Where("submission_number LIKE ? OR users.user_fname LIKE ? OR users.user_lname LIKE ?", like, like, like)
-		}
-		q = q.Where("status_id = ?", s)
-		var cnt int64
-		_ = q.Count(&cnt).Error
-		typeCounts[s] = cnt
-	}
-
-	// ===== Debug log ฝั่งเซิร์ฟเวอร์ =====
-	log.Printf("[ADMIN LIST] page=%d limit=%d type=%s status=%s year_id=%s search=%q date_from=%s date_to=%s sort=%s %s total=%d",
-		page, limit, submissionType, statusID, yearID, search, dateFrom, dateTo, sortBy, sortOrder, totalCount)
-
-	// ===== Response =====
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"filters": gin.H{
-			"type":       submissionType,
-			"status":     statusID,
-			"year_id":    yearID,
-			"search":     search,
-			"date_from":  dateFrom,
-			"date_to":    dateTo,
-			"sort_by":    sortBy,
-			"sort_order": strings.ToLower(sortOrder),
-		},
-		"pagination": gin.H{
-			"current_page": page,
-			"per_page":     limit,
-			"total_count":  totalCount,
-			"total_pages":  (totalCount + int64(limit) - 1) / int64(limit),
-		},
-		"statistics": gin.H{
-			"total_submissions": totalCount,
-			"pending_count":     typeCounts[1],
-			"approved_count":    typeCounts[2],
-			"rejected_count":    typeCounts[3],
-			"revision_count":    typeCounts[4],
-		},
-		// ส่งทั้งอ็อบเจ็กต์ submission ที่มี User/Year/Status ติดมาด้วยแล้ว
-		"submissions": submissions,
-
-		// บล็อก debug (เพื่อดูใน Network tab ได้)
-		"debug": gin.H{
-			"received_params": gin.H{
-				"page": page, "limit": limit,
-				"type": submissionType, "status": statusID, "year_id": yearID,
-				"search": search, "date_from": dateFrom, "date_to": dateTo,
-				"sort_by": sortBy, "sort_order": sortOrder,
-			},
-			"result": gin.H{
-				"count":       len(submissions),
-				"total_count": totalCount,
-				"has_first_user": func() bool {
-					if len(submissions) == 0 {
-						return false
-					}
-					return submissions[0].User.UserID != 0
-				}(),
-			},
 		},
 	})
 }
