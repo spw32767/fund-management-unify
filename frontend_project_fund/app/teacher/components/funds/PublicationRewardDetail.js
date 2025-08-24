@@ -89,13 +89,19 @@ export default function PublicationRewardDetail({ submissionId, onNavigate }) {
 
   // Helper to get applicant data
   const getApplicant = () => {
-    return (
+    const applicant =
       submission?.applicant ||
       submission?.applicant_user ||
       submission?.user ||
-      submission?.User ||
-      null
+      submission?.User;
+
+    if (applicant) return applicant;
+
+    const applicantEntry = submission?.submission_users?.find(
+      (u) => u.is_applicant || u.IsApplicant
     );
+
+    return applicantEntry?.user || applicantEntry?.User || null;
   };
   // Helper to get co-authors sorted by display_order and excluding applicant
   const getCoAuthors = () => {
@@ -103,6 +109,7 @@ export default function PublicationRewardDetail({ submissionId, onNavigate }) {
     const applicantId =
       submission?.applicant_user_id ||
       getApplicant()?.user_id ||
+      getApplicant()?.UserID ||
       getApplicant()?.id;
     return submission.submission_users
       .filter((u) => {
@@ -137,11 +144,14 @@ export default function PublicationRewardDetail({ submissionId, onNavigate }) {
       let submissionData = response.submission || response;
 
       // แนบข้อมูลผู้ยื่นคำร้องจาก response หากมี
-      if (response.applicant || response.applicant_user) {
-        submissionData.applicant = response.applicant || response.applicant_user;
-        if (!submissionData.user && !submissionData.User) {
-          submissionData.user = submissionData.applicant;
-        }
+      const applicant =
+        response.applicant ||
+        response.applicant_user ||
+        submissionData.user ||
+        submissionData.User;
+      if (applicant) {
+        submissionData.applicant = applicant;
+        submissionData.user = applicant;
       }
       if (response.applicant_user_id) {
         submissionData.applicant_user_id = response.applicant_user_id;
@@ -468,14 +478,14 @@ export default function PublicationRewardDetail({ submissionId, onNavigate }) {
       {activeTab === 'details' && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Publication Information */}
-          <Card title="ข้อมูลบทความ" icon={BookOpen} collapsible={false}>
+          <Card title="ข้อมูลบทความ (Article Information)" icon={BookOpen} collapsible={false}>
             <div className="space-y-4">
               <div>
-                <label className="text-sm text-gray-500">ชื่อบทความ</label>
+                <label className="text-sm text-gray-500">ชื่อบทความ (Article Title)</label>
                 <p className="font-medium">{pubDetail.paper_title || '-'}</p>
               </div>
               <div>
-                <label className="text-sm text-gray-500">ชื่อวารสาร</label>
+                <label className="text-sm text-gray-500">ชื่อวารสาร (Journal Name)</label>
                 <p className="font-medium">{pubDetail.journal_name || '-'}</p>
               </div>
               <div className="grid grid-cols-2 gap-4">
@@ -484,12 +494,12 @@ export default function PublicationRewardDetail({ submissionId, onNavigate }) {
                   <p className="font-medium">{pubDetail.volume_issue || '-'}</p>
                 </div>
                 <div>
-                  <label className="text-sm text-gray-500">หน้า</label>
+                  <label className="text-sm text-gray-500">หน้า (Pages)</label>
                   <p className="font-medium">{pubDetail.page_numbers || '-'}</p>
                 </div>
               </div>
               <div>
-                <label className="text-sm text-gray-500">วันที่ตีพิมพ์</label>
+                <label className="text-sm text-gray-500">วันที่ตีพิมพ์ (Publication Date)</label>
                 <p className="font-medium">
                   {pubDetail.publication_date 
                     ? new Date(pubDetail.publication_date).toLocaleDateString('th-TH', {
@@ -501,7 +511,7 @@ export default function PublicationRewardDetail({ submissionId, onNavigate }) {
                 </p>
               </div>
               <div>
-                <label className="text-sm text-gray-500">DOI</label>
+                <label className="text-sm text-gray-500">DOI (Digital Object Identifier)</label>
                 <p className="font-medium">
                   {pubDetail.doi ? (
                     <a href={`https://doi.org/${pubDetail.doi}`} 
@@ -518,10 +528,10 @@ export default function PublicationRewardDetail({ submissionId, onNavigate }) {
           </Card>
 
           {/* Journal Quality */}
-          <Card title="คุณภาพวารสาร" icon={Award} collapsible={false}>
+          <Card title="ข้อมูลวารสาร (Journal Information)" icon={Award} collapsible={false}>
             <div className="space-y-4">
               <div>
-                <label className="text-sm text-gray-500">Quartile</label>
+                <label className="text-sm text-gray-500">ควอร์ไทล์ (Quartile)</label>
                 <div className="mt-1">
                   <span className={`inline-flex px-3 py-1 rounded-full text-sm font-medium
                     ${pubDetail.quartile === 'Q1' ? 'bg-green-100 text-green-800' :
@@ -538,91 +548,95 @@ export default function PublicationRewardDetail({ submissionId, onNavigate }) {
                 <p className="font-medium text-lg">{pubDetail.impact_factor || '-'}</p>
               </div>
               <div>
-                <label className="text-sm text-gray-500">การ Index</label>
+                <label className="text-sm text-gray-500">ฐานข้อมูลที่ปรากฏ (Database Indexed)</label>
                 <p className="font-medium">{pubDetail.indexing || '-'}</p>
               </div>
               <div>
-                <label className="text-sm text-gray-500">ประเภทการตีพิมพ์</label>
+                <label className="text-sm text-gray-500">ประเภทการตีพิมพ์ (Publication Type)</label>
                 <p className="font-medium">{pubDetail.publication_type || 'journal'}</p>
               </div>
             </div>
           </Card>
 
           {/* Financial Information */}
-          <Card title="ข้อมูลการเงิน" icon={DollarSign} collapsible={false}>
+          <Card title="ข้อมูลการเงิน (Financial Information)" icon={DollarSign} collapsible={false}>
             <div className="space-y-4">
               {/* Column headers */}
               <div
                 className={`grid ${showApprovedColumn ? "grid-cols-3" : "grid-cols-2"} pb-2 border-b text-sm text-gray-600`}
               >
                 <div></div>
-                <div className="text-right">จำนวนที่ขอ</div>
+                <div className="text-right">
+                  <div>จำนวนที่ขอ</div>
+                  <div className="text-xs text-gray-500">Requested Amount</div>
+                </div>
                 {showApprovedColumn && (
-                  <div className="text-right">จำนวนที่อนุมัติ</div>
+                  <div className="text-right">
+                    <div>จำนวนที่อนุมัติ</div>
+                    <div className="text-xs text-gray-500">Approved Amount</div>
+                  </div>
                 )}
               </div>
 
               {/* Requested reward */}
-              <div
-                className={`grid ${showApprovedColumn ? "grid-cols-3" : "grid-cols-2"} items-center`}
-              >
-                <span className="text-gray-600">เงินรางวัลที่ขอ</span>
+              <div className={`grid ${showApprovedColumn ? "grid-cols-3" : "grid-cols-2"} items-center`}>
+                <label className="block text-sm font-medium text-gray-700">
+                  เงินรางวัลที่ขอ
+                  <br />
+                  <span className="text-xs font-normal text-gray-600">Requested Reward Amount</span>
+                </label>
                 <span className="text-right font-semibold">
                   {formatCurrency(pubDetail.reward_amount || 0)}
                 </span>
                 {showApprovedColumn && (
                   <span className="text-right font-semibold">
-                    {approvedReward !== null
-                      ? formatCurrency(approvedReward)
-                      : '-'}
+                    {approvedReward !== null ? formatCurrency(approvedReward) : "-"}
                   </span>
                 )}
               </div>
-              
+
               {/* Revision fee */}
               {pubDetail.revision_fee > 0 && (
-                <div
-                  className={`grid ${showApprovedColumn ? "grid-cols-3" : "grid-cols-2"} items-center`}
-                >
-                  <span className="text-gray-600">ค่าปรับปรุง</span>
-                  <span className="text-right">
-                    {formatCurrency(pubDetail.revision_fee)}
-                  </span>
+                <div className={`grid ${showApprovedColumn ? "grid-cols-3" : "grid-cols-2"} items-center`}>
+                  <label className="block text-sm font-medium text-gray-700">
+                    ค่าปรับปรุงบทความ
+                    <br />
+                    <span className="text-xs font-normal text-gray-600">Manuscript Editing Fee (Baht)</span>
+                  </label>
+                  <span className="text-right">{formatCurrency(pubDetail.revision_fee)}</span>
                   {showApprovedColumn && (
                     <span className="text-right">
-                      {approvedRevision !== null
-                        ? formatCurrency(approvedRevision)
-                        : '-'}
+                      {approvedRevision !== null ? formatCurrency(approvedRevision) : "-"}
                     </span>
                   )}
                 </div>
               )}
-              
+
               {/* Publication fee */}
               {pubDetail.publication_fee > 0 && (
-                <div
-                  className={`grid ${showApprovedColumn ? "grid-cols-3" : "grid-cols-2"} items-center`}
-                >
-                  <span className="text-gray-600">ค่าตีพิมพ์</span>
-                  <span className="text-right">
-                    {formatCurrency(pubDetail.publication_fee)}
-                  </span>
+                <div className={`grid ${showApprovedColumn ? "grid-cols-3" : "grid-cols-2"} items-center`}>
+                  <label className="block text-sm font-medium text-gray-700">
+                    ค่าธรรมเนียมการตีพิมพ์
+                    <br />
+                    <span className="text-xs font-normal text-gray-600">Page Charge</span>
+                  </label>
+                  <span className="text-right">{formatCurrency(pubDetail.publication_fee)}</span>
                   {showApprovedColumn && (
                     <span className="text-right">
-                      {approvedPublication !== null
-                        ? formatCurrency(approvedPublication)
-                        : '-'}
+                      {approvedPublication !== null ? formatCurrency(approvedPublication) : "-"}
                     </span>
                   )}
                 </div>
               )}
-              
+
               {/* External funding */}
               {pubDetail.external_funding_amount > 0 && (
-                <div
-                  className={`grid ${showApprovedColumn ? "grid-cols-3" : "grid-cols-2"} items-center`}
-                >
-                  <span className="text-gray-600">เงินสนับสนุนจากภายนอก</span>
+                <div className={`grid ${showApprovedColumn ? "grid-cols-3" : "grid-cols-2"} items-center`}>
+                  <label className="block text-sm font-medium text-gray-700">
+                    เงินสนับสนุนจากภายนอก
+                    <br />
+                    <span className="text-xs font-normal text-gray-600">External Funding Sources</span>
+                  </label>
                   <span className="text-right text-red-600">
                     {formatCurrency(-pubDetail.external_funding_amount)}
                   </span>
@@ -634,11 +648,13 @@ export default function PublicationRewardDetail({ submissionId, onNavigate }) {
               <div
                 className={`grid ${showApprovedColumn ? "grid-cols-3" : "grid-cols-2"} items-center pt-2 border-t`}
               >
-                <span className="font-medium">ยอดรวมสุทธิ</span>
+                <label className="block font-medium text-gray-700">
+                  รวมเบิกจากวิทยาลัยการคอม
+                  <br />
+                  <span className="text-xs font-normal text-gray-600">Total Reimbursement from CP-KKU</span>
+                </label>
                 <span className="text-right font-bold text-blue-600">
-                  {formatCurrency(
-                    pubDetail.total_amount || pubDetail.reward_amount || 0
-                  )}
+                  {formatCurrency(pubDetail.total_amount || pubDetail.reward_amount || 0)}
                 </span>
                 {showApprovedColumn && (
                   <span className="text-right font-bold text-green-600">
@@ -650,10 +666,10 @@ export default function PublicationRewardDetail({ submissionId, onNavigate }) {
           </Card>
 
           {/* Additional Information */}
-          <Card title="ข้อมูลเพิ่มเติม" icon={FileCheck} collapsible={false}>
+          <Card title="ข้อมูลเพิ่มเติม (Additional Information)" icon={FileCheck} collapsible={false}>
             <div className="space-y-4">
               <div>
-                <label className="text-sm text-gray-500">สถานะผู้แต่ง</label>
+                <label className="text-sm text-gray-500">สถานะผู้ยื่น (Author Status)</label>
                 <p className="font-medium">
                   {pubDetail.author_type === 'first_author' ? 'ผู้แต่งหลัก (First Author)' :
                    pubDetail.author_type === 'corresponding_author' ? 'ผู้แต่งที่รับผิดชอบบทความ (Corresponding Author)' :
@@ -661,18 +677,18 @@ export default function PublicationRewardDetail({ submissionId, onNavigate }) {
                 </p>
               </div>
               <div>
-                <label className="text-sm text-gray-500">จำนวนผู้แต่ง</label>
+                <label className="text-sm text-gray-500">จำนวนผู้แต่ง (Number of Authors)</label>
                 <p className="font-medium">{pubDetail.author_count || 1} คน</p>
               </div>
               <div>
-                <label className="text-sm text-gray-500">ได้รับทุนสนับสนุนจากมหาวิทยาลัย</label>
+                <label className="text-sm text-gray-500">ได้รับทุนสนับสนุนจากมหาวิทยาลัย (Receive funding support from the university)</label>
                 <p className="font-medium">
                   {pubDetail.has_university_funding === 'yes' ? 'ใช่' : 'ไม่ใช่'}
                 </p>
               </div>
               {pubDetail.funding_references && (
                 <div>
-                  <label className="text-sm text-gray-500">หมายเลขอ้างอิงทุน</label>
+                  <label className="text-sm text-gray-500">หมายเลขอ้างอิงทุน (Fund Reference Number)</label>
                   <p className="font-medium">{pubDetail.funding_references}</p>
                 </div>
               )}

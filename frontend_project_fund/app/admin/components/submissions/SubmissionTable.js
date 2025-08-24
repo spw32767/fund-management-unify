@@ -1,9 +1,7 @@
-// app/admin/submissions/components/SubmissionTable.js
 'use client';
 
 import { useState } from 'react';
-import { formatDate, formatCurrency } from '@/app/utils/format';
-import ApprovalModal from './ApprovalModal';
+import { Eye, ChevronUp, ChevronDown } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 
 export default function SubmissionTable({
@@ -15,55 +13,51 @@ export default function SubmissionTable({
   onView,
   onRefresh
 }) {
-  const [selectedSubmission, setSelectedSubmission] = useState(null);
-  const [showApprovalModal, setShowApprovalModal] = useState(false);
-  const [modalAction, setModalAction] = useState(null); // 'approve', 'reject', 'revision'
+
+  // Format date helper
+  const formatDate = (dateString) => {
+    if (!dateString) return '-';
+    const date = new Date(dateString);
+    return date.toLocaleDateString('th-TH', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+    });
+  };
+
+  // Format currency helper
+  const formatCurrency = (amount) => {
+    if (!amount || amount === 0) return '-';
+    return `฿${Number(amount).toLocaleString()}`;
+  };
 
   // Get status badge style
   const getStatusBadge = (statusId) => {
     switch (statusId) {
       case 1:
-        return 'bg-yellow-100 text-yellow-800';
+        return 'bg-yellow-100 text-yellow-800 border-yellow-200';
       case 2:
-        return 'bg-green-100 text-green-800';
+        return 'bg-green-100 text-green-800 border-green-200';
       case 3:
-        return 'bg-red-100 text-red-800';
+        return 'bg-red-100 text-red-800 border-red-200';
       case 4:
-        return 'bg-orange-100 text-orange-800';
+        return 'bg-orange-100 text-orange-800 border-orange-200';
       default:
-        return 'bg-gray-100 text-gray-800';
+        return 'bg-gray-100 text-gray-800 border-gray-200';
     }
   };
 
-  // Get status text
-  const getStatusText = (statusId) => {
-    switch (statusId) {
-      case 1:
-        return 'รอพิจารณา';
-      case 2:
-        return 'อนุมัติ';
-      case 3:
-        return 'ไม่อนุมัติ';
-      case 4:
-        return 'ต้องการข้อมูลเพิ่มเติม';
-      default:
-        return 'ไม่ทราบ';
-    }
-  };
-
-  // Get submission type text
-  const getSubmissionTypeText = (type) => {
-    switch (type) {
-      case 'fund_application':
-        return 'ใบสมัครทุนวิจัย';
+  // Get submission type badge style
+  const getTypeBadge = (submissionType) => {
+    switch (submissionType) {
       case 'publication_reward':
-        return 'เงินรางวัลตีพิมพ์';
-      case 'conference_grant':
-        return 'ทุนประชุมวิชาการ';
-      case 'training_request':
-        return 'ขอทุนฝึกอบรม';
+        return 'bg-purple-100 text-purple-800 border-purple-200';
+      case 'fund_application':
+        return 'bg-blue-100 text-blue-800 border-blue-200';
+      case 'promotion_fund':
+        return 'bg-indigo-100 text-indigo-800 border-indigo-200';
       default:
-        return type;
+        return 'bg-gray-100 text-gray-800 border-gray-200';
     }
   };
 
@@ -83,13 +77,9 @@ export default function SubmissionTable({
     }
     
     return sortOrder === 'asc' ? (
-      <svg className="w-4 h-4 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 11l5-5m0 0l5 5m-5-5v12" />
-      </svg>
+      <ChevronUp className="w-4 h-4 text-indigo-600" />
     ) : (
-      <svg className="w-4 h-4 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 13l-5 5m0 0l-5-5m5 5V6" />
-      </svg>
+      <ChevronDown className="w-4 h-4 text-indigo-600" />
     );
   };
 
@@ -118,6 +108,7 @@ export default function SubmissionTable({
     return (
       <div className="flex justify-center items-center py-12">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
+        <div className="ml-3 text-gray-600">กำลังโหลดข้อมูล...</div>
       </div>
     );
   }
@@ -129,14 +120,14 @@ export default function SubmissionTable({
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
         </svg>
         <h3 className="mt-2 text-sm font-medium text-gray-900">ไม่พบข้อมูลคำร้อง</h3>
-        <p className="mt-1 text-sm text-gray-500">ลองปรับเปลี่ยนตัวกรองการค้นหา</p>
+        <p className="mt-1 text-sm text-gray-500">ลองปรับเปลี่ยนตัวกรองการค้นหา หรือสร้างคำร้องใหม่</p>
       </div>
     );
   }
 
   return (
     <>
-      <div className="overflow-x-auto">
+      <div className="overflow-hidden md:rounded-lg">
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
             <tr>
@@ -160,14 +151,11 @@ export default function SubmissionTable({
                   {getSortIcon('submission_type')}
                 </div>
               </th>
-              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                ผู้ยื่นคำร้อง
-              </th>
-              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                รายละเอียด
-              </th>
-              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                ปีงบประมาณ
+              <th
+                scope="col"
+                className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+              >
+                ชื่อเรื่อง/ผู้ยื่น
               </th>
               <th
                 scope="col"
@@ -181,90 +169,68 @@ export default function SubmissionTable({
               </th>
               <th
                 scope="col"
+                className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+              >
+                จำนวนเงิน
+              </th>
+              <th
+                scope="col"
                 className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
-                onClick={() => handleSort('submitted_at')}
+                onClick={() => handleSort('created_at')}
               >
                 <div className="flex items-center space-x-1">
-                  <span>วันที่ส่ง</span>
-                  {getSortIcon('submitted_at')}
+                  <span>วันที่สร้าง</span>
+                  {getSortIcon('created_at')}
                 </div>
               </th>
               <th scope="col" className="relative px-6 py-3">
-                <span className="sr-only">Actions</span>
+                <span className="sr-only">จัดการ</span>
               </th>
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
             {submissions.map((submission) => (
-              <tr key={submission.submission_id} className="hover:bg-gray-50 transition-colors duration-150">
+              <tr key={submission.submission_id || submission.id} className="hover:bg-gray-50 transition-colors duration-150">
                 <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                  {submission.submission_number || '-'}
+                  {submission.submission_number || submission.id || '-'}
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                    {getSubmissionTypeText(submission.submission_type)}
+                <td className="px-6 py-4 whitespace-nowrap text-sm">
+                  <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${getTypeBadge(submission.submission_type)}`}>
+                    {submission.display_type || submission.submission_type || 'ไม่ระบุ'}
                   </span>
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                  <div>
-                    <div className="font-medium">
-                      {submission.user?.user_fname} {submission.user?.user_lname}
-                    </div>
-                    <div className="text-gray-500">{submission.user?.email}</div>
-                  </div>
                 </td>
                 <td className="px-6 py-4 text-sm text-gray-900">
-                  {submission.submission_type === 'publication_reward' && submission.publication_reward_detail && (
-                    <div>
-                      <div className="font-medium">{submission.publication_reward_detail.paper_title}</div>
-                      <div className="text-gray-500">{submission.publication_reward_detail.journal_name}</div>
+                  <div className="space-y-1">
+                    <div className="font-medium truncate max-w-xs" title={submission.display_title}>
+                      {submission.display_title || 'ไม่ระบุชื่อเรื่อง'}
                     </div>
-                  )}
-                  {submission.submission_type === 'fund_application' && submission.fund_application_detail && (
-                    <div>
-                      <div className="font-medium">{submission.fund_application_detail.project_title}</div>
-                      <div className="text-gray-500">
-                        ขอทุน: {formatCurrency(submission.fund_application_detail.requested_amount)}
-                      </div>
+                    <div className="text-sm text-gray-500">
+                      โดย: {submission.display_author || 'ไม่ระบุผู้ยื่น'}
                     </div>
-                  )}
+                  </div>
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                  {submission.year?.year}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap">
-                  <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusBadge(submission.status_id)}`}>
-                    {getStatusText(submission.status_id)}
+                <td className="px-6 py-4 whitespace-nowrap text-sm">
+                  <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${getStatusBadge(submission.status_id)}`}>
+                    {submission.display_status || submission.status?.status_name || 'ไม่ทราบสถานะ'}
                   </span>
                 </td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-medium">
+                  {formatCurrency(submission.display_amount)}
+                </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                  {submission.submitted_at ? formatDate(submission.submitted_at) : '-'}
+                  {formatDate(submission.display_date || submission.created_at)}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                  <div className="flex items-center space-x-2">
+                  <div className="flex items-center justify-end">
+                    {/* View Button Only */}
                     <button
-                      onClick={() => onView(submission.submission_id)}
-                      className="text-indigo-600 hover:text-indigo-900"
+                      onClick={() => onView(submission.submission_id || submission.id)}
+                      className="inline-flex items-center px-3 py-2 text-sm font-medium text-indigo-600 hover:text-indigo-900 bg-indigo-50 hover:bg-indigo-100 rounded-md transition-colors"
+                      title="ดูรายละเอียด"
                     >
+                      <Eye className="h-4 w-4 mr-2" />
                       ดูรายละเอียด
                     </button>
-                    
-                    {submission.status_id === 4 && (
-                      <>
-                        <button
-                          onClick={() => handleAction(submission, 'approve')}
-                          className="text-green-600 hover:text-green-900"
-                        >
-                          อนุมัติ
-                        </button>
-                        <button
-                          onClick={() => handleAction(submission, 'reject')}
-                          className="text-red-600 hover:text-red-900"
-                        >
-                          ปฏิเสธ
-                        </button>
-                      </>
-                    )}
                   </div>
                 </td>
               </tr>
@@ -272,17 +238,6 @@ export default function SubmissionTable({
           </tbody>
         </table>
       </div>
-
-      {/* Approval Modal */}
-      {showApprovalModal && selectedSubmission && (
-        <ApprovalModal
-          isOpen={showApprovalModal}
-          onClose={handleModalClose}
-          submission={selectedSubmission}
-          action={modalAction}
-          onSuccess={handleActionSuccess}
-        />
-      )}
     </>
   );
 }
