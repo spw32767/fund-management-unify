@@ -45,17 +45,18 @@ export default function ApplicationList({ onNavigate }) {
       // Debug log
       console.log('API Response:', response);
       
-      if (response.success && response.submissions) {
-        // Transform data to match existing structure
-        const transformedData = response.submissions.map(sub => ({
-          application_id: sub.submission_id,
-          application_number: sub.submission_number,
-          project_title: getTitle(sub),
-          subcategory_name: getSubmissionTypeName(sub.submission_type),
-          requested_amount: getAmount(sub),
-          // API returns lowercase keys; keep PascalCase fallback for backward compatibility
-          status: sub.status?.status_name || sub.Status?.status_name || getStatusName(sub.status_id),
-          status_code: getStatusCode(sub.status_id),
+        if (response.success && response.submissions) {
+          // Transform data to match existing structure
+          const transformedData = response.submissions.map(sub => ({
+            application_id: sub.submission_id,
+            application_number: sub.submission_number,
+            project_title: getTitle(sub),
+            category_name: sub.category?.category_name || sub.Category?.category_name || null,
+            subcategory_name: getSubmissionTypeName(sub.submission_type),
+            requested_amount: getAmount(sub),
+            // API returns lowercase keys; keep PascalCase fallback for backward compatibility
+            status: sub.status?.status_name || sub.Status?.status_name || getStatusName(sub.status_id),
+            status_code: getStatusCode(sub.status_id),
           submitted_at: sub.created_at,
           year: sub.year?.year || sub.Year?.year || '2568',
           year_id: sub.year_id || sub.Year?.year_id,
@@ -171,19 +172,29 @@ export default function ApplicationList({ onNavigate }) {
       className: "font-medium"
     },
     {
+      header: "หมวดหมู่ทุน",
+      accessor: "category_name",
+      render: (value) => (value === null || value === undefined || value === '' ? '-' : value)
+    },
+    {
+      header: "ชื่อทุน",
+      accessor: "subcategory_name",
+      className: "text-sm"
+    },
+    {
       header: "ชื่อโครงการ/บทความ",
       accessor: "project_title",
       className: "max-w-xs truncate"
     },
     {
-      header: "ประเภท",
-      accessor: "subcategory_name",
-      className: "text-sm"
-    },
-    {
       header: "จำนวนเงิน",
       accessor: "requested_amount",
       render: (value) => `฿${(value || 0).toLocaleString()}`
+    },
+    {
+      header: "วันที่ส่ง",
+      accessor: "submitted_at",
+      render: (value) => value ? new Date(value).toLocaleDateString('th-TH') : '-'
     },
     {
       header: "สถานะ",
@@ -193,11 +204,6 @@ export default function ApplicationList({ onNavigate }) {
         const statusId = row._original?.status_id || 1;
         return <StatusBadge status={value} statusId={statusId} />;
       }
-    },
-    {
-      header: "วันที่ส่ง",
-      accessor: "submitted_at",
-      render: (value) => value ? new Date(value).toLocaleDateString('th-TH') : '-'
     },
     {
       header: "การดำเนินการ",
