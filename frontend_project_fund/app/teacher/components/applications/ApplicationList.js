@@ -51,7 +51,7 @@ export default function ApplicationList({ onNavigate }) {
             application_id: sub.submission_id,
             application_number: sub.submission_number,
             project_title: getTitle(sub),
-            category_name: sub.category?.category_name || sub.Category?.category_name || null,
+            category_name: sub.category_name ?? null,
             subcategory_name: getSubmissionTypeName(sub.submission_type),
             requested_amount: getAmount(sub),
             // API returns lowercase keys; keep PascalCase fallback for backward compatibility
