@@ -240,14 +240,14 @@ export default function PublicationRewardDetail({ submissionId, onNavigate }) {
   if (loading) {
     return (
       <PageLayout
-        title="รายละเอียดคำร้อง"
-        subtitle="กำลังโหลดข้อมูล..."
+        title="รายละเอียดคำร้อง (Submission Details)"
+        subtitle="กำลังโหลดข้อมูล... (Loading...)"
         icon={FileText}
       >
         <div className="flex justify-center items-center py-12">
           <div className="text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-            <p className="mt-4 text-gray-600">กำลังโหลดข้อมูล...</p>
+            <p className="mt-4 text-gray-600">กำลังโหลดข้อมูล... (Loading...)</p>
           </div>
         </div>
       </PageLayout>
@@ -257,16 +257,16 @@ export default function PublicationRewardDetail({ submissionId, onNavigate }) {
   if (!submission) {
     return (
       <PageLayout
-        title="ไม่พบข้อมูล"
-        subtitle="ไม่พบข้อมูลคำร้องที่ต้องการ"
+        title="ไม่พบข้อมูล (Data Not Found)"
+        subtitle="ไม่พบข้อมูลคำร้องที่ต้องการ (Requested submission not found)"
         icon={AlertCircle}
       >
         <Card collapsible={false}>
           <div className="text-center py-12">
             <AlertCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
-            <p className="text-gray-600">ไม่พบข้อมูลคำร้องที่ต้องการ</p>
+            <p className="text-gray-600">ไม่พบข้อมูลคำร้องที่ต้องการ (Requested submission not found)</p>
             <button onClick={handleBack} className="btn btn-primary mt-4">
-              กลับไปหน้ารายการ
+              กลับไปหน้ารายการ (Back to list)
             </button>
           </div>
         </Card>
@@ -324,12 +324,12 @@ export default function PublicationRewardDetail({ submissionId, onNavigate }) {
         <div className="flex gap-2">
           <button onClick={handleBack} className="btn btn-secondary">
             <ArrowLeft size={20} />
-            กลับ
+            กลับ (Back)
           </button>
           {submission.status_id === 5 && ( // Draft status
             <button onClick={handleEdit} className="btn btn-primary">
               <Edit size={20} />
-              แก้ไข
+              แก้ไข (Edit)
             </button>
           )}
         </div>
@@ -346,7 +346,7 @@ export default function PublicationRewardDetail({ submissionId, onNavigate }) {
           <div>
             <div className="flex flex-wrap items-center gap-3 mb-2">
               {getStatusIcon(submission.status_id)}
-              <h3 className="text-lg font-semibold">สถานะคำร้อง</h3>
+              <h3 className="text-lg font-semibold">สถานะคำร้อง (Submission Status)</h3>
               <div className="flex-shrink-0">
                 <StatusBadge
                   status={submission.Status?.status_name}
@@ -356,7 +356,9 @@ export default function PublicationRewardDetail({ submissionId, onNavigate }) {
             </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4 text-sm">
               <div>
-                <span className="text-gray-500">วันที่สร้างคำร้อง:</span>
+                <span className="text-gray-500">
+                  วันที่สร้างคำร้อง (Created Date):
+                </span>
                 <span className="ml-2 font-medium">
                   {new Date(submission.created_at).toLocaleDateString('th-TH', {
                     year: 'numeric',
@@ -367,7 +369,9 @@ export default function PublicationRewardDetail({ submissionId, onNavigate }) {
               </div>
               {submission.submitted_at && (
                 <div>
-                  <span className="text-gray-500">วันที่ส่งคำร้อง:</span>
+                  <span className="text-gray-500">
+                    วันที่ส่งคำร้อง (Submitted Date):
+                  </span>
                   <span className="ml-2 font-medium">
                     {new Date(submission.submitted_at).toLocaleDateString('th-TH', {
                       year: 'numeric',
@@ -379,7 +383,9 @@ export default function PublicationRewardDetail({ submissionId, onNavigate }) {
               )}
               {submission.status_id === 2 && submission.announce_reference_number && (
                 <div className="md:col-span-3">
-                  <span className="text-gray-500">เลขอ้างอิงประกาศ:</span>
+                  <span className="text-gray-500">
+                    เลขอ้างอิงประกาศ (Announcement Reference):
+                  </span>
                   <span className="ml-2 font-medium">
                     {submission.announce_reference_number}
                   </span>
@@ -387,7 +393,9 @@ export default function PublicationRewardDetail({ submissionId, onNavigate }) {
               )}
               {submission.approved_at && (
                 <div>
-                  <span className="text-gray-500">วันที่อนุมัติ:</span>
+                  <span className="text-gray-500">
+                    วันที่อนุมัติ (Approval Date):
+                  </span>
                   <span className="ml-2 font-medium">
                     {new Date(submission.approved_at).toLocaleDateString(
                       "th-TH",
@@ -439,7 +447,7 @@ export default function PublicationRewardDetail({ submissionId, onNavigate }) {
                 : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
             }`}
           >
-            รายละเอียดบทความ
+            รายละเอียดบทความ (Article Details)
           </button>
           <button
             onClick={() => setActiveTab('authors')}
@@ -449,7 +457,7 @@ export default function PublicationRewardDetail({ submissionId, onNavigate }) {
                 : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
             }`}
           >
-            ผู้แต่งร่วม
+            ผู้แต่งร่วม (Co-Authors)
           </button>
           <button
             onClick={() => setActiveTab('documents')}
@@ -459,7 +467,7 @@ export default function PublicationRewardDetail({ submissionId, onNavigate }) {
                 : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
             }`}
           >
-            เอกสารแนบ
+            เอกสารแนบ (Attachments)
           </button>
           <button
             onClick={() => setActiveTab('history')}
@@ -469,7 +477,7 @@ export default function PublicationRewardDetail({ submissionId, onNavigate }) {
                 : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
             }`}
           >
-            ประวัติ
+            ประวัติการดำเนินการ (Status History)
           </button>
         </nav>
       </div>
@@ -699,11 +707,11 @@ export default function PublicationRewardDetail({ submissionId, onNavigate }) {
 
         {/* Authors Tab */}
         {activeTab === 'authors' && (
-          <Card title="รายชื่อผู้แต่ง" icon={Users} collapsible={false}>
+          <Card title="รายชื่อผู้แต่ง (Authors)" icon={Users} collapsible={false}>
             <div className="space-y-6">
               {/* Applicant */}
               <div>
-                <h4 className="text-sm font-medium text-gray-700 mb-3">ผู้ยื่นคำร้อง</h4>
+                <h4 className="text-sm font-medium text-gray-700 mb-3">ผู้ยื่นคำร้อง (Applicant)</h4>
                 <div className="bg-blue-50 rounded-lg p-4">
                   <div className="flex items-center">
                     <User className="h-5 w-5 text-blue-600 mr-3" />
@@ -722,7 +730,7 @@ export default function PublicationRewardDetail({ submissionId, onNavigate }) {
               {/* Co-authors */}
               <div>
                 <h4 className="text-sm font-medium text-gray-700 mb-3">
-                  รายชื่อผู้แต่งร่วม {getCoAuthors().length > 0 && `(${getCoAuthors().length} คน)`}
+                  รายชื่อผู้แต่งร่วม (Co-Authors) {getCoAuthors().length > 0 && `(${getCoAuthors().length} คน)`}
                 </h4>
 
                 {getCoAuthors().length > 0 ? (
@@ -758,7 +766,7 @@ export default function PublicationRewardDetail({ submissionId, onNavigate }) {
         )}
 
       {activeTab === 'documents' && (
-        <Card title="เอกสารแนบ" icon={FileText} collapsible={false}>
+        <Card title="เอกสารแนบ (Attachments)" icon={FileText} collapsible={false}>
           <div className="space-y-4">
             {documents.length > 0 ? (
               <ul className="divide-y divide-gray-200">
@@ -799,7 +807,7 @@ export default function PublicationRewardDetail({ submissionId, onNavigate }) {
       )}
 
       {activeTab === 'history' && (
-        <Card title="ประวัติการดำเนินการ" icon={Clock} collapsible={false}>
+        <Card title="ประวัติการดำเนินการ (Status History)" icon={Clock} collapsible={false}>
           <div className="space-y-4">
             <div className="flow-root">
               {/* Using positive margin to ensure the timeline container grows with content */}

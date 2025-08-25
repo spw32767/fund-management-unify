@@ -73,38 +73,12 @@ export default function AnnouncementPage() {
   const loadFundForms = async () => {
     try {
       setLoadingForms(true);
-      // ชั่วคราวใช้ข้อมูล mock แทน เพราะ backend ยังไม่พร้อม
-      console.log('Fund forms API not ready yet, using mock data');
-      
-      // Mock data สำหรับทดสอบ
-      const mockForms = [
-        {
-          form_id: 1,
-          title: 'แบบฟอร์มสมัครทุนส่งเสริมการวิจัย',
-          file_name: 'แบบฟอร์มสมัครทุนวิจัย.docx',
-          description: 'แบบฟอร์มสำหรับสมัครขอรับทุนส่งเสริมการวิจัย',
-          form_type: 'application',
-          fund_category: 'research_fund',
-          status: 'active'
-        },
-        {
-          form_id: 2,
-          title: 'แบบฟอร์มสมัครทุนอุดหนุนกิจกรรม',
-          file_name: 'แบบฟอร์มสมัครทุนกิจกรรม.docx',
-          description: 'แบบฟอร์มสำหรับสมัครขอรับทุนอุดหนุนกิจกรรม',
-          form_type: 'application',
-          fund_category: 'promotion_fund',
-          status: 'active'
-        }
-      ];
-      
-      setFundForms(mockForms);
-      
-      // เมื่อ backend พร้อมแล้วให้ uncomment บรรทัดนี้
-      // const response = await fundFormAPI.getFundForms({ active_only: true });
-      // if (response.success) {
-      //   setFundForms(response.data || []);
-      // }
+      const response = await fundFormAPI.getFundForms({ active_only: true });
+      if (response.success) {
+        setFundForms(response.data || []);
+      } else {
+        setFundForms([]);
+      }
     } catch (error) {
       console.error('Error loading fund forms:', error);
       // ใช้ mock data เมื่อเกิด error
@@ -115,27 +89,19 @@ export default function AnnouncementPage() {
   };
 
   const handleViewFile = (id, type) => {
-    // ชั่วคราวแสดง alert เพราะ backend ยังไม่พร้อม
-    alert(`ฟีเจอร์ดูไฟล์จะพร้อมใช้งานเมื่อ backend เสร็จสมบูรณ์\nไฟล์: ${type} ID: ${id}`);
-    
-    // เมื่อ backend พร้อมแล้วให้ uncomment บรรทัดนี้
-    // if (type === 'announcement') {
-    //   announcementAPI.viewAnnouncementFile(id);
-    // } else {
-    //   fundFormAPI.viewFundForm(id);
-    // }
+    if (type === 'announcement') {
+      announcementAPI.viewAnnouncementFile(id);
+    } else {
+      fundFormAPI.viewFundForm(id);
+    }
   };
 
   const handleDownloadFile = (id, type) => {
-    // ชั่วคราวแสดง alert เพราะ backend ยังไม่พร้อม
-    alert(`ฟีเจอร์ดาวน์โหลดจะพร้อมใช้งานเมื่อ backend เสร็จสมบูรณ์\nไฟล์: ${type} ID: ${id}`);
-    
-    // เมื่อ backend พร้อมแล้วให้ uncomment บรรทัดนี้
-    // if (type === 'announcement') {
-    //   announcementAPI.downloadAnnouncementFile(id);
-    // } else {
-    //   fundFormAPI.downloadFundForm(id);
-    // }
+    if (type === 'announcement') {
+      announcementAPI.downloadAnnouncementFile(id);
+    } else {
+      fundFormAPI.downloadFundForm(id);
+    }
   };
 
   const getAnnouncementTypeColor = (type) => {
