@@ -74,16 +74,28 @@ export const adminAPI = {
     }
   },
 
-  // ==================== CATEGORIES MANAGEMENT ====================
-  
-  // Get all categories (Admin endpoint)
-  async getCategories(yearId = null) {
+  // ==================== CATEGORIES MANAGEMENT (Admin) ====================
+
+  // Get all categories for admin (no role filtering)
+  async getCategories(params = {}) {
     try {
-      const params = yearId ? { year_id: yearId } : {};
-      const response = await apiClient.get('/admin/categories', params);
-      return response.categories || [];
+      console.log('Getting admin categories with params:', params);
+      const response = await apiClient.get('/admin/categories', { params });
+      console.log('Admin categories response:', response);
+      return response;
     } catch (error) {
       console.error('Error fetching admin categories:', error);
+      throw error;
+    }
+  },
+
+  // Get categories for admin (alias)
+  async getCategoriesForAdmin(params = {}) {
+    try {
+      const response = await apiClient.get('/admin/categories', { params });
+      return response;
+    } catch (error) {
+      console.error('Error fetching categories for admin:', error);
       throw error;
     }
   },
@@ -174,7 +186,45 @@ export const adminAPI = {
 
   // ==================== SUBCATEGORIES MANAGEMENT ====================
   
-  // Get all subcategories (admin view - no filtering)
+  // Get all subcategories for admin (no role filtering) 
+  async getSubcategories(categoryId = null, params = {}) {
+    try {
+      const queryParams = { ...params };
+      if (categoryId) queryParams.category_id = categoryId;
+      
+      console.log('Getting admin subcategories with params:', queryParams);
+      const response = await apiClient.get('/admin/subcategories', { params: queryParams });
+      console.log('Admin subcategories response:', response);
+      return response;
+    } catch (error) {
+      console.error('Error fetching admin subcategories:', error);
+      throw error;
+    }
+  },
+
+  // Get subcategories for admin (alias)
+  async getSubcategoriesForAdmin(categoryId = null) {
+    try {
+      const params = categoryId ? { category_id: categoryId } : {};
+      const response = await apiClient.get('/admin/subcategories', { params });
+      return response;
+    } catch (error) {
+      console.error('Error fetching subcategories for admin:', error);
+      throw error;
+    }
+  },
+
+  // Create new subcategory with target_roles
+  async createSubcategoryWithRoles(subcategoryData) {
+    try {
+      const response = await apiClient.post('/admin/subcategories', subcategoryData);
+      return response;
+    } catch (error) {
+      console.error('Error creating subcategory with roles:', error);
+      throw error;
+    }
+  },
+
   async getAllSubcategories(categoryId = null, yearId = null) {
     try {
       const params = {};
@@ -189,29 +239,6 @@ export const adminAPI = {
       return response;
     } catch (error) {
       console.error('Error fetching all subcategories:', error);
-      throw error;
-    }
-  },
-
-  // Get subcategories for admin (alias for getAllSubcategories)
-  async getSubcategories(categoryId = null) {
-    try {
-      const params = categoryId ? { category_id: categoryId } : {};
-      const response = await apiClient.get('/admin/subcategories', params);
-      return response.subcategories || [];
-    } catch (error) {
-      console.error('Error fetching subcategories:', error);
-      throw error;
-    }
-  },
-
-  // Create new subcategory with target_roles
-  async createSubcategoryWithRoles(subcategoryData) {
-    try {
-      const response = await apiClient.post('/admin/subcategories', subcategoryData);
-      return response;
-    } catch (error) {
-      console.error('Error creating subcategory with roles:', error);
       throw error;
     }
   },
@@ -1005,6 +1032,77 @@ export const adminAPI = {
     
     if (budgetData.max_grants && (isNaN(parseInt(budgetData.max_grants)) || parseInt(budgetData.max_grants) <= 0)) {
       throw new Error('Max grants must be a positive integer');
+    }
+  },
+
+  // ==================== APPLICATION STATUS MANAGEMENT ====================
+
+  // Get all application statuses for admin
+  async getApplicationStatuses() {
+    try {
+      const response = await apiClient.get('/admin/application-status');
+      console.log('Admin application statuses response:', response);
+      return response;
+    } catch (error) {
+      console.error('Error fetching admin application statuses:', error);
+      
+      // Fallback to common endpoint if admin endpoint fails
+      try {
+        console.log('Trying common application-status endpoint...');
+        const fallbackResponse = await apiClient.get('/application-status');
+        console.log('Fallback application statuses response:', fallbackResponse);
+        return fallbackResponse;
+      } catch (fallbackError) {
+        console.error('Error with fallback application statuses:', fallbackError);
+        throw error; // Throw original error
+      }
+    }
+  },
+
+  // Create application status
+  async createApplicationStatus(statusData) {
+    try {
+      const response = await apiClient.post('/admin/application-status', statusData);
+      return response;
+    } catch (error) {
+      console.error('Error creating application status:', error);
+      throw error;
+    }
+  },
+
+  // Update application status
+  async updateApplicationStatus(statusId, statusData) {
+    try {
+      const response = await apiClient.put(`/admin/application-status/${statusId}`, statusData);
+      return response;
+    } catch (error) {
+      console.error('Error updating application status:', error);
+      throw error;
+    }
+  },
+
+  // Delete application status
+  async deleteApplicationStatus(statusId) {
+    try {
+      const response = await apiClient.delete(`/admin/application-status/${statusId}`);
+      return response;
+    } catch (error) {
+      console.error('Error deleting application status:', error);
+      throw error;
+    }
+  },
+
+  // ==================== SUBMISSIONS STATISTICS ====================
+
+  // Get submission statistics for admin
+  async getSubmissionStatistics(params = {}) {
+    try {
+      const response = await apiClient.get('/admin/submissions/statistics', { params });
+      console.log('Submission statistics response:', response);
+      return response;
+    } catch (error) {
+      console.error('Error fetching submission statistics:', error);
+      throw error;
     }
   }
 };

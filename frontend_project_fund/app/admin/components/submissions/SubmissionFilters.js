@@ -1,20 +1,23 @@
-// app/admin/submissions/components/SubmissionFilters.js
+// app/admin/components/submissions/SubmissionFilters.js
 'use client';
 
 import { useState, useEffect } from 'react';
-import { commonAPI } from '../../../lib/admin_submission_api';
 import { adminAPI } from '../../../lib/admin_api';
 
 export default function SubmissionFilters({ filters, onFilterChange, onSearch }) {
-  const [years, setYears] = useState([]);
   const [categories, setCategories] = useState([]);
   const [subcategories, setSubcategories] = useState([]);
+  const [applicationStatuses, setApplicationStatuses] = useState([]);
   const [searchTerm, setSearchTerm] = useState(filters.search || '');
+  const [loading, setLoading] = useState({
+    categories: false,
+    subcategories: false,
+    statuses: false
+  });
   
-  // Fetch initial data
+  // Fetch initial data when component mounts
   useEffect(() => {
-    fetchYears();
-    fetchCategories();
+    fetchInitialData();
   }, []);
 
   // Fetch subcategories when category changes
@@ -26,111 +29,89 @@ export default function SubmissionFilters({ filters, onFilterChange, onSearch })
     }
   }, [filters.category]);
 
-  const fetchYears = async () => {
-    try {
-      const response = await adminAPI.getYears();
-      console.log('Years response:', response);
-      
-      if (response && Array.isArray(response)) {
-        setYears(response);
-      } else if (response && response.years) {
-        setYears(response.years);
-      }
-    } catch (error) {
-      console.error('Error fetching years:', error);
-    }
+  // Fetch all initial data
+  const fetchInitialData = async () => {
+    await Promise.all([
+      fetchCategories(),
+      fetchApplicationStatuses()
+    ]);
   };
 
+  // Fetch categories from database (Admin endpoint - no role filtering)
   const fetchCategories = async () => {
+    setLoading(prev => ({ ...prev, categories: true }));
     try {
-      // ใช้ adminAPI สำหรับ categories (admin endpoint)
-      const response = await adminAPI.getCategories();
-      console.log('Categories response:', response);
+      const response = await adminAPI.getCategoriesForAdmin();
+      console.log('Categories response (admin):', response);
       
-      if (response && Array.isArray(response)) {
-        setCategories(response);
-      } else if (response && response.categories) {
+      if (response && Array.isArray(response.categories)) {
         setCategories(response.categories);
+      } else if (response && Array.isArray(response)) {
+        setCategories(response);
       } else {
-        // เรียกข้อมูลจากตาราง fund_categories
-        console.log('Using categories from database structure');
-        setCategories([
-          { category_id: 1, category_name: 'ทุนส่งเสริมการวิจัย' },
-          { category_id: 2, category_name: 'ทุนอุดหนุนกิจกรรม' }
-        ]);
+        console.warn('Unexpected categories response format:', response);
+        setCategories([]);
       }
     } catch (error) {
       console.error('Error fetching categories:', error);
-      // Fallback ตาม database structure
-      setCategories([
-        { category_id: 1, category_name: 'ทุนส่งเสริมการวิจัย' },
-        { category_id: 2, category_name: 'ทุนอุดหนุนกิจกรรม' }
-      ]);
+      // Fallback to empty array if API fails
+      setCategories([]);
+    } finally {
+      setLoading(prev => ({ ...prev, categories: false }));
     }
   };
 
+  // Fetch subcategories by category ID (Admin endpoint - no role filtering)
   const fetchSubcategories = async (categoryId) => {
+    setLoading(prev => ({ ...prev, subcategories: true }));
     try {
-      // ใช้ adminAPI สำหรับ subcategories (admin endpoint)
-      const response = await adminAPI.getSubcategories(categoryId);
-      console.log('Subcategories response:', response);
+      const response = await adminAPI.getSubcategoriesForAdmin(categoryId);
+      console.log('Subcategories response (admin):', response);
       
-      if (response && Array.isArray(response)) {
-        setSubcategories(response);
-      } else if (response && response.subcategories) {
+      if (response && Array.isArray(response.subcategories)) {
         setSubcategories(response.subcategories);
+      } else if (response && Array.isArray(response)) {
+        setSubcategories(response);
       } else {
-        // ข้อมูลจากตาราง fund_subcategories
-        const mockSubcategories = {
-          1: [ // ทุนส่งเสริมการวิจัย
-            { subcategory_id: 1, subcategory_name: '1.1 ทุนสนับสนุนผู้เชี่ยวชาญต่างประเทศ' },
-            { subcategory_id: 2, subcategory_name: '1.2 ทุนวิจัยสถาบัน' },
-            { subcategory_id: 3, subcategory_name: '1.3 ทุนวิจัยเพื่อพัฒนางานประจำ' },
-            { subcategory_id: 4, subcategory_name: '1.4 ทุนวิจัยในชั้นเรียน' },
-            { subcategory_id: 5, subcategory_name: 'ทุนสนับสนุนงานวิจัย นวัตกรรมและสิ่งประดิษฐ์เพื่อการเรียนการสอน' },
-            { subcategory_id: 6, subcategory_name: '1.5 ทุนวิจัยความเป็นเลิศ' },
-            { subcategory_id: 7, subcategory_name: '1.10 ทุนพัฒนากลุ่มวิจัยบูรณาการ' },
-            { subcategory_id: 8, subcategory_name: 'ทุนนักวิจัยอาวุโส' },
-            { subcategory_id: 9, subcategory_name: '1.7 ทุนพัฒนาศูนย์วิจัย' },
-            { subcategory_id: 10, subcategory_name: 'ทุนฝึกอบรมนักวิจัยหลังปริญญาเอก' },
-            { subcategory_id: 11, subcategory_name: '1.6 ทุนนวัตกรรมความเป็นเลิศ' },
-            { subcategory_id: 12, subcategory_name: '1.9 ทุนสนับสนุนการได้รับทุนวิจัยภายนอก' }
-          ],
-          2: [ // ทุนอุดหนุนกิจกรรม
-            { subcategory_id: 13, subcategory_name: 'ทุนทำวิจัยในต่างประเทศ' },
-            { subcategory_id: 14, subcategory_name: 'เงินรางวัลการตีพิมพ์เผยแพร่ผลงานวิจัย (ผู้แต่งชื่อแรก)' },
-            { subcategory_id: 15, subcategory_name: 'เงินรางวัลการตีพิมพ์เผยแพร่ผลงานวิจัย (ผู้ประพันธ์บรรณกิจ)' }
-          ]
-        };
-        
-        setSubcategories(mockSubcategories[categoryId] || []);
+        console.warn('Unexpected subcategories response format:', response);
+        setSubcategories([]);
       }
     } catch (error) {
       console.error('Error fetching subcategories:', error);
-      // Fallback data from database
-      const mockSubcategories = {
-        1: [ // ทุนส่งเสริมการวิจัย
-          { subcategory_id: 1, subcategory_name: '1.1 ทุนสนับสนุนผู้เชี่ยวชาญต่างประเทศ' },
-          { subcategory_id: 2, subcategory_name: '1.2 ทุนวิจัยสถาบัน' },
-          { subcategory_id: 3, subcategory_name: '1.3 ทุนวิจัยเพื่อพัฒนางานประจำ' },
-          { subcategory_id: 4, subcategory_name: '1.4 ทุนวิจัยในชั้นเรียน' },
-          { subcategory_id: 5, subcategory_name: 'ทุนสนับสนุนงานวิจัย นวัตกรรมและสิ่งประดิษฐ์เพื่อการเรียนการสอน' },
-          { subcategory_id: 6, subcategory_name: '1.5 ทุนวิจัยความเป็นเลิศ' },
-          { subcategory_id: 7, subcategory_name: '1.10 ทุนพัฒนากลุ่มวิจัยบูรณาการ' },
-          { subcategory_id: 8, subcategory_name: 'ทุนนักวิจัยอาวุโส' },
-          { subcategory_id: 9, subcategory_name: '1.7 ทุนพัฒนาศูนย์วิจัย' },
-          { subcategory_id: 10, subcategory_name: 'ทุนฝึกอบรมนักวิจัยหลังปริญญาเอก' },
-          { subcategory_id: 11, subcategory_name: '1.6 ทุนนวัตกรรมความเป็นเลิศ' },
-          { subcategory_id: 12, subcategory_name: '1.9 ทุนสนับสนุนการได้รับทุนวิจัยภายนอก' }
-        ],
-        2: [ // ทุนอุดหนุนกิจกรรม
-          { subcategory_id: 13, subcategory_name: 'ทุนทำวิจัยในต่างประเทศ' },
-          { subcategory_id: 14, subcategory_name: 'เงินรางวัลการตีพิมพ์เผยแพร่ผลงานวิจัย (ผู้แต่งชื่อแรก)' },
-          { subcategory_id: 15, subcategory_name: 'เงินรางวัลการตีพิมพ์เผยแพร่ผลงานวิจัย (ผู้ประพันธ์บรรณกิจ)' }
-        ]
-      };
+      // Fallback to empty array if API fails
+      setSubcategories([]);
+    } finally {
+      setLoading(prev => ({ ...prev, subcategories: false }));
+    }
+  };
+
+  // Fetch application statuses from database
+  const fetchApplicationStatuses = async () => {
+    setLoading(prev => ({ ...prev, statuses: true }));
+    try {
+      const response = await adminAPI.getApplicationStatuses();
+      console.log('Application statuses response:', response);
       
-      setSubcategories(mockSubcategories[categoryId] || []);
+      if (response && Array.isArray(response.statuses)) {
+        setApplicationStatuses(response.statuses);
+      } else if (response && Array.isArray(response)) {
+        setApplicationStatuses(response);
+      } else {
+        console.warn('Unexpected application statuses response format:', response);
+        setApplicationStatuses([]);
+      }
+    } catch (error) {
+      console.error('Error fetching application statuses:', error);
+      // Fallback data from your database structure
+      setApplicationStatuses([
+        { application_status_id: 1, status_code: '0', status_name: 'รอพิจารณา' },
+        { application_status_id: 2, status_code: '1', status_name: 'อนุมัติ' },
+        { application_status_id: 3, status_code: '2', status_name: 'ปฏิเสธ' },
+        { application_status_id: 4, status_code: '3', status_name: 'ต้องการข้อมูลเพิ่มเติม' },
+        { application_status_id: 5, status_code: '4', status_name: 'ร่าง' }
+      ]);
+    } finally {
+      setLoading(prev => ({ ...prev, statuses: false }));
     }
   };
 
@@ -150,6 +131,22 @@ export default function SubmissionFilters({ filters, onFilterChange, onSearch })
     }
   };
 
+  // Get display name for selected values
+  const getCategoryName = (categoryId) => {
+    const category = categories.find(c => c.category_id.toString() === categoryId);
+    return category?.category_name || categoryId;
+  };
+
+  const getSubcategoryName = (subcategoryId) => {
+    const subcategory = subcategories.find(s => s.subcategory_id.toString() === subcategoryId);
+    return subcategory?.subcategory_name || subcategoryId;
+  };
+
+  const getStatusName = (statusCode) => {
+    const status = applicationStatuses.find(s => s.status_code === statusCode);
+    return status?.status_name || statusCode;
+  };
+
   return (
     <div className="px-4 py-5 sm:px-6 border-b border-gray-200 bg-gray-50">
       {/* Main Filters Row */}
@@ -164,9 +161,12 @@ export default function SubmissionFilters({ filters, onFilterChange, onSearch })
             name="category"
             value={filters.category || ''}
             onChange={(e) => handleChange('category', e.target.value)}
-            className="block w-full pl-3 pr-10 py-2 text-base border border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md bg-white"
+            disabled={loading.categories}
+            className="block w-full pl-3 pr-10 py-2 text-base border border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md bg-white disabled:bg-gray-100 disabled:text-gray-500"
           >
-            <option value="">ทั้งหมด</option>
+            <option value="">
+              {loading.categories ? 'กำลังโหลด...' : 'ทั้งหมด'}
+            </option>
             {categories.map((category) => (
               <option key={category.category_id} value={category.category_id}>
                 {category.category_name}
@@ -185,10 +185,17 @@ export default function SubmissionFilters({ filters, onFilterChange, onSearch })
             name="subcategory"
             value={filters.subcategory || ''}
             onChange={(e) => handleChange('subcategory', e.target.value)}
-            disabled={!filters.category}
+            disabled={!filters.category || loading.subcategories}
             className="block w-full pl-3 pr-10 py-2 text-base border border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md bg-white disabled:bg-gray-100 disabled:text-gray-500"
           >
-            <option value="">ทั้งหมด</option>
+            <option value="">
+              {!filters.category 
+                ? 'เลือกหมวดทุนก่อน' 
+                : loading.subcategories 
+                ? 'กำลังโหลด...' 
+                : 'ทั้งหมด'
+              }
+            </option>
             {subcategories.map((subcategory) => (
               <option key={subcategory.subcategory_id} value={subcategory.subcategory_id}>
                 {subcategory.subcategory_name}
@@ -197,7 +204,7 @@ export default function SubmissionFilters({ filters, onFilterChange, onSearch })
           </select>
         </div>
 
-        {/* Status */}
+        {/* Status (สถานะ) */}
         <div>
           <label htmlFor="status" className="block text-sm font-medium text-gray-700 mb-1">
             สถานะ
@@ -205,41 +212,39 @@ export default function SubmissionFilters({ filters, onFilterChange, onSearch })
           <select
             id="status"
             name="status"
-            value={filters.status}
+            value={filters.status || ''}
             onChange={(e) => handleChange('status', e.target.value)}
-            className="block w-full pl-3 pr-10 py-2 text-base border border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md bg-white"
+            disabled={loading.statuses}
+            className="block w-full pl-3 pr-10 py-2 text-base border border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md bg-white disabled:bg-gray-100 disabled:text-gray-500"
           >
-            <option value="">ทั้งหมด</option>
-            {/* สถานะตามตาราง application_status */}
-            <option value="1">รอพิจารณา</option>
-            <option value="2">อนุมัติ</option>
-            <option value="3">ปฏิเสธ</option>
-            <option value="4">ต้องการข้อมูลเพิ่มเติม</option>
-            <option value="5">ร่าง</option>
+            <option value="">
+              {loading.statuses ? 'กำลังโหลด...' : 'ทั้งหมด'}
+            </option>
+            {applicationStatuses.map((status) => (
+              <option key={status.application_status_id} value={status.status_code}>
+                {status.status_name}
+              </option>
+            ))}
           </select>
         </div>
 
         {/* Search */}
         <div>
-          <label htmlFor="search" className="block text-sm font-medium text-gray-700 mb-1">
-            ค้นหา
-          </label>
-          <form onSubmit={handleSearchSubmit}>
-            <div className="relative">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                </svg>
-              </div>
+          <form onSubmit={handleSearchSubmit} className="flex">
+            <div className="relative flex-grow">
               <input
                 type="text"
-                name="search"
-                id="search"
+                placeholder="ค้นหา..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="เลขที่คำร้อง, ชื่อเรื่อง, ผู้ยื่น..."
-                className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                className="block w-full pl-3 pr-12 py-2 border border-gray-300 rounded-l-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
               />
+              <button
+                type="submit"
+                className="absolute right-0 top-0 h-full px-3 py-2 border border-l-0 border-gray-300 rounded-r-md bg-gray-50 text-gray-500 hover:text-gray-700 hover:bg-gray-100 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500"
+              >
+                🔍
+              </button>
             </div>
           </form>
         </div>
@@ -253,11 +258,11 @@ export default function SubmissionFilters({ filters, onFilterChange, onSearch })
 
             {filters.category && (
               <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-blue-100 text-blue-800 border border-blue-200">
-                หมวด: {categories.find(c => c.category_id.toString() === filters.category)?.category_name || filters.category}
+                หมวด: {getCategoryName(filters.category)}
                 <button
                   type="button"
                   onClick={() => handleChange('category', '')}
-                  className="ml-2 text-blue-600 hover:text-blue-800"
+                  className="ml-2 text-blue-600 hover:text-blue-800 font-bold"
                 >
                   ×
                 </button>
@@ -266,11 +271,11 @@ export default function SubmissionFilters({ filters, onFilterChange, onSearch })
 
             {filters.subcategory && (
               <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-purple-100 text-purple-800 border border-purple-200">
-                ประเภท: {subcategories.find(s => s.subcategory_id.toString() === filters.subcategory)?.subcategory_name || filters.subcategory}
+                ประเภท: {getSubcategoryName(filters.subcategory)}
                 <button
                   type="button"
                   onClick={() => handleChange('subcategory', '')}
-                  className="ml-2 text-purple-600 hover:text-purple-800"
+                  className="ml-2 text-purple-600 hover:text-purple-800 font-bold"
                 >
                   ×
                 </button>
@@ -279,15 +284,11 @@ export default function SubmissionFilters({ filters, onFilterChange, onSearch })
             
             {filters.status && (
               <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-800 border border-green-200">
-                สถานะ: {filters.status === '1' ? 'รอพิจารณา' : 
-                        filters.status === '2' ? 'อนุมัติ' :
-                        filters.status === '3' ? 'ปฏิเสธ' :
-                        filters.status === '4' ? 'ต้องการข้อมูลเพิ่มเติม' :
-                        filters.status === '5' ? 'ร่าง' : filters.status}
+                สถานะ: {getStatusName(filters.status)}
                 <button
                   type="button"
                   onClick={() => handleChange('status', '')}
-                  className="ml-2 text-green-600 hover:text-green-800"
+                  className="ml-2 text-green-600 hover:text-green-800 font-bold"
                 >
                   ×
                 </button>
@@ -295,18 +296,52 @@ export default function SubmissionFilters({ filters, onFilterChange, onSearch })
             )}
 
             {filters.search && (
-              <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-gray-100 text-gray-800 border border-gray-200">
+              <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-yellow-100 text-yellow-800 border border-yellow-200">
                 ค้นหา: "{filters.search}"
                 <button
                   type="button"
-                  onClick={() => { setSearchTerm(''); onSearch(''); }}
-                  className="ml-2 text-gray-600 hover:text-gray-800"
+                  onClick={() => {
+                    setSearchTerm('');
+                    onSearch('');
+                  }}
+                  className="ml-2 text-yellow-600 hover:text-yellow-800 font-bold"
                 >
                   ×
                 </button>
               </span>
             )}
+
+            {/* Clear All Filters Button */}
+            <button
+              type="button"
+              onClick={() => {
+                setSearchTerm('');
+                onFilterChange({
+                  category: '',
+                  subcategory: '',
+                  status: '',
+                  search: ''
+                });
+                onSearch('');
+              }}
+              className="text-sm text-gray-500 hover:text-gray-700 underline ml-2"
+            >
+              ล้างตัวกรองทั้งหมด
+            </button>
           </div>
+        </div>
+      )}
+
+      {/* Loading Indicator */}
+      {(loading.categories || loading.subcategories || loading.statuses) && (
+        <div className="mt-2 text-sm text-gray-500 text-center">
+          <span className="inline-flex items-center">
+            <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-gray-500" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            กำลังโหลดข้อมูล...
+          </span>
         </div>
       )}
     </div>
