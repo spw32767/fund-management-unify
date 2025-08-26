@@ -20,50 +20,14 @@ export default function AnnouncementPage() {
   const loadAnnouncements = async () => {
     try {
       setLoadingAnnouncements(true);
-      // ชั่วคราวใช้ข้อมูล mock แทน เพราะ backend ยังไม่พร้อม
-      console.log('Announcements API not ready yet, using mock data');
-      
-      // Mock data สำหรับทดสอบ
-      const mockAnnouncements = [
-        {
-          announcement_id: 1,
-          title: 'ประกาศเปิดรับสมัครทุนส่งเสริมการวิจัย ประจำปี 2568',
-          file_name: 'ประกาศทุนวิจัย2568.pdf',
-          description: 'กองทุนส่งเสริมการวิจัยและนวัตกรรม เปิดรับสมัครทุนส่งเสริมการวิจัย ประจำปี 2568',
-          announcement_type: 'research_fund',
-          priority: 'high',
-          status: 'active'
-        },
-        {
-          announcement_id: 2,
-          title: 'แนวทางการเขียนข้อเสนอโครงการวิจัย',
-          file_name: 'แนวทางการเขียนข้อเสนอโครงการ.pdf',
-          description: 'เอกสารแนวทางและข้อแนะนำสำหรับการเขียนข้อเสนอโครงการวิจัย',
-          announcement_type: 'research_fund',
-          priority: 'normal',
-          status: 'active'
-        },
-        {
-          announcement_id: 3,
-          title: 'ประกาศเปิดรับสมัครทุนอุดหนุนกิจกรรม ไตรมาส 1/2568',
-          file_name: 'ประกาศทุนกิจกรรมไตรมาส1-2568.pdf',
-          description: 'เปิดรับสมัครทุนอุดหนุนกิจกรรมประจำไตรมาส 1 ประจำปี 2568',
-          announcement_type: 'promotion_fund',
-          priority: 'normal',
-          status: 'active'
-        }
-      ];
-      
-      setAnnouncements(mockAnnouncements);
-      
-      // เมื่อ backend พร้อมแล้วให้ uncomment บรรทัดนี้
-      // const response = await announcementAPI.getAnnouncements({ active_only: true });
-      // if (response.success) {
-      //   setAnnouncements(response.data || []);
-      // }
+      const response = await announcementAPI.getAnnouncements({ active_only: true });
+      if (response.success) {
+        setAnnouncements(response.data || []);
+      } else {
+        setAnnouncements([]);
+      }
     } catch (error) {
       console.error('Error loading announcements:', error);
-      // ใช้ mock data เมื่อเกิด error
       setAnnouncements([]);
     } finally {
       setLoadingAnnouncements(false);
@@ -161,6 +125,11 @@ export default function AnnouncementPage() {
       )
     },
     {
+      header: "ปี",
+      accessor: "year_name",
+      render: (value) => <span className="text-gray-700">{value || '-'}</span>
+    },
+    {
       header: "ประเภท",
       accessor: "announcement_type",
       render: (value) => (
@@ -224,6 +193,11 @@ export default function AnnouncementPage() {
           <div className="text-sm text-gray-500">{row.title}</div>
         </div>
       )
+    },
+    {
+      header: "ปี",
+      accessor: "year_name",
+      render: (value) => <span className="text-gray-700">{value || '-'}</span>
     },
     {
       header: "ประเภทฟอร์ม",
