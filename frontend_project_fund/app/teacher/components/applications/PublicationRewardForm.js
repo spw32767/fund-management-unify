@@ -383,7 +383,9 @@ const deleteDraftFromLocal = () => {
 
 // Calculate reward based on author status and quartile
 const calculateReward = async (authorStatus, quartile, year = null) => {
-  if (!authorStatus || !quartile) return 0;
+  if (!authorStatus || !quartile) {
+    return { amount: 0, subcategory_id: null, subcategory_budget_id: null, category_id: null };
+  }
   
   try {
     // หา year (พ.ศ.) จาก year_id หรือใช้ปีปัจจุบัน + 543
@@ -396,11 +398,16 @@ const calculateReward = async (authorStatus, quartile, year = null) => {
       authorStatus,
       quartile
     );
-    
-    return response.reward_amount || 0;
+
+    return {
+      amount: response.reward_amount || 0,
+      subcategory_id: response.subcategory_id || null,
+      subcategory_budget_id: response.subcategory_budget_id || null,
+      category_id: response.category_id || null
+    };
   } catch (error) {
     console.error('Error calculating reward:', error);
-    return 0;
+    return { amount: 0, subcategory_id: null, subcategory_budget_id: null, category_id: null };
   }
 };
 
@@ -598,7 +605,7 @@ const FileUpload = ({ onFileSelect, accept, multiple = false, error, label }) =>
 // MAIN COMPONENT START
 // =================================================================
 
-export default function PublicationRewardForm({ onNavigate }) {
+export default function PublicationRewardForm({ onNavigate, categoryId }) {
   // =================================================================
   // STATE DECLARATIONS
   // =================================================================
@@ -624,6 +631,9 @@ export default function PublicationRewardForm({ onNavigate }) {
   const [formData, setFormData] = useState({
     // Basic submission info
     year_id: null,
+    category_id: null,
+    subcategory_id: null,
+    subcategory_budget_id: null,
     
     // Publication details
     author_status: '',
@@ -647,10 +657,11 @@ export default function PublicationRewardForm({ onNavigate }) {
     
     // Reward calculation
     reward_amount: 0,
+    publication_reward: 0,
     revision_fee: 0,
     publication_fee: 0,
     external_funding_amount: 0,
-    total_amount: 0, 
+    total_amount: 0,
     
     // Bank info
     bank_account: '',
@@ -675,6 +686,13 @@ export default function PublicationRewardForm({ onNavigate }) {
   // =================================================================
   // EFFECT HOOKS
   // =================================================================
+
+  // Set category context from navigation
+  useEffect(() => {
+    if (categoryId) {
+      setFormData(prev => ({ ...prev, category_id: categoryId }));
+    }
+  }, [categoryId]);
 
   // Load initial data on mount
   useEffect(() => {
@@ -776,8 +794,19 @@ export default function PublicationRewardForm({ onNavigate }) {
           const yearObj = years.find(y => y.year_id === formData.year_id);
           const targetYear = yearObj?.year || new Date().getFullYear().toString();
           
-          const reward = await calculateReward(formData.author_status, formData.journal_quartile, targetYear);
-          setFormData(prev => ({ ...prev, publication_reward: reward }));
+          const result = await calculateReward(
+            formData.author_status,
+            formData.journal_quartile,
+            targetYear
+          );
+          setFormData(prev => ({
+            ...prev,
+            publication_reward: result.amount,
+            reward_amount: result.amount,
+            subcategory_id: result.subcategory_id,
+            subcategory_budget_id: result.subcategory_budget_id,
+            category_id: result.category_id || prev.category_id
+          }));
         } catch (error) {
           console.error('Error calculating reward:', error);
         }
@@ -1137,11 +1166,15 @@ export default function PublicationRewardForm({ onNavigate }) {
     else if (name === 'author_status') {
       setLoading(true);
       try {
-        const rewardAmount = await calculateReward(value, formData.journal_quartile);
+        const result = await calculateReward(value, formData.journal_quartile);
         setFormData(prev => ({
           ...prev,
           author_status: value,
-          publication_reward: rewardAmount
+          publication_reward: result.amount,
+          reward_amount: result.amount,
+          subcategory_id: result.subcategory_id,
+          subcategory_budget_id: result.subcategory_budget_id,
+          category_id: result.category_id || prev.category_id
         }));
       } catch (error) {
         console.error('Error updating author status:', error);
@@ -1157,11 +1190,15 @@ export default function PublicationRewardForm({ onNavigate }) {
     else if (name === 'journal_quartile') {
       setLoading(true);
       try {
-        const rewardAmount = await calculateReward(formData.author_status, value);
+        const result = await calculateReward(formData.author_status, value);
         setFormData(prev => ({
           ...prev,
           journal_quartile: value,
-          publication_reward: rewardAmount
+          publication_reward: result.amount,
+          reward_amount: result.amount,
+          subcategory_id: result.subcategory_id,
+          subcategory_budget_id: result.subcategory_budget_id,
+          category_id: result.category_id || prev.category_id
         }));
       } catch (error) {
         console.error('Error updating quartile:', error);
@@ -2098,6 +2135,9 @@ const showSubmissionConfirmation = async () => {
         const submissionResponse = await submissionAPI.create({
           submission_type: 'publication_reward',
           year_id: formData.year_id,
+          category_id: formData.category_id,
+          subcategory_id: formData.subcategory_id,
+          subcategory_budget_id: formData.subcategory_budget_id,
         });
         
         submissionId = submissionResponse.submission.submission_id;

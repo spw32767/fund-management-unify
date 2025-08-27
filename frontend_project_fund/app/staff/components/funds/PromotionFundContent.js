@@ -111,9 +111,43 @@ export default function PromotionFundContent({ onNavigate }) {
       const researchFunds = response.categories.filter(category => {
         return category.category_id === 2;
       });
-      
-      console.log('Research funds found:', researchFunds);
-      setFundCategories(researchFunds);
+
+      // รวมทุนเงินรางวัลการตีพิมพ์ (ผู้แต่งชื่อแรก/ผู้ประพันธ์บรรณกิจ) ให้เป็นตัวเลือกเดียว
+      const mergedFunds = researchFunds.map(category => {
+        if (!Array.isArray(category.subcategories)) return category;
+
+        const publicationSubs = category.subcategories.filter(
+          sub => sub.form_type === 'publication_reward'
+        );
+
+        if (publicationSubs.length > 1) {
+          const merged = {
+            ...publicationSubs[0],
+            subcategory_name: 'เงินรางวัลการตีพิมพ์เผยแพร่ผลงานวิจัย',
+            remaining_budget: publicationSubs.reduce(
+              (sum, s) => sum + (s.remaining_budget || 0),
+              0
+            ),
+            has_multiple_levels: publicationSubs.some(s => s.has_multiple_levels),
+            budget_count: publicationSubs.reduce(
+              (sum, s) => sum + (s.budget_count || 0),
+              0
+            ),
+            merged_subcategories: publicationSubs
+          };
+
+          const others = category.subcategories.filter(
+            sub => sub.form_type !== 'publication_reward'
+          );
+
+          return { ...category, subcategories: [...others, merged] };
+        }
+
+        return category;
+      });
+
+      console.log('Research funds found:', mergedFunds);
+      setFundCategories(mergedFunds);
       
     } catch (err) {
       console.error('Error loading fund data:', err);
@@ -166,7 +200,7 @@ export default function PromotionFundContent({ onNavigate }) {
     
     if (formConfig.isOnlineForm && onNavigate) {
       // ไปหน้าฟอร์มออนไลน์ตาม route ที่กำหนด
-      onNavigate(formConfig.route, subcategory);
+      onNavigate(formConfig.route, { category_id: subcategory.category_id });
     } else {
       // ดาวน์โหลดฟอร์ม
       const docUrl = subcategory.form_url || '/documents/default-fund-form.docx';

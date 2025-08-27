@@ -110,16 +110,50 @@ export default function PromotionFundContent({ onNavigate }) {
       const promotionFunds = response.categories.filter(category => {
         const categoryName = category.category_name?.toLowerCase() || '';
         // ตามข้อมูลในฐานข้อมูล category_id = 2 คือ 'ทุนอุดหนุนกิจกรรม'
-        return categoryName.includes('อุดหนุน') || 
+        return categoryName.includes('อุดหนุน') ||
                categoryName.includes('กิจกรรม') ||
                categoryName.includes('ส่งเสริม') ||
                categoryName.includes('promotion') ||
                categoryName.includes('activity') ||
                category.category_id === 2;
       });
-      
-      console.log('Promotion funds found:', promotionFunds);
-      setFundCategories(promotionFunds);
+
+      // รวมทุนเงินรางวัลการตีพิมพ์ (ผู้แต่งชื่อแรก/ผู้ประพันธ์บรรณกิจ) ให้เป็นตัวเลือกเดียว
+      const mergedFunds = promotionFunds.map(category => {
+        if (!Array.isArray(category.subcategories)) return category;
+
+        const publicationSubs = category.subcategories.filter(
+          sub => sub.form_type === 'publication_reward'
+        );
+
+        if (publicationSubs.length > 1) {
+          const merged = {
+            ...publicationSubs[0],
+            subcategory_name: 'เงินรางวัลการตีพิมพ์เผยแพร่ผลงานวิจัย',
+            remaining_budget: publicationSubs.reduce(
+              (sum, s) => sum + (s.remaining_budget || 0),
+              0
+            ),
+            has_multiple_levels: publicationSubs.some(s => s.has_multiple_levels),
+            budget_count: publicationSubs.reduce(
+              (sum, s) => sum + (s.budget_count || 0),
+              0
+            ),
+            merged_subcategories: publicationSubs
+          };
+
+          const others = category.subcategories.filter(
+            sub => sub.form_type !== 'publication_reward'
+          );
+
+          return { ...category, subcategories: [...others, merged] };
+        }
+
+        return category;
+      });
+
+      console.log('Promotion funds found:', mergedFunds);
+      setFundCategories(mergedFunds);
       
     } catch (err) {
       console.error('Error loading fund data:', err);
@@ -178,7 +212,7 @@ export default function PromotionFundContent({ onNavigate }) {
         window.open(subcategory.online_form_url, '_blank');
       } else if (onNavigate) {
         // นำทางไปหน้าฟอร์มออนไลน์ภายในระบบ
-        onNavigate('application-form', subcategory);
+        onNavigate('application-form', { category_id: subcategory.category_id });
       }
     } else {
       // แสดงลิงก์ดาวน์โหลดไฟล์ DOC
