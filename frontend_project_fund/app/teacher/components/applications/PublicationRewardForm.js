@@ -381,35 +381,25 @@ const deleteDraftFromLocal = () => {
 // REWARD CALCULATION
 // =================================================================
 
-// Calculate reward based on author status and quartile
-const calculateReward = async (authorStatus, quartile, year = null) => {
-  if (!authorStatus || !quartile) {
-    return { amount: 0, subcategory_id: null, subcategory_budget_id: null, category_id: null };
-  }
-  
-  try {
-    // หา year (พ.ศ.) จาก year_id หรือใช้ปีปัจจุบัน + 543
-    const currentYear = new Date().getFullYear() + 543;
-    const targetYear = year || currentYear.toString();
-    
-    // เรียก API เพื่อดึงเงินรางวัล
-    const response = await publicationRewardRatesAPI.lookupRewardAmount(
-      targetYear,
-      authorStatus,
-      quartile
-    );
-
-    return {
-      amount: response.reward_amount || 0,
-      subcategory_id: response.subcategory_id || null,
-      subcategory_budget_id: response.subcategory_budget_id || null,
-      category_id: response.category_id || null
-    };
-  } catch (error) {
-    console.error('Error calculating reward:', error);
-    return { amount: 0, subcategory_id: null, subcategory_budget_id: null, category_id: null };
-  }
+// Mapping for author status and quartile to human-readable descriptions
+const AUTHOR_STATUS_MAP = {
+  first_author:
+    'เงินรางวัลการตีพิมพ์เผยแพร่ผลงานวิจัยที่ได้รับการตีพิมพ์ในสาขาวิทยาศาสตร์และเทคโนโลยี (กรณีเป็นผู้แต่งชื่อแรก)',
+  corresponding_author:
+    'เงินรางวัลการตีพิมพ์เผยแพร่ผลงานวิจัยที่ได้รับการตีพิมพ์ในสาขาวิทยาศาสตร์และเทคโนโลยี (กรณีเป็นผู้ประพันธ์บรรณกิจ)',
 };
+
+const QUARTILE_MAP = {
+  T5: 'วารสารระดับนานาชาติในฐานข้อมูล WOS หรือ ISI หรือ SCOPUS (ลําดับ 5% แรก)',
+  T10: 'วารสารระดับนานาชาติในฐานข้อมูล WOS หรือ ISI หรือ SCOPUS (ลําดับ 10% แรก)',
+  Q1: 'วารสารระดับนานาชาติในฐานข้อมูล WOS หรือ ISI หรือ SCOPUS ควอร์ไทล์ 1',
+  Q2: 'วารสารระดับนานาชาติในฐานข้อมูล WOS หรือ ISI หรือ SCOPUS ควอร์ไทล์ 2',
+  Q3: 'วารสารระดับนานาชาติในฐานข้อมูล WOS หรือ ISI หรือ SCOPUS ควอร์ไทล์ 3',
+  Q4: 'วารสารระดับนานาชาติในฐานข้อมูล WOS หรือ ISI หรือ SCOPUS ควอร์ไทล์ 4',
+  TCI: 'บทความตีพิมพ์ในวารสารระดับนานาชาติในฐานข้อมูล WOS หรือ ISI หรือ SCOPUS หรือวารสารที่อยู่ในฐานข้อมูล TCI กลุ่มที่ 1 สาขาวิทยาศาสตร์เทคโนโลยี',
+};
+
+// Mapping from funding descriptions will be loaded dynamically at runtime
 
 // =================================================================
 // FILE UPLOAD COMPONENT
@@ -605,7 +595,7 @@ const FileUpload = ({ onFileSelect, accept, multiple = false, error, label }) =>
 // MAIN COMPONENT START
 // =================================================================
 
-export default function PublicationRewardForm({ onNavigate, categoryId }) {
+export default function PublicationRewardForm({ onNavigate, categoryId, selectedYear }) {
   // =================================================================
   // STATE DECLARATIONS
   // =================================================================
@@ -626,6 +616,8 @@ export default function PublicationRewardForm({ onNavigate, categoryId }) {
   const [feeLimits, setFeeLimits] = useState({
     total: 0
   });
+  const [ratesMap, setRatesMap] = useState({});
+  const [budgetMap, setBudgetMap] = useState({});
 
   // Form data state
   const [formData, setFormData] = useState({
@@ -683,6 +675,15 @@ export default function PublicationRewardForm({ onNavigate, categoryId }) {
   // External funding sources
   const [externalFundings, setExternalFundings] = useState([])
 
+  const getRewardContext = (authorStatus, quartile) => {
+    const amount = ratesMap[`${authorStatus}|${quartile}`] || 0;
+    const mapping = budgetMap[`${authorStatus}|${quartile}`] || {
+      subcategory_id: null,
+      subcategory_budget_id: null
+    };
+    return { amount, ...mapping };
+  };
+
   // =================================================================
   // EFFECT HOOKS
   // =================================================================
@@ -698,7 +699,7 @@ export default function PublicationRewardForm({ onNavigate, categoryId }) {
   useEffect(() => {
     loadInitialData();
     checkAndLoadDraft();
-  }, []);
+  }, [categoryId, selectedYear]);
 
   // Reload quartile configs when year changes
   useEffect(() => {
@@ -787,34 +788,17 @@ export default function PublicationRewardForm({ onNavigate, categoryId }) {
 
   // Calculate reward when author status or quartile changes
   useEffect(() => {
-    const updateReward = async () => {
-      if (formData.author_status && formData.journal_quartile) {
-        try {
-          // หา year (พ.ศ.) จาก year_id
-          const yearObj = years.find(y => y.year_id === formData.year_id);
-          const targetYear = yearObj?.year || new Date().getFullYear().toString();
-          
-          const result = await calculateReward(
-            formData.author_status,
-            formData.journal_quartile,
-            targetYear
-          );
-          setFormData(prev => ({
-            ...prev,
-            publication_reward: result.amount,
-            reward_amount: result.amount,
-            subcategory_id: result.subcategory_id,
-            subcategory_budget_id: result.subcategory_budget_id,
-            category_id: result.category_id || prev.category_id
-          }));
-        } catch (error) {
-          console.error('Error calculating reward:', error);
-        }
-      }
-    };
-    
-    updateReward();
-  }, [formData.author_status, formData.journal_quartile, formData.year_id, years]);
+    if (formData.author_status && formData.journal_quartile) {
+      const result = getRewardContext(formData.author_status, formData.journal_quartile);
+      setFormData(prev => ({
+        ...prev,
+        publication_reward: result.amount,
+        reward_amount: result.amount,
+        subcategory_id: result.subcategory_id,
+        subcategory_budget_id: result.subcategory_budget_id
+      }));
+    }
+  }, [formData.author_status, formData.journal_quartile, ratesMap, budgetMap]);
 
   // Auto-save draft periodically
   useEffect(() => {
@@ -1010,9 +994,9 @@ export default function PublicationRewardForm({ onNavigate, categoryId }) {
 
       // Load system data
       const [yearsResponse, usersResponse, docTypesResponse] = await Promise.all([
-        systemAPI.getYears(),                                    
-        publicationFormAPI.getUsers(),                                  
-        publicationFormAPI.getDocumentTypes()                    
+        systemAPI.getYears(),
+        publicationFormAPI.getUsers(),
+        publicationFormAPI.getDocumentTypes()
       ]);
 
       console.log('Raw API responses:');
@@ -1025,7 +1009,8 @@ export default function PublicationRewardForm({ onNavigate, categoryId }) {
       if (yearsResponse && yearsResponse.years) {
         console.log('Setting years:', yearsResponse.years);
         setYears(yearsResponse.years);
-        currentYear = yearsResponse.years.find(y => y.year === '2568'); // กำหนดค่า
+        const targetYearStr = selectedYear || (new Date().getFullYear() + 543).toString();
+        currentYear = yearsResponse.years.find(y => y.year === targetYearStr);
         if (currentYear) {
           console.log('Found current year:', currentYear);
           setFormData(prev => ({ ...prev, year_id: currentYear.year_id }));
@@ -1059,11 +1044,11 @@ export default function PublicationRewardForm({ onNavigate, categoryId }) {
       try {
         if (currentYear) {
           const ratesResponse = await publicationRewardRatesAPI.getRatesByYear(currentYear.year);
-          
+
           if (ratesResponse && ratesResponse.rates) {
             // Filter only active rates
             const activeRates = ratesResponse.rates.filter(rate => rate.is_active === true);
-            
+
             // Extract unique author statuses (excluding 'co_author')
             const uniqueStatuses = [...new Set(activeRates
               .map(rate => rate.author_status)
@@ -1071,16 +1056,54 @@ export default function PublicationRewardForm({ onNavigate, categoryId }) {
             )];
             setAvailableAuthorStatuses(uniqueStatuses);
             console.log('Available author statuses:', uniqueStatuses);
-            
+
             // Extract unique quartiles
             const uniqueQuartiles = [...new Set(activeRates.map(rate => rate.journal_quartile))];
             const sortedQuartiles = sortQuartiles(uniqueQuartiles);
             setAvailableQuartiles(sortedQuartiles);
             console.log('Available quartiles (sorted):', sortedQuartiles);
+
+            // Build reward map for quick lookup
+            const rMap = {};
+            activeRates.forEach(rate => {
+              rMap[`${rate.author_status}|${rate.journal_quartile}`] = rate.reward_amount;
+            });
+            setRatesMap(rMap);
           }
         }
       } catch (ratesError) {
         console.error('Error loading publication reward rates:', ratesError);
+      }
+
+      // Load subcategory budgets for dynamic mapping
+      if (categoryId) {
+        try {
+          const subResp = await systemAPI.getSubcategories(categoryId);
+          const subs = subResp.subcategories || [];
+          const bMap = {};
+          subs.forEach(sub => {
+            const budget = sub.subcategory_budget || sub.SubcategoryBudget || {
+              subcategory_budget_id: sub.subcategory_budget_id,
+              fund_description: sub.fund_description
+            };
+            if (!budget || !budget.fund_description) return;
+            const authorKey = sub.subcategory_name?.includes('ผู้แต่งชื่อแรก')
+              ? 'first_author'
+              : sub.subcategory_name?.includes('ผู้ประพันธ์บรรณกิจ')
+              ? 'corresponding_author'
+              : null;
+            const quartileKey = Object.entries(QUARTILE_MAP).find(([k, v]) => v === budget.fund_description)?.[0];
+            if (authorKey && quartileKey) {
+              bMap[`${authorKey}|${quartileKey}`] = {
+                subcategory_id: sub.subcategory_id,
+                subcategory_budget_id: budget.subcategory_budget_id
+              };
+            }
+          });
+          setBudgetMap(bMap);
+        } catch (budgetErr) {
+          console.error('Error loading budget mappings:', budgetErr);
+        }
       }
 
     } catch (error) {
@@ -1152,63 +1175,39 @@ export default function PublicationRewardForm({ onNavigate, categoryId }) {
   // =================================================================
 
   // Handle form input changes
-  const handleInputChange = async (e) => {
+  const handleInputChange = (e) => {
     const { name, value, type, checked } = e.target;
-    
+
     // สำหรับ checkbox ใช้ค่า checked
     if (type === 'checkbox') {
       setFormData(prev => ({
         ...prev,
         [name]: checked
       }));
-    } 
+    }
     // สำหรับ author_status คำนวณ reward ใหม่
     else if (name === 'author_status') {
-      setLoading(true);
-      try {
-        const result = await calculateReward(value, formData.journal_quartile);
-        setFormData(prev => ({
-          ...prev,
-          author_status: value,
-          publication_reward: result.amount,
-          reward_amount: result.amount,
-          subcategory_id: result.subcategory_id,
-          subcategory_budget_id: result.subcategory_budget_id,
-          category_id: result.category_id || prev.category_id
-        }));
-      } catch (error) {
-        console.error('Error updating author status:', error);
-        Toast.fire({
-          icon: 'error',
-          title: 'เกิดข้อผิดพลาดในการคำนวณเงินรางวัล'
-        });
-      } finally {
-        setLoading(false);
-      }
+      const result = getRewardContext(value, formData.journal_quartile);
+      setFormData(prev => ({
+        ...prev,
+        author_status: value,
+        publication_reward: result.amount,
+        reward_amount: result.amount,
+        subcategory_id: result.subcategory_id,
+        subcategory_budget_id: result.subcategory_budget_id
+      }));
     }
     // สำหรับ journal_quartile คำนวณ reward ใหม่
     else if (name === 'journal_quartile') {
-      setLoading(true);
-      try {
-        const result = await calculateReward(formData.author_status, value);
-        setFormData(prev => ({
-          ...prev,
-          journal_quartile: value,
-          publication_reward: result.amount,
-          reward_amount: result.amount,
-          subcategory_id: result.subcategory_id,
-          subcategory_budget_id: result.subcategory_budget_id,
-          category_id: result.category_id || prev.category_id
-        }));
-      } catch (error) {
-        console.error('Error updating quartile:', error);
-        Toast.fire({
-          icon: 'error',
-          title: 'เกิดข้อผิดพลาดในการคำนวณเงินรางวัล'
-        });
-      } finally {
-        setLoading(false);
-      }
+      const result = getRewardContext(formData.author_status, value);
+      setFormData(prev => ({
+        ...prev,
+        journal_quartile: value,
+        publication_reward: result.amount,
+        reward_amount: result.amount,
+        subcategory_id: result.subcategory_id,
+        subcategory_budget_id: result.subcategory_budget_id
+      }));
     }
 
     // สำหรับ phone_number ให้ format ตัวเลข

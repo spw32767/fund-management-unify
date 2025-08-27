@@ -203,8 +203,9 @@ export default function PromotionFundContent({ onNavigate }) {
       const parentCategory = fundCategories.find(cat => 
         cat.subcategories?.some(sub => sub.subcategory_id === subcategory.subcategory_id)
       );
-      onNavigate(formConfig.route, { 
-        category_id: parentCategory?.category_id 
+      onNavigate(formConfig.route, {
+        category_id: parentCategory?.category_id,
+        year: selectedYear
       });
     } else {
       const docUrl = subcategory.form_url || '/documents/default-fund-form.docx';
