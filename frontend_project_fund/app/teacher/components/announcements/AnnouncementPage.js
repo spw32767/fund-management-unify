@@ -22,7 +22,10 @@ export default function AnnouncementPage() {
       setLoadingAnnouncements(true);
       const response = await announcementAPI.getAnnouncements({ active_only: true });
       if (response.success) {
-        setAnnouncements(response.data || []);
+        const list = Array.isArray(response.data)
+          ? response.data
+          : response.data?.announcements || [];
+        setAnnouncements(list);
       } else {
         setAnnouncements([]);
       }
@@ -39,7 +42,10 @@ export default function AnnouncementPage() {
       setLoadingForms(true);
       const response = await fundFormAPI.getFundForms({ active_only: true });
       if (response.success) {
-        setFundForms(response.data || []);
+        const list = Array.isArray(response.data)
+          ? response.data
+          : response.data?.fund_forms || [];
+        setFundForms(list);
       } else {
         setFundForms([]);
       }
@@ -126,10 +132,13 @@ export default function AnnouncementPage() {
     },
     {
       header: "ปี",
-      accessor: "year_name",
-      render: (value) => (
-        <span className="text-gray-700">{value && value.trim() !== '' ? value : '-'}</span>
-      )
+      accessor: "year",
+      render: (_, item) => {
+        const yearVal = item.year ?? item.year_name ?? item.yearName;
+        return yearVal !== undefined && yearVal !== null && `${yearVal}`.trim() !== ''
+          ? `${yearVal}`
+          : '-';
+      }
     },
     {
       header: "ประเภท",
@@ -198,10 +207,13 @@ export default function AnnouncementPage() {
     },
     {
       header: "ปี",
-      accessor: "year_name",
-      render: (value) => (
-        <span className="text-gray-700">{value && value.trim() !== '' ? value : '-'}</span>
-      )
+      accessor: "year",
+      render: (_, item) => {
+        const yearVal = item.year ?? item.year_name ?? item.yearName;
+        return yearVal !== undefined && yearVal !== null && `${yearVal}`.trim() !== ''
+          ? `${yearVal}`
+          : '-';
+      }
     },
     {
       header: "ประเภทฟอร์ม",
