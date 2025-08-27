@@ -199,13 +199,24 @@ export default function PromotionFundContent({ onNavigate }) {
     const formConfig = FORM_TYPE_CONFIG[formType];
     
     if (formConfig.isOnlineForm && onNavigate) {
-      // ส่ง category_id จาก parent category แทน
+      // Find parent category for this subcategory
       const parentCategory = fundCategories.find(cat => 
         cat.subcategories?.some(sub => sub.subcategory_id === subcategory.subcategory_id)
       );
+      const yearObj = years.find(y => y.year === selectedYear);
+      const yearId = yearObj?.year_id;
+      
+      console.log('Navigate to publication form:', {
+        category_id: parentCategory?.category_id,
+        year_id: yearId,
+        subcategory: subcategory
+      });
+      
+      // Pass both category_id and year_id in navigation
       onNavigate(formConfig.route, {
         category_id: parentCategory?.category_id,
-        year: selectedYear
+        year_id: yearId,
+        subcategory: subcategory
       });
     } else {
       const docUrl = subcategory.form_url || '/documents/default-fund-form.docx';

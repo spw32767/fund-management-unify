@@ -199,8 +199,14 @@ export default function PromotionFundContent({ onNavigate }) {
     const formConfig = FORM_TYPE_CONFIG[formType];
     
     if (formConfig.isOnlineForm && onNavigate) {
+      const yearObj = years.find(y => y.year === selectedYear);
+      const yearId = yearObj?.year_id;
+      console.log('Navigate to publication form:', {
+        category_id: subcategory.category_id,
+        year_id: yearId
+      });
       // ไปหน้าฟอร์มออนไลน์ตาม route ที่กำหนด
-      onNavigate(formConfig.route, { category_id: subcategory.category_id });
+      onNavigate(formConfig.route, { category_id: subcategory.category_id, year_id: yearId });
     } else {
       // ดาวน์โหลดฟอร์ม
       const docUrl = subcategory.form_url || '/documents/default-fund-form.docx';
