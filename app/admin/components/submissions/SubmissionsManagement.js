@@ -47,6 +47,7 @@ export default function SubmissionsManagement() {
   // Fetch years for dropdown
   const fetchYears = async () => {
     try {
+      // ใช้ commonAPI สำหรับ years (endpoint /years)
       const response = await commonAPI.getYears();
       console.log('Years response:', response);
       
@@ -72,10 +73,9 @@ export default function SubmissionsManagement() {
   // Update filters when selectedYear changes
   useEffect(() => {
     if (selectedYear) {
-      setFilters(prev => ({ ...prev, year_id: selectedYear }));
+      setFilters({ ...filters, year_id: selectedYear });
     }
   }, [selectedYear]);
-
   const processSubmissionsData = async (rawSubmissions) => {
     if (!rawSubmissions || !Array.isArray(rawSubmissions)) return [];
     
@@ -264,98 +264,20 @@ export default function SubmissionsManagement() {
     return typeMap[submission.submission_type] || submission.submission_type || 'ไม่ระบุประเภท';
   };
 
-  // Calculate statistics from submissions (แบบ dynamic)
-  const calculateStatistics = (submissions) => {
-    const stats = {
-      total_submissions: submissions.length,
-      pending_count: 0,    // status_id = 1 (รอพิจารณา) หรือ status_code = '0'
-      approved_count: 0,   // status_id = 2 (อนุมัติ) หรือ status_code = '1'
-      rejected_count: 0,   // status_id = 3 (ปฏิเสธ) หรือ status_code = '2'
-      revision_count: 0    // status_id = 4 (ต้องการข้อมูลเพิ่มเติม) หรือ status_code = '3'
-      // status_id = 5 (ร่าง) หรือ status_code = '4' - ไม่นับในสถิติหลัก
-    };
-
-    submissions.forEach(submission => {
-      // ตรวจสอบ status_id ก่อน แล้วค่อย fallback ไป status_code
-      const statusId = submission.status_id || 
-                      (submission.status && submission.status.application_status_id) ||
-                      parseInt(submission.status_code) + 1; // status_code '0' = status_id 1
-                      
-      // หรือตรวจสอบจาก status_code โดยตรง
-      const statusCode = submission.status_code || 
-                        (submission.status && submission.status.status_code) ||
-                        (statusId ? (statusId - 1).toString() : null);
-
-      // ใช้ status_id เป็นหลัก
-      switch (statusId) {
-        case 1: // รอพิจารณา
-          stats.pending_count++;
-          break;
-        case 2: // อนุมัติ
-          stats.approved_count++;
-          break;
-        case 3: // ปฏิเสธ
-          stats.rejected_count++;
-          break;
-        case 4: // ต้องการข้อมูลเพิ่มเติม
-          stats.revision_count++;
-          break;
-        // case 5: ร่าง - ไม่นับในสถิติ
-        default:
-          // ถ้าไม่รู้จัก status_id ลอง fallback ไป status_code
-          switch (statusCode) {
-            case '0':
-              stats.pending_count++;
-              break;
-            case '1':
-              stats.approved_count++;
-              break;
-            case '2':
-              stats.rejected_count++;
-              break;
-            case '3':
-              stats.revision_count++;
-              break;
-            // case '4': ร่าง - ไม่นับในสถิติ
-          }
-      }
-    });
-
-    console.log('Calculated statistics:', stats);
-    return stats;
-  };
-
   // Fetch submissions
   const fetchSubmissions = async () => {
-    if (!filters.year_id) {
-      setLoading(false);
-      return;
-    }
-    
     setLoading(true);
     try {
-      console.log('Fetching submissions with filters:', filters);
-      
       const params = {
         page: pagination.currentPage,
         limit: pagination.perPage,
-        year_id: filters.year_id,
-        sort_by: filters.sort_by,
-        sort_order: filters.sort_order
+        ...filters
       };
-
-      // เพิ่ม filters ที่มีค่า
-      if (filters.category) params.category_id = filters.category;
-      if (filters.subcategory) params.subcategory_id = filters.subcategory;
-      if (filters.status) params.status = filters.status;
-      if (filters.search) params.search = filters.search;
-
-      console.log('Query params:', params);
 
       const response = await submissionsListingAPI.getAdminSubmissions(params);
       console.log('Admin Submissions Response:', response);
       
-      if (response && (response.success || response.submissions)) {
+      if (response.success || response.submissions) {
         const rawSubmissions = response.submissions || response.data || [];
         const processedSubmissions = await processSubmissionsData(rawSubmissions);
         
@@ -364,67 +286,66 @@ export default function SubmissionsManagement() {
         
         // Handle pagination
         if (response.pagination) {
-          setPagination(prev => ({
-            ...prev,
+          setPagination({
             currentPage: response.pagination.current_page || 1,
             perPage: response.pagination.per_page || 20,
             totalCount: response.pagination.total_count || 0,
             totalPages: response.pagination.total_pages || 0
-          }));
+          });
         }
         
-        // คำนวณ statistics แบบ dynamic จาก submissions ทั้งหมด
-        // (ไม่ใช้แค่หน้าปัจจุบัน แต่ใช้ข้อมูลทั้งหมดที่กรองแล้ว)
-        if (response.total_submissions) {
-          // ถ้า API ส่ง total submissions มา ให้ใช้สำหรับคำนวณ
-          const allSubmissionsStats = calculateStatisticsFromResponse(response);
-          setStatistics(allSubmissionsStats);
+        // Handle statistics
+        if (response.statistics) {
+          setStatistics(response.statistics);
         } else {
-          // ถ้าไม่มี ให้คำนวณจาก submissions ที่ได้มา
-          const calculatedStats = calculateStatistics(processedSubmissions);
-          setStatistics(calculatedStats);
+          // Calculate statistics from submissions if not provided
+          const stats = calculateStatistics(processedSubmissions);
+          setStatistics(stats);
         }
-      } else {
-        console.warn('Unexpected response format:', response);
-        setSubmissions([]);
-        setStatistics({
-          total_submissions: 0,
-          pending_count: 0,
-          approved_count: 0,
-          rejected_count: 0,
-          revision_count: 0
-        });
       }
     } catch (error) {
       console.error('Error fetching submissions:', error);
       toast.error('ไม่สามารถดึงข้อมูลคำร้องได้');
-      setSubmissions([]);
-      setStatistics({
-        total_submissions: 0,
-        pending_count: 0,
-        approved_count: 0,
-        rejected_count: 0,
-        revision_count: 0
-      });
     } finally {
       setLoading(false);
     }
   };
 
-  // คำนวณ statistics จาก API response (ถ้า API ส่งข้อมูลสถิติมา)
-  const calculateStatisticsFromResponse = (response) => {
-    if (response.statistics) {
-      return response.statistics;
-    }
+  // Calculate statistics if not provided by API
+  const calculateStatistics = (submissions) => {
+    const stats = {
+      total_submissions: submissions.length,
+      pending_count: 0,    // status_id = 1 (รอพิจารณา)
+      approved_count: 0,   // status_id = 2 (อนุมัติ)
+      rejected_count: 0,   // status_id = 3 (ปฏิเสธ)  
+      revision_count: 0    // status_id = 4 (ต้องการข้อมูลเพิ่มเติม)
+      // status_id = 5 (ร่าง) - ไม่นับในสถิติหลัก
+    };
 
-    // ถ้าไม่มี statistics ใน response ให้คำนวณจาก submissions
-    const submissions = response.submissions || [];
-    return calculateStatistics(submissions);
+    submissions.forEach(submission => {
+      switch (submission.status_id) {
+        case 1:
+          stats.pending_count++;
+          break;
+        case 2:
+          stats.approved_count++;
+          break;
+        case 3:
+          stats.rejected_count++;
+          break;
+        case 4:
+          stats.revision_count++;
+          break;
+        // case 5: draft - ไม่นับในสถิติ
+      }
+    });
+
+    return stats;
   };
 
   // Fetch on mount and when filters/pagination change
   useEffect(() => {
-    if (currentView === 'list' && filters.year_id) {
+    if (currentView === 'list') {
       fetchSubmissions();
     }
   }, [pagination.currentPage, filters]);
@@ -439,19 +360,19 @@ export default function SubmissionsManagement() {
   // Handle year change
   const handleYearChange = (yearId) => {
     setSelectedYear(yearId);
-    setPagination(prev => ({ ...prev, currentPage: 1 })); // Reset to first page
+    setPagination({ ...pagination, currentPage: 1 }); // Reset to first page
   };
 
   // Handle filter change
   const handleFilterChange = (newFilters) => {
-    setFilters(prev => ({ ...prev, ...newFilters }));
-    setPagination(prev => ({ ...prev, currentPage: 1 })); // Reset to first page
+    setFilters({ ...filters, ...newFilters });
+    setPagination({ ...pagination, currentPage: 1 }); // Reset to first page
   };
 
   // Handle search
   const handleSearch = (searchTerm) => {
-    setFilters(prev => ({ ...prev, search: searchTerm }));
-    setPagination(prev => ({ ...prev, currentPage: 1 }));
+    setFilters({ ...filters, search: searchTerm });
+    setPagination({ ...pagination, currentPage: 1 });
   };
 
   // Handle sort
@@ -461,16 +382,16 @@ export default function SubmissionsManagement() {
         ? 'desc' 
         : 'asc';
     
-    setFilters(prev => ({
-      ...prev,
+    setFilters({
+      ...filters,
       sort_by: column,
       sort_order: newOrder
-    }));
+    });
   };
 
   // Handle page change
   const handlePageChange = (page) => {
-    setPagination(prev => ({ ...prev, currentPage: page }));
+    setPagination({ ...pagination, currentPage: page });
   };
 
   // View submission details
@@ -542,7 +463,7 @@ export default function SubmissionsManagement() {
                 onChange={(e) => handleYearChange(e.target.value)}
                 className="block w-full sm:w-64 pl-3 pr-10 py-3 text-base border-2 border-indigo-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 rounded-lg bg-white font-medium"
               >
-                <option value="">เลือกปีงบประมาณ</option>
+                <option value="">ทุกปีงบประมาณ</option>
                 {years.map((year) => (
                   <option key={year.year_id} value={year.year_id}>
                     ปีงบประมาณ {year.year} {year.is_current ? '(ปีปัจจุบัน)' : ''}
@@ -562,12 +483,12 @@ export default function SubmissionsManagement() {
         </div>
       </div>
 
-      {/* Statistics Cards - ใช้ UI เดิม แต่ข้อมูล dynamic */}
-      <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4 mb-8">
+      {/* Statistics Cards */}
+      <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-5 mb-6">
         <div className="bg-white overflow-hidden shadow-md rounded-lg border border-gray-200">
           <div className="px-4 py-5 sm:p-6">
             <dt className="text-sm font-medium text-gray-500 truncate">
-              ทั้งหมด
+              คำร้องทั้งหมด
             </dt>
             <dd className="mt-1 text-3xl font-semibold text-gray-900">
               {statistics.total_submissions}
@@ -604,6 +525,17 @@ export default function SubmissionsManagement() {
             </dt>
             <dd className="mt-1 text-3xl font-semibold text-red-600">
               {statistics.rejected_count}
+            </dd>
+          </div>
+        </div>
+
+        <div className="bg-white overflow-hidden shadow-md rounded-lg border border-gray-200">
+          <div className="px-4 py-5 sm:p-6">
+            <dt className="text-sm font-medium text-gray-500 truncate">
+              ต้องแก้ไข
+            </dt>
+            <dd className="mt-1 text-3xl font-semibold text-orange-600">
+              {statistics.revision_count}
             </dd>
           </div>
         </div>
@@ -712,20 +644,6 @@ export default function SubmissionsManagement() {
                 </nav>
               </div>
             </div>
-          </div>
-        )}
-
-        {/* Empty State */}
-        {!loading && submissions.length === 0 && (
-          <div className="text-center py-12">
-            <FileText className="mx-auto h-12 w-12 text-gray-400" />
-            <h3 className="mt-2 text-sm font-medium text-gray-900">ไม่พบข้อมูล</h3>
-            <p className="mt-1 text-sm text-gray-500">
-              {!filters.year_id 
-                ? 'กรุณาเลือกปีงบประมาณเพื่อดูข้อมูล'
-                : 'ไม่พบคำร้องขอทุนที่ตรงกับเงื่อนไขการค้นหา'
-              }
-            </p>
           </div>
         )}
       </div>
