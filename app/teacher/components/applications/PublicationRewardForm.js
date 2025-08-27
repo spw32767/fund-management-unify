@@ -709,11 +709,43 @@ export default function PublicationRewardForm({ onNavigate, fundInfo = null }) {
     const loadQuartiles = async () => {
       if (!fundInfo?.subcategory_id) return;
       try {
-        const arr = await budgetValidationAPI.getAvailableQuartiles(fundInfo.subcategory_id);
+        const status = await budgetValidationAPI.checkBudgetAvailability(
+          fundInfo.subcategory_id
+        );
+        const list =
+          status?.availableBudgets ||
+          status?.available_budgets ||
+          status?.mappings ||
+          status?.data ||
+          [];
         const map = {};
-        (arr || []).forEach(m => {
-          const code = String(m.quartile_code || m.code || '').toUpperCase().trim();
-          if (CANONICAL_QUARTILES.includes(code)) map[code] = m;
+        (list || []).forEach(b => {
+          const code = String(
+            b.level ?? b.quartileCode ?? b.quartile_code ?? b.code ?? ''
+          )
+            .toUpperCase()
+            .trim();
+          const id =
+            b.budgetId ??
+            b.budget_id ??
+            b.subcategory_budget_id ??
+            b.id ??
+            null;
+
+          if (CANONICAL_QUARTILES.includes(code) && id) {
+            const hasMoney =
+              (b.remainingBudget ?? b.remaining_budget ?? null) == null
+                ? true
+                : Number(b.remainingBudget ?? b.remaining_budget) > 0;
+
+            map[code] = {
+              budget_id: id,
+              is_available:
+                (b.is_available !== undefined ? b.is_available : hasMoney) ===
+                true,
+              raw: b,
+            };
+          }
         });
         setBudgetMapByCode(map);
       } catch (e) {
