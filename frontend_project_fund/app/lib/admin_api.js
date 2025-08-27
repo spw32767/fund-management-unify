@@ -472,13 +472,15 @@ export const adminAPI = {
   // ==================== COMBINED DATA FETCHING ====================
   
   // Get all categories and subcategories (no filtering for admin) - Legacy method
-  async getAllFundsStructure(year = '2568') {
+  async getAllFundsStructure(year) {
     try {
-      console.log('Getting all funds structure for admin, year:', year);
+      if (!year) {
+        const current = await apiClient.get('/years/current');
+        year = String(current.year);
+      }
 
       // Step 1: Get years to convert year to year_id
       const yearsResponse = await apiClient.get('/years');
-      console.log('Years response:', yearsResponse);
       
       const targetYear = yearsResponse.years?.find(y => y.year === year);
       if (!targetYear) {

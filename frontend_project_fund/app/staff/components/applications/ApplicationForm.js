@@ -117,6 +117,7 @@ export default function ApplicationForm({ selectedFund }) {
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState({});
   const [years, setYears] = useState([]);
+  const [currentYear, setCurrentYear] = useState(null);
   const [currentSubmissionId, setCurrentSubmissionId] = useState(null);
 
   // Form data state
@@ -164,17 +165,20 @@ export default function ApplicationForm({ selectedFund }) {
       setLoading(true);
       
       // Load years and document types
-      const [yearsResponse, docTypesResponse] = await Promise.all([
+      const [yearsResponse, currentYearRes, docTypesResponse] = await Promise.all([
         fetch('/api/years').then(res => res.json()),
+        fetch('/api/years/current').then(res => res.json()),
         fetch('/api/document-types?category=fund_application').then(res => res.json())
       ]);
 
       if (yearsResponse.success) {
         setYears(yearsResponse.years || []);
-        // Set current year as default
-        const currentYear = yearsResponse.years?.find(y => y.year === '2568');
-        if (currentYear) {
-          setFormData(prev => ({ ...prev, year_id: currentYear.year_id }));
+        if (currentYearRes.year) {
+          setCurrentYear(currentYearRes.year);
+          const current = yearsResponse.years?.find(y => String(y.year) === String(currentYearRes.year));
+          if (current) {
+            setFormData(prev => ({ ...prev, year_id: current.year_id }));
+          }
         }
       }
 
@@ -331,7 +335,7 @@ export default function ApplicationForm({ selectedFund }) {
 
   const resetForm = () => {
     setFormData({
-      year_id: years.find(y => y.year === '2568')?.year_id || null,
+      year_id: years.find(y => String(y.year) === String(currentYear))?.year_id || null,
       priority: 'normal',
       project_title: '',
       project_description: '',

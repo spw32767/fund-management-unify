@@ -117,6 +117,7 @@ export default function ApplicationForm({ selectedFund }) {
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState({});
   const [years, setYears] = useState([]);
+  const [currentYear, setCurrentYear] = useState(null);
   const [currentSubmissionId, setCurrentSubmissionId] = useState(null);
 
   // Form data state

@@ -7,9 +7,12 @@ import { targetRolesUtils } from '../lib/target_roles_utils';
 export const staffAPI = {
   
   // Get all categories and subcategories visible to staff
-  async getVisibleFundsStructure(year = '2568') {
+  async getVisibleFundsStructure(year) {
     try {
-      console.log('Getting staff funds structure for year:', year);
+      if (!year) {
+        const current = await apiClient.get('/years/current');
+        year = String(current.year);
+      }
 
       // Step 1: Get years to convert year to year_id
       const yearsResponse = await apiClient.get('/years');
