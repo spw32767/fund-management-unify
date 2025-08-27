@@ -15,10 +15,15 @@ export const submissionAPI = {
   // Create new submission
   async create(data) {
     try {
-      const response = await apiClient.post('/submissions', {
+      const payload = {
         submission_type: data.submission_type,
         year_id: data.year_id,
-      });
+      };
+      if (data.category_id) payload.category_id = data.category_id;
+      if (data.subcategory_id) payload.subcategory_id = data.subcategory_id;
+      if (data.subcategory_budget_id) payload.subcategory_budget_id = data.subcategory_budget_id;
+
+      const response = await apiClient.post('/submissions', payload);
       return response;
     } catch (error) {
       console.error('Error creating submission:', error);

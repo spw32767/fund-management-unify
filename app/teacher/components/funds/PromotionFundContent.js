@@ -9,7 +9,7 @@ import { targetRolesUtils } from '../../../lib/target_roles_utils';
 import { FORM_TYPE_CONFIG } from '../../../lib/form_type_config';
 
 export default function PromotionFundContent({ onNavigate }) {
-  const [selectedYear, setSelectedYear] = useState("2566");
+  const [selectedYear, setSelectedYear] = useState("2568");
   const [fundCategories, setFundCategories] = useState([]);
   const [filteredFunds, setFilteredFunds] = useState([]);
   const [years, setYears] = useState([]);
@@ -107,14 +107,49 @@ export default function PromotionFundContent({ onNavigate }) {
       }
       
       // กรองเฉพาะทุนอุดหนุนกิจกรรม (category_id = 2)
-      const promotionFunds = response.categories.filter(category => 
+      const promotionFunds = response.categories.filter(category =>
         category.category_id === 2
       );
-      
-      console.log('Promotion funds:', promotionFunds);
-      
+
+      // รวมทุนเงินรางวัลการตีพิมพ์ (ผู้แต่งชื่อแรก/ผู้ประพันธ์บรรณกิจ) ให้เป็นตัวเลือกเดียว
+      const mergedPromotionFunds = promotionFunds.map(category => {
+        if (!Array.isArray(category.subcategories)) return category;
+
+        const publicationSubs = category.subcategories.filter(
+          sub => sub.form_type === 'publication_reward'
+        );
+
+        if (publicationSubs.length > 1) {
+          const merged = {
+            ...publicationSubs[0],
+            category_id: category.category_id,  // เพิ่มบรรทัดนี้
+            subcategory_name: 'เงินรางวัลการตีพิมพ์เผยแพร่ผลงานวิจัย',
+            remaining_budget: publicationSubs.reduce(
+              (sum, s) => sum + (s.remaining_budget || 0),
+              0
+            ),
+            has_multiple_levels: publicationSubs.some(s => s.has_multiple_levels),
+            budget_count: publicationSubs.reduce(
+              (sum, s) => sum + (s.budget_count || 0),
+              0
+            ),
+            merged_subcategories: publicationSubs
+          };
+
+          const others = category.subcategories.filter(
+            sub => sub.form_type !== 'publication_reward'
+          );
+
+          return { ...category, subcategories: [...others, merged] };
+        }
+
+        return category;
+      });
+
+      console.log('Promotion funds:', mergedPromotionFunds);
+
       // ข้อมูลพร้อมใช้งานเลย ไม่ต้องประมวลผลเพิ่ม
-      setFundCategories(promotionFunds);
+      setFundCategories(mergedPromotionFunds);
       
     } catch (err) {
       console.error('Error loading fund data:', err);
@@ -164,7 +199,13 @@ export default function PromotionFundContent({ onNavigate }) {
     const formConfig = FORM_TYPE_CONFIG[formType];
     
     if (formConfig.isOnlineForm && onNavigate) {
-      onNavigate(formConfig.route, subcategory);
+      // ส่ง category_id จาก parent category แทน
+      const parentCategory = fundCategories.find(cat => 
+        cat.subcategories?.some(sub => sub.subcategory_id === subcategory.subcategory_id)
+      );
+      onNavigate(formConfig.route, { 
+        category_id: parentCategory?.category_id 
+      });
     } else {
       const docUrl = subcategory.form_url || '/documents/default-fund-form.docx';
       window.open(docUrl, '_blank');
