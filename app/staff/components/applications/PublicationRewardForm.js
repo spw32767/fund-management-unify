@@ -203,6 +203,7 @@ export default function PublicationRewardForm() {
   const [users, setUsers] = useState([]);
   const [documentTypes, setDocumentTypes] = useState([]);
   const [years, setYears] = useState([]);
+  const [currentYear, setCurrentYear] = useState(null);
   const [currentSubmissionId, setCurrentSubmissionId] = useState(null);
 
   // Form data state
@@ -282,18 +283,22 @@ export default function PublicationRewardForm() {
     try {
       setLoading(true);
       
-      // Load years, users, and document types
-      const [yearsResponse, usersResponse, docTypesResponse] = await Promise.all([
+      // Load years, current year, users, and document types
+      const [yearsResponse, currentYearRes, usersResponse, docTypesResponse] = await Promise.all([
         fetch('/api/years').then(res => res.json()),
+        fetch('/api/years/current').then(res => res.json()),
         fetch('/api/users').then(res => res.json()),
         fetch('/api/document-types?category=publication_reward').then(res => res.json())
       ]);
 
       if (yearsResponse.success) {
         setYears(yearsResponse.years || []);
-        const currentYear = yearsResponse.years?.find(y => y.year === '2568');
-        if (currentYear) {
-          setFormData(prev => ({ ...prev, year_id: currentYear.year_id }));
+        if (currentYearRes.year) {
+          setCurrentYear(currentYearRes.year);
+          const current = yearsResponse.years?.find(y => String(y.year) === String(currentYearRes.year));
+          if (current) {
+            setFormData(prev => ({ ...prev, year_id: current.year_id }));
+          }
         }
       }
 
@@ -493,7 +498,7 @@ export default function PublicationRewardForm() {
 
   const resetForm = () => {
     setFormData({
-      year_id: years.find(y => y.year === '2568')?.year_id || null,
+      year_id: years.find(y => String(y.year) === String(currentYear))?.year_id || null,
       priority: 'normal',
       author_status: '',
       article_title: '',

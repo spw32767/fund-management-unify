@@ -24,7 +24,7 @@ const Toast = Swal.mixin({
 });
 
 export default function PromotionFundContent({ onNavigate }) {
-  const [selectedYear, setSelectedYear] = useState("2566");
+  const [selectedYear, setSelectedYear] = useState(null);
   const [fundCategories, setFundCategories] = useState([]);
   const [filteredFunds, setFilteredFunds] = useState([]);
   const [years, setYears] = useState([]);
@@ -71,14 +71,20 @@ export default function PromotionFundContent({ onNavigate }) {
       setLoading(true);
       setError(null);
 
-      const [roleInfo, yearsData] = await Promise.all([
+      const [roleInfo, yearsData, currentYearRes] = await Promise.all([
         targetRolesUtils.getCurrentUserRole(),
-        loadAvailableYears()
+        loadAvailableYears(),
+        fetch('/api/years/current').then(res => res.json())
       ]);
 
       setUserRole(roleInfo);
       setYears(yearsData);
-      await loadFundData(selectedYear);
+
+      if (currentYearRes.year) {
+        setSelectedYear(String(currentYearRes.year));
+      } else if (yearsData && yearsData.length > 0) {
+        setSelectedYear(yearsData[0].year);
+      }
     } catch (err) {
       console.error('Error loading initial data:', err);
       setError(err.message || 'เกิดข้อผิดพลาดในการโหลดข้อมูล');

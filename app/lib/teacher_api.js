@@ -7,13 +7,15 @@ import { targetRolesUtils } from '../lib/target_roles_utils';
 export const teacherAPI = {
   
   // Get all categories and subcategories visible to teacher - Using NEW API
-  async getVisibleFundsStructure(year = '2568') {
+  async getVisibleFundsStructure(year) {
     try {
-      console.log('Getting teacher funds structure for year:', year);
+      if (!year) {
+        const current = await apiClient.get('/years/current');
+        year = String(current.year);
+      }
 
       // Step 1: Get years to convert year to year_id
       const yearsResponse = await apiClient.get('/years');
-      console.log('Years response:', yearsResponse);
       
       // Handle different response formats
       const yearsData = yearsResponse.years || yearsResponse.data || [];
@@ -22,9 +24,14 @@ export const teacherAPI = {
         throw new Error('No years data available');
       }
 
-      const targetYear = yearsData.find(y => y.year === year);
+      // Support both numeric and string year formats
+      let targetYear = yearsData.find(y => String(y.year) === String(year));
+
+      // If year not found, fall back to most recent year instead of throwing
       if (!targetYear) {
-        throw new Error(`Year ${year} not found`);
+        console.warn(`Year ${year} not found in API response, falling back to latest year`);
+        targetYear = yearsData[0];
+        year = targetYear?.year;
       }
 
       // Step 2: Use NEW fund structure API
