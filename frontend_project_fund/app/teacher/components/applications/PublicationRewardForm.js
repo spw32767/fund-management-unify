@@ -19,8 +19,6 @@ import {
 } from '../../../lib/publication_api';
 import Swal from 'sweetalert2';
 import { PDFDocument } from 'pdf-lib';
-import { budgetValidationAPI } from '../../../lib/budget_validation_api';
-
 
 // =================================================================
 // CONFIGURATION & CONSTANTS
@@ -600,7 +598,7 @@ const FileUpload = ({ onFileSelect, accept, multiple = false, error, label }) =>
 // MAIN COMPONENT START
 // =================================================================
 
-export default function PublicationRewardForm({ onNavigate, fundInfo = null }) {
+export default function PublicationRewardForm({ onNavigate }) {
   // =================================================================
   // STATE DECLARATIONS
   // =================================================================
@@ -621,8 +619,6 @@ export default function PublicationRewardForm({ onNavigate, fundInfo = null }) {
   const [feeLimits, setFeeLimits] = useState({
     total: 0
   });
-  const CANONICAL_QUARTILES = ['T5','T10','Q1','Q2','Q3','Q4','TCI'];
-  const [budgetMapByCode, setBudgetMapByCode] = useState({});
 
   // Form data state
   const [formData, setFormData] = useState({
@@ -685,77 +681,6 @@ export default function PublicationRewardForm({ onNavigate, fundInfo = null }) {
     loadInitialData();
     checkAndLoadDraft();
   }, []);
-
-  // เพิ่มใน useEffect debug
-  useEffect(() => {
-    console.log('=== PublicationRewardForm Props ===');
-    console.log('fundInfo:', fundInfo);
-    console.log('onNavigate:', onNavigate);
-    console.log('==================================');
-    
-    if (fundInfo) {
-      console.log('Fund Info Details:', {
-        category_id: fundInfo.category_id,
-        subcategory_id: fundInfo.subcategory_id,
-        subcategory_name: fundInfo.subcategory_name,
-        available_budgets: fundInfo.available_budgets
-      });
-    } else {
-      console.warn('No fundInfo received - user may have accessed form directly');
-    }
-  }, [fundInfo]);
-
-  useEffect(() => {
-    const loadQuartiles = async () => {
-      if (!fundInfo?.subcategory_id) return;
-      try {
-        const status = await budgetValidationAPI.checkBudgetAvailability(
-          fundInfo.subcategory_id
-        );
-        const list =
-          status?.availableBudgets ||
-          status?.available_budgets ||
-          status?.mappings ||
-          status?.data ||
-          [];
-        const map = {};
-        (list || []).forEach(b => {
-          const code = String(
-            b.level ?? b.quartileCode ?? b.quartile_code ?? b.code ?? ''
-          )
-            .toUpperCase()
-            .trim();
-          const id =
-            b.budgetId ??
-            b.budget_id ??
-            b.subcategory_budget_id ??
-            b.id ??
-            null;
-
-          if (CANONICAL_QUARTILES.includes(code) && id) {
-            const hasMoney =
-              (b.remainingBudget ?? b.remaining_budget ?? null) == null
-                ? true
-                : Number(b.remainingBudget ?? b.remaining_budget) > 0;
-
-            map[code] = {
-              budget_id: id,
-              is_available:
-                (b.is_available !== undefined ? b.is_available : hasMoney) ===
-                true,
-              raw: b,
-            };
-          }
-        });
-        setBudgetMapByCode(map);
-      } catch (e) {
-        console.error('load quartiles error:', e);
-        setBudgetMapByCode({});
-      }
-    };
-    loadQuartiles();
-  }, [fundInfo?.subcategory_id]);
-
 
   // Reload quartile configs when year changes
   useEffect(() => {
@@ -1540,18 +1465,6 @@ export default function PublicationRewardForm({ onNavigate, fundInfo = null }) {
       }
     }
 
-    if (formData.journal_quartile && fundInfo && fundInfo.available_budgets) {
-      const selectedBudget = fundInfo.available_budgets.find(budget => 
-        budget.quartile_code === formData.journal_quartile
-      );
-      
-      if (!selectedBudget) {
-        newErrors.journal_quartile = `ไม่มีงบประมาณสำหรับ quartile ${formData.journal_quartile}`;
-      } else if (selectedBudget.remaining_budget <= 0) {
-        newErrors.journal_quartile = `งบประมาณสำหรับ ${formData.journal_quartile} หมดแล้ว`;
-      }
-    }
-
     setErrors(newErrors);
     
     // Show error dialog if validation fails
@@ -2087,460 +2000,495 @@ const showSubmissionConfirmation = async () => {
     
     return errors;
   };
+  // Submit application
+  const submitApplication = async () => {
+    // Validate form first
+    const isValid = await validateForm();
 
-// Submit application
-const submitApplication = async () => {
-  const isValid = await validateForm();
-  if (!isValid) return;
-
-  const confirmed = await showSubmissionConfirmation();
-  if (!confirmed) return;
-
-  try {
-    setLoading(true);
-    debugFileStates();
-
-    Swal.fire({
-      title: 'กำลังส่งคำร้อง...',
-      html: 'กำลังเตรียมเอกสาร...',
-      allowOutsideClick: false,
-      showConfirmButton: false,
-      willOpen: () => Swal.showLoading(),
-    });
-
-    let submissionId = currentSubmissionId;
-    const allFiles = [];
-    const processedFiles = new Set();
-
-    // ------- รวบรวมไฟล์ (เหมือนเดิม) -------
-    Object.entries(uploadedFiles).forEach(([docTypeId, file]) => {
-      if (file && !processedFiles.has(file.name)) {
-        allFiles.push({
-          file,
-          document_type_id: parseInt(docTypeId),
-          description: `${file.name} (ประเภท ${docTypeId})`,
-        });
-        processedFiles.add(file.name);
-      }
-    });
-
-    (otherDocuments || []).forEach((doc, index) => {
-      const file = doc.file || doc;
-      if (file && !processedFiles.has(file.name)) {
-        allFiles.push({
-          file,
-          document_type_id: 11,
-          description: doc.description || `เอกสารอื่นๆ ${index + 1}: ${file.name}`,
-        });
-        processedFiles.add(file.name);
-      }
-    });
-
-    (externalFundingFiles || []).forEach((doc) => {
-      const funding = externalFundings.find((f) => f.id === doc.funding_id);
-      if (doc.file && !processedFiles.has(doc.file.name)) {
-        allFiles.push({
-          file: doc.file,
-          document_type_id: 12,
-          description: `เอกสารเบิกจ่ายภายนอก: ${funding?.fundName || 'ไม่ระบุ'}`,
-          external_funding_id: doc.funding_id,
-        });
-        processedFiles.add(doc.file.name);
-      }
-    });
-
-    if (mergedPdfFile && !processedFiles.has(mergedPdfFile.name)) {
-      allFiles.push({
-        file: mergedPdfFile,
-        document_type_id: 1,
-        description: 'เอกสารรวม (Merged PDF)',
-      });
-    }
-
-    // ------- 2) Create submission if not exists -------
-    if (!submissionId) {
-      Swal.update({ html: 'กำลังสร้างคำร้อง...' });
-
-      if (!fundInfo?.category_id || !fundInfo?.subcategory_id) {
-        await Swal.fire({
-          icon: 'error',
-          title: 'ข้อมูลทุนไม่ครบถ้วน',
-          text: 'กรุณาเข้าฟอร์มผ่านหน้ารายการทุนอุดหนุน',
-        });
-        setLoading(false);
-        return;
-      }
-
-      // ดึง mapping จาก backend ทันที (ล็อก 7 โค้ด)
-      const CANONICAL = ['T5', 'T10', 'Q1', 'Q2', 'Q3', 'Q4', 'TCI'];
-      const selectedQuartile = String(formData.journal_quartile || '')
-        .toUpperCase()
-        .trim();
-
-      if (!CANONICAL.includes(selectedQuartile)) {
-        await Swal.fire({
-          icon: 'error',
-          title: 'Quartile ไม่ถูกต้อง',
-          text: 'เลือกได้เฉพาะ T5, T10, Q1–Q4, TCI',
-        });
-        setLoading(false);
-        return;
-      }
-
-      // ถ้า state ข้างนอกยังว่าง ให้โหลดเองทันที
-      let mapByCode = budgetMapByCode;
-      if (!mapByCode || Object.keys(mapByCode).length === 0) {
-        try {
-          const status = await budgetValidationAPI.checkBudgetAvailability(
-            fundInfo.subcategory_id,
-            formData?.year_id
-          );
-          // รองรับหลายชื่อฟิลด์จาก backend
-          const list =
-            status?.availableBudgets ||
-            status?.available_budgets ||
-            status?.mappings ||
-            status?.data ||
-            [];
-
-          const built = {};
-          for (const b of list) {
-            const code = String(
-              b.level ?? b.quartileCode ?? b.quartile_code ?? b.code ?? ''
-            )
-              .toUpperCase()
-              .trim();
-            const id =
-              b.budgetId ?? b.budget_id ?? b.subcategory_budget_id ?? b.id ?? null;
-
-            if (CANONICAL.includes(code) && id) {
-              const hasMoney =
-                (b.remainingBudget ?? b.remaining_budget ?? null) == null
-                  ? true
-                  : Number(b.remainingBudget ?? b.remaining_budget) > 0;
-
-              built[code] = {
-                budget_id: id,
-                is_available:
-                  (b.is_available !== undefined ? b.is_available : hasMoney) ===
-                  true,
-                raw: b,
-              };
-            }
-          }
-          mapByCode = built;
-          // เก็บ state ไว้ใช้รอบต่อไป
-          if (setBudgetMapByCode) setBudgetMapByCode(built);
-          console.log('[DEBUG] built quartile map:', Object.keys(built), built);
-        } catch (e) {
-          console.error('load /validate mapping failed:', e);
-          mapByCode = {};
-        }
-      }
-
-      const entry = mapByCode[selectedQuartile];
-      if (!entry || !entry.budget_id) {
-        console.error('[DEBUG] No budget entry for', selectedQuartile, mapByCode);
-        await Swal.fire({
-          icon: 'error',
-          title: 'ไม่พบบัญชีงบประมาณ',
-          html: `
-            <div class="text-left">
-              <div>Quartile: <b>${selectedQuartile}</b></div>
-              <div class="mt-2 text-xs"><pre>${JSON.stringify(mapByCode, null, 2)}</pre></div>
-            </div>
-          `,
-          width: 700,
-        });
-        setLoading(false);
-        return;
-      }
-      if (entry.is_available === false) {
-        await Swal.fire({
-          icon: 'warning',
-          title: 'งบประมาณไม่พร้อมใช้งาน',
-          text: `Quartile: ${selectedQuartile}`,
-        });
-        setLoading(false);
-        return;
-      }
-
-      const subcategory_budget_id = entry.budget_id;
-
-      const missing = {};
-      if (!fundInfo.category_id) missing.category_id = fundInfo.category_id;
-      if (!fundInfo.subcategory_id) missing.subcategory_id = fundInfo.subcategory_id;
-      if (!subcategory_budget_id) missing.subcategory_budget_id = subcategory_budget_id;
-
-      if (Object.keys(missing).length > 0) {
-        await Swal.fire({
-          icon: 'error',
-          title: 'ข้อมูลทุนไม่ครบถ้วน',
-          html: `
-            <div class="text-left">
-              <div class="mb-2">Missing required IDs:</div>
-              <pre class="bg-gray-100 p-2 rounded text-xs">${JSON.stringify(
-                missing,
-                null,
-                2
-              )}</pre>
-              <div class="mt-2">Quartile ที่เลือก: <b>${
-                selectedQuartile || '-'
-              }</b></div>
-            </div>
-          `,
-        });
-        setLoading(false);
-        return;
-      }
-
-      console.log('=== Submission Creation Data ===');
-      console.log('Category ID:', fundInfo.category_id);
-      console.log('Subcategory ID:', fundInfo.subcategory_id);
-      console.log('Selected Quartile:', formData.journal_quartile);
-      console.log('Selected Budget ID:', subcategory_budget_id);
-      console.log('================================');
-
-      const submissionResponse = await submissionAPI.create({
-        submission_type: 'publication_reward',
-        year_id: formData.year_id,
-        category_id: fundInfo.category_id,
-        subcategory_id: fundInfo.subcategory_id,
-        subcategory_budget_id,
-        status_id: 1,
-      });
-
-      submissionId =
-        submissionResponse?.submission?.submission_id ||
-        submissionResponse?.data?.submission?.submission_id;
-      setCurrentSubmissionId(submissionId);
-      console.log('Created submission:', submissionId);
-    }
-
-    // ------- 3) จัดการผู้แต่ง (เหมือนเดิม) -------
-    if (currentUser && (coauthors.length > 0 || formData.author_status)) {
-      Swal.update({ html: 'กำลังจัดการผู้แต่ง...' });
-
-      try {
-        const allUsers = [];
-        if (formData.author_status) {
-          allUsers.push({
-            user_id: currentUser.user_id,
-            role: formData.author_status,
-            order_sequence: 1,
-            is_active: true,
-            is_primary: true,
-          });
-        }
-        (coauthors || []).forEach((coauthor, index) => {
-          allUsers.push({
-            user_id: coauthor.user_id,
-            role: 'coauthor',
-            order_sequence: index + 2,
-            is_active: false,
-            is_primary: false,
-          });
-        });
-
-        let batchSuccess = false;
-        try {
-          const batchResult = await submissionUsersAPI.addMultipleUsers(
-            submissionId,
-            allUsers
-          );
-          if (batchResult.success) batchSuccess = true;
-        } catch {}
-
-        if (!batchSuccess) {
-          let successCount = 0;
-          const errors = [];
-          for (let i = 0; i < allUsers.length; i++) {
-            try {
-              await submissionUsersAPI.addUser(submissionId, allUsers[i]);
-              successCount++;
-            } catch (e) {
-              errors.push(`User ${allUsers[i].user_id}: ${e.message}`);
-            }
-          }
-          if (successCount === 0) {
-            Toast.fire({ icon: 'error', title: 'ไม่สามารถเพิ่มผู้แต่งได้' });
-          } else if (errors.length > 0) {
-            Toast.fire({
-              icon: 'warning',
-              title: `เพิ่มผู้แต่งได้ ${successCount}/${allUsers.length} คน`,
-            });
-          } else {
-            Toast.fire({
-              icon: 'success',
-              title: `เพิ่มผู้แต่งสำเร็จ ${successCount} คน`,
-            });
-          }
-        }
-      } catch (error) {
-        console.error('❌ Failed to manage submission users:', error);
-        Toast.fire({
-          icon: 'warning',
-          title: 'จัดการผู้แต่งไม่สมบูรณ์',
-          text: `Warning: ${error.message}`,
-        });
-      }
-    }
-
-    // ------- 4) รายละเอียดบทความ (เหมือนเดิม) -------
-    Swal.update({ html: 'กำลังบันทึกรายละเอียดบทความ...' });
-
-    const publicationDate =
-      formData.journal_year && formData.journal_month
-        ? `${formData.journal_year}-${String(formData.journal_month).padStart(
-            2,
-            '0'
-          )}-01`
-        : `${new Date().getFullYear()}-01-01`;
-
-    const publicationData = {
-      article_title: formData.article_title || '',
-      journal_name: formData.journal_name || '',
-      publication_date: publicationDate,
-      journal_quartile: formData.journal_quartile || '',
-      publication_type: 'journal',
-      impact_factor: formData.impact_factor
-        ? parseFloat(formData.impact_factor)
-        : 0,
-      doi: formData.doi || '',
-      url: formData.journal_url || '',
-      page_numbers: formData.journal_pages || '',
-      volume_issue: formData.journal_issue || '',
-      indexing: [
-        formData.in_isi && 'ISI',
-        formData.in_scopus && 'Scopus',
-        formData.in_web_of_science && 'Web of Science',
-        formData.in_tci && 'TCI',
-      ]
-        .filter(Boolean)
-        .join(', ') || '',
-      reward_amount: parseFloat(formData.publication_reward) || 0,
-      revision_fee: parseFloat(formData.revision_fee) || 0,
-      publication_fee: parseFloat(formData.publication_fee) || 0,
-      external_funding_amount:
-        parseFloat(formData.external_funding_amount) || 0,
-      total_amount: parseFloat(formData.total_amount) || 0,
-      author_count: (coauthors?.length || 0) + 1,
-      is_corresponding_author: formData.author_status === 'corresponding_author',
-      author_status: formData.author_status || '',
-      author_type: formData.author_status || '',
-      bank_account: formData.bank_account || '',
-      bank_name: formData.bank_name || '',
-      bank_account_name: '',
-      phone_number: formData.phone_number || '',
-      has_university_funding: formData.has_university_fund || 'no',
-      funding_references: formData.university_fund_ref || '',
-      university_rankings: formData.university_ranking || '',
-      announce_reference_number: '',
-    };
-
-    try {
-      const response = await publicationDetailsAPI.add(submissionId, publicationData);
-      console.log('Publication details saved successfully:', response);
-    } catch (error) {
-      console.error('Failed to save publication details:', error);
-      let errorMessage = 'เกิดข้อผิดพลาดที่ server';
-      if (error.response?.status === 400) {
-        errorMessage = error.response.data?.message || 'ข้อมูลที่ส่งไปไม่ถูกต้อง';
-      } else if (error.response?.status === 500) {
-        errorMessage =
-          'Server error - อาจมีปัญหากับ database หรือ backend logic';
-      }
-      await Swal.fire({
-        icon: 'error',
-        title: 'ไม่สามารถบันทึกรายละเอียดบทความได้',
-        text: errorMessage,
-        width: '600px',
-      });
-      setLoading(false);
+    if (!isValid) {
       return;
     }
 
-    // ------- 5) อัปโหลดไฟล์ (เหมือนเดิม) -------
-    if (allFiles.length > 0) {
-      Swal.update({ html: `กำลังอัปโหลดไฟล์... (0/${allFiles.length})` });
-      for (let i = 0; i < allFiles.length; i++) {
-        const fileData = allFiles[i];
-        try {
-          const uploadResponse = await fileAPI.uploadFile(fileData.file);
-          if (
-            !uploadResponse.success ||
-            !uploadResponse.file ||
-            !uploadResponse.file.file_id
-          ) {
-            throw new Error('Upload response missing file_id');
-          }
-          const attachData = {
-            file_id: uploadResponse.file.file_id,
-            document_type_id: fileData.document_type_id,
-            description: fileData.description,
-            display_order: i + 1,
-          };
-          if (fileData.document_type_id === 12 && fileData.external_funding_id) {
-            attachData.external_funding_id = fileData.external_funding_id;
-          }
-          await documentAPI.attachDocument(submissionId, attachData);
-          Swal.update({ html: `กำลังอัปโหลดไฟล์... (${i + 1}/${allFiles.length})` });
-        } catch (error) {
-          console.error(`Error processing file ${fileData.file.name}:`, error);
-          await Swal.fire({
-            icon: 'error',
-            title: 'ไม่สามารถอัปโหลดไฟล์ได้',
-            html: `
-              <div class="text-left">
-                <p><strong>ไฟล์:</strong> ${fileData.file.name}</p>
-                <p><strong>ประเภท:</strong> ${getDocumentTypeName(
-                  fileData.document_type_id
-                )}</p>
-                <p><strong>ข้อผิดพลาด:</strong> ${error.message}</p>
-              </div>
-            `,
-          });
-          throw error;
-        }
-      }
+    // Show confirmation dialog
+    const confirmed = await showSubmissionConfirmation();
+    if (!confirmed) {
+      return;
     }
 
-    // ------- 6) Submit the application (เหมือนเดิม) -------
-    Swal.update({ html: 'กำลังส่งคำร้อง...' });
-    await submissionAPI.submitSubmission(submissionId);
+    try {
+      setLoading(true);
 
-    deleteDraftFromLocal();
-    setMergedPdfFile(null);
+      debugFileStates();
 
-    const fileCounts = getFileCountByType();
+      // Show loading dialog
+      Swal.fire({
+        title: 'กำลังส่งคำร้อง...',
+        html: 'กำลังเตรียมเอกสาร...',
+        allowOutsideClick: false,
+        showConfirmButton: false,
+        willOpen: () => {
+          Swal.showLoading();
+        }
+      });
 
-    await Swal.fire({
-      icon: 'success',
-      title: 'ส่งคำร้องสำเร็จ!',
-      html: `
-        <div class="text-left">
-          <p><strong>รหัสคำร้อง:</strong> ${submissionId}</p>
-          <p><strong>ไฟล์ที่แนบ:</strong> ${fileCounts.summary}</p>
-        </div>
-      `,
-      confirmButtonText: 'เรียบร้อย',
-      width: '500px',
-    }).then(() => {
-      resetForm();
-      if (onNavigate) onNavigate('applications');
-    });
-  } catch (error) {
-    console.error('Error submitting application:', error);
-    await Swal.fire({
-      icon: 'error',
-      title: 'เกิดข้อผิดพลาด',
-      text: error.message || 'ไม่สามารถส่งคำร้องได้ กรุณาลองใหม่อีกครั้ง',
-    });
-  } finally {
-    setLoading(false);
-  }
-};
+      let submissionId = currentSubmissionId;
+      const allFiles = [];
+      const processedFiles = new Set(); // ป้องกันไฟล์ซ้ำ
 
+      // 1. Add main document files (document_type_id 1-10)
+      Object.entries(uploadedFiles).forEach(([docTypeId, file]) => {
+        if (file && !processedFiles.has(file.name)) {
+          allFiles.push({
+            file: file,
+            document_type_id: parseInt(docTypeId),
+            description: `${file.name} (ประเภท ${docTypeId})`
+          });
+          processedFiles.add(file.name);
+        }
+      });
+
+      // 2. Add other documents (document_type_id = 11)
+      if (otherDocuments && otherDocuments.length > 0) {
+        otherDocuments.forEach((doc, index) => {
+          const file = doc.file || doc;
+          if (file && !processedFiles.has(file.name)) {
+            allFiles.push({
+              file: file,
+              document_type_id: 11,
+              description: doc.description || `เอกสารอื่นๆ ${index + 1}: ${file.name}`
+            });
+            processedFiles.add(file.name);
+          }
+        });
+      }
+
+      // 3. Add external funding documents from externalFundingFiles (ใช้ externalFundingFiles)
+      if (externalFundingFiles && externalFundingFiles.length > 0) {
+        externalFundingFiles.forEach(doc => {
+          const funding = externalFundings.find(f => f.id === doc.funding_id);
+          if (doc.file && !processedFiles.has(doc.file.name)) {
+            allFiles.push({
+              file: doc.file,
+              document_type_id: 12,
+              description: `เอกสารเบิกจ่ายภายนอก: ${funding?.fundName || 'ไม่ระบุ'}`,
+              external_funding_id: doc.funding_id
+            });
+            processedFiles.add(doc.file.name);
+          }
+        });
+      }
+
+      // ไม่ต้องเพิ่ม merged PDF ถ้าไม่จำเป็น หรือเช็คก่อนว่าซ้ำหรือไม่
+      if (mergedPdfFile && !processedFiles.has(mergedPdfFile.name)) {
+        allFiles.push({
+          file: mergedPdfFile,
+          document_type_id: 1,
+          description: 'เอกสารรวม (Merged PDF)'
+        });
+      }
+
+      console.log(`Total files to upload: ${allFiles.length}`);
+
+      // Create submission if not exists
+      if (!submissionId) {
+        Swal.update({
+          html: 'กำลังสร้างคำร้อง...'
+        });
+
+        const submissionResponse = await submissionAPI.create({
+          submission_type: 'publication_reward',
+          year_id: formData.year_id,
+        });
+        
+        submissionId = submissionResponse.submission.submission_id;
+        setCurrentSubmissionId(submissionId);
+        console.log('Created submission:', submissionId);
+      }
+
+      // Step 2: Manage Users in Submission
+      if (currentUser && (coauthors.length > 0 || formData.author_status)) {
+        Swal.update({
+          html: 'กำลังจัดการผู้แต่ง...'
+        });
+
+        try {
+          console.log('=== Managing Submission Users via API ===');
+          console.log('Current User:', currentUser);
+          console.log('Co-authors:', coauthors);
+          console.log('Author Status:', formData.author_status);
+
+          // Prepare all users data
+          const allUsers = [];
+
+          // 1. Add Main Author if has author_status
+          if (formData.author_status) {
+            allUsers.push({
+              user_id: currentUser.user_id,
+              role: formData.author_status, // "first_author" or "corresponding_author"
+              order_sequence: 1,
+              is_active: true,
+              is_primary: true
+            });
+          }
+
+          // 2. Add Co-authors
+          if (coauthors && coauthors.length > 0) {
+            coauthors.forEach((coauthor, index) => {
+              allUsers.push({
+                user_id: coauthor.user_id,
+                role: 'coauthor',
+                order_sequence: index + 2,
+                is_active: false,
+                is_primary: false
+              });
+            });
+          }
+
+          console.log('All users to add:', allUsers);
+
+          // Try batch API first
+          let batchSuccess = false;
+          
+          try {
+            const batchResult = await submissionUsersAPI.addMultipleUsers(submissionId, allUsers);
+            console.log('✅ Batch API successful:', batchResult);
+            
+            if (batchResult.success) {
+              batchSuccess = true;
+              console.log('Successfully added users via batch API');
+            }
+          } catch (batchError) {
+            console.log('Batch API failed, trying individual additions:', batchError);
+          }
+
+          // If batch fails, add individually
+          if (!batchSuccess) {
+            console.log('Adding users individually...');
+            
+            let successCount = 0;
+            const errors = [];
+
+            for (let i = 0; i < allUsers.length; i++) {
+              const user = allUsers[i];
+              
+              try {
+                console.log(`Adding user ${i + 1}:`, {
+                  user_id: user.user_id,
+                  role: user.role,
+                  is_primary: user.is_primary
+                });
+
+                await submissionUsersAPI.addUser(submissionId, user);
+                console.log(`✅ Added user ${i + 1} successfully`);
+                successCount++;
+
+              } catch (individualError) {
+                console.error(`❌ Error adding user ${i + 1}:`, individualError);
+                errors.push(`User ${user.user_id}: ${individualError.message}`);
+              }
+            }
+
+            // Check results
+            if (successCount === 0) {
+              console.error('Failed to add any users:', errors);
+              
+              Toast.fire({
+                icon: 'error',
+                title: 'ไม่สามารถเพิ่มผู้แต่งได้',
+                text: `Errors: ${errors.slice(0, 2).join('; ')}${errors.length > 2 ? '...' : ''}`
+              });
+            } else {
+              console.log(`✅ Successfully added ${successCount}/${allUsers.length} users individually`);
+              
+              if (errors.length > 0) {
+                console.warn('Some users failed:', errors);
+                Toast.fire({
+                  icon: 'warning',
+                  title: `เพิ่มผู้แต่งได้ ${successCount}/${allUsers.length} คน`,
+                  text: 'มีข้อผิดพลาดบางส่วน'
+                });
+              } else {
+                Toast.fire({
+                  icon: 'success',
+                  title: `เพิ่มผู้แต่งสำเร็จ ${successCount} คน`
+                });
+              }
+            }
+          }
+
+        } catch (error) {
+          console.error('❌ Failed to manage submission users:', error);
+          
+          // Show warning but continue process
+          Toast.fire({
+            icon: 'warning',
+            title: 'จัดการผู้แต่งไม่สมบูรณ์',
+            text: `Warning: ${error.message}`
+          });
+        }
+      }
+
+      // Add publication details
+      Swal.update({
+        html: 'กำลังบันทึกรายละเอียดบทความ...'
+      });
+
+      // Format publication date
+      const publicationDate = formData.journal_year && formData.journal_month 
+        ? `${formData.journal_year}-${formData.journal_month.padStart(2, '0')}-01`
+        : `${new Date().getFullYear()}-01-01`;
+
+      // สร้าง external funding array สำหรับส่งไป backend (ถ้ามี)
+      const externalFundingData = externalFundings.map(funding => ({
+        fund_name: funding.fundName || '',
+        amount: parseFloat(funding.amount) || 0
+      }));
+
+      const publicationData = {
+        // Basic article info
+        article_title: formData.article_title || '',
+        journal_name: formData.journal_name || '',
+        publication_date: publicationDate,
+        journal_quartile: formData.journal_quartile || '',
+        
+        // Optional article details
+        publication_type: 'journal',
+        impact_factor: formData.impact_factor ? parseFloat(formData.impact_factor) : 0,
+        doi: formData.doi || '',
+        url: formData.journal_url || '',
+        page_numbers: formData.journal_pages || '',
+        volume_issue: formData.journal_issue || '',
+        
+        // Indexing as single string
+        indexing: [
+          formData.in_isi && 'ISI',
+          formData.in_scopus && 'Scopus',
+          formData.in_web_of_science && 'Web of Science',
+          formData.in_tci && 'TCI'
+        ].filter(Boolean).join(', ') || '',
+        
+        // Financial fields
+        reward_amount: parseFloat(formData.publication_reward) || 0,
+        revision_fee: parseFloat(formData.revision_fee) || 0,
+        publication_fee: parseFloat(formData.publication_fee) || 0,
+        external_funding_amount: parseFloat(formData.external_funding_amount) || 0,
+        total_amount: parseFloat(formData.total_amount) || 0,
+        
+        // External fundings (ถ้า backend รองรับ)
+        // external_fundings: externalFundingData.length > 0 ? externalFundingData : [],
+        
+        // Author info
+        author_count: (coauthors?.length || 0) + 1,
+        is_corresponding_author: formData.author_status === 'corresponding_author',
+        author_status: formData.author_status || '',
+        author_type: formData.author_status || '', // เพิ่ม field นี้ด้วย
+        
+        // Bank info
+        bank_account: formData.bank_account || '',
+        bank_name: formData.bank_name || '',
+        bank_account_name: '', // empty string
+        phone_number: formData.phone_number || '',
+        
+        // Additional info
+        has_university_funding: formData.has_university_fund || 'no',
+        funding_references: formData.university_fund_ref || '',
+        university_rankings: formData.university_ranking || '',
+        
+        // Required empty fields
+        announce_reference_number: ''
+      };
+
+      console.log('=== Sending Publication Data ===');
+      console.log('Submission ID:', submissionId);
+      console.log('Publication Data:', JSON.stringify(publicationData, null, 2));
+
+      try {
+        // ส่ง publicationData โดยตรง
+        const response = await publicationDetailsAPI.add(submissionId, publicationData);
+        console.log('Publication details saved successfully:', response);
+      } catch (error) {
+        console.error('Failed to save publication details:', error);
+        
+        // เพิ่มการ log เพื่อดู error detail
+        if (error.response) {
+          console.error('Error response status:', error.response.status);
+          console.error('Error response data:', error.response.data);
+          console.error('Error response headers:', error.response.headers);
+        }
+        
+        let errorMessage = 'เกิดข้อผิดพลาดที่ server';
+        
+        if (error.response?.status === 400) {
+          errorMessage = error.response.data?.message || 'ข้อมูลที่ส่งไปไม่ถูกต้อง';
+        } else if (error.response?.status === 500) {
+          errorMessage = 'Server error - อาจมีปัญหากับ database หรือ backend logic';
+          
+          // Log สำหรับ debug
+          console.error('=== Debug Info for 500 Error ===');
+          console.error('Data that caused error:', publicationData);
+          console.error('Data types:', Object.entries(publicationData).map(([k, v]) => ({
+            field: k,
+            type: typeof v,
+            value: v
+          })));
+        }
+        
+        Swal.fire({
+          icon: 'error',
+          title: 'ไม่สามารถบันทึกรายละเอียดบทความได้',
+          html: `
+            <div class="text-left">
+              <p><strong>Error:</strong> ${errorMessage}</p>
+              <p class="text-sm text-gray-600 mt-2">Submission ID: ${submissionId}</p>
+              <details class="mt-3">
+                <summary class="cursor-pointer text-sm text-blue-600">ดูรายละเอียด</summary>
+                <pre class="text-xs bg-gray-100 p-2 mt-2 rounded overflow-auto max-h-40">
+      ${JSON.stringify(publicationData, null, 2)}
+                </pre>
+              </details>
+            </div>
+          `,
+          confirmButtonColor: '#ef4444',
+          width: '600px'
+        });
+        return;
+      }
+
+      // Upload files
+      if (allFiles.length > 0) {
+        Swal.update({
+          html: `กำลังอัปโหลดไฟล์... (0/${allFiles.length})`
+        });
+
+        console.log('Starting file upload process...');
+
+        for (let i = 0; i < allFiles.length; i++) {
+          const fileData = allFiles[i];
+          
+          try {
+            console.log(`Uploading file ${i + 1}:`, {
+              name: fileData.file.name,
+              size: fileData.file.size,
+              type: fileData.file.type,
+              document_type_id: fileData.document_type_id,
+              description: fileData.description
+            });
+
+            // Upload file
+            const uploadResponse = await fileAPI.uploadFile(fileData.file);
+            console.log(`File ${i + 1} upload response:`, uploadResponse);
+            
+            if (!uploadResponse.success || !uploadResponse.file || !uploadResponse.file.file_id) {
+              throw new Error('Upload response missing file_id');
+            }
+
+            // Prepare document attachment data
+            const attachData = {
+              file_id: uploadResponse.file.file_id,
+              document_type_id: fileData.document_type_id,
+              description: fileData.description,
+              display_order: i + 1
+            };
+
+            // Add special data for external funding documents
+            if (fileData.document_type_id === 12 && fileData.external_funding_id) {
+              attachData.external_funding_id = fileData.external_funding_id;
+            }
+
+            console.log(`Attaching document ${i + 1}:`, attachData);
+            
+            const attachResponse = await documentAPI.attachDocument(submissionId, attachData);
+            console.log(`Document ${i + 1} attach response:`, attachResponse);
+
+            if (!attachResponse.success) {
+              throw new Error(`Failed to attach document: ${attachResponse.message || 'Unknown error'}`);
+            }
+
+            // Update progress
+            Swal.update({
+              html: `กำลังอัปโหลดไฟล์... (${i + 1}/${allFiles.length})`
+            });
+            
+          } catch (error) {
+            console.error(`Error processing file ${fileData.file.name}:`, error);
+            
+            // Show detailed error
+            Swal.fire({
+              icon: 'error',
+              title: 'ไม่สามารถอัปโหลดไฟล์ได้',
+              html: `
+                <div class="text-left">
+                  <p><strong>ไฟล์:</strong> ${fileData.file.name}</p>
+                  <p><strong>ประเภท:</strong> ${getDocumentTypeName(fileData.document_type_id)}</p>
+                  <p><strong>ข้อผิดพลาด:</strong> ${error.message}</p>
+                  <p class="text-sm text-gray-600 mt-2">กรุณาตรวจสอบไฟล์และลองใหม่อีกครั้ง</p>
+                </div>
+              `,
+              confirmButtonColor: '#ef4444'
+            });
+            throw error; // Stop process
+          }
+        }
+
+        console.log('All files uploaded and attached successfully');
+      } else {
+        console.log('No files to upload');
+      }
+
+      // Submit the application
+      Swal.update({
+        html: 'กำลังส่งคำร้อง...'
+      });
+
+      await submissionAPI.submitSubmission(submissionId);
+
+      // Delete draft from localStorage
+      deleteDraftFromLocal();
+
+      const fileCounts = getFileCountByType();
+
+      // Show success message
+      Swal.fire({
+        icon: 'success',
+        title: 'ส่งคำร้องสำเร็จ!',
+        html: `
+          <div class="text-left">
+            <p><strong>รหัสคำร้อง:</strong> ${submissionId}</p>
+            <p><strong>ไฟล์ที่แนบ:</strong> ${fileCounts.summary}</p>
+            <div class="mt-2 text-sm text-gray-600">
+              <ul class="list-disc list-inside">
+                ${fileCounts.main > 0 ? `<li>เอกสารหลัก: ${fileCounts.main} ไฟล์</li>` : ''}
+                ${fileCounts.other > 0 ? `<li>เอกสารอื่นๆ: ${fileCounts.other} ไฟล์</li>` : ''}
+                ${fileCounts.external > 0 ? `<li>เอกสารเบิกจ่ายภายนอก: ${fileCounts.external} ไฟล์</li>` : ''}
+              </ul>
+            </div>
+            <p class="text-green-600 mt-3">ระบบจะแจ้งผลการพิจารณาผ่านอีเมล</p>
+          </div>
+        `,
+        confirmButtonColor: '#10b981',
+        confirmButtonText: 'เรียบร้อย',
+        width: '500px'
+      }).then(() => {
+        resetForm();
+        
+        if (onNavigate) {
+          onNavigate('applications');
+        }
+      });
+
+    } catch (error) {
+      console.error('Error submitting application:', error);
+      
+      Swal.fire({
+        icon: 'error',
+        title: 'เกิดข้อผิดพลาด',
+        text: error.message || 'ไม่สามารถส่งคำร้องได้ กรุณาลองใหม่อีกครั้ง',
+        confirmButtonColor: '#ef4444'
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // =================================================================
   // LOADING STATE

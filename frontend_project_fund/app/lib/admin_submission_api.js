@@ -60,42 +60,16 @@ export const adminSubmissionAPI = {
   }
 };
 
-// Admin submissions API
+// Add to existing submissions listing API
 export const submissionsListingAPI = {
   
   // Get all submissions (general)
   async getAllSubmissions(params) {
     try {
       const response = await apiClient.get('/submissions', { params });
-      console.log('All submissions response:', response);
       return response;
     } catch (error) {
       console.error('Error fetching submissions:', error);
-      throw error;
-    }
-  },
-
-  // Get admin submissions (admin endpoint)
-  async getAdminSubmissions(params) {
-    try {
-      // แก้ไขการส่ง parameters - เปลี่ยนชื่อให้ตรงกับ backend
-      const queryParams = { ...params };
-      
-      // แปลงชื่อ parameters ให้ตรงกับ backend
-      if (queryParams.category) {
-        queryParams.category_id = queryParams.category;
-        delete queryParams.category;
-      }
-      if (queryParams.subcategory) {
-        queryParams.subcategory_id = queryParams.subcategory;
-        delete queryParams.subcategory;
-      }
-      
-      const response = await apiClient.get('/admin/submissions', { params: queryParams });
-      console.log('Admin submissions response:', response);
-      return response;
-    } catch (error) {
-      console.error('Error fetching admin submissions:', error);
       throw error;
     }
   },
@@ -135,6 +109,17 @@ export const submissionsListingAPI = {
     }
   },
 
+  // Get admin submissions
+  async getAdminSubmissions(params) {
+    try {
+      const response = await apiClient.get('/admin/submissions', { params });
+      return response;
+    } catch (error) {
+      console.error('Error fetching admin submissions:', error);
+      throw error;
+    }
+  },
+
   // Export submissions (admin)
   async exportSubmissions(params) {
     try {
@@ -147,98 +132,27 @@ export const submissionsListingAPI = {
   }
 };
 
-
-// Common API functions (ใช้ common endpoints ที่ทุก role เข้าถึงได้)
+// Common API functions
 export const commonAPI = {
   
-  // Get years (common endpoint)
+  // Get years
   async getYears() {
     try {
       const response = await apiClient.get('/years');
-      console.log('Years response (common):', response);
       return response;
     } catch (error) {
-      console.error('Error fetching years (common):', error);
+      console.error('Error fetching years:', error);
       throw error;
     }
   },
 
-  // Get categories with role filtering (common endpoint)
-  async getCategories(params = {}) {
+  // Get users (for dropdown)
+  async getUsers() {
     try {
-      const response = await apiClient.get('/categories', { params });
-      console.log('Categories response (common):', response);
+      const response = await apiClient.get('/users');
       return response;
     } catch (error) {
-      console.error('Error fetching categories (common):', error);
-      throw error;
-    }
-  },
-
-  // Get subcategories with role filtering (common endpoint)
-  async getSubcategories(categoryId = null, params = {}) {
-    try {
-      const queryParams = { ...params };
-      if (categoryId) queryParams.category_id = categoryId;
-      
-      const response = await apiClient.get('/subcategories', { params: queryParams });
-      console.log('Subcategories response (common):', response);
-      return response;
-    } catch (error) {
-      console.error('Error fetching subcategories (common):', error);
-      throw error;
-    }
-  },
-
-  // Get subcategory budgets (NEW - for filter dropdown)
-  async getSubcategoryBudgets(subcategoryId = null, params = {}) {
-    try {
-      const queryParams = { ...params };
-      if (subcategoryId) queryParams.subcategory_id = subcategoryId;
-      
-      const response = await apiClient.get('/subcategory-budgets/validate', { params: queryParams });
-      console.log('Subcategory budgets response:', response);
-      return response;
-    } catch (error) {
-      console.error('Error fetching subcategory budgets:', error);
-      throw error;
-    }
-  },
-
-  // Get available quartiles for subcategory (NEW - alternative endpoint)
-  async getAvailableQuartiles(subcategoryId, params = {}) {
-    try {
-      const queryParams = { subcategory_id: subcategoryId, ...params };
-      
-      const response = await apiClient.get('/subcategory-budgets/available-quartiles', { params: queryParams });
-      console.log('Available quartiles response:', response);
-      return response;
-    } catch (error) {
-      console.error('Error fetching available quartiles:', error);
-      throw error;
-    }
-  },
-
-  // Get application statuses (common endpoint)
-  async getApplicationStatuses() {
-    try {
-      const response = await apiClient.get('/application-status');
-      console.log('Application statuses response (common):', response);
-      return response;
-    } catch (error) {
-      console.error('Error fetching application statuses (common):', error);
-      throw error;
-    }
-  },
-
-  // Get users (common endpoint - สำหรับ dropdown)
-  async getUsers(params = {}) {
-    try {
-      const response = await apiClient.get('/users', { params });
-      console.log('Users response (common):', response);
-      return response;
-    } catch (error) {
-      console.error('Error fetching users (common):', error);
+      console.error('Error fetching users:', error);
       throw error;
     }
   }

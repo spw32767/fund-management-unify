@@ -7,24 +7,9 @@ import PageLayout from "../common/PageLayout";
 import { teacherAPI } from '../../../lib/teacher_api';
 import { targetRolesUtils } from '../../../lib/target_roles_utils';
 import { FORM_TYPE_CONFIG } from '../../../lib/form_type_config';
-import { budgetValidationAPI, isFundFullyAvailable, formatMissingBudgetMessage } from '../../../lib/budget_validation_api';
-import Swal from 'sweetalert2';
-
-// เพิ่มการ config Toast
-const Toast = Swal.mixin({
-  toast: true,
-  position: 'top-end',
-  showConfirmButton: false,
-  timer: 3000,
-  timerProgressBar: true,
-  didOpen: (toast) => {
-    toast.onmouseenter = Swal.stopTimer;
-    toast.onmouseleave = Swal.resumeTimer;
-  }
-});
 
 export default function PromotionFundContent({ onNavigate }) {
-  const [selectedYear, setSelectedYear] = useState(null);
+  const [selectedYear, setSelectedYear] = useState("2566");
   const [fundCategories, setFundCategories] = useState([]);
   const [filteredFunds, setFilteredFunds] = useState([]);
   const [years, setYears] = useState([]);
@@ -32,10 +17,6 @@ export default function PromotionFundContent({ onNavigate }) {
   const [yearsLoading, setYearsLoading] = useState(false);
   const [error, setError] = useState(null);
   const [userRole, setUserRole] = useState(null);
-  
-  // เพิ่ม state สำหรับ budget validation
-  const [budgetStatus, setBudgetStatus] = useState({});
-  const [budgetLoading, setBudgetLoading] = useState(false);
   
   // Filter states
   const [searchTerm, setSearchTerm] = useState("");
@@ -71,20 +52,14 @@ export default function PromotionFundContent({ onNavigate }) {
       setLoading(true);
       setError(null);
 
-      const [roleInfo, yearsData, currentYearRes] = await Promise.all([
+      const [roleInfo, yearsData] = await Promise.all([
         targetRolesUtils.getCurrentUserRole(),
-        loadAvailableYears(),
-        fetch('/api/years/current').then(res => res.json())
+        loadAvailableYears()
       ]);
 
       setUserRole(roleInfo);
       setYears(yearsData);
-
-      if (currentYearRes.year) {
-        setSelectedYear(String(currentYearRes.year));
-      } else if (yearsData && yearsData.length > 0) {
-        setSelectedYear(yearsData[0].year);
-      }
+      await loadFundData(selectedYear);
     } catch (err) {
       console.error('Error loading initial data:', err);
       setError(err.message || 'เกิดข้อผิดพลาดในการโหลดข้อมูล');
@@ -116,61 +91,6 @@ export default function PromotionFundContent({ onNavigate }) {
     }
   };
 
-  // Function สำหรับโหลดและตรวจสอบ budget availability
-  const loadBudgetValidation = async (categories) => {
-    if (!categories || categories.length === 0) return;
-    
-    setBudgetLoading(true);
-    try {
-      // รวบรวม subcategory IDs ทั้งหมดที่ต้องตรวจสอบ
-      const subcategoryIds = [];
-      categories.forEach(category => {
-        if (category.subcategories) {
-          category.subcategories.forEach(sub => {
-            // ตรวจสอบเฉพาะทุนที่เป็น online form และมี multiple levels
-            if (sub.form_type === 'publication_reward' && sub.has_multiple_levels) {
-              subcategoryIds.push(sub.subcategory_id);
-            }
-          });
-        }
-      });
-
-      if (subcategoryIds.length === 0) {
-        setBudgetLoading(false);
-        return;
-      }
-
-      console.log('=== CHECKING BUDGET AVAILABILITY ===');
-      console.log('Subcategories to validate:', subcategoryIds);
-
-      // ตรวจสอบ budget availability
-      const budgetResults = await budgetValidationAPI.checkMultipleBudgetAvailability(subcategoryIds);
-      
-      console.log('Budget validation results:', budgetResults);
-      console.log('=====================================');
-
-      setBudgetStatus(budgetResults);
-    } catch (error) {
-      console.error('Error loading budget validation:', error);
-      // ถ้า error ให้ถือว่าทุกทุนพร้อมใช้งาน (fallback)
-      const fallbackStatus = {};
-      categories.forEach(category => {
-        if (category.subcategories) {
-          category.subcategories.forEach(sub => {
-            fallbackStatus[sub.subcategory_id] = {
-              isAvailable: true,
-              availableBudgets: [],
-              missingBudgets: []
-            };
-          });
-        }
-      });
-      setBudgetStatus(fallbackStatus);
-    } finally {
-      setBudgetLoading(false);
-    }
-  };
-
   const loadFundData = async (year) => {
     try {
       setLoading(true);
@@ -195,9 +115,6 @@ export default function PromotionFundContent({ onNavigate }) {
       
       // ข้อมูลพร้อมใช้งานเลย ไม่ต้องประมวลผลเพิ่ม
       setFundCategories(promotionFunds);
-      
-      // โหลด budget validation หลังจากได้ข้อมูลทุน
-      await loadBudgetValidation(promotionFunds);
       
     } catch (err) {
       console.error('Error loading fund data:', err);
@@ -242,75 +159,16 @@ export default function PromotionFundContent({ onNavigate }) {
     loadFundData(selectedYear);
   };
 
-  // แก้ไข handleViewForm เพื่อตรวจสอบ budget availability
   const handleViewForm = (subcategory) => {
-    // ตรวจสอบ budget availability ก่อนให้เข้าใช้
-    if (subcategory.form_type === 'publication_reward' && subcategory.has_multiple_levels) {
-      const isFullyAvailable = isFundFullyAvailable(subcategory, budgetStatus);
-      
-      if (!isFullyAvailable) {
-        const missingMessage = formatMissingBudgetMessage(subcategory, budgetStatus);
-        console.error('Budget not fully available:', {
-          subcategory_id: subcategory.subcategory_id,
-          subcategory_name: subcategory.subcategory_name,
-          missing_budgets: missingMessage
-        });
-        
-        Toast.fire({
-          icon: 'warning',
-          title: 'งบประมาณยังไม่พร้อม',
-          text: missingMessage || 'กรุณาติดต่อผู้ดูแลระบบ'
-        });
-        return;
-      }
-    }
-
-    // Log ข้อมูลทุนที่กำลังจะเข้าถึง
-    const fundInfo = {
-      category_id: findCategoryIdForSubcategory(subcategory.subcategory_id),
-      subcategory_id: subcategory.subcategory_id,
-      subcategory_name: subcategory.subcategory_name,
-      form_type: subcategory.form_type,
-      remaining_budget: subcategory.remaining_budget,
-      has_multiple_levels: subcategory.has_multiple_levels,
-      budget_count: subcategory.budget_count,
-      budget_descriptions: subcategory.budget_descriptions,
-      budget_available: isFundFullyAvailable(subcategory, budgetStatus)
-    };
-
-    console.log('=== FUND FORM ACCESS ===');
-    console.log('User Role:', userRole);
-    console.log('Fund Information:', fundInfo);
-    console.log('Budget Status:', budgetStatus[subcategory.subcategory_id]);
-    console.log('========================');
-
     const formType = subcategory.form_type || 'download';
     const formConfig = FORM_TYPE_CONFIG[formType];
     
     if (formConfig.isOnlineForm && onNavigate) {
-      // ส่งข้อมูลทุนไปยังฟอร์ม รวมถึง available budgets
-      const dataToPass = {
-        ...subcategory,
-        category_id: fundInfo.category_id,
-        subcategory_id: fundInfo.subcategory_id,
-        available_budgets: budgetStatus[subcategory.subcategory_id]?.availableBudgets || []
-      };
-      onNavigate(formConfig.route, dataToPass);
+      onNavigate(formConfig.route, subcategory);
     } else {
       const docUrl = subcategory.form_url || '/documents/default-fund-form.docx';
       window.open(docUrl, '_blank');
     }
-  };
-
-  // Helper function เพื่อหา category_id จาก subcategory_id
-  const findCategoryIdForSubcategory = (subcategoryId) => {
-    for (const category of fundCategories) {
-      if (category.subcategories) {
-        const found = category.subcategories.find(sub => sub.subcategory_id === subcategoryId);
-        if (found) return category.category_id;
-      }
-    }
-    return null;
   };
 
   const formatAmount = (amount) => {
@@ -357,48 +215,16 @@ export default function PromotionFundContent({ onNavigate }) {
     const buttonText = formConfig.buttonText;
     const ButtonIcon = formConfig.buttonIcon === 'FileText' ? FileText : Download;
     const remainingBudget = fund.remaining_budget || 0;
-    
-    // ตรวจสอบ budget availability สำหรับทุนที่ต้องใช้ online form
-    const needsBudgetValidation = fund.form_type === 'publication_reward' && fund.has_multiple_levels;
-    const budgetFullyAvailable = needsBudgetValidation ? isFundFullyAvailable(fund, budgetStatus) : true;
-    const missingBudgetMessage = needsBudgetValidation ? formatMissingBudgetMessage(fund, budgetStatus) : null;
-    
-    // สถานะขั้นสุดท้าย: ต้องมีเงิน และ budget ครบ (ถ้าจำเป็น)
-    const finalAvailability = isAvailable && budgetFullyAvailable;
 
     return (
-      <tr key={fundId} className={!finalAvailability ? 'bg-gray-50' : ''}>
+      <tr key={fundId} className={!isAvailable ? 'bg-gray-50' : ''}>
         <td className="px-6 py-4">
           <div className="text-sm font-medium text-gray-900 max-w-lg break-words leading-relaxed">
             {fundName}
-            {/* แสดงสถานะ budget */}
-            {needsBudgetValidation && (
-              <div className="mt-1 flex items-center gap-2">
-                {budgetLoading ? (
-                  <span className="inline-flex items-center px-2 py-1 text-xs rounded-full bg-yellow-100 text-yellow-800">
-                    <div className="w-3 h-3 border border-yellow-600 border-t-transparent rounded-full animate-spin mr-1"></div>
-                    ตรวจสอบงบประมาณ...
-                  </span>
-                ) : budgetFullyAvailable ? (
-                  <span className="inline-flex items-center px-2 py-1 text-xs rounded-full bg-green-100 text-green-800">
-                    ✓ งบประมาณพร้อม
-                  </span>
-                ) : (
-                  <span className="inline-flex items-center px-2 py-1 text-xs rounded-full bg-red-100 text-red-800">
-                    ⚠ งบประมาณไม่ครบ
-                  </span>
-                )}
-              </div>
-            )}
           </div>
           {fund.has_multiple_levels && (
             <div className="text-xs text-gray-500 mt-1">
               (มี {fund.budget_count} ระดับ)
-              {missingBudgetMessage && (
-                <div className="text-red-600 mt-1">
-                  {missingBudgetMessage}
-                </div>
-              )}
             </div>
           )}
         </td>
@@ -431,23 +257,13 @@ export default function PromotionFundContent({ onNavigate }) {
           <button
             onClick={() => handleViewForm(fund)}
             className={`inline-flex items-center gap-2 px-4 py-2 text-sm font-medium 
-              ${finalAvailability 
+              ${remainingBudget > 0 
                 ? 'text-blue-600 hover:text-blue-700' 
                 : 'text-gray-400 cursor-not-allowed'}`}
-            disabled={!finalAvailability || budgetLoading}
-            title={!budgetFullyAvailable ? missingBudgetMessage : ''}
+            disabled={remainingBudget === 0}
           >
-            {budgetLoading ? (
-              <>
-                <div className="w-4 h-4 border border-gray-400 border-t-transparent rounded-full animate-spin"></div>
-                ตรวจสอบ...
-              </>
-            ) : (
-              <>
-                <ButtonIcon size={16} />
-                {buttonText}
-              </>
-            )}
+            <ButtonIcon size={16} />
+            {buttonText}
           </button>
         </td>
       </tr>

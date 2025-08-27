@@ -10,22 +10,15 @@ const getAuthHeaders = () => {
   };
 };
 
+// Submission Management API (ตาม API docs)
 export const submissionAPI = {
   // Create new submission
   async create(data) {
     try {
-      const payload = {
+      const response = await apiClient.post('/submissions', {
         submission_type: data.submission_type,
         year_id: data.year_id,
-        category_id: data.category_id,
-        subcategory_id: data.subcategory_id,
-        subcategory_budget_id: data.subcategory_budget_id,
-        status_id: data.status_id ?? 1,
-      };
-
-      console.log('POST /submissions payload =', payload);
-
-      const response = await apiClient.post('/submissions', payload);
+      });
       return response;
     } catch (error) {
       console.error('Error creating submission:', error);
