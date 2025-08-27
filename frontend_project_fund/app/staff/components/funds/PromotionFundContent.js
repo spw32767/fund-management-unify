@@ -123,6 +123,7 @@ export default function PromotionFundContent({ onNavigate }) {
         if (publicationSubs.length > 1) {
           const merged = {
             ...publicationSubs[0],
+            category_id: category.category_id,
             subcategory_name: 'เงินรางวัลการตีพิมพ์เผยแพร่ผลงานวิจัย',
             remaining_budget: publicationSubs.reduce(
               (sum, s) => sum + (s.remaining_budget || 0),
@@ -197,18 +198,19 @@ export default function PromotionFundContent({ onNavigate }) {
   const handleViewForm = (subcategory) => {
     const formType = subcategory.form_type || 'download';
     const formConfig = FORM_TYPE_CONFIG[formType];
-    
+
     if (formConfig.isOnlineForm && onNavigate) {
+      const parentCategory = fundCategories.find(cat =>
+        cat.subcategories?.some(sub => sub.subcategory_id === subcategory.subcategory_id)
+      );
       const yearObj = years.find(y => y.year === selectedYear);
       const yearId = yearObj?.year_id;
       console.log('Navigate to publication form:', {
-        category_id: subcategory.category_id,
+        category_id: parentCategory?.category_id,
         year_id: yearId
       });
-      // ไปหน้าฟอร์มออนไลน์ตาม route ที่กำหนด
-      onNavigate(formConfig.route, { category_id: subcategory.category_id, year_id: yearId });
+      onNavigate(formConfig.route, { category_id: parentCategory?.category_id, year_id: yearId });
     } else {
-      // ดาวน์โหลดฟอร์ม
       const docUrl = subcategory.form_url || '/documents/default-fund-form.docx';
       window.open(docUrl, '_blank');
     }

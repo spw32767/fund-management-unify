@@ -622,6 +622,7 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId }
   const [enabledYears, setEnabledYears] = useState([]);
   const [enabledPairs, setEnabledPairs] = useState([]);
   const [resolutionError, setResolutionError] = useState('');
+  const [fundAvailable, setFundAvailable] = useState(false);
 
   // Form data state
   const [formData, setFormData] = useState({
@@ -679,68 +680,49 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId }
   // External funding sources
   const [externalFundings, setExternalFundings] = useState([])
 
-  // Helper: resolve subcategory and budget (100% dynamic - no hardcode)
-  const resolveBudgetAndSubcategory = async ({ category_id, year_id, author_status, journal_quartile }) => {
+  // Helper: check fund availability
+  const checkFundAvailability = async ({ subcategory_budget_id, year_id }) => {
     try {
-      // Step 1: Get publication reward rates for this year
-      const yearObj = years.find(y => y.year_id === year_id);
-      if (!yearObj) return null;
-      
-      const ratesResponse = await publicationRewardRatesAPI.getRatesByYear(yearObj.year);
-      const rates = ratesResponse.rates || ratesResponse.data || [];
-      
-      // Step 2: Find matching rate configuration
-      const matchingRate = rates.find(rate => 
-        rate.author_status === author_status && 
-        rate.journal_quartile === journal_quartile
-      );
-      
-      if (!matchingRate) return null;
-      
-      // Step 3: Get subcategories with budgets for this category/year
-      const subsResponse = await teacherAPI.getVisibleSubcategories(category_id, year_id);
-      const subcategories = subsResponse.subcategories || [];
-      
-      // Step 4: Find matching subcategory budget by looking for fund_description
-      // that matches our rate configuration
-      for (const sub of subcategories) {
+      const subsResp = await teacherAPI.getVisibleSubcategories(null, year_id);
+      const subs = subsResp.subcategories || [];
+      for (const sub of subs) {
         const budget = sub.subcategory_budget || sub.SubcategoryBudget;
-        if (!budget) continue;
-        
-        // Dynamic matching: look for budget that corresponds to this author_status + quartile
-        // The fund_description should contain information about the quartile
-        const fundDesc = budget.fund_description || '';
-        
-        // Check if this budget is for publication rewards
-        if (!fundDesc.includes('ตีพิมพ์') && !fundDesc.includes('เผยแพร่')) continue;
-        
-        // Check if quartile matches (dynamic check)
-        const quartileMatches = 
-          (journal_quartile === 'T5' && fundDesc.includes('5%')) ||
-          (journal_quartile === 'T10' && fundDesc.includes('10%')) ||
-          (journal_quartile === 'Q1' && fundDesc.includes('ควอร์ไทล์ 1')) ||
-          (journal_quartile === 'Q2' && fundDesc.includes('ควอร์ไทล์ 2')) ||
-          (journal_quartile === 'Q3' && fundDesc.includes('ควอร์ไทล์ 3')) ||
-          (journal_quartile === 'Q4' && fundDesc.includes('ควอร์ไทล์ 4')) ||
-          (journal_quartile === 'TCI' && fundDesc.includes('TCI'));
-        
-        if (!quartileMatches) continue;
-        
-        // Check if author status matches (dynamic check) 
-        const authorMatches = 
-          (author_status === 'first_author' && fundDesc.includes('ผู้แต่ง')) ||
-          (author_status === 'corresponding_author' && fundDesc.includes('ประพันธ์'));
-        
-        if (authorMatches) {
-          return {
-            subcategory_id: sub.subcategory_id,
-            subcategory_budget_id: budget.subcategory_budget_id,
-            fund_description: budget.fund_description,
-            reward_amount: matchingRate.reward_amount
-          };
+        if (budget && budget.subcategory_budget_id === subcategory_budget_id) {
+          const available = budget.status === 'active' && (budget.remaining_budget || 0) > 0;
+          return { isAvailable: available, remaining_budget: budget.remaining_budget || 0 };
         }
       }
-      
+      return { isAvailable: false, remaining_budget: 0 };
+    } catch (err) {
+      console.error('checkFundAvailability error:', err);
+      return { isAvailable: false, remaining_budget: 0 };
+    }
+  };
+
+  // Helper: resolve subcategory and budget (100% dynamic - no hardcode)
+  const resolveBudgetAndSubcategory = async ({ category_id, year_id, author_status, journal_quartile, subcategories }) => {
+    try {
+      const subs =
+        subcategories ||
+        (await teacherAPI.getVisibleSubcategories(category_id, year_id)).subcategories || [];
+      const descriptor = `${author_status}|${journal_quartile}`.toLowerCase();
+      for (const sub of subs) {
+        const budget = sub.subcategory_budget || sub.SubcategoryBudget;
+        if (!budget) continue;
+        const fundDesc = (budget.fund_description || '').toLowerCase();
+        const authorMatch = fundDesc.includes(author_status.replace('_', ' ').toLowerCase());
+        const quartileMatch = fundDesc.includes(journal_quartile.toLowerCase());
+        if (authorMatch && quartileMatch) {
+          if (budget.status === 'active' && (budget.remaining_budget || 0) > 0) {
+            return {
+              subcategory_id: sub.subcategory_id,
+              subcategory_budget_id: budget.subcategory_budget_id,
+              fund_descriptionMatched: budget.fund_description
+            };
+          }
+        }
+      }
+      console.log(`resolveBudgetAndSubcategory: no match in subcategory_budgets for year_id=${year_id} desc=${descriptor}`);
       return null;
     } catch (err) {
       console.error('resolveBudgetAndSubcategory error:', err);
@@ -827,23 +809,36 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId }
       
       // If both are selected, resolve and update reward
       if (formData.author_status && formData.journal_quartile) {
-        const matching = validCombos.find(c => 
-          c.author_status === formData.author_status && 
+        const matching = validCombos.find(c =>
+          c.author_status === formData.author_status &&
           c.journal_quartile === formData.journal_quartile
         );
-        
+
         if (matching) {
-          setFormData(prev => ({
-            ...prev,
-            subcategory_id: matching.subcategory_id,
+          const availability = await checkFundAvailability({
             subcategory_budget_id: matching.subcategory_budget_id,
-            publication_reward: matching.reward_amount,
-            reward_amount: matching.reward_amount
-          }));
-          setResolutionError('');
+            year_id: formData.year_id
+          });
+          if (availability.isAvailable) {
+            setFormData(prev => ({
+              ...prev,
+              subcategory_id: matching.subcategory_id,
+              subcategory_budget_id: matching.subcategory_budget_id,
+              publication_reward: matching.reward_amount,
+              reward_amount: matching.reward_amount
+            }));
+            setFundAvailable(true);
+            setResolutionError('');
+          } else {
+            setFundAvailable(false);
+            setResolutionError('ไม่มีงบประมาณสำหรับปี/สถานะ/ควอร์ไทล์ที่เลือก');
+          }
         } else {
+          setFundAvailable(false);
           setResolutionError('ไม่พบทุนสำหรับการจับคู่นี้');
         }
+      } else {
+        setFundAvailable(false);
       }
     };
     
@@ -907,6 +902,7 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId }
   useEffect(() => {
     if (categoryId) {
       setFormData(prev => ({ ...prev, category_id: categoryId }));
+      getEnabledYears(categoryId).then(setEnabledYears);
     }
   }, [categoryId]);
 
@@ -972,6 +968,7 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId }
         setAvailableAuthorStatuses(uniqueStatuses);
         setAvailableQuartiles([]);
         setFormData(prev => ({ ...prev, author_status: '', journal_quartile: '', subcategory_id: null, subcategory_budget_id: null }));
+        setFundAvailable(false);
         setResolutionError(pairs.length === 0 ? 'ไม่พบทุนสำหรับปี/สถานะ/ควอร์ไทล์ที่เลือก' : '');
       }
     };
@@ -985,6 +982,7 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId }
       const sorted = sortQuartiles(quartiles);
       setAvailableQuartiles(sorted);
       setFormData(prev => ({ ...prev, journal_quartile: '', subcategory_id: null, subcategory_budget_id: null }));
+      setFundAvailable(false);
       if (sorted.length === 0) {
         setResolutionError('ไม่พบทุนสำหรับปี/สถานะ/ควอร์ไทล์ที่เลือก');
       } else {
@@ -992,6 +990,15 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId }
       }
     }
   }, [formData.author_status, enabledPairs]);
+
+  useEffect(() => {
+    if (formData.author_status || formData.journal_quartile) {
+      console.log('Selection:', {
+        author_status: formData.author_status,
+        journal_quartile: formData.journal_quartile
+      });
+    }
+  }, [formData.author_status, formData.journal_quartile]);
 
 
   // Update fee limits when quartile changes
@@ -1684,6 +1691,7 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId }
     const newErrors = {};
     
     // ข้อมูลพื้นฐาน
+    if (!formData.category_id) newErrors.category_id = 'ไม่พบหมวดทุน';
     if (!formData.year_id) newErrors.year_id = 'กรุณาเลือกปีงบประมาณ';
     if (!formData.author_status) newErrors.author_status = 'กรุณาเลือกสถานะผู้แต่ง';
     if (!formData.phone_number) newErrors.phone_number = 'กรุณากรอกเบอร์โทรศัพท์';
@@ -1724,12 +1732,15 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId }
         author_status: formData.author_status,
         journal_quartile: formData.journal_quartile
       });
-      
+
       if (!resolved) {
         newErrors.fund_resolution = 'ไม่มีทุนสำหรับสถานะผู้แต่งและควอร์ไทล์ที่เลือก';
       } else {
-        // Validate budget availability
-        if (resolved.remaining_budget <= 0) {
+        const availability = await checkFundAvailability({
+          subcategory_budget_id: resolved.subcategory_budget_id,
+          year_id: formData.year_id
+        });
+        if (!availability.isAvailable) {
           newErrors.budget_availability = 'งบประมาดสำหรับทุนนี้หมดแล้ว';
         }
       }
@@ -2387,16 +2398,31 @@ const showSubmissionConfirmation = async () => {
 
       console.log(`Total files to upload: ${allFiles.length}`);
 
+      const availabilityBeforePost = await checkFundAvailability({
+        subcategory_budget_id: formData.subcategory_budget_id,
+        year_id: formData.year_id
+      });
+      console.log('Before POST:', {
+        subcategory_id: formData.subcategory_id,
+        subcategory_budget_id: formData.subcategory_budget_id,
+        fund_descriptionMatched: budgetMap[`${formData.author_status}|${formData.journal_quartile}`]?.fund_description,
+        availability: availabilityBeforePost
+      });
+      if (!availabilityBeforePost.isAvailable) {
+        Swal.close();
+        Swal.fire({
+          icon: 'error',
+          title: 'ไม่สามารถส่งคำร้อง',
+          text: 'ไม่มีงบประมาณสำหรับปี/สถานะ/ควอร์ไทล์ที่เลือก'
+        });
+        setLoading(false);
+        return;
+      }
+
       // Create submission if not exists
       if (!submissionId) {
         Swal.update({
           html: 'กำลังสร้างคำร้อง...'
-        });
-
-        console.log('Before POST:', {
-          subcategory_id: formData.subcategory_id,
-          subcategory_budget_id: formData.subcategory_budget_id,
-          fund_descriptionMatched: budgetMap[`${formData.author_status}|${formData.journal_quartile}`]?.fund_description
         });
 
         // ใน submitApplication function - เพิ่ม validation และ submission data
@@ -2407,7 +2433,7 @@ const showSubmissionConfirmation = async () => {
           subcategory_id: formData.subcategory_id,        // Dynamic resolved
           subcategory_budget_id: formData.subcategory_budget_id,  // Dynamic resolved
         });
-        
+
         submissionId = submissionResponse.submission.submission_id;
         setCurrentSubmissionId(submissionId);
         console.log('Created submission:', submissionId);
@@ -3870,7 +3896,7 @@ const showSubmissionConfirmation = async () => {
           <button
             type="button"
             onClick={submitApplication}
-            disabled={loading || saving || !formData.subcategory_id || !formData.subcategory_budget_id}
+            disabled={loading || saving || !formData.subcategory_id || !formData.subcategory_budget_id || !fundAvailable}
             className="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             {loading ? (
