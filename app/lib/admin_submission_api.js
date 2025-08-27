@@ -78,7 +78,20 @@ export const submissionsListingAPI = {
   // Get admin submissions (admin endpoint)
   async getAdminSubmissions(params) {
     try {
-      const response = await apiClient.get('/admin/submissions', { params });
+      // แก้ไขการส่ง parameters - เปลี่ยนชื่อให้ตรงกับ backend
+      const queryParams = { ...params };
+      
+      // แปลงชื่อ parameters ให้ตรงกับ backend
+      if (queryParams.category) {
+        queryParams.category_id = queryParams.category;
+        delete queryParams.category;
+      }
+      if (queryParams.subcategory) {
+        queryParams.subcategory_id = queryParams.subcategory;
+        delete queryParams.subcategory;
+      }
+      
+      const response = await apiClient.get('/admin/submissions', { params: queryParams });
       console.log('Admin submissions response:', response);
       return response;
     } catch (error) {
@@ -173,6 +186,35 @@ export const commonAPI = {
       return response;
     } catch (error) {
       console.error('Error fetching subcategories (common):', error);
+      throw error;
+    }
+  },
+
+  // Get subcategory budgets (NEW - for filter dropdown)
+  async getSubcategoryBudgets(subcategoryId = null, params = {}) {
+    try {
+      const queryParams = { ...params };
+      if (subcategoryId) queryParams.subcategory_id = subcategoryId;
+      
+      const response = await apiClient.get('/subcategory-budgets/validate', { params: queryParams });
+      console.log('Subcategory budgets response:', response);
+      return response;
+    } catch (error) {
+      console.error('Error fetching subcategory budgets:', error);
+      throw error;
+    }
+  },
+
+  // Get available quartiles for subcategory (NEW - alternative endpoint)
+  async getAvailableQuartiles(subcategoryId, params = {}) {
+    try {
+      const queryParams = { subcategory_id: subcategoryId, ...params };
+      
+      const response = await apiClient.get('/subcategory-budgets/available-quartiles', { params: queryParams });
+      console.log('Available quartiles response:', response);
+      return response;
+    } catch (error) {
+      console.error('Error fetching available quartiles:', error);
       throw error;
     }
   },

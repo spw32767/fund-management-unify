@@ -3,6 +3,7 @@
 
 import { useState, useEffect } from 'react';
 import { adminAPI } from '../../../lib/admin_api';
+import { commonAPI } from '../../../lib/admin_submission_api';
 
 export default function SubmissionFilters({ filters, onFilterChange, onSearch }) {
   const [categories, setCategories] = useState([]);
@@ -20,19 +21,11 @@ export default function SubmissionFilters({ filters, onFilterChange, onSearch })
     fetchInitialData();
   }, []);
 
-  // Fetch subcategories when category changes
-  useEffect(() => {
-    if (filters.category) {
-      fetchSubcategories(filters.category);
-    } else {
-      setSubcategories([]);
-    }
-  }, [filters.category]);
-
   // Fetch all initial data
   const fetchInitialData = async () => {
     await Promise.all([
       fetchCategories(),
+      fetchSubcategories(), // Load all subcategories independently
       fetchApplicationStatuses()
     ]);
   };
@@ -61,12 +54,13 @@ export default function SubmissionFilters({ filters, onFilterChange, onSearch })
     }
   };
 
-  // Fetch subcategories by category ID (Admin endpoint - no role filtering)
-  const fetchSubcategories = async (categoryId) => {
+  // Fetch subcategories (load all subcategories - not filtered by category)
+  const fetchSubcategories = async () => {
     setLoading(prev => ({ ...prev, subcategories: true }));
     try {
-      const response = await adminAPI.getSubcategoriesForAdmin(categoryId);
-      console.log('Subcategories response (admin):', response);
+      // Get ALL subcategories without filtering by category
+      const response = await adminAPI.getSubcategoriesForAdmin();
+      console.log('All subcategories response (admin):', response);
       
       if (response && Array.isArray(response.subcategories)) {
         setSubcategories(response.subcategories);
@@ -77,11 +71,32 @@ export default function SubmissionFilters({ filters, onFilterChange, onSearch })
         setSubcategories([]);
       }
     } catch (error) {
-      console.error('Error fetching subcategories:', error);
-      // Fallback to empty array if API fails
+      console.error('Error fetching all subcategories:', error);
       setSubcategories([]);
     } finally {
       setLoading(prev => ({ ...prev, subcategories: false }));
+    }
+  };
+
+  // Fetch subcategory budgets by subcategory ID (NEW)
+  const fetchSubcategoryBudgets = async (subcategoryId) => {
+    setLoading(prev => ({ ...prev, budgets: true }));
+    try {
+      const response = await commonAPI.getSubcategoryBudgets(subcategoryId);
+      console.log('Subcategory budgets response:', response);
+      
+      if (response && response.success && response.data && Array.isArray(response.data.available_budgets)) {
+        setSubcategoryBudgets(response.data.available_budgets);
+      } else {
+        console.warn('Unexpected budgets response format:', response);
+        setSubcategoryBudgets([]);
+      }
+    } catch (error) {
+      console.error('Error fetching subcategory budgets:', error);
+      // Fallback to empty array if API fails
+      setSubcategoryBudgets([]);
+    } finally {
+      setLoading(prev => ({ ...prev, budgets: false }));
     }
   };
 
@@ -121,11 +136,26 @@ export default function SubmissionFilters({ filters, onFilterChange, onSearch })
     onSearch(searchTerm);
   };
 
-  // Handle filter change
+  // Handle filter change - แต่ละ filter ทำงานแยกกัน และเลือกได้อันใดอันหนึ่ง
   const handleChange = (field, value) => {
-    // If changing category, reset subcategory
-    if (field === 'category') {
-      onFilterChange({ [field]: value, subcategory: '' });
+    if (field === 'category' || field === 'subcategory') {
+      // ถ้าเลือก category ให้ clear subcategory และในทางกลับกัน
+      // และส่งชื่อ parameter ที่ถูกต้องไป backend
+      if (field === 'category') {
+        onFilterChange({ 
+          category: value,          // เก็บไว้สำหรับ UI
+          category_id: value,      // ส่งไป backend
+          subcategory: '',         // clear UI
+          subcategory_id: ''       // clear backend param
+        });
+      } else if (field === 'subcategory') {
+        onFilterChange({ 
+          category: '',            // clear UI
+          category_id: '',         // clear backend param  
+          subcategory: value,      // เก็บไว้สำหรับ UI
+          subcategory_id: value    // ส่งไป backend
+        });
+      }
     } else {
       onFilterChange({ [field]: value });
     }
@@ -142,6 +172,8 @@ export default function SubmissionFilters({ filters, onFilterChange, onSearch })
     return subcategory?.subcategory_name || subcategoryId;
   };
 
+  // ลบ getBudgetName function
+
   const getStatusName = (statusCode) => {
     const status = applicationStatuses.find(s => s.status_code === statusCode);
     return status?.status_name || statusCode;
@@ -149,7 +181,7 @@ export default function SubmissionFilters({ filters, onFilterChange, onSearch })
 
   return (
     <div className="px-4 py-5 sm:px-6 border-b border-gray-200 bg-gray-50">
-      {/* Main Filters Row */}
+      {/* Main Filters Row - แก้ไขจาก grid-cols-5 เป็น grid-cols-4 */}
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 items-end">
         {/* Category (หมวดทุน - ทุนหลัก) */}
         <div>
@@ -161,11 +193,16 @@ export default function SubmissionFilters({ filters, onFilterChange, onSearch })
             name="category"
             value={filters.category || ''}
             onChange={(e) => handleChange('category', e.target.value)}
-            disabled={loading.categories}
+            disabled={loading.categories || filters.subcategory} // ปิดใช้งานถ้าเลือก subcategory แล้ว
             className="block w-full pl-3 pr-10 py-2 text-base border border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md bg-white disabled:bg-gray-100 disabled:text-gray-500"
           >
             <option value="">
-              {loading.categories ? 'กำลังโหลด...' : 'ทั้งหมด'}
+              {filters.subcategory 
+                ? 'เลือกประเภททุนก่อน หรือ ล้างตัวกรองประเภททุน'
+                : loading.categories 
+                ? 'กำลังโหลด...' 
+                : 'ทั้งหมด'
+              }
             </option>
             {categories.map((category) => (
               <option key={category.category_id} value={category.category_id}>
@@ -175,7 +212,7 @@ export default function SubmissionFilters({ filters, onFilterChange, onSearch })
           </select>
         </div>
 
-        {/* Subcategory (ประเภททุน - ทุนย่อย) */}
+        {/* Subcategory (ประเภททุน - ทุนย่อย) - ไม่ขึ้นอยู่กับ category แล้ว */}
         <div>
           <label htmlFor="subcategory" className="block text-sm font-medium text-gray-700 mb-1">
             ประเภททุน (ทุนย่อย)
@@ -185,12 +222,12 @@ export default function SubmissionFilters({ filters, onFilterChange, onSearch })
             name="subcategory"
             value={filters.subcategory || ''}
             onChange={(e) => handleChange('subcategory', e.target.value)}
-            disabled={!filters.category || loading.subcategories}
+            disabled={loading.subcategories || filters.category} // ปิดใช้งานถ้าเลือก category แล้ว
             className="block w-full pl-3 pr-10 py-2 text-base border border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md bg-white disabled:bg-gray-100 disabled:text-gray-500"
           >
             <option value="">
-              {!filters.category 
-                ? 'เลือกหมวดทุนก่อน' 
+              {filters.category 
+                ? 'เลือกหมวดทุนก่อน หรือ ล้างตัวกรองหมวดทุน'
                 : loading.subcategories 
                 ? 'กำลังโหลด...' 
                 : 'ทั้งหมด'
