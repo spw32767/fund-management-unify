@@ -49,7 +49,13 @@ function TeacherPageContent() {
       case 'promotion-fund':
         return <PromotionFundContent onNavigate={handleNavigate} />;
       case 'publication-reward-form':
-        return <PublicationRewardForm onNavigate={handleNavigate} categoryId={selectedFundData?.category_id} selectedYear={selectedFundData?.year} />;
+        return (
+          <PublicationRewardForm 
+            onNavigate={handleNavigate} 
+            categoryId={selectedFundData?.category_id} 
+            yearId={selectedFundData?.year_id}
+          />
+        );      
       case 'applications':
         return <ApplicationList onNavigate={handleNavigate} />;
       case 'received-funds':
