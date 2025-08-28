@@ -161,8 +161,11 @@ export default function AnnouncementPage() {
       header: "รายละเอียด",
       accessor: "description",
       render: (value) => (
-        <span className="text-gray-700">
-          {value ? (value.length > 50 ? value.substring(0, 50) + '...' : value) : '-'}
+        <span
+          className="text-gray-700 whitespace-pre-wrap break-words max-h-24 overflow-auto"
+          title={value || "-"}
+        >
+          {value || "-"}
         </span>
       )
     },
@@ -252,8 +255,11 @@ export default function AnnouncementPage() {
       header: "รายละเอียด",
       accessor: "description",
       render: (value) => (
-        <span className="text-gray-700">
-          {value ? (value.length > 50 ? value.substring(0, 50) + '...' : value) : '-'}
+        <span
+          className="text-gray-700 whitespace-pre-wrap break-words max-h-24 overflow-auto"
+          title={value || "-"}
+        >
+          {value || "-"}
         </span>
       )
     },
