@@ -6,17 +6,16 @@ import { Award, Upload, Users, FileText, Plus, X, Save, Send, AlertCircle, Searc
 import PageLayout from "../common/PageLayout";
 import SimpleCard from "../common/SimpleCard";
 import { systemAPI, authAPI } from '../../../lib/api';
-import { teacherAPI } from '../../../lib/teacher_api';
-import { 
-  submissionAPI, 
-  publicationDetailsAPI, 
-  fileAPI, 
-  documentAPI, 
-  publicationRewardAPI, 
+import {
+  submissionAPI,
+  publicationDetailsAPI,
+  fileAPI,
+  documentAPI,
+  publicationRewardAPI,
   publicationFormAPI,
   submissionUsersAPI,
-  publicationRewardRatesAPI, // เพิ่ม
-  rewardConfigAPI // เพิ่ม
+  rewardConfigAPI,
+  publicationBudgetAPI
 } from '../../../lib/publication_api';
 import Swal from 'sweetalert2';
 import { PDFDocument } from 'pdf-lib';
@@ -679,69 +678,16 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId }
   // External funding sources
   const [externalFundings, setExternalFundings] = useState([])
 
-  // Helper: resolve subcategory and budget (100% dynamic - no hardcode)
+  // Helper: resolve subcategory and budget via backend resolver
   const resolveBudgetAndSubcategory = async ({ category_id, year_id, author_status, journal_quartile }) => {
     try {
-      // Step 1: Get publication reward rates for this year
-      const yearObj = years.find(y => y.year_id === year_id);
-      if (!yearObj) return null;
-      
-      const ratesResponse = await publicationRewardRatesAPI.getRatesByYear(yearObj.year);
-      const rates = ratesResponse.rates || ratesResponse.data || [];
-      
-      // Step 2: Find matching rate configuration
-      const matchingRate = rates.find(rate => 
-        rate.author_status === author_status && 
-        rate.journal_quartile === journal_quartile
-      );
-      
-      if (!matchingRate) return null;
-      
-      // Step 3: Get subcategories with budgets for this category/year
-      const subsResponse = await teacherAPI.getVisibleSubcategories(category_id, year_id);
-      const subcategories = subsResponse.subcategories || [];
-      
-      // Step 4: Find matching subcategory budget by looking for fund_description
-      // that matches our rate configuration
-      for (const sub of subcategories) {
-        const budget = sub.subcategory_budget || sub.SubcategoryBudget;
-        if (!budget) continue;
-        
-        // Dynamic matching: look for budget that corresponds to this author_status + quartile
-        // The fund_description should contain information about the quartile
-        const fundDesc = budget.fund_description || '';
-        
-        // Check if this budget is for publication rewards
-        if (!fundDesc.includes('ตีพิมพ์') && !fundDesc.includes('เผยแพร่')) continue;
-        
-        // Check if quartile matches (dynamic check)
-        const quartileMatches = 
-          (journal_quartile === 'T5' && fundDesc.includes('5%')) ||
-          (journal_quartile === 'T10' && fundDesc.includes('10%')) ||
-          (journal_quartile === 'Q1' && fundDesc.includes('ควอร์ไทล์ 1')) ||
-          (journal_quartile === 'Q2' && fundDesc.includes('ควอร์ไทล์ 2')) ||
-          (journal_quartile === 'Q3' && fundDesc.includes('ควอร์ไทล์ 3')) ||
-          (journal_quartile === 'Q4' && fundDesc.includes('ควอร์ไทล์ 4')) ||
-          (journal_quartile === 'TCI' && fundDesc.includes('TCI'));
-        
-        if (!quartileMatches) continue;
-        
-        // Check if author status matches (dynamic check) 
-        const authorMatches = 
-          (author_status === 'first_author' && fundDesc.includes('ผู้แต่ง')) ||
-          (author_status === 'corresponding_author' && fundDesc.includes('ประพันธ์'));
-        
-        if (authorMatches) {
-          return {
-            subcategory_id: sub.subcategory_id,
-            subcategory_budget_id: budget.subcategory_budget_id,
-            fund_description: budget.fund_description,
-            reward_amount: matchingRate.reward_amount
-          };
-        }
-      }
-      
-      return null;
+      const response = await publicationBudgetAPI.resolve({
+        category_id,
+        year_id,
+        author_status,
+        journal_quartile
+      });
+      return response;
     } catch (err) {
       console.error('resolveBudgetAndSubcategory error:', err);
       return null;
@@ -751,137 +697,31 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId }
   // Helper: get years that have budgets for this category
   const getEnabledYears = async (category_id) => {
     try {
-      const yearsResp = await systemAPI.getYears();
-      const yearsData = yearsResp.years || yearsResp.data || [];
-      const enabled = [];
-      for (const y of yearsData) {
-        const subsResp = await teacherAPI.getVisibleSubcategories(category_id, y.year_id);
-        if (subsResp.subcategories && subsResp.subcategories.length > 0) {
-          enabled.push(y.year_id);
-        }
-      }
-      return enabled;
+      const resp = await publicationBudgetAPI.getEnabledYears(category_id);
+      const list = resp.years || resp.data || [];
+      return list.map(y => y.year_id);
     } catch (err) {
       console.error('getEnabledYears error:', err);
       return [];
     }
   };
 
-  // Helper: get valid combinations for year (100% dynamic)
-  const getValidCombinationsForYear = async (category_id, year_id) => {
-    try {
-      const validCombinations = [];
-      const yearObj = years.find(y => y.year_id === year_id);
-      if (!yearObj) return [];
-      
-      // Get all possible rates for this year
-      const ratesResponse = await publicationRewardRatesAPI.getRatesByYear(yearObj.year);
-      const rates = ratesResponse.rates || [];
-      
-      // Test each rate combination
-      for (const rate of rates) {
-        const resolved = await resolveBudgetAndSubcategory({
-          category_id,
-          year_id,
-          author_status: rate.author_status,
-          journal_quartile: rate.journal_quartile
-        });
-        
-        if (resolved) {
-          validCombinations.push({
-            author_status: rate.author_status,
-            journal_quartile: rate.journal_quartile,
-            reward_amount: rate.reward_amount,
-            subcategory_id: resolved.subcategory_id,
-            subcategory_budget_id: resolved.subcategory_budget_id
-          });
-        }
-      }
-      
-      return validCombinations;
-    } catch (err) {
-      console.error('getValidCombinationsForYear error:', err);
-      return [];
-    }
-  };
-
-  // Update form when selections change (100% dynamic)
-  useEffect(() => {
-    const updateFormDynamically = async () => {
-      if (!categoryId || !formData.year_id) return;
-      
-      // Get valid combinations
-      const validCombos = await getValidCombinationsForYear(categoryId, formData.year_id);
-      
-      // Update available options
-      const availableStatuses = [...new Set(validCombos.map(c => c.author_status))];
-      setAvailableAuthorStatuses(availableStatuses);
-      
-      // If current author_status is selected, update quartiles
-      if (formData.author_status) {
-        const availableQuartiles = validCombos
-          .filter(c => c.author_status === formData.author_status)
-          .map(c => c.journal_quartile);
-        setAvailableQuartiles(availableQuartiles);
-      }
-      
-      // If both are selected, resolve and update reward
-      if (formData.author_status && formData.journal_quartile) {
-        const matching = validCombos.find(c => 
-          c.author_status === formData.author_status && 
-          c.journal_quartile === formData.journal_quartile
-        );
-        
-        if (matching) {
-          setFormData(prev => ({
-            ...prev,
-            subcategory_id: matching.subcategory_id,
-            subcategory_budget_id: matching.subcategory_budget_id,
-            publication_reward: matching.reward_amount,
-            reward_amount: matching.reward_amount
-          }));
-          setResolutionError('');
-        } else {
-          setResolutionError('ไม่พบทุนสำหรับการจับคู่นี้');
-        }
-      }
-    };
-    
-    updateFormDynamically();
-  }, [categoryId, formData.year_id, formData.author_status, formData.journal_quartile]);
-
   // Helper: get valid author status & quartile pairs for year
   const getEnabledAuthorStatusQuartiles = async ({ category_id, year_id }) => {
     try {
-      const yearObj = years.find(y => y.year_id === year_id);
-      if (!yearObj) return { pairs: [], rMap: {}, bMap: {} };
-      const [ratesResp, subsResp] = await Promise.all([
-        publicationRewardRatesAPI.getRatesByYear(yearObj.year),
-        teacherAPI.getVisibleSubcategories(category_id, year_id)
-      ]);
-      const rates = ratesResp.rates || ratesResp.data || [];
-      const subs = subsResp.subcategories || [];
-      const pairs = [];
+      const resp = await publicationBudgetAPI.getValidOptions(category_id, year_id);
+      const options = resp.options || resp.data || [];
+      const pairs = options.map(o => ({ author_status: o.author_status, journal_quartile: o.journal_quartile }));
       const rMap = {};
       const bMap = {};
-      for (const rate of rates) {
-        rMap[`${rate.author_status}|${rate.journal_quartile}`] = rate.reward_amount;
-        const resolved = await resolveBudgetAndSubcategory({
-          category_id,
-          year_id,
-          author_status: rate.author_status,
-          journal_quartile: rate.journal_quartile,
-          subcategories: subs
-        });
-        if (resolved) {
-          pairs.push({ author_status: rate.author_status, journal_quartile: rate.journal_quartile });
-          bMap[`${rate.author_status}|${rate.journal_quartile}`] = {
-            subcategory_id: resolved.subcategory_id,
-            subcategory_budget_id: resolved.subcategory_budget_id,
-            fund_description: resolved.fund_descriptionMatched
-          };
-        }
-      }
+      options.forEach(o => {
+        rMap[`${o.author_status}|${o.journal_quartile}`] = o.reward_amount;
+        bMap[`${o.author_status}|${o.journal_quartile}`] = {
+          subcategory_id: o.subcategory_id,
+          subcategory_budget_id: o.subcategory_budget_id,
+          fund_description: o.fund_description
+        };
+      });
       return { pairs, rMap, bMap };
     } catch (err) {
       console.error('getEnabledAuthorStatusQuartiles error:', err);
@@ -993,7 +833,28 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId }
     }
   }, [formData.author_status, enabledPairs]);
 
-
+  // Update mapping when both author status and quartile selected
+  useEffect(() => {
+    if (formData.author_status && formData.journal_quartile) {
+      const key = `${formData.author_status}|${formData.journal_quartile}`;
+      const mapping = budgetMap[key];
+      const amount = ratesMap[key];
+      if (mapping) {
+        setFormData(prev => ({
+          ...prev,
+          subcategory_id: mapping.subcategory_id,
+          subcategory_budget_id: mapping.subcategory_budget_id,
+          publication_reward: amount,
+          reward_amount: amount
+        }));
+        setResolutionError('');
+      } else {
+        setFormData(prev => ({ ...prev, subcategory_id: null, subcategory_budget_id: null }));
+        setResolutionError('ไม่พบทุนสำหรับการจับคู่นี้');
+      }
+    }
+  }, [formData.author_status, formData.journal_quartile, ratesMap, budgetMap]);
+  
   // Update fee limits when quartile changes
   useEffect(() => {
     const updateFeeLimits = async () => {
