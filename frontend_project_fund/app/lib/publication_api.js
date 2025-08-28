@@ -541,6 +541,50 @@ export const publicationRewardRatesAPI = {
   }
 };
 
+// Dynamic publication budget resolution API
+export const publicationBudgetAPI = {
+  async getEnabledYears(categoryId) {
+    try {
+      const res = await apiClient.get(`/publication-rewards/enabled-years?category_id=${categoryId}`);
+      return res;
+    } catch (error) {
+      console.error('Error fetching enabled years:', error);
+      throw error;
+    }
+  },
+
+  async getValidOptions(categoryId, yearId) {
+    try {
+      const res = await apiClient.get(`/publication-rewards/options?category_id=${categoryId}&year_id=${yearId}`);
+      return res;
+    } catch (error) {
+      console.error('Error fetching valid options:', error);
+      throw error;
+    }
+  },
+
+  async resolve(params) {
+    try {
+      const query = new URLSearchParams(params).toString();
+      const res = await apiClient.get(`/publication-rewards/resolve?${query}`);
+      return res;
+    } catch (error) {
+      console.error('Error resolving publication budget:', error);
+      throw error;
+    }
+  },
+
+  async checkAvailability(id) {
+    try {
+      const res = await apiClient.get(`/publication-rewards/availability/${id}`);
+      return res;
+    } catch (error) {
+      console.error('Error checking availability:', error);
+      throw error;
+    }
+  }
+};
+
 // ========= เพิ่ม API สำหรับ Reward Config (manuscript & page charge fees) =========
 export const rewardConfigAPI = {
   // ดึงข้อมูลการตั้งค่าเงินรางวัล
