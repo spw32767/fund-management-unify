@@ -1,7 +1,7 @@
 // app/admin/components/submissions/SubmissionsManagement.js
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { FileText } from 'lucide-react';
 import PageLayout from '../common/PageLayout';
 import SubmissionTable from './SubmissionTable';
@@ -9,33 +9,34 @@ import SubmissionFilters from './SubmissionFilters';
 import SubmissionDetails from './SubmissionDetails';
 import ExportButton from './ExportButton';
 import { submissionsListingAPI, adminSubmissionAPI, commonAPI } from '../../../lib/admin_submission_api';
-import { adminAPI } from '../../../lib/admin_api';
 import { toast } from 'react-hot-toast';
 
+// ----------- CONFIG -----------
+const WINDOW_SIZE = 20;        // how many rows to show at a time
+const PAGE_SIZE_BACKEND = 100; // how many per request when we fetch-all
+
 export default function SubmissionsManagement() {
+  // Views
   const [currentView, setCurrentView] = useState('list');
   const [selectedSubmissionId, setSelectedSubmissionId] = useState(null);
-  const [submissions, setSubmissions] = useState([]);
-  const [loading, setLoading] = useState(true);
+
+  // Data stores
+  const [allSubmissions, setAllSubmissions] = useState([]); // everything for selected year (raw)
   const [years, setYears] = useState([]);
   const [selectedYear, setSelectedYear] = useState('');
-  const [pagination, setPagination] = useState({
-    currentPage: 1,
-    perPage: 20,
-    totalCount: 0,
-    totalPages: 0
-  });
-  
+
+  // Filters (client-side only; no year_id here—year lives in selectedYear)
   const [filters, setFilters] = useState({
-    year_id: '',
     category: '',
     subcategory: '',
     status: '',
     search: '',
     sort_by: 'created_at',
-    sort_order: 'desc'
+    sort_order: 'desc',
   });
 
+  // UI state
+  const [loading, setLoading] = useState(true);
   const [statistics, setStatistics] = useState({
     total_submissions: 0,
     pending_count: 0,
@@ -44,390 +45,405 @@ export default function SubmissionsManagement() {
     revision_count: 0
   });
 
-  // Fetch years for dropdown
+  // “Window” into filtered data (no page numbers)
+  const [cursor, setCursor] = useState(0); // start index of the window
+  const latestReq = useRef(0);             // race token for fetch-all
+
+  // Lookup maps for names/descriptions
+  const [catMap, setCatMap] = useState({});
+  const [subMap, setSubMap] = useState({});
+  const [budgetMap, setBudgetMap] = useState({});
+  const [subBudgetDescMap, setSubBudgetDescMap] = useState({});
+  const [detailsMap, setDetailsMap] = useState({});
+  const [userMap, setUserMap] = useState({});
+
+  // ---------- YEARS ----------
   const fetchYears = async () => {
     try {
-      // ใช้ commonAPI สำหรับ years (endpoint /years)
       const response = await commonAPI.getYears();
       console.log('Years response:', response);
-      
-      if (response && response.years && Array.isArray(response.years)) {
+      if (response?.years && Array.isArray(response.years)) {
         setYears(response.years);
-        // Set default to current/latest year if available
-        if (response.years.length > 0 && !selectedYear) {
+        if (!selectedYear && response.years.length) {
           const currentYear = response.years.find(y => y.is_current) || response.years[0];
-          setSelectedYear(currentYear.year_id.toString());
+          setSelectedYear(String(currentYear.year_id));
         }
       }
-    } catch (error) {
-      console.error('Error fetching years:', error);
+    } catch (err) {
+      console.error('Error fetching years:', err);
       toast.error('ไม่สามารถดึงข้อมูลปีงบประมาณได้');
     }
   };
 
-  // Fetch initial data
-  useEffect(() => {
-    fetchYears();
-  }, []);
+  useEffect(() => { fetchYears(); }, []); // initial only
 
-  // Update filters when selectedYear changes
-  useEffect(() => {
-    if (selectedYear) {
-      setFilters({ ...filters, year_id: selectedYear });
-    }
-  }, [selectedYear]);
-  const processSubmissionsData = async (rawSubmissions) => {
-    if (!rawSubmissions || !Array.isArray(rawSubmissions)) return [];
-    
-    // For first few submissions, fetch detailed data
-    const detailedSubmissions = await Promise.all(
-      rawSubmissions.slice(0, Math.min(rawSubmissions.length, 10)).map(async (submission) => {
-        try {
-          // Fetch detailed data for each submission
-          const detailResponse = await adminSubmissionAPI.getSubmissionDetails(
-            submission.submission_id || submission.id
-          );
-          
-          console.log(`Detail for submission ${submission.submission_id}:`, detailResponse);
-          
-          let processedSubmission = { ...submission };
-          
-          // Map publication details if exists
-          if (detailResponse.details && detailResponse.details.data) {
-            processedSubmission.PublicationRewardDetail = detailResponse.details.data;
-          }
-          
-          // Ensure submission_users array exists
-          if (detailResponse.submission_users && Array.isArray(detailResponse.submission_users)) {
-            processedSubmission.submission_users = detailResponse.submission_users;
-          }
-          
-          // Ensure documents array exists
-          if (detailResponse.documents && Array.isArray(detailResponse.documents)) {
-            processedSubmission.documents = detailResponse.documents;
-          }
-          
-          // Extract main author from submission_users if available
-          if (processedSubmission.submission_users && processedSubmission.submission_users.length > 0) {
-            const mainAuthor = processedSubmission.submission_users.find(
-              user => user.is_primary || user.role === 'owner'
-            );
-            if (mainAuthor && mainAuthor.user) {
-              processedSubmission.User = mainAuthor.user;
-            }
-          }
-          
-          // Normalize status information
-          if (detailResponse.submission && detailResponse.submission.status) {
-            processedSubmission.status_id = detailResponse.submission.status.application_status_id || submission.status_id;
-            processedSubmission.status_name = detailResponse.submission.status.status_name;
-          } else if (submission.status) {
-            processedSubmission.status_id = submission.status.application_status_id || submission.status_id;
-            processedSubmission.status_name = submission.status.status_name;
-          }
-          
-          return processedSubmission;
-          
-        } catch (error) {
-          console.error(`Error fetching details for submission ${submission.submission_id}:`, error);
-          // Return original submission if detail fetch fails
-          return { ...submission };
-        }
-      })
-    );
-    
-    // Process remaining submissions without detailed data
-    const remainingSubmissions = rawSubmissions.slice(10).map(submission => {
-      let processedSubmission = { ...submission };
-      
-      // Basic status processing for remaining items
-      if (submission.status) {
-        processedSubmission.status_id = submission.status.application_status_id || submission.status_id;
-        processedSubmission.status_name = submission.status.status_name;
-      }
-      
-      return processedSubmission;
-    });
-    
-    const allProcessedSubmissions = [...detailedSubmissions, ...remainingSubmissions];
-    
-    // Add display fields for all submissions
-    return allProcessedSubmissions.map(submission => {
-      submission.display_title = getDisplayTitle(submission);
-      submission.display_author = getDisplayAuthor(submission);
-      submission.display_amount = getDisplayAmount(submission);
-      submission.display_status = getDisplayStatus(submission);
-      submission.display_type = getSubmissionTypeDisplay(submission);
-      submission.display_date = submission.submitted_at || submission.created_at;
-      return submission;
-    });
-  };
-
-  // Helper function to get display title
-  const getDisplayTitle = (submission) => {
-    // First check if PublicationRewardDetail exists
-    if (submission.PublicationRewardDetail) {
-      return submission.PublicationRewardDetail.paper_title || 
-             submission.PublicationRewardDetail.title_th || 
-             submission.title || 
-             'ไม่ระบุชื่อเรื่อง';
-    }
-    
-    // Fallback for publication_reward type without details
-    if (submission.submission_type === 'publication_reward') {
-      return `รางวัลผลงานตีพิมพ์ - ${submission.submission_number || 'ไม่ระบุเลขที่'}`;
-    }
-    
-    // General fallback
-    return submission.title || submission.submission_number || 'ไม่ระบุชื่อเรื่อง';
-  };
-
-  // Helper function to get display author
-  const getDisplayAuthor = (submission) => {
-    // Check User field first
-    if (submission.User) {
-      const user = submission.User;
-      const firstName = user.user_fname || user.first_name || user.full_name?.split(' ')[0] || '';
-      const lastName = user.user_lname || user.last_name || user.full_name?.split(' ').slice(1).join(' ') || '';
-      return `${firstName} ${lastName}`.trim() || user.email || 'ไม่ระบุผู้ใช้';
-    }
-    
-    // Check submission_users array
-    if (submission.submission_users && submission.submission_users.length > 0) {
-      const mainAuthor = submission.submission_users.find(u => u.is_primary) || submission.submission_users[0];
-      if (mainAuthor && mainAuthor.user) {
-        const user = mainAuthor.user;
-        const firstName = user.user_fname || user.first_name || '';
-        const lastName = user.user_lname || user.last_name || '';
-        return `${firstName} ${lastName}`.trim() || user.email || 'ไม่ระบุผู้ใช้';
-      }
-    }
-    
-    // Check if submission has direct user info
-    if (submission.user_id) {
-      return `User ID: ${submission.user_id}`;
-    }
-    
-    return 'ไม่ระบุผู้ใช้';
-  };
-
-  // Helper function to get display amount
-  const getDisplayAmount = (submission) => {
-    // Check PublicationRewardDetail first
-    if (submission.PublicationRewardDetail) {
-      const detail = submission.PublicationRewardDetail;
-      const totalAmount = detail.total_reward_amount || 
-                         detail.total_amount || 
-                         detail.net_amount || 
-                         ((detail.publication_reward || detail.reward_amount || 0) + 
-                          (detail.revision_fee || detail.editing_fee || 0) + 
-                          (detail.publication_fee || detail.page_charge || 0) - 
-                          (detail.external_funding_amount || detail.external_fund_amount || 0));
-      
-      return totalAmount || 0;
-    }
-    
-    // Fallback to submission fields
-    return submission.requested_amount || submission.amount || 0;
-  };
-
-  // Helper function to get display status
-  const getDisplayStatus = (submission) => {
-    if (submission.status_name) {
-      return submission.status_name;
-    }
-    
-    if (submission.status && submission.status.status_name) {
-      return submission.status.status_name;
-    }
-    
-    // Status mapping based on application_status table
-    const statusMap = {
-      1: 'รอพิจารณา',
-      2: 'อนุมัติ', 
-      3: 'ปฏิเสธ',
-      4: 'ต้องการข้อมูลเพิ่มเติม',
-      5: 'ร่าง'
-    };
-    
-    return statusMap[submission.status_id] || 'ไม่ทราบสถานะ';
-  };
-
-  // Helper function to get submission type display
-  const getSubmissionTypeDisplay = (submission) => {
-    const typeMap = {
-      'publication_reward': 'รางวัลผลงานตีพิมพ์',
-      'fund_application': 'ขอทุนวิจัย',
-      'promotion_fund': 'ทุนอุดหนุนกิจกรรม'
-    };
-    
-    return typeMap[submission.submission_type] || submission.submission_type || 'ไม่ระบุประเภท';
-  };
-
-  // Fetch submissions
-  const fetchSubmissions = async () => {
+  // ---------- FETCH-ALL for selected year (no backend pagination in UI) ----------
+  const fetchAllForYear = async (yearId) => {
     setLoading(true);
+    const reqId = ++latestReq.current;
     try {
-      const params = {
-        page: pagination.currentPage,
-        limit: pagination.perPage,
-        ...filters
+      let page = 1;
+      let done = false;
+      const aggregate = [];
+
+      while (!done) {
+        const params = {
+          page,
+          limit: PAGE_SIZE_BACKEND,
+          year_id: yearId || '',
+          sort_by: 'created_at',
+          sort_order: 'desc',
+        };
+        console.log('[FetchAll] /admin/submissions params:', params);
+
+        const res = await submissionsListingAPI.getAdminSubmissions(params);
+        if (reqId !== latestReq.current) return; // race protection
+
+        const chunk = res?.submissions || res?.data || [];
+        aggregate.push(...chunk);
+
+        // stop if last page or no pagination info
+        const totalPages = res?.pagination?.total_pages || 0;
+        if (!chunk.length || totalPages <= page) done = true;
+        page += 1;
+
+        // safety cap
+        if (aggregate.length > 5000) done = true;
+      }
+
+      // Client-side hard filter by year (belt & suspenders)
+      const Y = String(yearId || '');
+      const filteredByYear = Y
+        ? aggregate.filter(s => String(s.year_id) === Y || String(s.Year?.year_id) === Y)
+        : aggregate;
+
+      console.log('[FetchAll] total fetched:', aggregate.length, 'after year filter:', filteredByYear.length);
+
+      setAllSubmissions(filteredByYear);
+      setCursor(0);
+
+      try {
+        const fs = await commonAPI.getFundStructure(); // GET /funds/structure
+
+        const cMap = {}, sMap = {}, bMap = {}, subDescMap = {};
+        const categories = fs?.categories || fs?.data?.categories || [];
+
+        categories.forEach(cat => {
+          const catId = cat.category_id ?? cat.id;
+          const catName = cat.category_name ?? cat.name;
+          if (catId != null) cMap[String(catId)] = catName || `หมวดทุน ${catId}`;
+
+          const subs = cat.subcategories || cat.children || [];
+          subs.forEach(sc => {
+            const sid = sc.subcategory_id ?? sc.id;
+            const sname = sc.subcategory_name ?? sc.name;
+            if (sid != null) sMap[String(sid)] = sname || `ประเภททุน ${sid}`;
+
+            const budgets = sc.subcategory_budgets || sc.budgets || sc.children || [];
+            budgets.forEach(b => {
+              const bid  = b.subcategory_budget_id ?? b.id;
+              const desc = b.fund_description ?? b.description ?? '';
+              if (bid != null) bMap[String(bid)] = desc;
+              if (sid != null && !subDescMap[String(sid)] && desc) subDescMap[String(sid)] = desc;
+            });
+          });
+        });
+
+        setCatMap(cMap);
+        setSubMap(sMap);
+        setBudgetMap(bMap);
+        setSubBudgetDescMap(subDescMap);
+      } catch (e) {
+        console.warn('Failed to load fund structure; will fallback to IDs', e);
+      }
+
+      // Compute statistics on the client (count by status)
+      const countBy = (id) => filteredByYear.filter(r => Number(r.status_id) === id).length;
+      setStatistics({
+        total_submissions: filteredByYear.length,
+        pending_count: countBy(1),
+        approved_count: countBy(2),
+        rejected_count: countBy(3),
+        revision_count: countBy(4),
+      });
+    } catch (err) {
+      if (reqId === latestReq.current) {
+        console.error('Error fetching submissions:', err);
+        toast.error('ไม่สามารถดึงข้อมูลคำร้องได้');
+      }
+    } finally {
+      if (reqId === latestReq.current) setLoading(false);
+    }
+  };
+
+  // ---------- CLIENT FILTER + SORT + SEARCH ----------
+  const filteredAndSorted = useMemo(() => {
+    let arr = allSubmissions;
+
+    // filter by dropdowns
+    if (filters.category) {
+      arr = arr.filter(s => String(s.category_id) === String(filters.category));
+    }
+    if (filters.subcategory) {
+      arr = arr.filter(s => String(s.subcategory_id) === String(filters.subcategory));
+    }
+    if (filters.status) {
+      arr = arr.filter(s => String(s.status_id) === String(filters.status));
+    }
+
+    // --- SEARCH across key columns ---
+    if (filters.search?.trim()) {
+      const q = filters.search.trim().toLowerCase();
+
+      const statusText = (sid) => {
+        switch (Number(sid)) {
+          case 1: return 'รอพิจารณา';
+          case 2: return 'อนุมัติแล้ว';
+          case 3: return 'ไม่อนุมัติ';
+          case 4: return 'ต้องแก้ไข';
+          default: return '';
+        }
       };
 
-      const response = await submissionsListingAPI.getAdminSubmissions(params);
-      console.log('Admin Submissions Response:', response);
-      
-      if (response.success || response.submissions) {
-        const rawSubmissions = response.submissions || response.data || [];
-        const processedSubmissions = await processSubmissionsData(rawSubmissions);
-        
-        console.log('Processed Submissions:', processedSubmissions);
-        setSubmissions(processedSubmissions);
-        
-        // Handle pagination
-        if (response.pagination) {
-          setPagination({
-            currentPage: response.pagination.current_page || 1,
-            perPage: response.pagination.per_page || 20,
-            totalCount: response.pagination.total_count || 0,
-            totalPages: response.pagination.total_pages || 0
-          });
-        }
-        
-        // Handle statistics
-        if (response.statistics) {
-          setStatistics(response.statistics);
-        } else {
-          // Calculate statistics from submissions if not provided
-          const stats = calculateStatistics(processedSubmissions);
-          setStatistics(stats);
-        }
-      }
-    } catch (error) {
-      console.error('Error fetching submissions:', error);
-      toast.error('ไม่สามารถดึงข้อมูลคำร้องได้');
-    } finally {
-      setLoading(false);
-    }
-  };
+      const norm = (v) => (v ?? '').toString().toLowerCase();
 
-  // Calculate statistics if not provided by API
-  const calculateStatistics = (submissions) => {
-    const stats = {
-      total_submissions: submissions.length,
-      pending_count: 0,    // status_id = 1 (รอพิจารณา)
-      approved_count: 0,   // status_id = 2 (อนุมัติ)
-      rejected_count: 0,   // status_id = 3 (ปฏิเสธ)  
-      revision_count: 0    // status_id = 4 (ต้องการข้อมูลเพิ่มเติม)
-      // status_id = 5 (ร่าง) - ไม่นับในสถิติหลัก
+      arr = arr.filter(s => {
+        // submission_number
+        const subno = norm(s.submission_number);
+
+        // category / subcategory names via maps (with row fallbacks)
+        const catName =
+          s?.Category?.category_name ||
+          (s?.category_id != null ? catMap[String(s.category_id)] : undefined) ||
+          s?.category_name || '';
+        const subName =
+          s?.Subcategory?.subcategory_name ||
+          (s?.subcategory_id != null ? subMap[String(s.subcategory_id)] : undefined) ||
+          s?.FundApplicationDetail?.Subcategory?.subcategory_name ||
+          s?.subcategory_name || '';
+
+        // article title (row detail if present; detailsMap for visible rows; row title fallback)
+        const dp = detailsMap[s.submission_id];
+        const dpo = dp?.details?.data || dp?.data || dp || {};
+        const article =
+          s?.PublicationRewardDetail?.paper_title ||
+          dpo?.paper_title ||
+          s?.title || '';
+
+        // author display (userMap then row)
+        const listAuthor =
+          (s?.User?.user_fname && s?.User?.user_lname)
+            ? `${s.User.user_fname} ${s.User.user_lname}`
+            : (s?.User?.email || '');
+        const authorFromMap = s?.user_id ? userMap[String(s.user_id)] : '';
+        const author = authorFromMap || listAuthor || '';
+
+        // amount as plain and formatted string
+        const rawAmt = Number(
+          (dpo?.total_amount ?? dpo?.total_reward_amount ?? dpo?.net_amount ??
+            (dpo?.reward_amount || 0) + (dpo?.revision_fee || 0) + (dpo?.publication_fee || 0) - (dpo?.external_funding_amount || 0)) ||
+          (s?.approved_amount ?? s?.requested_amount ?? s?.amount ?? 0)
+        );
+        const amtStr = isFinite(rawAmt) ? rawAmt.toString() : '';
+        const amtFmt = isFinite(rawAmt) ? rawAmt.toLocaleString() : '';
+
+        // status
+        const statusStr = norm(s.display_status || s.status?.status_name || statusText(s.status_id));
+
+        // date string
+        const dateVal = s?.display_date || s?.submitted_at || s?.created_at || '';
+        const dateStr = dateVal ? new Date(dateVal).toLocaleDateString('th-TH') : '';
+
+        const fields = [
+          subno,
+          norm(catName),
+          norm(subName),
+          norm(article),
+          norm(author),
+          amtStr, amtFmt,
+          statusStr,
+          norm(dateStr),
+        ];
+
+        return fields.some(f => f && f.includes(q));
+      });
+    }
+
+    // sort (client side)
+    const order = (filters.sort_order || 'desc').toLowerCase();
+    const sortBy = filters.sort_by || 'created_at';
+
+    const val = (s) => {
+      switch (sortBy) {
+        case 'updated_at': return new Date(s.updated_at || s.update_at || 0).getTime();
+        case 'submitted_at': return new Date(s.submitted_at || 0).getTime();
+        case 'submission_number': return (s.submission_number || '').toString();
+        case 'status_id': return Number(s.status_id) || 0;
+        case 'created_at':
+        default: return new Date(s.created_at || s.create_at || 0).getTime();
+      }
     };
 
-    submissions.forEach(submission => {
-      switch (submission.status_id) {
-        case 1:
-          stats.pending_count++;
-          break;
-        case 2:
-          stats.approved_count++;
-          break;
-        case 3:
-          stats.rejected_count++;
-          break;
-        case 4:
-          stats.revision_count++;
-          break;
-        // case 5: draft - ไม่นับในสถิติ
+    const arrCopy = [...arr].sort((a, b) => {
+      const A = val(a), B = val(b);
+      if (typeof A === 'string' || typeof B === 'string') {
+        return order === 'asc' ? String(A).localeCompare(String(B)) : String(B).localeCompare(String(A));
       }
+      return order === 'asc' ? A - B : B - A;
     });
 
-    return stats;
-  };
+    return arrCopy;
+  // include maps and details so search updates when they arrive
+  }, [allSubmissions, filters, catMap, subMap, userMap, detailsMap]);
 
-  // Fetch on mount and when filters/pagination change
+  // When year changes → fetch all for that year; reset window
   useEffect(() => {
-    if (currentView === 'list') {
-      fetchSubmissions();
+    if (currentView === 'list' && selectedYear !== undefined) {
+      fetchAllForYear(selectedYear);
     }
-  }, [pagination.currentPage, filters]);
+  }, [currentView, selectedYear]); // single effect; no duplicate triggers
 
-  // Get selected year info
-  const getSelectedYearInfo = () => {
-    if (!selectedYear) return { year: 'ทั้งหมด', budget: 0 };
-    const yearInfo = years.find(y => y.year_id.toString() === selectedYear);
-    return yearInfo || { year: selectedYear, budget: 0 };
-  };
+  // Fetch details for the visible 20 rows (for amount & author fallback)
+  useEffect(() => {
+    const visible = filteredAndSorted.slice(cursor, cursor + WINDOW_SIZE);
 
-  // Handle year change
+    // fetch details for ANY visible row that doesn't have details yet
+    const need = visible
+      .filter(s => !detailsMap[s.submission_id])
+      .map(s => s.submission_id);
+
+    if (!need.length) return;
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const results = await Promise.allSettled(
+          need.map(id => adminSubmissionAPI.getSubmissionDetails(id))
+        );
+        if (cancelled) return;
+
+        const add = {};
+        results.forEach((r, i) => {
+          if (r.status === 'fulfilled') add[need[i]] = r.value;
+        });
+        if (Object.keys(add).length) {
+          setDetailsMap(prev => ({ ...prev, ...add }));
+          try {
+            const addUsers = {};
+            Object.values(add).forEach(dp => {
+              const subUsers =
+                dp?.submission_users || dp?.SubmissionUsers ||
+                dp?.data?.submission_users || dp?.data?.SubmissionUsers || [];
+
+              subUsers.forEach(su => {
+                const u = su?.user || su?.User;
+                const id = String(u?.user_id ?? su?.user_id ?? '');
+                if (!id) return;
+                const first = u?.user_fname || u?.first_name || '';
+                const last  = u?.user_lname || u?.last_name || '';
+                const email = u?.email || '';
+                const name  = `${first} ${last}`.trim() || email || `User ${id}`;
+                addUsers[id] = name;
+              });
+
+              const owner =
+                dp?.User || dp?.user ||
+                dp?.submission?.User || dp?.Submission?.User ||
+                dp?.data?.submission?.User || dp?.data?.Submission?.User;
+              if (owner) {
+                const id = String(owner.user_id ?? '');
+                if (id) {
+                  const first = owner.user_fname || owner.first_name || '';
+                  const last  = owner.user_lname || owner.last_name || '';
+                  const email = owner.email || '';
+                  const name  = `${first} ${last}`.trim() || email || `User ${id}`;
+                  addUsers[id] = name;
+                }
+              }
+            });
+
+            if (Object.keys(addUsers).length) {
+              setUserMap(prev => ({ ...prev, ...addUsers }));
+            }
+          } catch {}
+        }
+      } catch {
+        // ignore; leave cells as fallbacks
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [cursor, filteredAndSorted, detailsMap]);
+
+  // Windowed slice (no page numbers)
+  const windowed = useMemo(() => {
+    const start = Math.max(0, Math.min(cursor, Math.max(0, filteredAndSorted.length - 1)));
+    return filteredAndSorted.slice(start, start + WINDOW_SIZE);
+  }, [filteredAndSorted, cursor]);
+
+  // ---------- Handlers ----------
   const handleYearChange = (yearId) => {
+    console.log('Year changed to:', yearId);
     setSelectedYear(yearId);
-    setPagination({ ...pagination, currentPage: 1 }); // Reset to first page
+    setCursor(0);
   };
 
-  // Handle filter change
   const handleFilterChange = (newFilters) => {
-    setFilters({ ...filters, ...newFilters });
-    setPagination({ ...pagination, currentPage: 1 }); // Reset to first page
+    setFilters(prev => ({ ...prev, ...newFilters }));
+    setCursor(0); // reset window on filter change
   };
 
-  // Handle search
   const handleSearch = (searchTerm) => {
-    setFilters({ ...filters, search: searchTerm });
-    setPagination({ ...pagination, currentPage: 1 });
+    setFilters(prev => ({ ...prev, search: searchTerm }));
+    setCursor(0);
   };
 
-  // Handle sort
   const handleSort = (column) => {
-    const newOrder = 
-      filters.sort_by === column && filters.sort_order === 'asc' 
-        ? 'desc' 
+    const newOrder =
+      filters.sort_by === column && filters.sort_order === 'asc'
+        ? 'desc'
         : 'asc';
-    
-    setFilters({
-      ...filters,
-      sort_by: column,
-      sort_order: newOrder
-    });
+    setFilters(prev => ({ ...prev, sort_by: column, sort_order: newOrder }));
+    setCursor(0);
   };
 
-  // Handle page change
-  const handlePageChange = (page) => {
-    setPagination({ ...pagination, currentPage: page });
+  const handlePrev = () => {
+    setCursor(c => Math.max(0, c - WINDOW_SIZE));
   };
 
-  // View submission details
+  const handleNext = () => {
+    setCursor(c => (c + WINDOW_SIZE < filteredAndSorted.length ? c + WINDOW_SIZE : c));
+  };
+
   const handleViewSubmission = (submissionId) => {
     setSelectedSubmissionId(submissionId);
     setCurrentView('details');
   };
 
-  // Back to list
   const handleBackToList = () => {
     setCurrentView('list');
     setSelectedSubmissionId(null);
-    fetchSubmissions(); // Refresh list when coming back
+    // We already have all data locally; no refetch needed
   };
 
-  // Handle export
   const handleExport = async (format) => {
     try {
-      const params = {
-        format: format,
-        ...filters
-      };
-      
-      const response = await submissionsListingAPI.exportSubmissions(params);
-      
-      if (response.data) {
-        toast.success(`เตรียมข้อมูล export เรียบร้อย (${response.total} รายการ)`);
-        // TODO: Implement actual file download when backend supports it
-      }
+      // You can export the currently filtered set
+      toast.success(`เตรียมข้อมูล export เรียบร้อย (${filteredAndSorted.length} รายการ)`);
+      // TODO: send filtered params or data to your backend exporter if needed
     } catch (error) {
       console.error('Error exporting:', error);
       toast.error('ไม่สามารถ export ข้อมูลได้');
     }
   };
 
-  // Show details view
+  const getSelectedYearInfo = () => {
+    if (!selectedYear) return { year: 'ทั้งหมด', budget: 0 };
+    const y = years.find(y => String(y.year_id) === String(selectedYear));
+    return y || { year: selectedYear, budget: 0 };
+  };
+
+  // ---------- Views ----------
   if (currentView === 'details' && selectedSubmissionId) {
     return (
       <SubmissionDetails
@@ -437,7 +453,7 @@ export default function SubmissionsManagement() {
     );
   }
 
-  // Show list view with PageLayout
+  // ---------- List View ----------
   return (
     <PageLayout
       title="จัดการคำร้องขอทุน"
@@ -449,7 +465,7 @@ export default function SubmissionsManagement() {
       ]}
       actions={<ExportButton onExport={handleExport} />}
     >
-      {/* Year Selection - Above Statistics */}
+      {/* Year Selector */}
       <div className="mb-6">
         <div className="bg-white rounded-lg shadow-md border border-gray-200 p-6">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
@@ -483,67 +499,17 @@ export default function SubmissionsManagement() {
         </div>
       </div>
 
-      {/* Statistics Cards */}
+      {/* Statistics (client-side over current year) */}
       <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-5 mb-6">
-        <div className="bg-white overflow-hidden shadow-md rounded-lg border border-gray-200">
-          <div className="px-4 py-5 sm:p-6">
-            <dt className="text-sm font-medium text-gray-500 truncate">
-              คำร้องทั้งหมด
-            </dt>
-            <dd className="mt-1 text-3xl font-semibold text-gray-900">
-              {statistics.total_submissions}
-            </dd>
-          </div>
-        </div>
-
-        <div className="bg-white overflow-hidden shadow-md rounded-lg border border-gray-200">
-          <div className="px-4 py-5 sm:p-6">
-            <dt className="text-sm font-medium text-gray-500 truncate">
-              รอพิจารณา
-            </dt>
-            <dd className="mt-1 text-3xl font-semibold text-yellow-600">
-              {statistics.pending_count}
-            </dd>
-          </div>
-        </div>
-
-        <div className="bg-white overflow-hidden shadow-md rounded-lg border border-gray-200">
-          <div className="px-4 py-5 sm:p-6">
-            <dt className="text-sm font-medium text-gray-500 truncate">
-              อนุมัติแล้ว
-            </dt>
-            <dd className="mt-1 text-3xl font-semibold text-green-600">
-              {statistics.approved_count}
-            </dd>
-          </div>
-        </div>
-
-        <div className="bg-white overflow-hidden shadow-md rounded-lg border border-gray-200">
-          <div className="px-4 py-5 sm:p-6">
-            <dt className="text-sm font-medium text-gray-500 truncate">
-              ไม่อนุมัติ
-            </dt>
-            <dd className="mt-1 text-3xl font-semibold text-red-600">
-              {statistics.rejected_count}
-            </dd>
-          </div>
-        </div>
-
-        <div className="bg-white overflow-hidden shadow-md rounded-lg border border-gray-200">
-          <div className="px-4 py-5 sm:p-6">
-            <dt className="text-sm font-medium text-gray-500 truncate">
-              ต้องแก้ไข
-            </dt>
-            <dd className="mt-1 text-3xl font-semibold text-orange-600">
-              {statistics.revision_count}
-            </dd>
-          </div>
-        </div>
+        <StatCard label="คำร้องทั้งหมด" value={statistics.total_submissions} />
+        <StatCard label="รอพิจารณา" value={statistics.pending_count} color="text-yellow-600" />
+        <StatCard label="อนุมัติแล้ว" value={statistics.approved_count} color="text-green-600" />
+        <StatCard label="ไม่อนุมัติ" value={statistics.rejected_count} color="text-red-600" />
+        <StatCard label="ต้องแก้ไข" value={statistics.revision_count} color="text-orange-600" />
       </div>
 
-      {/* Main Content */}
+      {/* Filters */}
       <div className="bg-white shadow-md rounded-lg border border-gray-200">
-        {/* Filters */}
         <SubmissionFilters
           filters={filters}
           onFilterChange={handleFilterChange}
@@ -552,101 +518,63 @@ export default function SubmissionsManagement() {
 
         {/* Table */}
         <SubmissionTable
-          submissions={submissions}
+          submissions={windowed}
           loading={loading}
           sortBy={filters.sort_by}
           sortOrder={filters.sort_order}
           onSort={handleSort}
           onView={handleViewSubmission}
-          onRefresh={fetchSubmissions}
+          catMap={catMap}
+          subMap={subMap}
+          budgetMap={budgetMap}
+          subBudgetDescMap={subBudgetDescMap}
+          detailsMap={detailsMap}
+          userMap={userMap}
         />
 
-        {/* Pagination */}
-        {!loading && submissions.length > 0 && (
+        {/* Simple Prev / Next controls (no page numbers) */}
+        {!loading && (
           <div className="bg-gray-50 px-4 py-3 flex items-center justify-between border-t border-gray-200 sm:px-6 rounded-b-lg">
-            <div className="flex-1 flex justify-between sm:hidden">
-              <button
-                onClick={() => handlePageChange(pagination.currentPage - 1)}
-                disabled={pagination.currentPage <= 1}
-                className="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                ก่อนหน้า
-              </button>
-              <button
-                onClick={() => handlePageChange(pagination.currentPage + 1)}
-                disabled={pagination.currentPage >= pagination.totalPages}
-                className="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                ถัดไป
-              </button>
+            <div className="text-sm text-gray-700">
+              แสดง <span className="font-medium">{filteredAndSorted.length === 0 ? 0 : cursor + 1}</span>{' '}
+              ถึง{' '}
+              <span className="font-medium">
+                {Math.min(cursor + WINDOW_SIZE, filteredAndSorted.length)}
+              </span>{' '}
+              จาก <span className="font-medium">{filteredAndSorted.length}</span> รายการ
             </div>
-            
-            <div className="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
-              <div>
-                <p className="text-sm text-gray-700">
-                  แสดง{' '}
-                  <span className="font-medium">
-                    {((pagination.currentPage - 1) * pagination.perPage) + 1}
-                  </span>{' '}
-                  ถึง{' '}
-                  <span className="font-medium">
-                    {Math.min(pagination.currentPage * pagination.perPage, pagination.totalCount)}
-                  </span>{' '}
-                  จาก{' '}
-                  <span className="font-medium">{pagination.totalCount}</span>{' '}
-                  รายการ
-                </p>
-              </div>
-              
-              <div>
-                <nav className="relative z-0 inline-flex rounded-md shadow-sm -space-x-px" aria-label="Pagination">
-                  <button
-                    onClick={() => handlePageChange(pagination.currentPage - 1)}
-                    disabled={pagination.currentPage <= 1}
-                    className="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    <span className="sr-only">หน้าก่อน</span>
-                    <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clipRule="evenodd" />
-                    </svg>
-                  </button>
-                  
-                  {/* Page numbers */}
-                  {Array.from({ length: Math.min(5, pagination.totalPages) }, (_, i) => {
-                    const pageNum = i + 1;
-                    const isCurrentPage = pageNum === pagination.currentPage;
-                    
-                    return (
-                      <button
-                        key={pageNum}
-                        onClick={() => handlePageChange(pageNum)}
-                        className={`relative inline-flex items-center px-4 py-2 border text-sm font-medium ${
-                          isCurrentPage
-                            ? 'z-10 bg-indigo-50 border-indigo-500 text-indigo-600'
-                            : 'bg-white border-gray-300 text-gray-500 hover:bg-gray-50'
-                        }`}
-                      >
-                        {pageNum}
-                      </button>
-                    );
-                  })}
-                  
-                  <button
-                    onClick={() => handlePageChange(pagination.currentPage + 1)}
-                    disabled={pagination.currentPage >= pagination.totalPages}
-                    className="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    <span className="sr-only">หน้าถัดไป</span>
-                    <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
-                    </svg>
-                  </button>
-                </nav>
-              </div>
+
+            <div className="space-x-2">
+              <button
+                onClick={handlePrev}
+                disabled={cursor <= 0}
+                className="inline-flex items-center px-3 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                ◀ ก่อนหน้า
+              </button>
+              <button
+                onClick={handleNext}
+                disabled={cursor + WINDOW_SIZE >= filteredAndSorted.length}
+                className="inline-flex items-center px-3 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                ถัดไป ▶
+              </button>
             </div>
           </div>
         )}
       </div>
     </PageLayout>
+  );
+}
+
+// Small presentational helper
+function StatCard({ label, value, color = 'text-gray-900' }) {
+  return (
+    <div className="bg-white overflow-hidden shadow-md rounded-lg border border-gray-200">
+      <div className="px-4 py-5 sm:p-6">
+        <dt className="text-sm font-medium text-gray-500 truncate">{label}</dt>
+        <dd className={`mt-1 text-3xl font-semibold ${color}`}>{value}</dd>
+      </div>
+    </div>
   );
 }

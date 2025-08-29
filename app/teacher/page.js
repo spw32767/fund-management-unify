@@ -16,6 +16,8 @@ import PublicationRewardForm from "./components/applications/PublicationRewardFo
 import UserProfile from "./components/profile/UserProfile";
 import PublicationRewardDetail from "./components/funds/PublicationRewardDetail";
 import AnnouncementPage from "./components/announcements/AnnouncementPage";
+import GenericFundApplicationForm from "./components/applications/GenericFundApplicationForm";
+
 
 function TeacherPageContent() {
   const [isOpen, setIsOpen] = useState(false);
@@ -68,6 +70,8 @@ function TeacherPageContent() {
         return <PublicationRewardDetail submissionId={selectedFundData?.submissionId} onNavigate={handleNavigate} />;
       case 'announcements':
         return <AnnouncementPage />;
+      case 'generic-fund-application':
+        return <GenericFundApplicationForm onNavigate={handleNavigate} />;
     }
   };
 
@@ -81,7 +85,8 @@ function TeacherPageContent() {
       'received-funds': 'ทุนที่เคยได้รับ',
       'application-form': 'ยื่นคำร้องใหม่',
       'publication-reward-form': 'รางวัลตีพิมพ์',
-      'announcements': 'ประกาศกองทุนวิจัยและนวัตกรรม'
+      'announcements': 'ประกาศกองทุนวิจัยและนวัตกรรม',
+      'generic-fund-application':'ทดสอบหน้าส่ง'
       };
       return titles[currentPage] || currentPage;
     };
