@@ -1,8 +1,7 @@
+// app/admin/components/submissions/SubmissionTable.js
 'use client';
 
-import { useState } from 'react';
-import { Eye, ChevronUp, ChevronDown } from 'lucide-react';
-import { toast } from 'react-hot-toast';
+import { ChevronDown, ChevronUp, Eye } from 'lucide-react';
 
 export default function SubmissionTable({
   submissions,
@@ -11,62 +10,41 @@ export default function SubmissionTable({
   sortOrder,
   onSort,
   onView,
-  onRefresh
+  onRefresh,
+  // lookups / enrichments
+  catMap = {},
+  subMap = {},
+  // we keep these to avoid breaking parent props, but we no longer use them for this column
+  budgetMap = {},
+  subBudgetDescMap = {},
+  detailsMap = {},
+  userMap = {},
 }) {
-
-  // Format date helper
+  // ---------- helpers ----------
   const formatDate = (dateString) => {
     if (!dateString) return '-';
     const date = new Date(dateString);
-    return date.toLocaleDateString('th-TH', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-    });
+    return date.toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric' });
   };
 
-  // Format currency helper
   const formatCurrency = (amount) => {
-    if (!amount || amount === 0) return '-';
-    return `฿${Number(amount).toLocaleString()}`;
+    const n = Number(amount ?? 0);
+    if (!isFinite(n) || n <= 0) return '-';
+    return `฿${n.toLocaleString()}`;
   };
 
-  // Get status badge style
   const getStatusBadge = (statusId) => {
     switch (statusId) {
-      case 1:
-        return 'bg-yellow-100 text-yellow-800 border-yellow-200';
-      case 2:
-        return 'bg-green-100 text-green-800 border-green-200';
-      case 3:
-        return 'bg-red-100 text-red-800 border-red-200';
-      case 4:
-        return 'bg-orange-100 text-orange-800 border-orange-200';
-      default:
-        return 'bg-gray-100 text-gray-800 border-gray-200';
+      case 1: return 'bg-yellow-100 text-yellow-800 border-yellow-200';
+      case 2: return 'bg-green-100 text-green-800 border-green-200';
+      case 3: return 'bg-red-100 text-red-800 border-red-200';
+      case 4: return 'bg-orange-100 text-orange-800 border-orange-200';
+      default: return 'bg-gray-100 text-gray-800 border-gray-200';
     }
   };
 
-  // Get submission type badge style
-  const getTypeBadge = (submissionType) => {
-    switch (submissionType) {
-      case 'publication_reward':
-        return 'bg-purple-100 text-purple-800 border-purple-200';
-      case 'fund_application':
-        return 'bg-blue-100 text-blue-800 border-blue-200';
-      case 'promotion_fund':
-        return 'bg-indigo-100 text-indigo-800 border-indigo-200';
-      default:
-        return 'bg-gray-100 text-gray-800 border-gray-200';
-    }
-  };
+  const handleSort = (column) => onSort(column);
 
-  // Handle sort
-  const handleSort = (column) => {
-    onSort(column);
-  };
-
-  // Get sort icon
   const getSortIcon = (column) => {
     if (sortBy !== column) {
       return (
@@ -75,7 +53,6 @@ export default function SubmissionTable({
         </svg>
       );
     }
-    
     return sortOrder === 'asc' ? (
       <ChevronUp className="w-4 h-4 text-indigo-600" />
     ) : (
@@ -83,27 +60,135 @@ export default function SubmissionTable({
     );
   };
 
-  // Handle action click
-  const handleAction = (submission, action) => {
-    setSelectedSubmission(submission);
-    setModalAction(action);
-    setShowApprovalModal(true);
+  // ---- Name helpers (keep your fixed columns intact) ----
+  const getCategoryName = (s) =>
+    s?.Category?.category_name ||
+    (s?.category_id != null ? catMap[String(s.category_id)] : undefined) ||
+    s?.category_name || '-';
+
+  const getSubcategoryName = (s) =>
+    s?.Subcategory?.subcategory_name ||
+    (s?.subcategory_id != null ? subMap[String(s.subcategory_id)] : undefined) ||
+    s?.FundApplicationDetail?.Subcategory?.subcategory_name ||
+    s?.subcategory_name || '-';
+
+  // ----- Normalize detail payloads (your logs showed details under details.data) -----
+  const getDP = (s) => detailsMap[s.submission_id] || null;
+  const getDPO = (s) =>
+    getDP(s)?.details?.data ||
+    getDP(s)?.data ||
+    getDP(s)?.payload ||
+    getDP(s) ||
+    null;
+
+  // Pull PublicationRewardDetail from details/list in a resilient way
+  const getPRDetail = (s) => {
+    const dpo = getDPO(s);
+    return (
+      s?.PublicationRewardDetail ||
+      dpo?.PublicationRewardDetail ||
+      dpo?.publication_reward_detail ||
+      dpo?.submission?.PublicationRewardDetail ||
+      dpo?.Submission?.PublicationRewardDetail ||
+      // Some backends put these fields directly on details.data
+      (dpo && (dpo.paper_title || dpo.total_amount || dpo.reward_amount) ? dpo : null) ||
+      null
+    );
   };
 
-  // Handle modal close
-  const handleModalClose = () => {
-    setShowApprovalModal(false);
-    setSelectedSubmission(null);
-    setModalAction(null);
+  // ---- ชื่อบทความ (Article Title) ONLY (no journal/indexing, no budget description) ----
+  const getArticleTitle = (s) => {
+    const pr = getPRDetail(s);
+    // Try paper_title first, then other possible title fields, then row title
+    return (
+      pr?.paper_title ||
+      pr?.title_th ||
+      pr?.title ||
+      s?.title ||
+      '-'
+    );
   };
 
-  // Handle action success
-  const handleActionSuccess = () => {
-    handleModalClose();
-    onRefresh();
-    toast.success('ดำเนินการสำเร็จ');
+  // ---- ผู้ยื่น (Author) — already working; keep as is but robust ----
+  const pickNameFromUserObj = (u) => {
+    if (!u || typeof u !== 'object') return '';
+    const first = u.user_fname || u.first_name || u.given_name || '';
+    const last  = u.user_lname || u.last_name || u.family_name || '';
+    const email = u.email || u.user_email || '';
+    const name = `${first} ${last}`.trim();
+    return name || email;
   };
 
+  const getAuthorName = (s) => {
+    const fromList = pickNameFromUserObj(
+      s?.User || s?.user || s?.Submitter || s?.submitter || s?.owner || s?.created_by
+    );
+    if (fromList) return fromList;
+
+    if (s?.user_id && userMap[String(s.user_id)]) return userMap[String(s.user_id)];
+
+    if (Array.isArray(s?.submission_users) && s.submission_users.length) {
+      const main = s.submission_users.find(u => u.is_primary) || s.submission_users[0];
+      if (main?.user_id && userMap[String(main.user_id)]) return userMap[String(main.user_id)];
+      const mName = pickNameFromUserObj(main?.User || main?.user);
+      if (mName) return mName;
+    }
+
+    const dp = getDP(s);
+    const dpo = getDPO(s);
+    const owner =
+      dp?.User || dp?.user ||
+      dpo?.User || dpo?.user ||
+      dpo?.submission?.User || dpo?.Submission?.User;
+    const fromDetails = pickNameFromUserObj(owner);
+    if (fromDetails) return fromDetails;
+
+    const suArr =
+      dp?.submission_users || dp?.SubmissionUsers ||
+      dpo?.submission_users || dpo?.SubmissionUsers || [];
+    if (Array.isArray(suArr) && suArr.length) {
+      const main = suArr.find(u => u.is_primary) || suArr[0];
+      if (main?.user_id && userMap[String(main.user_id)]) return userMap[String(main.user_id)];
+      const mName = pickNameFromUserObj(main?.user || main?.User);
+      if (mName) return mName;
+    }
+
+    const flat = pickNameFromUserObj({
+      user_fname: s.user_fname, user_lname: s.user_lname, email: s.email || s.user_email
+    });
+    if (flat) return flat;
+
+    return s?.user_id ? `ID ${s.user_id}` : 'ไม่ระบุผู้ยื่น';
+  };
+
+  // ---- จำนวนเงิน — uses PR detail (already correct) ----
+  const getAmount = (s) => {
+    const pr =
+      getPRDetail(s) ||
+      null;
+
+    if (pr) {
+      const total =
+        pr.total_amount ??
+        pr.total_reward_amount ??
+        pr.net_amount ??
+        (
+          (pr.reward_amount || 0) +
+          (pr.revision_fee || 0) +
+          (pr.publication_fee || 0) -
+          (pr.external_funding_amount || 0)
+        );
+      const n = Number(total || 0);
+      return isFinite(n) ? n : 0;
+    }
+
+    const n = Number(s.approved_amount ?? s.requested_amount ?? s.amount ?? 0);
+    return isFinite(n) ? n : 0;
+  };
+
+  const getDisplayDate = (s) => s?.display_date || s?.submitted_at || s?.created_at;
+
+  // ---------- UI states ----------
   if (loading) {
     return (
       <div className="flex justify-center items-center py-12">
@@ -113,7 +198,7 @@ export default function SubmissionTable({
     );
   }
 
-  if (submissions.length === 0) {
+  if (!submissions || submissions.length === 0) {
     return (
       <div className="text-center py-12">
         <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -125,106 +210,143 @@ export default function SubmissionTable({
     );
   }
 
+  // ---------- Table ----------
   return (
-    <>
-      <div className="overflow-hidden md:rounded-lg">
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50">
-            <tr>
-              <th
-                scope="col"
-                className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
-                onClick={() => handleSort('submission_number')}
-              >
-                <div className="flex items-center space-x-1">
-                  <span>เลขที่คำร้อง</span>
-                  {getSortIcon('submission_number')}
-                </div>
-              </th>
-              <th
-                scope="col"
-                className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
-                onClick={() => handleSort('submission_type')}
-              >
-                <div className="flex items-center space-x-1">
-                  <span>ประเภท</span>
-                  {getSortIcon('submission_type')}
-                </div>
-              </th>
-              <th
-                scope="col"
-                className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-              >
-                ชื่อเรื่อง/ผู้ยื่น
-              </th>
-              <th
-                scope="col"
-                className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
-                onClick={() => handleSort('status_id')}
-              >
-                <div className="flex items-center space-x-1">
-                  <span>สถานะ</span>
-                  {getSortIcon('status_id')}
-                </div>
-              </th>
-              <th
-                scope="col"
-                className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-              >
-                จำนวนเงิน
-              </th>
-              <th
-                scope="col"
-                className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
-                onClick={() => handleSort('created_at')}
-              >
-                <div className="flex items-center space-x-1">
-                  <span>วันที่สร้าง</span>
-                  {getSortIcon('created_at')}
-                </div>
-              </th>
-              <th scope="col" className="relative px-6 py-3">
-                <span className="sr-only">จัดการ</span>
-              </th>
-            </tr>
-          </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
-            {submissions.map((submission) => (
-              <tr key={submission.submission_id || submission.id} className="hover:bg-gray-50 transition-colors duration-150">
+    <div className="overflow-hidden md:rounded-lg">
+      <table className="min-w-full divide-y divide-gray-200">
+        <thead className="bg-gray-50">
+          <tr>
+            {/* เลขที่คำร้อง (sortable) */}
+            <th
+              scope="col"
+              className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+              onClick={() => handleSort('submission_number')}
+            >
+              <div className="flex items-center space-x-1">
+                <span>เลขที่คำร้อง</span>
+                {getSortIcon('submission_number')}
+              </div>
+            </th>
+
+            {/* หมวดทุน */}
+            <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              หมวดทุน
+            </th>
+
+            {/* ประเภททุน */}
+            <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              ประเภททุน
+            </th>
+
+            {/* ชื่อบทความ */}
+            <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              ชื่อบทความ
+            </th>
+
+            {/* ผู้ยื่น */}
+            <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              ผู้ยื่น
+            </th>
+
+
+            {/* จำนวนเงิน */}
+            <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              จำนวนเงิน
+            </th>
+
+            {/* สถานะ (sortable) */}
+            <th
+              scope="col"
+              className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+              onClick={() => handleSort('status_id')}
+            >
+              <div className="flex items-center space-x-1">
+                <span>สถานะ</span>
+                {getSortIcon('status_id')}
+              </div>
+            </th>
+
+            {/* วันที่ส่งคำร้อง (sortable) */}
+            <th
+              scope="col"
+              className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+              onClick={() => handleSort('created_at')}
+            >
+              <div className="flex items-center space-x-1">
+                <span>วันที่ส่งคำร้อง</span>
+                {getSortIcon('created_at')}
+              </div>
+            </th>
+
+            {/* การดำเนินการ */}
+            <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              จัดการ
+            </th>
+
+          </tr>
+        </thead>
+
+        <tbody className="bg-white divide-y divide-gray-200">
+          {submissions.map((s) => {
+            const amount = getAmount(s);
+            const catName = getCategoryName(s);
+            const subName = getSubcategoryName(s);
+            const articleTitle = getArticleTitle(s);
+            const author = getAuthorName(s);
+
+            return (
+              <tr key={s.submission_id || s.id} className="hover:bg-gray-50 transition-colors duration-150">
+                {/* เลขที่คำร้อง */}
                 <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                  {submission.submission_number || submission.id || '-'}
+                  {s.submission_number || s.id || '-'}
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm">
-                  <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${getTypeBadge(submission.submission_type)}`}>
-                    {submission.display_type || submission.submission_type || 'ไม่ระบุ'}
+
+                {/* หมวดทุน */}
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                  {catName}
+                </td>
+
+                {/* ประเภททุน */}
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                  <span className="block max-w-[260px] truncate" title={subName}>
+                    {subName}
                   </span>
                 </td>
-                <td className="px-6 py-4 text-sm text-gray-900">
-                  <div className="space-y-1">
-                    <div className="font-medium truncate max-w-xs" title={submission.display_title}>
-                      {submission.display_title || 'ไม่ระบุชื่อเรื่อง'}
-                    </div>
-                    <div className="text-sm text-gray-500">
-                      โดย: {submission.display_author || 'ไม่ระบุผู้ยื่น'}
-                    </div>
-                  </div>
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm">
-                  <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${getStatusBadge(submission.status_id)}`}>
-                    {submission.display_status || submission.status?.status_name || 'ไม่ทราบสถานะ'}
+
+                {/* ชื่อบทความ */}
+                <td className="px-6 py-4 text-sm text-gray-700">
+                  <span title={articleTitle} className="line-clamp-2">
+                    {articleTitle}
                   </span>
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-medium">
-                  {formatCurrency(submission.display_amount)}
+
+                {/* ผู้ยื่น */}
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                  {author || 'ไม่ระบุผู้ยื่น'}
                 </td>
+
+                {/* จำนวนเงิน */}
+                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                  {formatCurrency(amount)}
+                </td>
+
+                {/* สถานะ */}
+                <td className="px-6 py-4 whitespace-nowrap text-sm">
+                  <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${getStatusBadge(s.status_id)}`}>
+                    {s.display_status || s.status?.status_name || 'ไม่ทราบสถานะ'}
+                  </span>
+                </td>
+
+                {/* วันที่ส่งคำร้อง */}
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                  {formatDate(submission.display_date || submission.created_at)}
+                  {formatDate(getDisplayDate(s))}
                 </td>
+
+                {/* การดำเนินการ */}
                 <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                   <div className="flex items-center justify-end">
-                    {/* View Button Only */}
                     <button
-                      onClick={() => onView(submission.submission_id || submission.id)}
+                      onClick={() => onView(s.submission_id || s.id)}
                       className="inline-flex items-center px-3 py-2 text-sm font-medium text-indigo-600 hover:text-indigo-900 bg-indigo-50 hover:bg-indigo-100 rounded-md transition-colors"
                       title="ดูรายละเอียด"
                     >
@@ -234,10 +356,10 @@ export default function SubmissionTable({
                   </div>
                 </td>
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
   );
 }

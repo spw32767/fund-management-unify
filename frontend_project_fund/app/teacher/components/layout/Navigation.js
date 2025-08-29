@@ -68,6 +68,12 @@ export default function Navigation({
     label: 'ประกาศกองทุนวิจัยและนวัตกรรม',
     icon: FileText,
     hasSubmenu: false
+    },
+    {
+    id: 'generic-fund-application',
+    label: 'ทดสอบหน้า',
+    icon: FileText,
+    hasSubmenu: false
     }
   ];
 
