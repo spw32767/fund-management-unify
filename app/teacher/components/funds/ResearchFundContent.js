@@ -11,6 +11,7 @@ import { FORM_TYPE_CONFIG } from '../../../lib/form_type_config';
 
 export default function ResearchFundContent({ onNavigate }) {
   const [selectedYear, setSelectedYear] = useState("2566");
+  const [yearId, setYearId] = useState(null);
   const [fundCategories, setFundCategories] = useState([]);
   const [filteredFunds, setFilteredFunds] = useState([]);
   const [years, setYears] = useState([]);
@@ -120,6 +121,7 @@ export default function ResearchFundContent({ onNavigate }) {
       
       const response = await teacherAPI.getVisibleFundsStructure(year);
       console.log('Full API Response:', response);
+      setYearId(response.year_id);
       
       if (!response.categories || !Array.isArray(response.categories)) {
         console.error('No categories found or invalid format');
@@ -181,11 +183,14 @@ export default function ResearchFundContent({ onNavigate }) {
   };
 
   const handleViewForm = (subcategory) => {
+    const subcategoryId = subcategory.subcategory_id || subcategory.subcategorie_id;
+    const subcategoryName = subcategory.subcategory_name || subcategory.subcategorie_name;
 
-    if (onNavigate) {
+    if (onNavigate && subcategoryId) {
       onNavigate('generic-fund-application', {
         subcategory_id: subcategory.subcategory_id,
-        subcategory_name: subcategory.subcategory_name
+        subcategory_name: subcategory.subcategory_name,
+        year_id: yearId
       });
     }
   };
