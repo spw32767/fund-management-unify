@@ -181,16 +181,12 @@ export default function ResearchFundContent({ onNavigate }) {
   };
 
   const handleViewForm = (subcategory) => {
-    const formType = subcategory.form_type || 'download';
-    const formConfig = FORM_TYPE_CONFIG[formType];
-    
-    if (formConfig.isOnlineForm && onNavigate) {
-      // ไปหน้าฟอร์มออนไลน์ตาม route ที่กำหนด
-      onNavigate(formConfig.route, subcategory);
-    } else {
-      // ดาวน์โหลดฟอร์ม
-      const docUrl = subcategory.form_url || '/documents/default-fund-form.docx';
-      window.open(docUrl, '_blank');
+
+    if (onNavigate) {
+      onNavigate('generic-fund-application', {
+        subcategory_id: subcategory.subcategory_id,
+        subcategory_name: subcategory.subcategory_name
+      });
     }
   };
 
@@ -237,9 +233,11 @@ export default function ResearchFundContent({ onNavigate }) {
     const fundId = fund.subcategorie_id || fund.subcategory_id;
     const hasOnlineForm = fund.has_online_form === true;
     const maxAmountPerGrant = fund.max_amount_per_grant || fund.allocated_amount;
-    const formConfig = FORM_TYPE_CONFIG[fund.form_type] || FORM_TYPE_CONFIG['download'];
-    const buttonText = formConfig.buttonText;
-    const ButtonIcon = formConfig.buttonIcon === 'FileText' ? FileText : Download;
+    // const formConfig = FORM_TYPE_CONFIG[fund.form_type] || FORM_TYPE_CONFIG['download'];
+    // const buttonText = formConfig.buttonText;
+    // const ButtonIcon = formConfig.buttonIcon === 'FileText' ? FileText : Download;
+    const buttonText = 'ยื่นขอทุน';
+    const ButtonIcon = FileText;
 
     return (
       <tr key={fundId} className={!isAvailable ? 'bg-gray-50' : ''}>

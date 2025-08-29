@@ -843,3 +843,97 @@ export const fundFormAPI = {
     }
   }
 };
+
+// ==================== DOCUMENT TYPES API METHODS ====================
+
+export const documentTypesAPI = {
+  /**
+   * Get document types with optional filters
+   * @param {Object} filters - Filter options
+   * @param {string} filters.fund_type - Fund type filter (e.g., 'fund_application', 'publication_reward')
+   * @param {string} filters.subcategory_id - Subcategory ID filter
+   * @param {string} filters.category - Category filter
+   * @returns {Promise} API response containing document types
+   */
+  async getDocumentTypes(filters = {}) {
+    const params = new URLSearchParams();
+    
+    if (filters.fund_type) {
+      params.append('fund_type', filters.fund_type);
+    }
+    
+    if (filters.subcategory_id) {
+      params.append('subcategory_id', filters.subcategory_id);
+    }
+    
+    if (filters.category) {
+      params.append('category', filters.category);
+    }
+
+    const queryString = params.toString();
+    const endpoint = queryString ? `/document-types?${queryString}` : '/document-types';
+    
+    return apiClient.get(endpoint);
+  },
+
+  /**
+   * Get document types specifically for fund applications
+   * @param {number} subcategoryId - The subcategory ID to filter by
+   * @returns {Promise} API response containing filtered document types
+   */
+  async getDocumentTypesForFundApplication(subcategoryId) {
+    return this.getDocumentTypes({
+      fund_type: 'fund_application',
+      subcategory_id: subcategoryId
+    });
+  },
+
+  /**
+   * Get document types specifically for publication rewards
+   * @param {number} subcategoryId - The subcategory ID to filter by
+   * @returns {Promise} API response containing filtered document types
+   */
+  async getDocumentTypesForPublicationReward(subcategoryId = null) {
+    const filters = { fund_type: 'publication_reward' };
+    if (subcategoryId) {
+      filters.subcategory_id = subcategoryId;
+    }
+    return this.getDocumentTypes(filters);
+  },
+
+  /**
+   * Get all document types (admin only)
+   * @returns {Promise} API response containing all document types
+   */
+  async getAllDocumentTypes() {
+    return apiClient.get('/admin/document-types');
+  },
+
+  /**
+   * Create new document type (admin only)
+   * @param {Object} documentTypeData - Document type data
+   * @returns {Promise} API response
+   */
+  async createDocumentType(documentTypeData) {
+    return apiClient.post('/admin/document-types', documentTypeData);
+  },
+
+  /**
+   * Update document type (admin only)
+   * @param {number} documentTypeId - Document type ID
+   * @param {Object} documentTypeData - Updated document type data
+   * @returns {Promise} API response
+   */
+  async updateDocumentType(documentTypeId, documentTypeData) {
+    return apiClient.put(`/admin/document-types/${documentTypeId}`, documentTypeData);
+  },
+
+  /**
+   * Delete document type (admin only)
+   * @param {number} documentTypeId - Document type ID
+   * @returns {Promise} API response
+   */
+  async deleteDocumentType(documentTypeId) {
+    return apiClient.delete(`/admin/document-types/${documentTypeId}`);
+  }
+};

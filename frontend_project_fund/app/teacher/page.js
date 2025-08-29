@@ -25,12 +25,12 @@ function TeacherPageContent() {
   const [currentPage, setCurrentPage] = useState('profile');
   const [selectedFundData, setSelectedFundData] = useState(null);
 
-    const handleNavigate = (page, data) => {
-      // ถ้าออกจากหน้าฟอร์มใดๆ ให้ล้างข้อมูลทุนที่เลือก
-      if (['application-form', 'publication-reward-form'].includes(currentPage) &&
-          !['application-form', 'publication-reward-form'].includes(page)) {
-        setSelectedFundData(null);
-      }
+  const handleNavigate = (page, data) => {
+    // ถ้าออกจากหน้าฟอร์มใดๆ ให้ล้างข้อมูลทุนที่เลือก
+    if (['application-form', 'publication-reward-form', 'generic-fund-application'].includes(currentPage) &&
+        !['application-form', 'publication-reward-form', 'generic-fund-application'].includes(page)) {
+      setSelectedFundData(null);
+    }
 
     setCurrentPage(page);
     
@@ -57,6 +57,13 @@ function TeacherPageContent() {
             categoryId={selectedFundData?.category_id} 
             yearId={selectedFundData?.year_id}
           />
+        );
+      case 'generic-fund-application':
+        return (
+          <GenericFundApplicationForm 
+            onNavigate={handleNavigate} 
+            subcategoryData={selectedFundData}
+          />
         );      
       case 'applications':
         return <ApplicationList onNavigate={handleNavigate} />;
@@ -64,14 +71,12 @@ function TeacherPageContent() {
         return <UnderDevelopmentContent currentPage={currentPage} title="ทุนที่เคยได้รับ" />;
       case 'application-form':
         return <ApplicationForm selectedFund={selectedFundData} />;
-      default:
-        return <UnderDevelopmentContent currentPage={currentPage} />;
       case 'publication-reward-detail':
         return <PublicationRewardDetail submissionId={selectedFundData?.submissionId} onNavigate={handleNavigate} />;
       case 'announcements':
         return <AnnouncementPage />;
-      case 'generic-fund-application':
-        return <GenericFundApplicationForm onNavigate={handleNavigate} />;
+      default:
+        return <UnderDevelopmentContent currentPage={currentPage} />;
     }
   };
 
@@ -85,11 +90,11 @@ function TeacherPageContent() {
       'received-funds': 'ทุนที่เคยได้รับ',
       'application-form': 'ยื่นคำร้องใหม่',
       'publication-reward-form': 'รางวัลตีพิมพ์',
-      'announcements': 'ประกาศกองทุนวิจัยและนวัตกรรม',
-      'generic-fund-application':'ทดสอบหน้าส่ง'
-      };
-      return titles[currentPage] || currentPage;
+      'generic-fund-application': 'ยื่นขอทุน',
+      'announcements': 'ประกาศกองทุนวิจัยและนวัตกรรม'
     };
+    return titles[currentPage] || currentPage;
+  };
 
   return (
     <div className="min-h-screen bg-gray-100">
