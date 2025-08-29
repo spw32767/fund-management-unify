@@ -3,6 +3,7 @@
 package controllers
 
 import (
+	"log"
 	"net/http"
 	"strconv"
 	"strings"
@@ -11,6 +12,7 @@ import (
 	"fund-management-api/models"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 // ===================== SUBMISSIONS LISTING =====================
@@ -274,11 +276,9 @@ func GetStaffSubmissions(c *gin.Context) {
 	})
 }
 
-// GetAdminSubmissions returns all submissions for admin
+// GetAdminSubmissions returns admin list + stats with consistent filters
 func GetAdminSubmissions(c *gin.Context) {
 	roleID, _ := c.Get("roleID")
-
-	// Ensure user is admin
 	if roleID.(int) != 3 {
 		c.JSON(http.StatusForbidden, gin.H{"error": "Admin access required"})
 		return
@@ -289,13 +289,15 @@ func GetAdminSubmissions(c *gin.Context) {
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "25"))
 	submissionType := c.Query("type")
 	status := c.Query("status")
-	yearID := c.Query("year_id")
-	categoryID := c.Query("category")       // ✅ เพิ่ม
-	subcategoryID := c.Query("subcategory") // ✅ เพิ่ม
+	yearIDStr := c.Query("year_id")
+	categoryID := c.Query("category")
+	subcategoryID := c.Query("subcategory")
 	userID := c.Query("user_id")
 	dateFrom := c.Query("date_from")
 	dateTo := c.Query("date_to")
-	search := c.Query("search") // ✅ เพิ่ม search
+	search := c.Query("search")
+	sortBy := c.DefaultQuery("sort_by", "created_at")
+	sortOrder := strings.ToLower(c.DefaultQuery("sort_order", "desc"))
 
 	if page < 1 {
 		page = 1
@@ -304,84 +306,155 @@ func GetAdminSubmissions(c *gin.Context) {
 		limit = 25
 	}
 	offset := (page - 1) * limit
-
-	// Build comprehensive query for admin
-	var submissions []models.Submission
-	query := config.DB.Preload("User").Preload("Year").Preload("Status").
-		Where("deleted_at IS NULL")
-
-	// ✅ IMPORTANT: Apply year filter FIRST
-	if yearID != "" && yearID != "0" {
-		query = query.Where("year_id = ?", yearID)
+	if sortOrder != "asc" && sortOrder != "desc" {
+		sortOrder = "desc"
 	}
 
-	// Apply other filters
+	// year filter
+	var yearID int
+	var hasYearFilter bool
+	if yearIDStr != "" && yearIDStr != "0" {
+		yearID, _ = strconv.Atoi(yearIDStr)
+		hasYearFilter = true
+		log.Printf("Admin Submissions Filter - year_id=%d", yearID)
+	}
+
+	// Allowed sort fields (table-qualified for safety)
+	allowedSort := map[string]string{
+		"created_at":        "submissions.created_at",
+		"updated_at":        "submissions.updated_at",
+		"submitted_at":      "submissions.submitted_at",
+		"submission_number": "submissions.submission_number",
+		"status_id":         "submissions.status_id",
+	}
+	sortField, ok := allowedSort[sortBy]
+	if !ok {
+		sortField = "submissions.created_at"
+	}
+	orderClause := sortField + " " + strings.ToUpper(sortOrder)
+
+	// ---------- Base list query (with preloads) ----------
+	var submissions []models.Submission
+	listQ := config.DB.Preload("User").Preload("Year").Preload("Status").
+		Where("submissions.deleted_at IS NULL")
+
+	// Apply filters (identical set used later for stats)
+	if hasYearFilter {
+		listQ = listQ.Where("submissions.year_id = ?", yearID)
+	}
 	if submissionType != "" {
-		query = query.Where("submission_type = ?", submissionType)
+		listQ = listQ.Where("submissions.submission_type = ?", submissionType)
 	}
 	if status != "" {
-		query = query.Where("status_id = ?", status)
+		if st, err := strconv.Atoi(status); err == nil {
+			listQ = listQ.Where("submissions.status_id = ?", st)
+		}
 	}
 	if categoryID != "" {
-		query = query.Where("category_id = ?", categoryID)
+		if cat, err := strconv.Atoi(categoryID); err == nil {
+			listQ = listQ.Where("submissions.category_id = ?", cat)
+		}
 	}
 	if subcategoryID != "" {
-		query = query.Where("subcategory_id = ?", subcategoryID)
+		if sub, err := strconv.Atoi(subcategoryID); err == nil {
+			listQ = listQ.Where("submissions.subcategory_id = ?", sub)
+		}
 	}
 	if userID != "" {
-		query = query.Where("user_id = ?", userID)
+		if uid, err := strconv.Atoi(userID); err == nil {
+			listQ = listQ.Where("submissions.user_id = ?", uid)
+		}
 	}
 	if dateFrom != "" {
-		query = query.Where("created_at >= ?", dateFrom)
+		listQ = listQ.Where("DATE(submissions.created_at) >= ?", dateFrom)
 	}
 	if dateTo != "" {
-		query = query.Where("created_at <= ?", dateTo)
+		listQ = listQ.Where("DATE(submissions.created_at) <= ?", dateTo)
 	}
-
-	// ✅ Add search functionality
 	if search != "" {
-		searchTerm := "%" + search + "%"
-		query = query.Where(
-			`submission_number LIKE ? OR 
-			 submission_id IN (SELECT submission_id FROM fund_application_details WHERE project_title LIKE ?) OR 
-			 submission_id IN (SELECT submission_id FROM publication_reward_details WHERE paper_title LIKE ?) OR
-			 user_id IN (SELECT user_id FROM users WHERE CONCAT(user_fname, ' ', user_lname) LIKE ?)`,
-			searchTerm, searchTerm, searchTerm, searchTerm,
+		st := "%" + search + "%"
+		listQ = listQ.Where(`
+            submissions.submission_number LIKE ? OR
+            submissions.title LIKE ? OR
+            submissions.submission_id IN (SELECT submission_id FROM fund_application_details WHERE project_title LIKE ?) OR
+            submissions.submission_id IN (SELECT submission_id FROM publication_reward_details WHERE paper_title LIKE ? OR paper_title_en LIKE ?) OR
+            submissions.user_id IN (SELECT user_id FROM users WHERE CONCAT(user_fname, ' ', user_lname) LIKE ? OR email LIKE ?)`,
+			st, st, st, st, st, st, st,
 		)
 	}
 
-	// Get total count
+	// Count (with all filters)
 	var totalCount int64
-	query.Model(&models.Submission{}).Count(&totalCount)
+	listQ.Model(&models.Submission{}).Count(&totalCount)
 
-	// Get submissions with pagination
-	if err := query.Order("created_at DESC").Offset(offset).Limit(limit).Find(&submissions).Error; err != nil {
+	// Fetch page
+	if err := listQ.Order(orderClause).Offset(offset).Limit(limit).Find(&submissions).Error; err != nil {
+		log.Printf("GetAdminSubmissions list error: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch submissions"})
 		return
 	}
 
-	// ✅ IMPORTANT: Get statistics WITH year filter
-	var stats struct {
+	// ---------- Statistics (clone filters, count by status) ----------
+	type Stats struct {
 		TotalSubmissions int64 `json:"total_submissions"`
 		PendingCount     int64 `json:"pending_count"`
 		ApprovedCount    int64 `json:"approved_count"`
 		RejectedCount    int64 `json:"rejected_count"`
 		RevisionCount    int64 `json:"revision_count"`
 	}
+	stats := Stats{TotalSubmissions: totalCount}
 
-	// Base query for statistics (with year filter)
-	statsQuery := config.DB.Model(&models.Submission{}).Where("deleted_at IS NULL")
-	if yearID != "" && yearID != "0" {
-		statsQuery = statsQuery.Where("year_id = ?", yearID)
+	// base stats filter builder
+	baseStats := func() *gorm.DB {
+		q := config.DB.Model(&models.Submission{}).Where("submissions.deleted_at IS NULL")
+		if hasYearFilter {
+			q = q.Where("submissions.year_id = ?", yearID)
+		}
+		if submissionType != "" {
+			q = q.Where("submissions.submission_type = ?", submissionType)
+		}
+		if categoryID != "" {
+			if cat, err := strconv.Atoi(categoryID); err == nil {
+				q = q.Where("submissions.category_id = ?", cat)
+			}
+		}
+		if subcategoryID != "" {
+			if sub, err := strconv.Atoi(subcategoryID); err == nil {
+				q = q.Where("submissions.subcategory_id = ?", sub)
+			}
+		}
+		if userID != "" {
+			if uid, err := strconv.Atoi(userID); err == nil {
+				q = q.Where("submissions.user_id = ?", uid)
+			}
+		}
+		if dateFrom != "" {
+			q = q.Where("DATE(submissions.created_at) >= ?", dateFrom)
+		}
+		if dateTo != "" {
+			q = q.Where("DATE(submissions.created_at) <= ?", dateTo)
+		}
+		if search != "" {
+			st := "%" + search + "%"
+			q = q.Where(`
+                submissions.submission_number LIKE ? OR
+                submissions.title LIKE ? OR
+                submissions.submission_id IN (SELECT submission_id FROM fund_application_details WHERE project_title LIKE ?) OR
+                submissions.submission_id IN (SELECT submission_id FROM publication_reward_details WHERE paper_title LIKE ? OR paper_title_en LIKE ?) OR
+                submissions.user_id IN (SELECT user_id FROM users WHERE CONCAT(user_fname, ' ', user_lname) LIKE ? OR email LIKE ?)`,
+				st, st, st, st, st, st, st,
+			)
+		}
+		return q
 	}
 
-	// Count by status
-	statsQuery.Count(&stats.TotalSubmissions)
-	statsQuery.Where("status_id = 1").Count(&stats.PendingCount)
-	statsQuery.Where("status_id = 2").Count(&stats.ApprovedCount)
-	statsQuery.Where("status_id = 3").Count(&stats.RejectedCount)
-	statsQuery.Where("status_id = 4").Count(&stats.RevisionCount)
+	baseStats().Session(&gorm.Session{}).Where("submissions.status_id = ?", 1).Count(&stats.PendingCount)
+	baseStats().Session(&gorm.Session{}).Where("submissions.status_id = ?", 2).Count(&stats.ApprovedCount)
+	baseStats().Session(&gorm.Session{}).Where("submissions.status_id = ?", 3).Count(&stats.RejectedCount)
+	baseStats().Session(&gorm.Session{}).Where("submissions.status_id = ?", 4).Count(&stats.RevisionCount)
 
+	// ---------- Response ----------
+	totalPages := (totalCount + int64(limit) - 1) / int64(limit)
 	c.JSON(http.StatusOK, gin.H{
 		"success":     true,
 		"submissions": submissions,
@@ -389,13 +462,14 @@ func GetAdminSubmissions(c *gin.Context) {
 			"current_page": page,
 			"per_page":     limit,
 			"total_count":  totalCount,
-			"total_pages":  (totalCount + int64(limit) - 1) / int64(limit),
+			"total_pages":  totalPages,
+			"has_next":     page < int(totalPages),
+			"has_prev":     page > 1,
 		},
-		"statistics": stats,
 		"filters": gin.H{
 			"type":        submissionType,
 			"status":      status,
-			"year_id":     yearID,
+			"year_id":     yearIDStr, // echo back what was requested
 			"category":    categoryID,
 			"subcategory": subcategoryID,
 			"user_id":     userID,
@@ -403,6 +477,11 @@ func GetAdminSubmissions(c *gin.Context) {
 			"date_to":     dateTo,
 			"search":      search,
 		},
+		"sorting": gin.H{
+			"sort_by":    sortBy,
+			"sort_order": sortOrder,
+		},
+		"statistics": stats,
 	})
 }
 
