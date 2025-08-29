@@ -4,54 +4,31 @@ import apiClient from './api';
 // Admin Submission Management API
 export const adminSubmissionAPI = {
   
-  // Get submission details
+  // Admin detail view
+  // GET /api/v1/admin/submissions/:id/details
   async getSubmissionDetails(submissionId) {
-    // GET /api/v1/admin/submissions/:id/details
     return apiClient.get(`/admin/submissions/${submissionId}/details`);
   },
 
-  // Approve submission
-  async approveSubmission(submissionId, data) {
-    try {
-      const response = await apiClient.put(`/admin/submissions/${submissionId}/approve`, data);
-      return response;
-    } catch (error) {
-      console.error('Error approving submission:', error);
-      throw error;
-    }
+  // PATCH /api/v1/admin/submissions/:id/publication-reward/approval-amounts
+  // payload: { reward_approve_amount, revision_fee_approve_amount, publication_fee_approve_amount, total_approve_amount }
+  async updateApprovalAmounts(submissionId, payload) {
+    return apiClient.patch(
+      `/admin/submissions/${submissionId}/publication-reward/approval-amounts`,
+      payload
+    );
   },
 
-  // Reject submission
-  async rejectSubmission(submissionId, data) {
-    try {
-      const response = await apiClient.put(`/admin/submissions/${submissionId}/reject`, data);
-      return response;
-    } catch (error) {
-      console.error('Error rejecting submission:', error);
-      throw error;
-    }
+  // POST /api/v1/admin/submissions/:id/approve
+  // payload may include the 4 approve amounts + approval_comment
+  async approveSubmission(submissionId, payload) {
+    return apiClient.post(`/admin/submissions/${submissionId}/approve`, payload);
   },
 
-  // Request revision
-  async requestRevision(submissionId, data) {
-    try {
-      const response = await apiClient.put(`/admin/submissions/${submissionId}/request-revision`, data);
-      return response;
-    } catch (error) {
-      console.error('Error requesting revision:', error);
-      throw error;
-    }
-  },
-
-  // Export submissions
-  async exportSubmissions(params) {
-    try {
-      const response = await apiClient.get('/admin/submissions/export', { params });
-      return response;
-    } catch (error) {
-      console.error('Error exporting submissions:', error);
-      throw error;
-    }
+  // POST /api/v1/admin/submissions/:id/reject
+  // payload: { rejection_reason }
+  async rejectSubmission(submissionId, payload) {
+    return apiClient.post(`/admin/submissions/${submissionId}/reject`, payload);
   },
 
   async getUsersByIds(ids = []) {

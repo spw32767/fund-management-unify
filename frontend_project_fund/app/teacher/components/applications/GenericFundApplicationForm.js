@@ -182,8 +182,12 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
 
   const loadDocumentRequirements = async (subcategoryId) => {
     try {
-      // สร้าง method ใหม่ที่รองรับ parameters
-      const response = await apiClient.get('/document-types', { subcategory_id: subcategoryId });
+      // ดึงประเภทเอกสารที่ผูกกับทุนย่อยและประเภทฟอร์ม "fund_application"
+      const response = await apiClient.get('/document-types', {
+        fund_type: 'fund_application',
+        subcategory_id: subcategoryId
+      });
+
 
       if (!response.success || !response.document_types) {
         throw new Error('ไม่พบข้อมูลเอกสารที่ต้องส่ง');
