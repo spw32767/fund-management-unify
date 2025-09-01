@@ -1,7 +1,7 @@
 // app/teacher/components/applications/GenericFundApplicationForm.js
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { FileText, Upload, Save, Send, X, Eye, ArrowLeft, AlertCircle } from "lucide-react";
 import PageLayout from "../common/PageLayout";
 import SimpleCard from "../common/SimpleCard";
@@ -9,12 +9,14 @@ import { authAPI, systemAPI } from '../../../lib/api';
 
 // เพิ่ม apiClient สำหรับเรียก API โดยตรง
 import apiClient from '../../../lib/api';
+import { submissionAPI, documentAPI } from '../../../lib/teacher_api';
 
 // =================================================================
 // FILE UPLOAD COMPONENT
 // =================================================================
 function FileUpload({ onFileSelect, accept, multiple = false, error }) {
   const [isDragging, setIsDragging] = useState(false);
+    const fileInputRef = useRef(null);
 
   const handleDragOver = (e) => {
     e.preventDefault();
@@ -57,7 +59,7 @@ function FileUpload({ onFileSelect, accept, multiple = false, error }) {
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
-        onClick={() => document.getElementById("generic-file-input").click()}
+        onClick={() => fileInputRef.current?.click()}
       >
         <Upload className={`mx-auto h-8 w-8 mb-2 ${error ? "text-red-400" : "text-gray-400"}`} />
         <p className={`text-sm ${error ? "text-red-600" : "text-gray-600"}`}>
@@ -65,7 +67,7 @@ function FileUpload({ onFileSelect, accept, multiple = false, error }) {
         </p>
         <p className="text-xs text-gray-500 mt-1">ขนาดไฟล์สูงสุด 10MB</p>
         <input
-          id="generic-file-input"
+          ref={fileInputRef}
           type="file"
           accept={accept}
           multiple={multiple}
@@ -345,13 +347,39 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
         return;
       }
 
-      // TODO: Implement submit application API call
-      console.log('Submit application:', {
-        subcategory_id: subcategoryData.subcategory_id,
-        formData,
-        uploadedFiles,
-        isDraft: false
+      // Step 1: Create submission record
+      const submissionRes = await submissionAPI.createSubmission({
+        submission_type: 'fund_application',
+        year_id: subcategoryData?.year_id
       });
+      const submissionId = submissionRes?.submission?.submission_id;
+
+      // Step 2: Save basic fund details (ใช้ข้อมูลที่มีอยู่)
+      if (submissionId) {
+        await apiClient.post(`/submissions/${submissionId}/fund-details`, {
+          project_title: formData.name,
+          project_description: formData.phone,
+          requested_amount: 0,
+          subcategory_id: subcategoryData.subcategory_id
+        });
+      }
+
+      // Step 3: Upload files and attach to submission
+      const uploadPromises = Object.entries(uploadedFiles).map(async ([docTypeId, file]) => {
+        const uploadRes = await fileAPI.uploadFile(file);
+        return documentAPI.attachDocument(submissionId, {
+          file_id: uploadRes?.file?.file_id,
+          document_type_id: parseInt(docTypeId)
+        });
+      });
+      await Promise.all(uploadPromises);
+
+      // Step 4: Submit the submission
+      if (submissionId) {
+        await submissionAPI.submitSubmission(submissionId);
+      }
+
+
 
       alert('ส่งคำร้องสำเร็จ');
 

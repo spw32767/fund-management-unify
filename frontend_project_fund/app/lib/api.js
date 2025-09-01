@@ -190,9 +190,12 @@ class APIClient {
   async makeRequestWithRetry(url, options, retryCount = 0) {
     let token = this.getToken();
 
+    // Determine if payload is FormData so we don't force JSON headers
+    const isFormData = options.body instanceof FormData;
+
     // Default headers
     const headers = {
-      'Content-Type': 'application/json',
+      ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
       ...options.headers,
     };
 
