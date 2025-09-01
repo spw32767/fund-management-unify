@@ -336,14 +336,8 @@ export const fileAPI = {
   // 1. Upload file
   async uploadFile(file) {
     try {
-      const formData = new FormData();
-      formData.append('file', file);
-      
-      const response = await apiClient.post('/files/upload', formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data'
-        }
-      });
+      // Use apiClient's uploadFile helper to handle FormData and headers
+      const response = await apiClient.uploadFile('/files/upload', file);
       
       return response;
     } catch (error) {
