@@ -51,7 +51,7 @@ export default function ApplicationList({ onNavigate }) {
             application_id: sub.submission_id,
             application_number: sub.submission_number,
             project_title: getTitle(sub),
-            category_name: sub.category_name ?? null,
+            category_name: getCategoryName(sub),
             subcategory_name: getSubmissionTypeName(sub.submission_type),
             requested_amount: getAmount(sub),
             // API returns lowercase keys; keep PascalCase fallback for backward compatibility
@@ -101,13 +101,24 @@ export default function ApplicationList({ onNavigate }) {
 
   const getAmount = (submission) => {
     if (submission.submission_type === 'publication_reward') {
-      return submission.PublicationRewardDetail?.reward_amount || 
+      return submission.PublicationRewardDetail?.reward_amount ||
              submission.publication_reward_detail?.reward_amount || 0;
     } else if (submission.submission_type === 'fund_application') {
       return submission.FundApplicationDetail?.requested_amount ||
              submission.fund_application_detail?.requested_amount || 0;
     }
     return 0;
+  };
+
+  const getCategoryName = (submission) => {
+    return (
+      submission.category_name ||
+      submission.category?.category_name ||
+      submission.Category?.CategoryName ||
+      submission.FundApplicationDetail?.Subcategory?.Category?.CategoryName ||
+      submission.fund_application_detail?.subcategory?.category?.category_name ||
+      null
+    );
   };
 
   const getSubmissionTypeName = (type) => {
