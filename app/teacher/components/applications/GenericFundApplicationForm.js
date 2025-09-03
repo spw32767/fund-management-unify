@@ -365,11 +365,13 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
       }
 
       // Step 3: Upload files and attach to submission
-      const uploadPromises = Object.entries(uploadedFiles).map(async ([docTypeId, file]) => {
+      const uploadPromises = Object.entries(uploadedFiles).map(async ([docTypeId, file], index) => {
         const uploadRes = await fileAPI.uploadFile(file);
         return documentAPI.attachDocument(submissionId, {
           file_id: uploadRes?.file?.file_id,
-          document_type_id: parseInt(docTypeId)
+          document_type_id: parseInt(docTypeId),
+          description: file.name,
+          display_order: index + 1
         });
       });
       await Promise.all(uploadPromises);
