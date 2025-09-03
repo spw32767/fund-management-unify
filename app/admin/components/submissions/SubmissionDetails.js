@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useMemo, useState, useRef } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   ArrowLeft,
   FileText,
@@ -21,17 +21,20 @@ import {
   Check,
   X as XIcon,
 } from 'lucide-react';
-import Swal from 'sweetalert2';
-import 'sweetalert2/dist/sweetalert2.min.css';
+
 import PageLayout from '../common/PageLayout';
 import Card from '../common/Card';
 import { toast } from 'react-hot-toast';
+
 import apiClient from '@/app/lib/api';
 import { adminSubmissionAPI } from '@/app/lib/admin_submission_api';
 
-/** =========================
- *  Helpers
- *  ========================= */
+import Swal from 'sweetalert2';
+import 'sweetalert2/dist/sweetalert2.min.css';
+
+/* =========================
+ * Helpers
+ * ========================= */
 const StatusBadge = ({ statusId }) => {
   const map = {
     1: 'bg-yellow-100 text-yellow-800',
@@ -40,6 +43,7 @@ const StatusBadge = ({ statusId }) => {
     4: 'bg-orange-100 text-orange-800',
     5: 'bg-gray-100 text-gray-800',
   };
+  // 1 -> อยู่ระหว่างการพิจารณา
   const label = { 1: 'อยู่ระหว่างการพิจารณา', 2: 'อนุมัติ', 3: 'ไม่อนุมัติ', 4: 'ต้องแก้ไข', 5: 'แบบร่าง' }[statusId] || 'ไม่ทราบสถานะ';
   return (
     <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${map[statusId] || map[5]}`}>
@@ -69,6 +73,9 @@ const formatDate = (dateString) => {
 
 const formatCurrency = (n) =>
   Number(n || 0).toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+const formatCurrencyParen = (n) =>
+  `(${Number(Math.abs(n || 0)).toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})`;
 
 const parseCurrency = (raw) => {
   if (raw === '' || raw === null || raw === undefined) return 0;
@@ -100,38 +107,58 @@ const getUserFullName = (user) => {
 
 const getUserEmail = (user) => (user?.email ? user.email : '');
 
-/** =========================
- *  Inline Approval Panel (admin-only)
- *  ========================= */
-function ApprovalPanel({ submission, pubDetail, onPersist, onApprove, onReject }) {
-  const approvable = submission?.status_id === 1;
+// Map quartile codes to full labels
+const mapQuartileLabel = (q) => {
+  const s = String(q || '').trim().toUpperCase();
+  const map = {
+    Q1: 'Quartile 1',
+    Q2: 'Quartile 2',
+    Q3: 'Quartile 3',
+    Q4: 'Quartile 4',
+    T10: 'Top 10%',
+    T5: 'Top 5%',
+    T20: 'Top 20%',
+    T25: 'Top 25%',
+    TCI: 'TCI',
+  };
+  return map[s] || (s || '-');
+};
+
+/* =========================
+ * Approval Panel (admin-only)
+ * ========================= */
+function ApprovalPanel({ submission, pubDetail, onApprove, onReject }) {
+  const approvable = submission?.status_id === 1; // อยู่ระหว่างการพิจารณา
   if (!approvable) return null;
 
-  // --- Requested maxima (mirror "ข้อมูลการเงิน") ---
+  // ---- Requested maxima (match "Financial Information") ----
   const requestedReward = Number(pubDetail?.reward_amount || 0);
   const requestedRevision = Number(pubDetail?.revision_fee || pubDetail?.editing_fee || 0);
   const requestedPublication = Number(pubDetail?.publication_fee || pubDetail?.page_charge || 0);
   const requestedTotal = Number(pubDetail?.total_amount || pubDetail?.reward_amount || 0);
+  const extFunding = Number(pubDetail?.external_funding_amount || 0);
 
-  // numeric states used for validation / recalc / API
-  const [rewardApprove, setRewardApprove] = React.useState(pubDetail?.reward_approve_amount ?? 0);
-  const [revisionApprove, setRevisionApprove] = React.useState(pubDetail?.revision_fee_approve_amount ?? 0);
-  const [publicationApprove, setPublicationApprove] = React.useState(pubDetail?.publication_fee_approve_amount ?? 0);
-  const [totalApprove, setTotalApprove] = React.useState(
+  // ---- Numeric states for approval amounts ----
+  const [rewardApprove, setRewardApprove] = useState(pubDetail?.reward_approve_amount ?? 0);
+  const [revisionApprove, setRevisionApprove] = useState(pubDetail?.revision_fee_approve_amount ?? 0);
+  const [publicationApprove, setPublicationApprove] = useState(pubDetail?.publication_fee_approve_amount ?? 0);
+  const [totalApprove, setTotalApprove] = useState(
     pubDetail?.total_approve_amount ??
       ((pubDetail?.reward_approve_amount || 0) +
         (pubDetail?.revision_fee_approve_amount || 0) +
         (pubDetail?.publication_fee_approve_amount || 0))
   );
 
-  const [manualTotal, setManualTotal] = React.useState(false);
-  const [rejectReason, setRejectReason] = React.useState('');
-  const [saving, setSaving] = React.useState(false);
-  const [errors, setErrors] = React.useState({});
-  const [confirmAction, setConfirmAction] = React.useState(null); // 'approve' | 'reject' | null
+  // ---- Announce reference number ----
+  const [announceRef, setAnnounceRef] = useState(pubDetail?.announce_reference_number || '');
 
-  // keep numeric states in sync with payload on load
-  React.useEffect(() => {
+  const [manualTotal, setManualTotal] = useState(false);
+  const [rejectReason, setRejectReason] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [errors, setErrors] = useState({});
+
+  // Sync from pubDetail on load
+  useEffect(() => {
     setRewardApprove(pubDetail?.reward_approve_amount ?? 0);
     setRevisionApprove(pubDetail?.revision_fee_approve_amount ?? 0);
     setPublicationApprove(pubDetail?.publication_fee_approve_amount ?? 0);
@@ -141,10 +168,11 @@ function ApprovalPanel({ submission, pubDetail, onPersist, onApprove, onReject }
           (pubDetail?.revision_fee_approve_amount || 0) +
           (pubDetail?.publication_fee_approve_amount || 0))
     );
+    setAnnounceRef(pubDetail?.announce_reference_number || '');
   }, [pubDetail]);
 
-  // auto-recalc total (and clamp to requested total when auto)
-  React.useEffect(() => {
+  // Auto-recalc total (clamped to requested total when not manual)
+  useEffect(() => {
     if (!manualTotal) {
       const sum =
         Number(rewardApprove || 0) +
@@ -156,11 +184,12 @@ function ApprovalPanel({ submission, pubDetail, onPersist, onApprove, onReject }
 
   const validate = () => {
     const e = {};
+    const clampMsg = (max) => `ห้ามเกิน ฿${formatCurrency(max)}`;
     const check = (k, v, max) => {
       const num = Number(v);
       if (Number.isNaN(num)) e[k] = 'กรุณากรอกตัวเลขที่ถูกต้อง';
       else if (num < 0) e[k] = 'จำนวนต้องไม่เป็นค่าติดลบ';
-      else if (typeof max === 'number' && num > max) e[k] = `ห้ามเกิน ฿${formatCurrency(max)}`;
+      else if (typeof max === 'number' && num > max) e[k] = clampMsg(max);
     };
     check('rewardApprove', rewardApprove, requestedReward);
     check('revisionApprove', revisionApprove, requestedRevision);
@@ -179,129 +208,17 @@ function ApprovalPanel({ submission, pubDetail, onPersist, onApprove, onReject }
     setTotalApprove(Math.min(sum, requestedTotal));
   };
 
-  const approve = async () => {
-    if (!validate()) return;
-    if (!manualTotal) recalc();
-    setSaving(true);
-    try {
-      await onApprove({
-        reward_approve_amount: Number(rewardApprove),
-        revision_fee_approve_amount: Number(revisionApprove),
-        publication_fee_approve_amount: Number(publicationApprove),
-        total_approve_amount: Number(totalApprove),
-      });
-      toast.success('อนุมัติคำร้องแล้ว');
-    } catch (e) {
-      toast.error(e?.message || 'อนุมัติไม่สำเร็จ');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const reject = async () => {
-    if (!rejectReason.trim()) {
-      setErrors((p) => ({ ...p, rejectReason: 'กรุณาระบุเหตุผลการไม่อนุมัติ' }));
-      return;
-    }
-    setSaving(true);
-    try {
-      await onReject(rejectReason.trim());
-      toast.success('ดำเนินการไม่อนุมัติแล้ว');
-    } catch (e) {
-      toast.error(e?.message || 'ไม่อนุมัติไม่สำเร็จ');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  // ---- Simplest input with max clamp + helper text ----
-  const MoneyInput = React.useRef(function MoneyInputInner({
-    value, onChange, error, bold = false, disabled = false, aria,
-    max, min = 0, autoSyncWhenDisabled = false,
-  }) {
-    const sanitize = (raw) => {
-      // allow digits and a single dot, clamp to 2 decimals
-      let only = raw.replace(/[^\d.]/g, '').replace(/(\..*?)\..*/g, '$1');
-      const parts = only.split('.');
-      if (parts[1] && parts[1].length > 2) only = parts[0] + '.' + parts[1].slice(0, 2);
-      return only;
-    };
-
-    const [text, setText] = React.useState(() => (Number(value || 0) === 0 ? '' : String(value)));
-    const [touched, setTouched] = React.useState(false);
-
-    // sync from parent (when untouched) or while disabled & autosyncing (Total auto mode)
-    React.useEffect(() => {
-      if (!touched || (autoSyncWhenDisabled && disabled)) {
-        setText(Number(value || 0) === 0 ? '' : String(value));
-      }
-    }, [value, disabled, touched, autoSyncWhenDisabled]);
-
-    const handleChange = (e) => {
-      const raw = sanitize(e.target.value);
-      setTouched(true);
-
-      // parse & clamp to [min, max]
-      const num = raw === '' ? 0 : Number(raw);
-      const upper = typeof max === 'number' ? max : Number.POSITIVE_INFINITY;
-      const clamped = Math.min(Math.max(num, min), upper);
-
-      // **Hard-limit the field**: if user enters > max, snap the text to max immediately
-      if (num > upper) {
-        setText(String(upper));
-      } else {
-        setText(raw);
-      }
-      onChange(clamped);
-    };
-
-    const helper = typeof max === 'number' ? `สูงสุด ฿${formatCurrency(max)}` : null;
-
-    return (
-      <div className="flex-grow flex flex-col items-end">
-        <div
-          className={[
-            'inline-flex items-center rounded-md border bg-white shadow-sm transition-all',
-            'focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-blue-500',
-            error ? 'border-red-400' : 'border-gray-300 hover:border-blue-300',
-            disabled ? 'opacity-60' : ''
-          ].join(' ')}
-        >
-          <span className="px-3 text-gray-500 select-none">฿</span>
-          <input
-            aria-label={aria}
-            type="text"
-            inputMode="decimal"
-            placeholder="0.00"
-            className={[
-              'w-40 md:w-48 text-right font-mono tabular-nums bg-transparent',
-              'py-2 pr-3 outline-none border-0',
-              bold ? 'font-semibold' : 'font-medium'
-            ].join(' ')}
-            value={text}
-            onChange={handleChange}
-            disabled={disabled}
-          />
-        </div>
-        <div className="h-5 mt-1">
-          {error ? (
-            <p className="text-red-600 text-xs text-right">{error}</p>
-          ) : helper ? (
-            <p className="text-gray-500 text-xs text-right">{helper}</p>
-          ) : null}
-        </div>
-      </div>
-    );
-  }).current;
-
-  // SweetAlert2 confirms
+  // ---- SweetAlert2 confirmation flows ----
   const confirmApprove = async () => {
-    // validate form first
     if (!validate()) return;
     if (!manualTotal) recalc();
 
     const html = `
       <div style="text-align:left;font-size:14px;">
+        <div style="display:flex;justify-content:space-between;margin:.25rem 0;">
+          <span>เลขประกาศ</span>
+          <strong>${announceRef ? announceRef.replace(/</g,'&lt;').replace(/>/g,'&gt;') : '—'}</strong>
+        </div>
         <div style="display:flex;justify-content:space-between;margin:.25rem 0;">
           <span>เงินรางวัลที่อนุมัติ</span>
           <strong>฿${formatCurrency(rewardApprove)}</strong>
@@ -337,15 +254,19 @@ function ApprovalPanel({ submission, pubDetail, onPersist, onApprove, onReject }
       allowOutsideClick: () => !Swal.isLoading(),
       preConfirm: async () => {
         try {
+          setSaving(true);
           await onApprove({
             reward_approve_amount: Number(rewardApprove),
             revision_fee_approve_amount: Number(revisionApprove),
             publication_fee_approve_amount: Number(publicationApprove),
             total_approve_amount: Number(totalApprove),
+            announce_reference_number: announceRef.trim() || null,
           });
         } catch (e) {
           Swal.showValidationMessage(e?.message || 'อนุมัติไม่สำเร็จ');
           throw e;
+        } finally {
+          setSaving(false);
         }
       },
     });
@@ -396,10 +317,13 @@ function ApprovalPanel({ submission, pubDetail, onPersist, onApprove, onReject }
       allowOutsideClick: () => !Swal.isLoading(),
       preConfirm: async () => {
         try {
+          setSaving(true);
           await onReject(rejectReason.trim());
         } catch (e) {
           Swal.showValidationMessage(e?.message || 'ไม่อนุมัติไม่สำเร็จ');
           throw e;
+        } finally {
+          setSaving(false);
         }
       },
     });
@@ -414,10 +338,113 @@ function ApprovalPanel({ submission, pubDetail, onPersist, onApprove, onReject }
     }
   };
 
+  // ---- Simplest money input (with hard max clamp) ----
+  function MoneyInput({
+    value, onChange, error, bold = false, disabled = false, aria,
+    max, min = 0, autoSyncWhenDisabled = false,
+  }) {
+    const sanitize = (raw) => {
+      let only = raw.replace(/[^\d.]/g, '').replace(/(\..*?)\..*/g, '$1');
+      const parts = only.split('.');
+      if (parts[1] && parts[1].length > 2) only = parts[0] + '.' + parts[1].slice(0, 2);
+      return only;
+    };
+
+    const [text, setText] = useState(() => (Number(value || 0) === 0 ? '' : String(value)));
+    const [touched, setTouched] = useState(false);
+
+    // sync from parent (when untouched) or while disabled & autosyncing (Total auto mode)
+    useEffect(() => {
+      if (!touched || (autoSyncWhenDisabled && disabled)) {
+        setText(Number(value || 0) === 0 ? '' : String(value));
+      }
+    }, [value, disabled, touched, autoSyncWhenDisabled]);
+
+    const handleChange = (e) => {
+      const raw = sanitize(e.target.value);
+      setTouched(true);
+
+      // parse & clamp to [min, max]
+      const num = raw === '' ? 0 : Number(raw);
+      const upper = typeof max === 'number' ? max : Number.POSITIVE_INFINITY;
+      const clamped = Math.min(Math.max(num, min), upper);
+
+      // hard-limit the visible text to max immediately
+      if (num > upper) {
+        setText(String(upper));
+      } else {
+        setText(raw);
+      }
+      onChange(clamped);
+    };
+
+    const helper = typeof max === 'number' ? `สูงสุด ฿${formatCurrency(max)}` : null;
+
+    return (
+      <div className="flex-grow flex flex-col items-end">
+        <div
+          className={[
+            'inline-flex items-center rounded-md border bg-white shadow-sm transition-all',
+            'focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-blue-500',
+            error ? 'border-red-400' : 'border-gray-300 hover:border-blue-300',
+            disabled ? 'opacity-60' : ''
+          ].join(' ')}
+        >
+          <span className="px-3 text-gray-500 select-none">฿</span>
+          <input
+            aria-label={aria}
+            type="text"
+            inputMode="decimal"
+            placeholder="0.00"
+            className={[
+              'w-40 md:w-48 text-right font-mono tabular-nums bg-transparent',
+              'py-2 pr-3 outline-none border-0',
+              bold ? 'font-semibold' : 'font-medium'
+            ].join(' ')}
+            value={text}
+            onChange={handleChange}
+            disabled={disabled}
+          />
+        </div>
+        <div className="h-5 mt-1">
+          {error ? (
+            <p className="text-red-600 text-xs text-right">{error}</p>
+          ) : helper ? (
+            <p className="text-gray-500 text-xs text-right">{helper}</p>
+          ) : null}
+        </div>
+      </div>
+    );
+  }
+
+  // Read-only money display (for External Funding in panel)
+  function ReadonlyMoney({ value, aria }) {
+    return (
+      <div className="flex-grow flex flex-col items-end">
+        <div
+          className={[
+            'inline-flex items-center rounded-md border bg-gray-50 shadow-sm transition-all',
+            'border-gray-300 text-gray-600 opacity-80'
+          ].join(' ')}
+        >
+          <span className="px-3 text-gray-500 select-none">฿</span>
+          <input
+            aria-label={aria}
+            type="text"
+            readOnly
+            className="w-40 md:w-48 text-right font-mono tabular-nums bg-transparent py-2 pr-3 outline-none border-0"
+            value={formatCurrency(value)}
+          />
+        </div>
+        <div className="h-5 mt-1" />
+      </div>
+    );
+  }
+
   return (
-    <Card title="แผงอนุมัติ (Approval Panel)" icon={DollarSign} collapsible={false}>
+    <Card title="ผลการพิจารณา (Approval Result)" icon={DollarSign} collapsible={false}>
       <div className="space-y-4">
-        {/* Header */}
+        {/* Header: only Approved column */}
         <div className="grid grid-cols-2 pb-2 border-b text-sm text-gray-600">
           <div></div>
           <div className="text-right">
@@ -426,11 +453,11 @@ function ApprovalPanel({ submission, pubDetail, onPersist, onApprove, onReject }
           </div>
         </div>
 
-        {/* Reward (max = Requested Reward Amount) */}
+        {/* Reward */}
         <div className="grid grid-cols-2 items-center">
           <label className="block text-sm font-medium text-gray-700">
             เงินรางวัลที่อนุมัติ
-            <br /><span className="text-xs font-normal text-gray-600">Approve Reward Amount</span>
+            <br /><span className="text-xs font-normal text-gray-600">Reward</span>
           </label>
           <MoneyInput
             aria="Approved reward amount"
@@ -441,11 +468,11 @@ function ApprovalPanel({ submission, pubDetail, onPersist, onApprove, onReject }
           />
         </div>
 
-        {/* Revision (max = Requested Manuscript Editing Fee) */}
+        {/* Revision */}
         <div className="grid grid-cols-2 items-center">
           <label className="block text-sm font-medium text-gray-700">
             ค่าปรับปรุงบทความ (อนุมัติ)
-            <br /><span className="text-xs font-normal text-gray-600">Approve Manuscript Editing Fee</span>
+            <br /><span className="text-xs font-normal text-gray-600">Manuscript Editing Fee</span>
           </label>
           <MoneyInput
             aria="Approved revision fee"
@@ -456,11 +483,11 @@ function ApprovalPanel({ submission, pubDetail, onPersist, onApprove, onReject }
           />
         </div>
 
-        {/* Publication fee (max = Requested Page Charge) */}
+        {/* Publication fee */}
         <div className="grid grid-cols-2 items-center">
           <label className="block text-sm font-medium text-gray-700">
             ค่าธรรมเนียมการตีพิมพ์ (อนุมัติ)
-            <br /><span className="text-xs font-normal text-gray-600">Approve Page Charge</span>
+            <br /><span className="text-xs font-normal text-gray-600">Page Charge</span>
           </label>
           <MoneyInput
             aria="Approved publication fee"
@@ -471,30 +498,42 @@ function ApprovalPanel({ submission, pubDetail, onPersist, onApprove, onReject }
           />
         </div>
 
-        {/* External funding (read-only) */}
-        {(pubDetail?.external_funding_amount ?? 0) > 0 && (
+        {/* External funding (read-only number) */}
+        {extFunding > 0 && (
           <div className="grid grid-cols-2 items-center">
             <label className="block text-sm font-medium text-gray-700">
               เงินสนับสนุนจากภายนอก
-              <br /><span className="text-xs font-normal text-gray-600">External Funding — ไม่ต้องอนุมัติ</span>
+              <br /><span className="text-xs font-normal text-gray-600">External Funding</span>
             </label>
-            <div className="text-right text-gray-400">—</div>
+            <ReadonlyMoney aria="External funding amount (readonly)" value={extFunding} />
           </div>
         )}
 
-        {/* Total (max = Requested Total Reimbursement) */}
+        {/* Total */}
         <div className="grid grid-cols-2 items-center pt-2 border-t">
           <label className="block font-medium text-gray-700">
             รวมอนุมัติ (Total Approved)
-            <div className="text-xs font-normal text-gray-600 flex items-center gap-2 mt-1">
-              <label className="inline-flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  checked={manualTotal}
-                  onChange={(e) => setManualTotal(e.target.checked)}
-                />
-                ปรับเอง (Manual)
-              </label>
+            <div className="text-xs font-normal text-gray-600 flex items-center gap-3 mt-1">
+              {/* Switch: ปรับแก้ข้อมูล */}
+              <div className="inline-flex items-center gap-2">
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={manualTotal}
+                  onClick={() => setManualTotal((v) => !v)}
+                  className={`relative inline-flex h-5 w-9 items-center rounded-full transition ${
+                    manualTotal ? 'bg-blue-600' : 'bg-gray-300'
+                  }`}
+                >
+                  <span
+                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition ${
+                      manualTotal ? 'translate-x-4' : 'translate-x-1'
+                    }`}
+                  />
+                </button>
+                <span>ปรับแก้ข้อมูล</span>
+              </div>
+
               <button className="btn btn-ghost btn-xs inline-flex items-center gap-1" type="button" onClick={recalc}>
                 <RefreshCcw size={14} />
                 Recalculate
@@ -511,6 +550,30 @@ function ApprovalPanel({ submission, pubDetail, onPersist, onApprove, onReject }
             autoSyncWhenDisabled
             max={requestedTotal}
           />
+        </div>
+
+        {/* Announcement number */}
+        <div className="grid grid-cols-2 items-start pt-2">
+          <label className="block font-medium text-gray-700 pt-2">
+            เลขประกาศ
+            <div className="text-xs text-gray-500 mt-1">
+              จะถูกบันทึกลง <code>announce_reference_number</code>
+            </div>
+          </label>
+          <div className="flex flex-col items-end w-full">
+            <div className="w-full md:w-72 rounded-md border bg-white shadow-sm transition-all
+                            border-gray-300 hover:border-blue-300 focus-within:border-blue-500
+                            focus-within:ring-2 focus-within:ring-blue-500">
+              <input
+                type="text"
+                className="w-full p-2.5 rounded-md outline-none bg-transparent"
+                placeholder="เช่น 123/2568"
+                value={announceRef}
+                onChange={(e) => setAnnounceRef(e.target.value)}
+              />
+            </div>
+            <div className="h-5 mt-1" />
+          </div>
         </div>
 
         {/* Actions */}
@@ -536,16 +599,16 @@ function ApprovalPanel({ submission, pubDetail, onPersist, onApprove, onReject }
           {saving && <span className="text-sm text-gray-500">กำลังดำเนินการ...</span>}
         </div>
 
-        {/* Reject reason (styled like input field) */}
+        {/* Reject reason (input-like bordered) */}
         <div className="space-y-1">
           <label className="text-sm text-gray-600">เหตุผลการไม่อนุมัติ (กรณีปฏิเสธ)</label>
           <div
             className={[
-              "rounded-md border bg-white shadow-sm transition-all",
+              'rounded-md border bg-white shadow-sm transition-all',
               errors.rejectReason
-                ? "border-red-400 focus-within:border-red-500 focus-within:ring-2 focus-within:ring-red-500"
-                : "border-gray-300 hover:border-blue-300 focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-500"
-            ].join(" ")}
+                ? 'border-red-400 focus-within:border-red-500 focus-within:ring-2 focus-within:ring-red-500'
+                : 'border-gray-300 hover:border-blue-300 focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-500',
+            ].join(' ')}
           >
             <textarea
               className="w-full p-3 rounded-md outline-none bg-transparent resize-y min-h-[96px]"
@@ -564,16 +627,15 @@ function ApprovalPanel({ submission, pubDetail, onPersist, onApprove, onReject }
   );
 }
 
-
-/** =========================
- *  Main Component
- *  ========================= */
+/* =========================
+ * Main Component
+ * ========================= */
 export default function SubmissionDetails({ submissionId, onBack }) {
   const [loading, setLoading] = useState(true);
   const [submission, setSubmission] = useState(null);
   const [activeTab, setActiveTab] = useState('details');
 
-  // ---- Load data from admin endpoint (same shape as user page) ----
+  // Load data
   useEffect(() => {
     if (!submissionId) return;
     const load = async () => {
@@ -591,7 +653,7 @@ export default function SubmissionDetails({ submissionId, onBack }) {
           data.PublicationRewardDetail = res.details.data;
         }
 
-        // Attach applicant if present on response root
+        // Attach applicant if present
         const applicant =
           res?.applicant ||
           res?.applicant_user ||
@@ -616,12 +678,11 @@ export default function SubmissionDetails({ submissionId, onBack }) {
     load();
   }, [submissionId]);
 
-  // ---- Applicant & Co-authors (EXACT same logic as user page) ----
+  // Applicant detection (robust)
   const getApplicant = useMemo(
     () => () => {
       if (!submission) return null;
 
-      // Prefer explicit fields from API root (if present)
       const explicit =
         submission.applicant ||
         submission.applicant_user ||
@@ -631,7 +692,6 @@ export default function SubmissionDetails({ submissionId, onBack }) {
 
       const users = submission.submission_users || [];
 
-      // 1) Flags/roles that indicate "Applicant"
       const byFlag = users.find((u) => {
         const roleText = String(
           u.role || u.position || u.author_role || u.AuthorRole || ''
@@ -646,10 +706,8 @@ export default function SubmissionDetails({ submissionId, onBack }) {
           /applicant|ผู้ยื่น/i.test(roleText)
         );
       });
-
       if (byFlag) return byFlag.user || byFlag.User || null;
 
-      // 2) Match by IDs coming from various fields on submission
       const idCandidates = [
         submission.applicant_user_id,
         submission.applicant_id,
@@ -665,7 +723,6 @@ export default function SubmissionDetails({ submissionId, onBack }) {
       });
       if (byId) return byId.user || byId.User || null;
 
-      // 3) Fallback: first in display order
       const first = [...users].sort(
         (a, b) => (a.display_order || 0) - (b.display_order || 0)
       )[0];
@@ -692,7 +749,6 @@ export default function SubmissionDetails({ submissionId, onBack }) {
           const ud = u.user || u.User;
           const uid = ud?.user_id ?? ud?.id ?? u.user_id ?? u.UserID;
 
-          // treat these as applicant markers, exclude them
           const roleText = String(
             u.role || u.position || u.author_role || u.AuthorRole || ''
           );
@@ -712,15 +768,12 @@ export default function SubmissionDetails({ submissionId, onBack }) {
     [submission, getApplicant]
   );
 
-
-  // ---- Derived publication detail ----
   const pubDetail =
     submission?.PublicationRewardDetail ||
     submission?.publication_reward_detail ||
     submission?.details?.data ||
     {};
 
-  // ---- Approved amounts for display (if already approved) ----
   const approvedTotal =
     pubDetail?.total_approve_amount ??
     pubDetail?.approved_amount ??
@@ -733,7 +786,7 @@ export default function SubmissionDetails({ submissionId, onBack }) {
     approvedTotal != null &&
     !Number.isNaN(Number(approvedTotal));
 
-  /** File actions (unchanged behavior) */
+  // File actions
   const handleView = async (fileId) => {
     try {
       const token = apiClient.getToken();
@@ -759,19 +812,9 @@ export default function SubmissionDetails({ submissionId, onBack }) {
     }
   };
 
-  // ---- Admin actions wiring ----
-  const persistAmounts = async (amounts) => {
-    await adminSubmissionAPI.updateApprovalAmounts(submission.submission_id, amounts);
-    setSubmission((prev) => {
-      if (!prev) return prev;
-      const next = { ...prev };
-      next.PublicationRewardDetail = { ...(next.PublicationRewardDetail || {}), ...amounts };
-      return next;
-    });
-  };
-
-  const approve = async (amounts) => {
-    await adminSubmissionAPI.approveSubmission(submission.submission_id, { ...amounts });
+  // Admin actions → API wiring
+  const approve = async (payload) => {
+    await adminSubmissionAPI.approveSubmission(submission.submission_id, { ...payload });
     // reload
     const res = await adminSubmissionAPI.getSubmissionDetails(submission.submission_id);
     let data = res?.submission || res;
@@ -796,7 +839,6 @@ export default function SubmissionDetails({ submissionId, onBack }) {
     setSubmission(data);
   };
 
-  // ---- Loading / error states ----
   if (loading) {
     return (
       <PageLayout
@@ -885,6 +927,15 @@ export default function SubmissionDetails({ submissionId, onBack }) {
                   <span className="ml-2 font-medium">{formatDate(submission.approved_at)}</span>
                 </div>
               )}
+              {/* Announce reference number (show after approved) */}
+              {submission.status_id === 2 && pubDetail?.announce_reference_number && (
+                <div>
+                  <span className="text-gray-500">เลขประกาศ:</span>
+                  <span className="ml-2 font-medium break-all">
+                    {pubDetail.announce_reference_number}
+                  </span>
+                </div>
+              )}
             </div>
           </div>
           <div className="text-right">
@@ -943,7 +994,7 @@ export default function SubmissionDetails({ submissionId, onBack }) {
       {/* Content */}
       {activeTab === 'details' && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Publication Information — field names match the user view */}
+          {/* Publication Information */}
           <Card title="ข้อมูลบทความ (Article Information)" icon={BookOpen} collapsible={false}>
             <div className="space-y-4">
               <div>
@@ -1009,7 +1060,9 @@ export default function SubmissionDetails({ submissionId, onBack }) {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="text-sm text-gray-500">ควอร์ไทล์ (Quartile)</label>
-                  <p className="font-medium">{pubDetail.quartile || pubDetail.journal_quartile || '-'}</p>
+                  <p className="font-medium">
+                    {mapQuartileLabel(pubDetail.quartile || pubDetail.journal_quartile || '')}
+                  </p>
                 </div>
                 <div>
                   <label className="text-sm text-gray-500">Impact Factor</label>
@@ -1063,13 +1116,11 @@ export default function SubmissionDetails({ submissionId, onBack }) {
               )}
             </div>
           </Card>
-
-          {/* Financial (user-like) */}
+          
+          {/* Financial Information */}
           <Card title="ข้อมูลการเงิน (Financial Information)" icon={DollarSign} collapsible={false}>
             <div className="space-y-4">
-              <div
-                className={`grid ${showApprovedColumn ? 'grid-cols-3' : 'grid-cols-2'} pb-2 border-b text-sm text-gray-600`}
-              >
+              <div className={`grid ${showApprovedColumn ? 'grid-cols-3' : 'grid-cols-2'} pb-2 border-b text-sm text-gray-600`}>
                 <div></div>
                 <div className="text-right">
                   <div>จำนวนที่ขอ</div>
@@ -1104,7 +1155,7 @@ export default function SubmissionDetails({ submissionId, onBack }) {
                   <label className="block text-sm font-medium text-gray-700">
                     ค่าปรับปรุงบทความ
                     <br />
-                    <span className="text-xs font-normal text-gray-600">Manuscript Editing Fee</span>
+                    <span className="text-xs font-normal text-gray-600">Manuscript Editing Fee (Baht)</span>
                   </label>
                   <span className="text-right">
                     ฿{formatCurrency(pubDetail.revision_fee || pubDetail.editing_fee || 0)}
@@ -1138,15 +1189,17 @@ export default function SubmissionDetails({ submissionId, onBack }) {
                 </div>
               )}
 
-              {/* External funding */}
+              {/* External funding (divider + parentheses) */}
               {pubDetail.external_funding_amount > 0 && (
-                <div className={`grid ${showApprovedColumn ? 'grid-cols-3' : 'grid-cols-2'} items-center`}>
+                <div className={`grid ${showApprovedColumn ? 'grid-cols-3' : 'grid-cols-2'} items-center pt-2 mt-2 border-t`}>
                   <label className="block text-sm font-medium text-gray-700">
                     เงินสนับสนุนจากภายนอก
                     <br />
                     <span className="text-xs font-normal text-gray-600">External Funding Sources</span>
                   </label>
-                  <span className="text-right text-red-600">-฿{formatCurrency(pubDetail.external_funding_amount)}</span>
+                  <span className="text-right text-red-600">
+                    ฿{formatCurrencyParen(pubDetail.external_funding_amount)}
+                  </span>
                   {showApprovedColumn && <span></span>}
                 </div>
               )}
@@ -1174,12 +1227,9 @@ export default function SubmissionDetails({ submissionId, onBack }) {
           <ApprovalPanel
             submission={submission}
             pubDetail={pubDetail}
-            onPersist={persistAmounts}
             onApprove={approve}
             onReject={reject}
           />
-
-
         </div>
       )}
 
@@ -1278,24 +1328,5 @@ export default function SubmissionDetails({ submissionId, onBack }) {
         </Card>
       )}
     </PageLayout>
-  );
-}
-
-/** =========================
- *  Small subcomponent: labeled money input
- *  ========================= */
-function LabeledMoney({ label, value, onChange, error }) {
-  return (
-    <div>
-      <label className="block text-sm text-gray-700 mb-1">{label}</label>
-      <input
-        type="text"
-        className={`input input-bordered w-full ${error ? 'border-red-400' : ''}`}
-        value={formatCurrency(value)}
-        onChange={(e) => onChange(e.target.value)}
-        onFocus={(e) => e.target.select()}
-      />
-      {error && <p className="text-red-600 text-xs mt-1">{error}</p>}
-    </div>
   );
 }
