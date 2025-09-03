@@ -158,7 +158,7 @@ func GetTeacherSubmissions(c *gin.Context) {
 
 	// Build query for teacher's submissions
 	var submissions []models.Submission
-	query := config.DB.Preload("Year").Preload("Status").
+	query := config.DB.Preload("Year").Preload("Status").Preload("Category").Preload("Subcategory").
 		Where("user_id = ? AND deleted_at IS NULL", userID)
 
 	// Apply filters
@@ -186,18 +186,18 @@ func GetTeacherSubmissions(c *gin.Context) {
 	for i := range submissions {
 		switch submissions[i].SubmissionType {
 		case "fund_application":
-			var fundDetail models.FundApplicationDetail
+			fundDetail := &models.FundApplicationDetail{}
 			// Preload subcategory and its parent category to expose category information
-			if err := config.DB.Preload("Subcategory.Category").Where("submission_id = ?", submissions[i].SubmissionID).First(&fundDetail).Error; err == nil {
-				submissions[i].FundApplicationDetail = &fundDetail
+			if err := config.DB.Preload("Subcategory.Category").Where("submission_id = ?", submissions[i].SubmissionID).First(fundDetail).Error; err == nil {
+				submissions[i].FundApplicationDetail = fundDetail
 			}
 		case "publication_reward":
-			var pubDetail models.PublicationRewardDetail
-			if err := config.DB.Where("submission_id = ?", submissions[i].SubmissionID).First(&pubDetail).Error; err == nil {
+			pubDetail := &models.PublicationRewardDetail{}
+			if err := config.DB.Where("submission_id = ?", submissions[i].SubmissionID).First(pubDetail).Error; err == nil {
 				if submissions[i].StatusID != 2 {
 					pubDetail.AnnounceReferenceNumber = ""
 				}
-				submissions[i].PublicationRewardDetail = &pubDetail
+				submissions[i].PublicationRewardDetail = pubDetail
 			}
 		}
 	}
@@ -241,7 +241,7 @@ func GetStaffSubmissions(c *gin.Context) {
 
 	// Build query for submissions that need staff review
 	var submissions []models.Submission
-	query := config.DB.Preload("User").Preload("Year").Preload("Status").
+	query := config.DB.Preload("User").Preload("Year").Preload("Status").Preload("Category").Preload("Subcategory").
 		Where("deleted_at IS NULL AND submitted_at IS NOT NULL") // Only submitted submissions
 
 	// Apply filters
@@ -336,7 +336,7 @@ func GetAdminSubmissions(c *gin.Context) {
 
 	// ---------- Base list query (with preloads) ----------
 	var submissions []models.Submission
-	listQ := config.DB.Preload("User").Preload("Year").Preload("Status").
+	listQ := config.DB.Preload("User").Preload("Year").Preload("Status").Preload("Category").Preload("Subcategory").
 		Where("submissions.deleted_at IS NULL")
 
 	// Apply filters (identical set used later for stats)
