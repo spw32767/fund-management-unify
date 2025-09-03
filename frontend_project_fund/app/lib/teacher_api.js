@@ -389,7 +389,7 @@ export const documentAPI = {
   // 1. Attach document to submission
   async attachDocument(submissionId, documentData) {
     try {
-      const response = await apiClient.post(`/submissions/${submissionId}/documents`, documentData);
+      const response = await apiClient.post(`/submissions/${submissionId}/attach-document`, documentData);
       return response;
     } catch (error) {
       console.error('Error attaching document:', error);

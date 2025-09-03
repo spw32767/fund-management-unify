@@ -80,23 +80,14 @@ export default function ApplicationList({ onNavigate }) {
   // Helper functions to extract data
   const getTitle = (submission) => {
     if (submission.submission_type === 'publication_reward') {
-      // Check both article_title and paper_title for compatibility
-      return submission.PublicationRewardDetail?.article_title ||
-            submission.publication_reward_detail?.article_title ||
-            submission.PublicationRewardDetail?.paper_title ||
-            submission.publication_reward_detail?.paper_title ||
-            'เงินรางวัลตีพิมพ์';
-    } else if (submission.submission_type === 'fund_application') {
-      // Prefer project_name fields but fall back to project_title
-      return submission.FundApplicationDetail?.project_name_th ||
-            submission.FundApplicationDetail?.project_name_en ||
-            submission.FundApplicationDetail?.project_title ||
-            submission.fund_application_detail?.project_name_th ||
-            submission.fund_application_detail?.project_name_en ||
-            submission.fund_application_detail?.project_title ||
-            'ทุนวิจัย';
+      return (
+        submission.publication_reward_detail?.paper_title ||
+        submission.PublicationRewardDetail?.paper_title ||
+        '−'
+      );
     }
-    return 'ไม่ระบุ';
+    // For non-publication types, show dash as title should not be displayed
+    return '−';
   };
 
   const getAmount = (submission) => {
@@ -116,8 +107,8 @@ export default function ApplicationList({ onNavigate }) {
     }
 
     return (
-      submission.fund_application_detail?.category?.category_name ||
-      submission.FundApplicationDetail?.Category?.CategoryName ||
+      submission.fund_application_detail?.subcategory?.category?.category_name ||
+      submission.FundApplicationDetail?.Subcategory?.Category?.CategoryName ||
       submission.category?.category_name ||
       submission.Category?.CategoryName ||
       null
