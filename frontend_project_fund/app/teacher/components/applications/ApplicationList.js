@@ -120,7 +120,7 @@ export default function ApplicationList({ onNavigate }) {
   
   const getSubcategoryName = (submission) => {
     if (submission.submission_type === 'publication_reward') {
-      return 'เงินรางวัลตีพิมพ์เผยแพร่ผลงานวิจัย';
+      return '-';
     }
 
     return (
@@ -129,16 +129,8 @@ export default function ApplicationList({ onNavigate }) {
       submission.Subcategory?.SubcategoryName ||
       submission.fund_application_detail?.subcategory?.subcategory_name ||
       submission.FundApplicationDetail?.Subcategory?.SubcategoryName ||
-      getSubmissionTypeName(submission.submission_type)
+      '-'
     );
-  };
-
-  const getSubmissionTypeName = (type) => {
-    const typeMap = {
-      'publication_reward': 'เงินรางวัลตีพิมพ์',
-      'fund_application': 'ทุนวิจัย'
-    };
-    return typeMap[type] || type;
   };
 
   const getStatusName = (statusId) => {
@@ -202,7 +194,8 @@ export default function ApplicationList({ onNavigate }) {
     {
       header: "ชื่อทุน",
       accessor: "subcategory_name",
-      className: "text-sm"
+      className: "text-sm",
+      render: (value) => (value === null || value === undefined || value === '' ? '-' : value)
     },
     {
       header: "ชื่อโครงการ/บทความ",
