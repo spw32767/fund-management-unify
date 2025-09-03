@@ -102,6 +102,9 @@ export default function ApplicationList({ onNavigate }) {
   };
 
   const getCategoryName = (submission) => {
+    if (submission.category_name) {
+      return submission.category_name;
+    }
     if (submission.submission_type === 'publication_reward') {
       return 'เงินรางวัลการตีพิมพ์';
     }
