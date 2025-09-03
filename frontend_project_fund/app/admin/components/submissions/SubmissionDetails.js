@@ -40,7 +40,7 @@ const StatusBadge = ({ statusId }) => {
     4: 'bg-orange-100 text-orange-800',
     5: 'bg-gray-100 text-gray-800',
   };
-  const label = { 1: 'รอพิจารณา', 2: 'อนุมัติ', 3: 'ไม่อนุมัติ', 4: 'ต้องแก้ไข', 5: 'แบบร่าง' }[statusId] || 'ไม่ทราบสถานะ';
+  const label = { 1: 'อยู่ระหว่างการพิจารณา', 2: 'อนุมัติ', 3: 'ไม่อนุมัติ', 4: 'ต้องแก้ไข', 5: 'แบบร่าง' }[statusId] || 'ไม่ทราบสถานะ';
   return (
     <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${map[statusId] || map[5]}`}>
       {label}
