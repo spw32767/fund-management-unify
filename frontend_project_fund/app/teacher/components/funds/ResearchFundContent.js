@@ -8,9 +8,10 @@ import Card from "../common/Card";
 import { teacherAPI } from '../../../lib/teacher_api';
 import { targetRolesUtils } from '../../../lib/target_roles_utils';
 import { FORM_TYPE_CONFIG } from '../../../lib/form_type_config';
+import apiClient from '../../../lib/api';
 
 export default function ResearchFundContent({ onNavigate }) {
-  const [selectedYear, setSelectedYear] = useState("2566");
+  const [selectedYear, setSelectedYear] = useState("2568");
   const [yearId, setYearId] = useState(null);
   const [fundCategories, setFundCategories] = useState([]);
   const [filteredFunds, setFilteredFunds] = useState([]);
@@ -75,14 +76,20 @@ export default function ResearchFundContent({ onNavigate }) {
       setLoading(true);
       setError(null);
 
-      const [roleInfo, yearsData] = await Promise.all([
+      const [roleInfo, yearsData, currentYearRes] = await Promise.all([
         targetRolesUtils.getCurrentUserRole(),
-        loadAvailableYears()
+        loadAvailableYears(),
+        apiClient.get('/system-config/current-year')
       ]);
 
       setUserRole(roleInfo);
       setYears(yearsData);
-      await loadFundData(selectedYear);
+
+      const currentYear = currentYearRes?.current_year
+        ? currentYearRes.current_year.toString()
+        : selectedYear;
+      setSelectedYear(currentYear);
+      await loadFundData(currentYear);
     } catch (err) {
       console.error('Error loading initial data:', err);
       setError(err.message || 'เกิดข้อผิดพลาดในการโหลดข้อมูล');
@@ -282,12 +289,20 @@ export default function ResearchFundContent({ onNavigate }) {
                 สูงสุด/ทุน: {formatAmount(maxAmountPerGrant)}
               </div>
             )}
+            {!isAvailable && (
+              <div className="text-xs text-red-600 mt-1">
+                งบประมาณหมด
+              </div>
+            )}
           </div>
         </td>
         <td className="px-6 py-4 text-center">
           <button
             onClick={() => handleViewForm(fund)}
-            className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-blue-600 hover:text-blue-700"
+            className={`inline-flex items-center gap-2 px-4 py-2 text-sm font-medium ${
+              isAvailable ? 'text-blue-600 hover:text-blue-700' : 'text-gray-400 cursor-not-allowed'
+            }`}
+            disabled={!isAvailable}
           >
             <ButtonIcon size={16} />
             {buttonText}
@@ -343,9 +358,52 @@ export default function ResearchFundContent({ onNavigate }) {
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
             </div>
+            <select
+              className="px-4 py-2 text-gray-700 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+            >
+              <option value="all">ทั้งหมด</option>
+              <option value="available">มีงบประมาณ</option>
+              <option value="unavailable">งบประมาณหมด</option>
+            </select>
           </div>
         </div>
       </div>
+
+      {/* Summary Stats (Optional) */}
+      {filteredFunds.length > 0 && (
+        <div className="mb-4 grid grid-cols-3 gap-4">
+          <div className="bg-white p-4 rounded-lg shadow-sm">
+            <div className="text-sm text-gray-500">จำนวนทุนทั้งหมด</div>
+            <div className="text-2xl font-semibold text-gray-900">
+              {filteredFunds.reduce((sum, cat) => sum + (cat.subcategories?.length || 0), 0)}
+            </div>
+          </div>
+          <div className="bg-white p-4 rounded-lg shadow-sm">
+            <div className="text-sm text-gray-500">ทุนที่มีงบประมาณ</div>
+            <div className="text-2xl font-semibold text-green-600">
+              {filteredFunds.reduce((sum, cat) =>
+                sum + (cat.subcategories?.filter(s =>
+                  s.remaining_budget > 0 &&
+                  (s.remaining_grant === null || s.remaining_grant === undefined || s.remaining_grant > 0)
+                ).length || 0), 0)
+              }
+            </div>
+          </div>
+          <div className="bg-white p-4 rounded-lg shadow-sm">
+            <div className="text-sm text-gray-500">งบประมาณรวมคงเหลือ</div>
+            <div className="text-xl font-semibold text-blue-600">
+              {formatAmount(
+                filteredFunds.reduce((sum, cat) =>
+                  sum + (cat.subcategories?.reduce((subSum, sub) =>
+                    subSum + (sub.remaining_budget || 0), 0) || 0), 0
+                )
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Funds Table */}
       {filteredFunds.length === 0 ? (
@@ -366,10 +424,10 @@ export default function ResearchFundContent({ onNavigate }) {
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-1/4">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-2/5">
                     ชื่อทุน
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-2/5">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-1/4">
                     เงื่อนไขทุน
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">

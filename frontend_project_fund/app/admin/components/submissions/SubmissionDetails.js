@@ -28,6 +28,7 @@ import { toast } from 'react-hot-toast';
 
 import apiClient from '@/app/lib/api';
 import { adminSubmissionAPI } from '@/app/lib/admin_submission_api';
+import { rewardConfigAPI } from '@/app/lib/publication_api';
 
 import Swal from 'sweetalert2';
 import 'sweetalert2/dist/sweetalert2.min.css';
@@ -77,14 +78,6 @@ const formatCurrency = (n) =>
 const formatCurrencyParen = (n) =>
   `(${Number(Math.abs(n || 0)).toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})`;
 
-const parseCurrency = (raw) => {
-  if (raw === '' || raw === null || raw === undefined) return 0;
-  if (typeof raw === 'number') return raw;
-  const cleaned = String(raw).replace(/[,\s]/g, '');
-  const n = Number(cleaned);
-  return Number.isNaN(n) ? 0 : n;
-};
-
 const getUserFullName = (user) => {
   if (!user) return '-';
   const firstName =
@@ -124,6 +117,103 @@ const mapQuartileLabel = (q) => {
   return map[s] || (s || '-');
 };
 
+/* ===== Reusable money inputs (hoisted to avoid remount/focus loss) ===== */
+function MoneyInput({
+  value, onChange, error, bold = false, disabled = false, aria,
+  max, min = 0, autoSyncWhenDisabled = false, helperRight = null,
+}) {
+  const sanitize = (raw) => {
+    let only = raw.replace(/[^\d.]/g, '').replace(/(\..*?)\..*/g, '$1');
+    const parts = only.split('.');
+    if (parts[1] && parts[1].length > 2) only = parts[0] + '.' + parts[1].slice(0, 2);
+    return only;
+  };
+
+  const [text, setText] = React.useState(() => (Number(value || 0) === 0 ? '' : String(value)));
+  const [touched, setTouched] = React.useState(false);
+
+  React.useEffect(() => {
+    if (!touched || (autoSyncWhenDisabled && disabled)) {
+      setText(Number(value || 0) === 0 ? '' : String(value));
+    }
+  }, [value, disabled, touched, autoSyncWhenDisabled]);
+
+  const handleChange = (e) => {
+    const raw = sanitize(e.target.value);
+    setTouched(true);
+
+    const num = raw === '' ? 0 : Number(raw);
+    const upper = typeof max === 'number' ? max : Number.POSITIVE_INFINITY;
+    const clamped = Math.min(Math.max(num, min), upper);
+
+    if (num > upper) {
+      setText(String(upper));
+    } else {
+      setText(raw);
+    }
+    onChange(clamped);
+  };
+
+  return (
+    <div className="flex-grow flex flex-col items-end">
+      <div
+        className={[
+          'inline-flex items-center rounded-md border bg-white shadow-sm transition-all',
+          'focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-blue-500',
+          error ? 'border-red-400' : 'border-gray-300 hover:border-blue-300',
+          disabled ? 'opacity-60' : ''
+        ].join(' ')}
+      >
+        <span className="px-3 text-gray-500 select-none">฿</span>
+        <input
+          aria-label={aria}
+          type="text"
+          inputMode="decimal"
+          placeholder="0.00"
+          className={[
+            'w-40 md:w-48 text-right font-mono tabular-nums bg-transparent',
+            'py-2 pr-3 outline-none border-0',
+            bold ? 'font-semibold' : 'font-medium'
+          ].join(' ')}
+          value={text}
+          onChange={handleChange}
+          disabled={disabled}
+          onFocus={() => setTouched(true)}
+        />
+      </div>
+      <div className="h-5 mt-1 flex items-center gap-2">
+        {error ? (
+          <p className="text-red-600 text-xs text-right">{error}</p>
+        ) : null}
+        {helperRight}
+      </div>
+    </div>
+  );
+}
+
+function ReadonlyMoney({ value, aria }) {
+  return (
+    <div className="flex-grow flex flex-col items-end">
+      <div
+        className={[
+          'inline-flex items-center rounded-md border bg-gray-50 shadow-sm transition-all',
+          'border-gray-300 text-gray-600 opacity-80'
+        ].join(' ')}
+      >
+        <span className="px-3 text-gray-500 select-none">฿</span>
+        <input
+          aria-label={aria}
+          type="text"
+          readOnly
+          className="w-40 md:w-48 text-right font-mono tabular-nums bg-transparent py-2 pr-3 outline-none border-0"
+          value={Number(value || 0).toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+        />
+      </div>
+      <div className="h-5 mt-1" />
+    </div>
+  );
+}
+
 /* =========================
  * Approval Panel (admin-only)
  * ========================= */
@@ -131,14 +221,11 @@ function ApprovalPanel({ submission, pubDetail, onApprove, onReject }) {
   const approvable = submission?.status_id === 1; // อยู่ระหว่างการพิจารณา
   if (!approvable) return null;
 
-  // ---- Requested maxima (match "Financial Information") ----
+  // Requested values (display/reference only)
   const requestedReward = Number(pubDetail?.reward_amount || 0);
-  const requestedRevision = Number(pubDetail?.revision_fee || pubDetail?.editing_fee || 0);
-  const requestedPublication = Number(pubDetail?.publication_fee || pubDetail?.page_charge || 0);
-  const requestedTotal = Number(pubDetail?.total_amount || pubDetail?.reward_amount || 0);
   const extFunding = Number(pubDetail?.external_funding_amount || 0);
 
-  // ---- Numeric states for approval amounts ----
+  // Approval states
   const [rewardApprove, setRewardApprove] = useState(pubDetail?.reward_approve_amount ?? 0);
   const [revisionApprove, setRevisionApprove] = useState(pubDetail?.revision_fee_approve_amount ?? 0);
   const [publicationApprove, setPublicationApprove] = useState(pubDetail?.publication_fee_approve_amount ?? 0);
@@ -149,13 +236,64 @@ function ApprovalPanel({ submission, pubDetail, onApprove, onReject }) {
         (pubDetail?.publication_fee_approve_amount || 0))
   );
 
-  // ---- Announce reference number ----
   const [announceRef, setAnnounceRef] = useState(pubDetail?.announce_reference_number || '');
+
+  // Shared cap states (from API only)
+  const [feeCap, setFeeCap] = useState(null); // number|null
+  const [capLoading, setCapLoading] = useState(false);
+  const [capError, setCapError] = useState(null);
 
   const [manualTotal, setManualTotal] = useState(false);
   const [rejectReason, setRejectReason] = useState('');
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState({});
+
+  // Fetch shared cap (from reward_config via API ONLY)
+  useEffect(() => {
+    const fetchCap = async () => {
+      try {
+        setCapLoading(true);
+        setCapError(null);
+
+        const qCode = String(pubDetail?.quartile || pubDetail?.journal_quartile || '').toUpperCase().trim();
+
+        // Compute BE year
+        let yearBE = null;
+        if (pubDetail?.publication_year) {
+          yearBE = String(pubDetail.publication_year);
+        } else if (pubDetail?.publication_date) {
+          const d = new Date(pubDetail.publication_date);
+          if (!isNaN(d.getTime())) yearBE = String(d.getFullYear() + 543);
+        }
+        if (!yearBE) yearBE = String(new Date().getFullYear() + 543);
+
+        if (!qCode) {
+          setFeeCap(null);
+          setCapError('ไม่พบข้อมูล Quartile สำหรับคำนวณวงเงิน');
+          return;
+        }
+
+        const resp = await rewardConfigAPI.lookupMaxAmount(yearBE, qCode);
+        const maxAmount = Number(resp?.max_amount);
+
+        if (!maxAmount || maxAmount <= 0) {
+          setFeeCap(null);
+          setCapError('ไม่พบเพดานวงเงินจากประกาศ');
+          return;
+        }
+
+        setFeeCap(maxAmount);
+      } catch (err) {
+        console.error('Failed to fetch shared fee cap:', err);
+        setFeeCap(null);
+        setCapError('ไม่สามารถดึงเพดานวงเงินจากประกาศ');
+      } finally {
+        setCapLoading(false);
+      }
+    };
+
+    fetchCap();
+  }, [pubDetail?.quartile, pubDetail?.journal_quartile, pubDetail?.publication_year, pubDetail?.publication_date]);
 
   // Sync from pubDetail on load
   useEffect(() => {
@@ -171,30 +309,85 @@ function ApprovalPanel({ submission, pubDetail, onApprove, onReject }) {
     setAnnounceRef(pubDetail?.announce_reference_number || '');
   }, [pubDetail]);
 
-  // Auto-recalc total (clamped to requested total when not manual)
+  // Auto-recalc total (no clamp)
   useEffect(() => {
     if (!manualTotal) {
       const sum =
         Number(rewardApprove || 0) +
         Number(revisionApprove || 0) +
         Number(publicationApprove || 0);
-      setTotalApprove(Math.min(sum, requestedTotal));
+      setTotalApprove(sum);
     }
-  }, [rewardApprove, revisionApprove, publicationApprove, manualTotal, requestedTotal]);
+  }, [rewardApprove, revisionApprove, publicationApprove, manualTotal]);
 
+  // Helpers: shared cap clamp
+  const clampShared = (val, other) => {
+    const n = Number.isFinite(val) ? val : 0;
+    if (feeCap == null) return Math.max(0, n); // cannot edit when disabled anyway
+    const remain = Math.max(0, feeCap - Math.max(0, other || 0));
+    return Math.max(0, Math.min(n, remain));
+  };
+
+  const renderCapHelper = () => {
+    if (capLoading) return <p className="text-gray-500 text-xs">กำลังโหลดเพดานวงเงิน…</p>;
+    if (capError)   return <p className="text-red-600 text-xs">{capError}</p>;
+    if (typeof feeCap === 'number') {
+      const used = Number(revisionApprove || 0) + Number(publicationApprove || 0);
+      const remain = Math.max(0, feeCap - used);
+      return (
+        <p className="text-gray-500 text-[11px]">
+          ใช้วงเงินร่วม: ฿{formatCurrency(feeCap)} (คงเหลือ ฿{formatCurrency(remain)})
+        </p>
+      );
+    }
+    return null;
+  };
+
+  // Change handlers with SHARED CAP enforcement
+  const handleChangeRevision = (next) => {
+    const clamped = clampShared(Number(next || 0), publicationApprove);
+    setRevisionApprove(clamped);
+    if (!manualTotal) {
+      setTotalApprove(Number(rewardApprove || 0) + clamped + Number(publicationApprove || 0));
+    }
+    setErrors((e) => ({ ...e, sharedCap: undefined, revisionApprove: undefined }));
+  };
+
+  const handleChangePublication = (next) => {
+    const clamped = clampShared(Number(next || 0), revisionApprove);
+    setPublicationApprove(clamped);
+    if (!manualTotal) {
+      setTotalApprove(Number(rewardApprove || 0) + Number(revisionApprove || 0) + clamped);
+    }
+    setErrors((e) => ({ ...e, sharedCap: undefined, publicationApprove: undefined }));
+  };
+
+  // Validation with shared cap (require API cap)
   const validate = () => {
     const e = {};
-    const clampMsg = (max) => `ห้ามเกิน ฿${formatCurrency(max)}`;
-    const check = (k, v, max) => {
+
+    if (feeCap == null) {
+      e.sharedCap = capError || 'ยังไม่พบเพดานวงเงินจากประกาศ';
+      setErrors(e);
+      return false;
+    }
+
+    const checkNonNeg = (k, v) => {
       const num = Number(v);
       if (Number.isNaN(num)) e[k] = 'กรุณากรอกตัวเลขที่ถูกต้อง';
       else if (num < 0) e[k] = 'จำนวนต้องไม่เป็นค่าติดลบ';
-      else if (typeof max === 'number' && num > max) e[k] = clampMsg(max);
     };
-    check('rewardApprove', rewardApprove, requestedReward);
-    check('revisionApprove', revisionApprove, requestedRevision);
-    check('publicationApprove', publicationApprove, requestedPublication);
-    check('totalApprove', totalApprove, requestedTotal);
+
+    checkNonNeg('rewardApprove', rewardApprove);
+    checkNonNeg('revisionApprove', revisionApprove);
+    checkNonNeg('publicationApprove', publicationApprove);
+    checkNonNeg('totalApprove', totalApprove);
+
+    const sum = Number(revisionApprove || 0) + Number(publicationApprove || 0);
+    if (sum > feeCap) {
+      e.sharedCap = `ค่าปรับปรุง + ค่าธรรมเนียมตีพิมพ์ รวมกันต้องไม่เกิน ฿${formatCurrency(feeCap)}`;
+    }
+
     setErrors(e);
     return Object.keys(e).length === 0;
   };
@@ -205,13 +398,20 @@ function ApprovalPanel({ submission, pubDetail, onApprove, onReject }) {
       Number(rewardApprove || 0) +
       Number(revisionApprove || 0) +
       Number(publicationApprove || 0);
-    setTotalApprove(Math.min(sum, requestedTotal));
+    setTotalApprove(sum);
   };
 
-  // ---- SweetAlert2 confirmation flows ----
+  // Approve confirmation
   const confirmApprove = async () => {
     if (!validate()) return;
     if (!manualTotal) recalc();
+
+    const capHint =
+      typeof feeCap === 'number' && feeCap > 0
+        ? `<div style="font-size:12px;color:#6b7280;margin:.25rem 0 0;">
+             วงเงินร่วมสำหรับค่าปรับปรุง & ค่าธรรมเนียมการตีพิมพ์: ฿${formatCurrency(feeCap)}
+           </div>`
+        : '';
 
     const html = `
       <div style="text-align:left;font-size:14px;">
@@ -236,6 +436,7 @@ function ApprovalPanel({ submission, pubDetail, onApprove, onReject }) {
           <span class="swal2-title" style="font-size:14px;">รวมอนุมัติ</span>
           <span style="font-weight:700;color:#047857;">฿${formatCurrency(totalApprove)}</span>
         </div>
+        ${capHint}
         <p style="font-size:12px;color:#6b7280;margin-top:.5rem;">
           จำนวนอนุมัติจะถูกบันทึกและสถานะคำร้องจะเปลี่ยนเป็น “อนุมัติ”
         </p>
@@ -281,6 +482,7 @@ function ApprovalPanel({ submission, pubDetail, onApprove, onReject }) {
     }
   };
 
+  // Reject confirmation
   const confirmReject = async () => {
     if (!rejectReason.trim()) {
       setErrors((p) => ({ ...p, rejectReason: 'กรุณาระบุเหตุผลการไม่อนุมัติ' }));
@@ -338,109 +540,6 @@ function ApprovalPanel({ submission, pubDetail, onApprove, onReject }) {
     }
   };
 
-  // ---- Simplest money input (with hard max clamp) ----
-  function MoneyInput({
-    value, onChange, error, bold = false, disabled = false, aria,
-    max, min = 0, autoSyncWhenDisabled = false,
-  }) {
-    const sanitize = (raw) => {
-      let only = raw.replace(/[^\d.]/g, '').replace(/(\..*?)\..*/g, '$1');
-      const parts = only.split('.');
-      if (parts[1] && parts[1].length > 2) only = parts[0] + '.' + parts[1].slice(0, 2);
-      return only;
-    };
-
-    const [text, setText] = useState(() => (Number(value || 0) === 0 ? '' : String(value)));
-    const [touched, setTouched] = useState(false);
-
-    // sync from parent (when untouched) or while disabled & autosyncing (Total auto mode)
-    useEffect(() => {
-      if (!touched || (autoSyncWhenDisabled && disabled)) {
-        setText(Number(value || 0) === 0 ? '' : String(value));
-      }
-    }, [value, disabled, touched, autoSyncWhenDisabled]);
-
-    const handleChange = (e) => {
-      const raw = sanitize(e.target.value);
-      setTouched(true);
-
-      // parse & clamp to [min, max]
-      const num = raw === '' ? 0 : Number(raw);
-      const upper = typeof max === 'number' ? max : Number.POSITIVE_INFINITY;
-      const clamped = Math.min(Math.max(num, min), upper);
-
-      // hard-limit the visible text to max immediately
-      if (num > upper) {
-        setText(String(upper));
-      } else {
-        setText(raw);
-      }
-      onChange(clamped);
-    };
-
-    const helper = typeof max === 'number' ? `สูงสุด ฿${formatCurrency(max)}` : null;
-
-    return (
-      <div className="flex-grow flex flex-col items-end">
-        <div
-          className={[
-            'inline-flex items-center rounded-md border bg-white shadow-sm transition-all',
-            'focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-blue-500',
-            error ? 'border-red-400' : 'border-gray-300 hover:border-blue-300',
-            disabled ? 'opacity-60' : ''
-          ].join(' ')}
-        >
-          <span className="px-3 text-gray-500 select-none">฿</span>
-          <input
-            aria-label={aria}
-            type="text"
-            inputMode="decimal"
-            placeholder="0.00"
-            className={[
-              'w-40 md:w-48 text-right font-mono tabular-nums bg-transparent',
-              'py-2 pr-3 outline-none border-0',
-              bold ? 'font-semibold' : 'font-medium'
-            ].join(' ')}
-            value={text}
-            onChange={handleChange}
-            disabled={disabled}
-          />
-        </div>
-        <div className="h-5 mt-1">
-          {error ? (
-            <p className="text-red-600 text-xs text-right">{error}</p>
-          ) : helper ? (
-            <p className="text-gray-500 text-xs text-right">{helper}</p>
-          ) : null}
-        </div>
-      </div>
-    );
-  }
-
-  // Read-only money display (for External Funding in panel)
-  function ReadonlyMoney({ value, aria }) {
-    return (
-      <div className="flex-grow flex flex-col items-end">
-        <div
-          className={[
-            'inline-flex items-center rounded-md border bg-gray-50 shadow-sm transition-all',
-            'border-gray-300 text-gray-600 opacity-80'
-          ].join(' ')}
-        >
-          <span className="px-3 text-gray-500 select-none">฿</span>
-          <input
-            aria-label={aria}
-            type="text"
-            readOnly
-            className="w-40 md:w-48 text-right font-mono tabular-nums bg-transparent py-2 pr-3 outline-none border-0"
-            value={formatCurrency(value)}
-          />
-        </div>
-        <div className="h-5 mt-1" />
-      </div>
-    );
-  }
-
   return (
     <Card title="ผลการพิจารณา (Approval Result)" icon={DollarSign} collapsible={false}>
       <div className="space-y-4">
@@ -462,9 +561,17 @@ function ApprovalPanel({ submission, pubDetail, onApprove, onReject }) {
           <MoneyInput
             aria="Approved reward amount"
             value={rewardApprove}
-            onChange={setRewardApprove}
+            onChange={(v) => {
+              let n = Number(v || 0);
+              if (n < 0) n = 0;
+              if (n > requestedReward) n = requestedReward; // keep reward within requested (policy)
+              setRewardApprove(n);
+              setErrors((prev) => ({ ...prev, rewardApprove: undefined }));
+            }}
             error={errors.rewardApprove}
             max={requestedReward}
+            helperRight={null}
+            disabled={false}
           />
         </div>
 
@@ -477,9 +584,11 @@ function ApprovalPanel({ submission, pubDetail, onApprove, onReject }) {
           <MoneyInput
             aria="Approved revision fee"
             value={revisionApprove}
-            onChange={setRevisionApprove}
-            error={errors.revisionApprove}
-            max={requestedRevision}
+            onChange={handleChangeRevision}
+            error={errors.revisionApprove || errors.sharedCap}
+            helperRight={renderCapHelper()}
+            disabled={capLoading || feeCap == null}
+            max={feeCap == null ? undefined : Math.max(0, feeCap - Number(publicationApprove || 0))}
           />
         </div>
 
@@ -492,9 +601,11 @@ function ApprovalPanel({ submission, pubDetail, onApprove, onReject }) {
           <MoneyInput
             aria="Approved publication fee"
             value={publicationApprove}
-            onChange={setPublicationApprove}
-            error={errors.publicationApprove}
-            max={requestedPublication}
+            onChange={handleChangePublication}
+            error={errors.publicationApprove || errors.sharedCap}
+            helperRight={renderCapHelper()}
+            disabled={capLoading || feeCap == null}
+            max={feeCap == null ? undefined : Math.max(0, feeCap - Number(revisionApprove || 0))}
           />
         </div>
 
@@ -543,12 +654,16 @@ function ApprovalPanel({ submission, pubDetail, onApprove, onReject }) {
           <MoneyInput
             aria="Total approved amount"
             value={totalApprove}
-            onChange={setTotalApprove}
+            onChange={(v) => {
+              let n = Number(v || 0);
+              if (n < 0) n = 0;
+              setTotalApprove(n);
+              setErrors((prev) => ({ ...prev, totalApprove: undefined }));
+            }}
             error={errors.totalApprove}
             bold
             disabled={!manualTotal}
             autoSyncWhenDisabled
-            max={requestedTotal}
           />
         </div>
 
@@ -927,7 +1042,8 @@ export default function SubmissionDetails({ submissionId, onBack }) {
                   <span className="ml-2 font-medium">{formatDate(submission.approved_at)}</span>
                 </div>
               )}
-              {/* Announce reference number (show after approved) */}
+
+              {/* Announce reference number (after approved) */}
               {submission.status_id === 2 && pubDetail?.announce_reference_number && (
                 <div>
                   <span className="text-gray-500">เลขประกาศ:</span>
@@ -943,10 +1059,15 @@ export default function SubmissionDetails({ submissionId, onBack }) {
               {formatCurrency(pubDetail.reward_amount || 0)}
             </div>
             <div className="text-sm text-gray-500">จำนวนเงินที่ขอ</div>
-            {showApprovedColumn && (
+            {submission?.status_id === 2 && (
               <div className="mt-2">
                 <div className="text-lg font-bold text-green-600">
-                  {formatCurrency(approvedTotal)}
+                  {formatCurrency(
+                    pubDetail?.total_approve_amount ??
+                      (Number(pubDetail?.reward_approve_amount || 0) +
+                        Number(pubDetail?.revision_fee_approve_amount || 0) +
+                        Number(pubDetail?.publication_fee_approve_amount || 0))
+                  )}
                 </div>
                 <div className="text-sm text-gray-500">จำนวนเงินที่อนุมัติ</div>
               </div>
@@ -1120,13 +1241,13 @@ export default function SubmissionDetails({ submissionId, onBack }) {
           {/* Financial Information */}
           <Card title="ข้อมูลการเงิน (Financial Information)" icon={DollarSign} collapsible={false}>
             <div className="space-y-4">
-              <div className={`grid ${showApprovedColumn ? 'grid-cols-3' : 'grid-cols-2'} pb-2 border-b text-sm text-gray-600`}>
+              <div className={`grid ${submission?.status_id === 2 ? 'grid-cols-3' : 'grid-cols-2'} pb-2 border-b text-sm text-gray-600`}>
                 <div></div>
                 <div className="text-right">
                   <div>จำนวนที่ขอ</div>
                   <div className="text-xs text-gray-500">Requested Amount</div>
                 </div>
-                {showApprovedColumn && (
+                {submission?.status_id === 2 && (
                   <div className="text-right">
                     <div>จำนวนที่อนุมัติ</div>
                     <div className="text-xs text-gray-500">Approved Amount</div>
@@ -1135,14 +1256,14 @@ export default function SubmissionDetails({ submissionId, onBack }) {
               </div>
 
               {/* Reward */}
-              <div className={`grid ${showApprovedColumn ? 'grid-cols-3' : 'grid-cols-2'} items-center`}>
+              <div className={`grid ${submission?.status_id === 2 ? 'grid-cols-3' : 'grid-cols-2'} items-center`}>
                 <label className="block text-sm font-medium text-gray-700">
                   เงินรางวัลที่ขอ
                   <br />
                   <span className="text-xs font-normal text-gray-600">Requested Reward Amount</span>
                 </label>
                 <span className="text-right font-semibold">฿{formatCurrency(pubDetail.reward_amount || 0)}</span>
-                {showApprovedColumn && (
+                {submission?.status_id === 2 && (
                   <span className="text-right font-semibold">
                     {pubDetail.reward_approve_amount != null ? `฿${formatCurrency(pubDetail.reward_approve_amount)}` : '-'}
                   </span>
@@ -1151,7 +1272,7 @@ export default function SubmissionDetails({ submissionId, onBack }) {
 
               {/* Revision fee */}
               {(pubDetail.revision_fee > 0 || pubDetail.editing_fee > 0) && (
-                <div className={`grid ${showApprovedColumn ? 'grid-cols-3' : 'grid-cols-2'} items-center`}>
+                <div className={`grid ${submission?.status_id === 2 ? 'grid-cols-3' : 'grid-cols-2'} items-center`}>
                   <label className="block text-sm font-medium text-gray-700">
                     ค่าปรับปรุงบทความ
                     <br />
@@ -1160,7 +1281,7 @@ export default function SubmissionDetails({ submissionId, onBack }) {
                   <span className="text-right">
                     ฿{formatCurrency(pubDetail.revision_fee || pubDetail.editing_fee || 0)}
                   </span>
-                  {showApprovedColumn && (
+                  {submission?.status_id === 2 && (
                     <span className="text-right">
                       {pubDetail.revision_fee_approve_amount != null
                         ? `฿${formatCurrency(pubDetail.revision_fee_approve_amount)}`
@@ -1172,14 +1293,14 @@ export default function SubmissionDetails({ submissionId, onBack }) {
 
               {/* Publication fee */}
               {(pubDetail.publication_fee > 0 || pubDetail.page_charge > 0) && (
-                <div className={`grid ${showApprovedColumn ? 'grid-cols-3' : 'grid-cols-2'} items-center`}>
+                <div className={`grid ${submission?.status_id === 2 ? 'grid-cols-3' : 'grid-cols-2'} items-center`}>
                   <label className="block text-sm font-medium text-gray-700">
                     ค่าธรรมเนียมการตีพิมพ์
                     <br />
                     <span className="text-xs font-normal text-gray-600">Page Charge</span>
                   </label>
                   <span className="text-right">฿{formatCurrency(pubDetail.publication_fee || pubDetail.page_charge || 0)}</span>
-                  {showApprovedColumn && (
+                  {submission?.status_id === 2 && (
                     <span className="text-right">
                       {pubDetail.publication_fee_approve_amount != null
                         ? `฿${formatCurrency(pubDetail.publication_fee_approve_amount)}`
@@ -1191,7 +1312,7 @@ export default function SubmissionDetails({ submissionId, onBack }) {
 
               {/* External funding (divider + parentheses) */}
               {pubDetail.external_funding_amount > 0 && (
-                <div className={`grid ${showApprovedColumn ? 'grid-cols-3' : 'grid-cols-2'} items-center pt-2 mt-2 border-t`}>
+                <div className={`grid ${submission?.status_id === 2 ? 'grid-cols-3' : 'grid-cols-2'} items-center pt-2 mt-2 border-t`}>
                   <label className="block text-sm font-medium text-gray-700">
                     เงินสนับสนุนจากภายนอก
                     <br />
@@ -1200,12 +1321,12 @@ export default function SubmissionDetails({ submissionId, onBack }) {
                   <span className="text-right text-red-600">
                     ฿{formatCurrencyParen(pubDetail.external_funding_amount)}
                   </span>
-                  {showApprovedColumn && <span></span>}
+                  {submission?.status_id === 2 && <span></span>}
                 </div>
               )}
 
               {/* Total */}
-              <div className={`grid ${showApprovedColumn ? 'grid-cols-3' : 'grid-cols-2'} items-center pt-2 border-t`}>
+              <div className={`grid ${submission?.status_id === 2 ? 'grid-cols-3' : 'grid-cols-2'} items-center pt-2 border-t`}>
                 <label className="block font-medium text-gray-700">
                   รวมเบิกจากวิทยาลัยการคอม
                   <br />
@@ -1214,9 +1335,14 @@ export default function SubmissionDetails({ submissionId, onBack }) {
                 <span className="text-right font-bold text-blue-600">
                   ฿{formatCurrency(pubDetail.total_amount || pubDetail.reward_amount || 0)}
                 </span>
-                {showApprovedColumn && (
+                {submission?.status_id === 2 && (
                   <span className="text-right font-bold text-green-600">
-                    ฿{formatCurrency(approvedTotal)}
+                    ฿{formatCurrency(
+                      pubDetail?.total_approve_amount ??
+                        (Number(pubDetail?.reward_approve_amount || 0) +
+                          Number(pubDetail?.revision_fee_approve_amount || 0) +
+                          Number(pubDetail?.publication_fee_approve_amount || 0))
+                    )}
                   </span>
                 )}
               </div>

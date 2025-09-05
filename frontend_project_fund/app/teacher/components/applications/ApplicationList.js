@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Search, Filter, Eye, Download, FileText, ClipboardList, Plus } from "lucide-react";
-import { submissionAPI } from "@/app/lib/teacher_api";
+import { submissionAPI, teacherAPI } from "@/app/lib/teacher_api";
 import StatusBadge from "../common/StatusBadge";
 import DataTable from "../common/DataTable";
 import PageLayout from "../common/PageLayout";
@@ -40,29 +40,52 @@ export default function ApplicationList({ onNavigate }) {
         if (yearId) params.year_id = yearId;
       }
 
-      const response = await submissionAPI.getSubmissions(params);
+      const [response, subRes] = await Promise.all([
+        submissionAPI.getSubmissions(params),
+        teacherAPI.getVisibleSubcategories()
+      ]);
+
+      // Map subcategory_id -> subcategory_name
+      const subMap = {};
+      if (subRes?.subcategories) {
+        subRes.subcategories.forEach(sc => {
+          const id = sc.original_subcategory_id || sc.subcategory_id;
+          if (id != null) subMap[id] = sc.subcategory_name || '-';
+        });
+      }
       
       // Debug log
       console.log('API Response:', response);
-      
-        if (response.success && response.submissions) {
-          // Transform data to match existing structure
-          const transformedData = response.submissions.map(sub => ({
+
+      if (response.success && response.submissions) {
+        // Transform data to match existing structure
+        const transformedData = response.submissions.map(sub => {
+          const subId =
+            sub.subcategory_id ||
+            sub.SubcategoryID ||
+            sub.fund_application_detail?.subcategory_id ||
+            sub.FundApplicationDetail?.subcategory_id;
+          const subName = getSubcategoryName(sub);
+          return {
             application_id: sub.submission_id,
             application_number: sub.submission_number,
             project_title: getTitle(sub),
             category_name: getCategoryName(sub),
-            subcategory_name: getSubcategoryName(sub),
+            subcategory_name:
+              subName && subName !== '-'
+                ? subName
+                : subMap[subId] || '-',
             requested_amount: getAmount(sub),
             // API returns lowercase keys; keep PascalCase fallback for backward compatibility
             status: sub.status?.status_name || sub.Status?.status_name || getStatusName(sub.status_id),
             status_code: getStatusCode(sub.status_id),
-          submitted_at: sub.created_at,
-          year: sub.year?.year || sub.Year?.year || '2568',
-          year_id: sub.year_id || sub.Year?.year_id,
-          // Keep original data for reference
-          _original: sub
-        }));
+            submitted_at: sub.created_at,
+            year: sub.year?.year || sub.Year?.year || '2568',
+            year_id: sub.year_id || sub.Year?.year_id,
+            // Keep original data for reference
+            _original: sub
+          };
+        });
         
         setApplications(transformedData);
         setFilteredApplications(transformedData);
@@ -123,14 +146,7 @@ export default function ApplicationList({ onNavigate }) {
       return '-';
     }
 
-    return (
-      submission.subcategory_name ||
-      submission.subcategory?.subcategory_name ||
-      submission.Subcategory?.SubcategoryName ||
-      submission.fund_application_detail?.subcategory?.subcategory_name ||
-      submission.FundApplicationDetail?.Subcategory?.SubcategoryName ||
-      '-'
-    );
+    return submission.subcategory_name ?? '-';
   };
 
   const getStatusName = (statusId) => {
