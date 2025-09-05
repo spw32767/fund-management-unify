@@ -14,9 +14,9 @@ import { submissionAPI, documentAPI, fileAPI} from '../../../lib/teacher_api';
 // =================================================================
 // FILE UPLOAD COMPONENT
 // =================================================================
-function FileUpload({ onFileSelect, accept, multiple = false, error }) {
+function FileUpload({ onFileSelect, accept, multiple = false, error, compact = false }) {
   const [isDragging, setIsDragging] = useState(false);
-    const fileInputRef = useRef(null);
+  const fileInputRef = useRef(null);
 
   const handleDragOver = (e) => {
     e.preventDefault();
@@ -37,7 +37,7 @@ function FileUpload({ onFileSelect, accept, multiple = false, error }) {
     });
     
     if (acceptedFiles.length !== files.length) {
-      alert("บางไฟล์ไม่ใช่ไฟล์ PDF กรุณาอัปโหลดเฉพาะไฟล์ PDF");
+      alert("กรุณาอัปโหลดเฉพาะไฟล์ PDF");
     }
     
     if (acceptedFiles.length > 0) {
@@ -51,21 +51,31 @@ function FileUpload({ onFileSelect, accept, multiple = false, error }) {
   };
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-1">
       <div
-        className={`border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors ${
-          isDragging ? "border-blue-400 bg-blue-50" : error ? "border-red-400 bg-red-50" : "border-gray-300 hover:border-gray-400"
+        className={`border-2 border-dashed rounded-lg ${compact ? "p-2" : "p-6"} text-center cursor-pointer transition-colors ${
+          isDragging
+            ? "border-blue-400 bg-blue-50"
+            : error
+            ? "border-red-400 bg-red-50"
+            : "border-gray-300 hover:border-gray-400"
         }`}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
         onClick={() => fileInputRef.current?.click()}
       >
-        <Upload className={`mx-auto h-8 w-8 mb-2 ${error ? "text-red-400" : "text-gray-400"}`} />
-        <p className={`text-sm ${error ? "text-red-600" : "text-gray-600"}`}>
-          คลิกหรือลากไฟล์มาวางที่นี่ (เฉพาะไฟล์ PDF)
+        <Upload
+          className={`mx-auto mb-2 ${compact ? "h-5 w-5" : "h-8 w-8"} ${error ? "text-red-400" : "text-gray-400"}`}
+        />
+        <p
+          className={`${compact ? "text-xs" : "text-sm"} ${error ? "text-red-600" : "text-gray-600"}`}
+        >
+          {compact ? "แนบไฟล์ (PDF)" : "คลิกหรือลากไฟล์มาวางที่นี่ (เฉพาะไฟล์ PDF)"}
         </p>
-        <p className="text-xs text-gray-500 mt-1">ขนาดไฟล์สูงสุด 10MB</p>
+        {!compact && (
+          <p className="text-xs text-gray-500 mt-1">ขนาดไฟล์สูงสุด 10MB</p>
+        )}
         <input
           ref={fileInputRef}
           type="file"
@@ -519,53 +529,72 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
               <p>ไม่มีเอกสารที่ต้องส่งสำหรับทุนนี้</p>
             </div>
           ) : (
-            <div className="space-y-6">
-              {documentRequirements.map((docType) => (
-                <div key={docType.document_type_id} className="border border-gray-200 rounded-lg p-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-3">
-                    {docType.document_type_name}
-                    {docType.required && <span className="text-red-500 ml-1">*</span>}
-                  </label>
-
-                  {uploadedFiles[docType.document_type_id] ? (
-                    <div className="flex items-center justify-between bg-green-50 p-3 rounded">
-                      <div className="flex items-center gap-2">
-                        <FileText className="h-5 w-5 text-green-600" />
-                        <span className="text-sm font-medium text-green-800">
-                          {uploadedFiles[docType.document_type_id].name}
-                        </span>
-                        <span className="text-xs text-green-600">
-                          ({Math.round(uploadedFiles[docType.document_type_id].size / 1024)} KB)
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={() => viewFile(docType.document_type_id)}
-                          className="text-blue-600 hover:text-blue-800 p-1"
-                          title="ดูไฟล์"
-                        >
-                          <Eye className="h-5 w-5" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveFile(docType.document_type_id)}
-                          className="text-red-600 hover:text-red-800 p-1"
-                          title="ลบไฟล์"
-                        >
-                          <X className="h-5 w-5" />
-                        </button>
-                      </div>
-                    </div>
-                  ) : (
-                    <FileUpload
-                      onFileSelect={(files) => handleFileUpload(docType.document_type_id, files)}
-                      accept=".pdf"
-                      error={errors[`file_${docType.document_type_id}`]}
-                    />
-                  )}
-                </div>
-              ))}
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm table-fixed">
+                <colgroup>
+                  <col className="w-12" />
+                  <col />
+                  <col />
+                </colgroup>
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-2 py-2 text-center font-medium text-gray-700">ลำดับ</th>
+                    <th className="px-2 py-2 text-left font-medium text-gray-700">ชื่อเอกสาร</th>
+                    <th className="px-2 py-2 text-left font-medium text-gray-700">แนบไฟล์</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200">
+                  {documentRequirements.map((docType, index) => (
+                    <tr key={docType.document_type_id}>
+                      <td className="px-2 py-1 text-center text-gray-700">{index + 1}</td>
+                      <td className="px-2 py-1 text-gray-700">
+                        {docType.document_type_name}
+                        {docType.required && <span className="text-red-500 ml-1">*</span>}
+                      </td>
+                      <td className="px-2 py-1">
+                        {uploadedFiles[docType.document_type_id] ? (
+                          <div className="flex items-center justify-between bg-green-50 p-2 rounded w-full">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <FileText className="h-5 w-5 text-green-600 flex-shrink-0" />
+                              <span className="text-sm font-medium text-green-800 truncate">
+                                {uploadedFiles[docType.document_type_id].name}
+                              </span>
+                              <span className="text-xs text-green-600 whitespace-nowrap">
+                                ({Math.round(uploadedFiles[docType.document_type_id].size / 1024)} KB)
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-2 flex-shrink-0">
+                              <button
+                                type="button"
+                                onClick={() => viewFile(docType.document_type_id)}
+                                className="text-blue-600 hover:text-blue-800 p-1"
+                                title="ดูไฟล์"
+                              >
+                                <Eye className="h-4 w-4" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveFile(docType.document_type_id)}
+                                className="text-red-600 hover:text-red-800 p-1"
+                                title="ลบไฟล์"
+                              >
+                                <X className="h-4 w-4" />
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <FileUpload
+                            onFileSelect={(files) => handleFileUpload(docType.document_type_id, files)}
+                            accept=".pdf"
+                            error={errors[`file_${docType.document_type_id}`]}
+                            compact
+                          />
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           )}
         </SimpleCard>
