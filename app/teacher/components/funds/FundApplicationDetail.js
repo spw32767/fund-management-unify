@@ -47,7 +47,18 @@ export default function FundApplicationDetail({ submissionId, onNavigate }) {
       const response = await submissionAPI.getSubmission(submissionId);
       const submissionData = response.submission || response;
 
-      if (!submissionData.user && submissionData.user_id) {
+      // Include applicant and related users from API response
+      if (response.applicant_user) {
+        submissionData.applicant_user = response.applicant_user;
+        if (!submissionData.user) {
+          submissionData.user = response.applicant_user;
+        }
+      }
+
+      if (response.submission_users) {
+        submissionData.submission_users = response.submission_users;
+      } else if (!submissionData.user && submissionData.user_id) {
+        // Fallback: fetch users if not provided
         try {
           const usersResponse = await submissionUsersAPI.getUsers(submissionId);
           if (usersResponse && usersResponse.users) {
@@ -181,7 +192,7 @@ export default function FundApplicationDetail({ submissionId, onNavigate }) {
           <div>
             <div className="flex flex-wrap items-center gap-3 mb-2">
               {getStatusIcon(submission.status_id)}
-              <h3 className="text-lg font-semibold">สถานะคำร้อง</h3>
+              <h3 className="text-lg font-semibold">สถานะคำร้อง (Submission Status)</h3>
               <div className="flex-shrink-0">
                 <StatusBadge
                   status={submission.Status?.status_name}
@@ -191,7 +202,7 @@ export default function FundApplicationDetail({ submissionId, onNavigate }) {
             </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4 text-sm">
               <div>
-                <span className="text-gray-500">วันที่สร้างคำร้อง:</span>
+                <span className="text-gray-500">วันที่สร้างคำร้อง (Created Date):</span>
                 <span className="ml-2 font-medium">
                   {new Date(submission.created_at).toLocaleDateString("th-TH", {
                     year: "numeric",
@@ -202,7 +213,7 @@ export default function FundApplicationDetail({ submissionId, onNavigate }) {
               </div>
               {submission.submitted_at && (
                 <div>
-                  <span className="text-gray-500">วันที่ส่งคำร้อง:</span>
+                  <span className="text-gray-500">วันที่ส่งคำร้อง (Submitted Date):</span>
                   <span className="ml-2 font-medium">
                     {new Date(submission.submitted_at).toLocaleDateString(
                       "th-TH",
@@ -217,7 +228,7 @@ export default function FundApplicationDetail({ submissionId, onNavigate }) {
               )}
               {submission.approved_at && (
                 <div>
-                  <span className="text-gray-500">วันที่อนุมัติ:</span>
+                  <span className="text-gray-500">วันที่อนุมัติ (Approval Date):</span>
                   <span className="ml-2 font-medium">
                     {new Date(submission.approved_at).toLocaleDateString(
                       "th-TH",
@@ -251,19 +262,19 @@ export default function FundApplicationDetail({ submissionId, onNavigate }) {
 
       {/* Applicant Info */}
       <Card
-        title="ข้อมูลผู้ยื่นคำร้อง"
+        title="ข้อมูลผู้ยื่นคำร้อง (Applicant Details)"
         icon={User}
         collapsible={false}
         className="mb-6"
       >
         <div className="space-y-4">
           <div>
-            <label className="text-sm text-gray-500">ชื่อผู้ยื่นคำร้อง</label>
+            <label className="text-sm text-gray-500">ชื่อผู้ยื่นคำร้อง (Applicant)</label>
             <p className="font-medium">{getUserFullName(applicant)}</p>
           </div>
           {getUserEmail(applicant) && (
             <div>
-              <label className="text-sm text-gray-500">อีเมล</label>
+              <label className="text-sm text-gray-500">อีเมล (Email)</label>
               <p className="font-medium">{getUserEmail(applicant)}</p>
             </div>
           )}
@@ -271,7 +282,7 @@ export default function FundApplicationDetail({ submissionId, onNavigate }) {
       </Card>
 
       {/* Documents */}
-      <Card title="เอกสารแนบ" icon={FileText} collapsible={false}>
+      <Card title="เอกสารแนบ (Attachments)" icon={FileText} collapsible={false}>
         <div className="space-y-4">
           {documents.length > 0 ? (
             <ul className="divide-y divide-gray-200">
