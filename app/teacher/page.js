@@ -15,6 +15,7 @@ import PromotionFundContent from "./components/funds/PromotionFundContent";
 import PublicationRewardForm from "./components/applications/PublicationRewardForm";
 import UserProfile from "./components/profile/UserProfile";
 import PublicationRewardDetail from "./components/funds/PublicationRewardDetail";
+import FundApplicationDetail from "./components/funds/FundApplicationDetail";
 import AnnouncementPage from "./components/announcements/AnnouncementPage";
 import GenericFundApplicationForm from "./components/applications/GenericFundApplicationForm";
 
@@ -73,6 +74,8 @@ function TeacherPageContent() {
         return <ApplicationForm selectedFund={selectedFundData} />;
       case 'publication-reward-detail':
         return <PublicationRewardDetail submissionId={selectedFundData?.submissionId} onNavigate={handleNavigate} />;
+      case 'fund-application-detail':
+        return <FundApplicationDetail submissionId={selectedFundData?.submissionId} onNavigate={handleNavigate} />;
       case 'announcements':
         return <AnnouncementPage />;
       default:
@@ -91,6 +94,7 @@ function TeacherPageContent() {
       'application-form': 'ยื่นคำร้องใหม่',
       'publication-reward-form': 'รางวัลตีพิมพ์',
       'generic-fund-application': 'ยื่นขอทุน',
+      'fund-application-detail': 'รายละเอียดคำร้องขอทุน',
       'announcements': 'ประกาศกองทุนวิจัยและนวัตกรรม'
     };
     return titles[currentPage] || currentPage;
