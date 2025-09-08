@@ -3602,24 +3602,39 @@ const showSubmissionConfirmation = async () => {
         <SimpleCard title="ข้อมูลเพิ่มเติม (Additional Information)" icon={FileText}>
           <div className="space-y-4">
             {/* University funding */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                ได้รับการสนับสนุนทุนจากมหาวิทยาลัยหรือไม่?
-                <br />
-                <span className="text-xs font-normal text-gray-600">
-                  (Did you receive funding support from the university?)
-                </span>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              ได้รับการสนับสนุนทุนจากมหาวิทยาลัยหรือไม่?
+              <br />
+              <span className="text-xs font-normal text-gray-600">
+                (Did you receive funding support from the university?)
+              </span>
+            </label>
+
+            {/* ปุ่มชิดซ้าย: เอา justify-between ออก → ใช้ justify-start + gap */}
+            <div className="flex items-center justify-start gap-4 rounded-lg border border-gray-200 p-4">
+              {/* ปุ่มสวิตช์อยู่ซ้ายสุด */}
+              <label className="relative inline-flex items-center cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={formData.has_university_fund === 'yes'}
+                  onChange={(e) =>
+                    setFormData(prev => ({
+                      ...prev,
+                      has_university_fund: e.target.checked ? 'yes' : 'no'
+                    }))
+                  }
+                  className="sr-only peer"
+                />
+                <div className="w-11 h-6 bg-gray-200 rounded-full transition-colors peer-checked:bg-blue-600"></div>
+                <div className="absolute left-0.5 top-0.5 h-5 w-5 bg-white rounded-full shadow transition-transform peer-checked:translate-x-5"></div>
               </label>
-              <select
-                name="has_university_fund"
-                value={formData.has_university_fund}
-                onChange={handleInputChange}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
-              >
-                <option value="no">ไม่ได้รับ (No)</option>
-                <option value="yes">ได้รับ (Yes)</option>
-              </select>
+
+              {/* ข้อความสถานะชิดขวาของปุ่ม */}
+              <span className="text-sm text-gray-700">
+                {formData.has_university_fund === 'yes' ? 'ได้รับ (Yes)' : 'ไม่ได้รับ (No)'}
+              </span>
             </div>
+
 
             {/* University fund reference */}
             {formData.has_university_fund === 'yes' && (

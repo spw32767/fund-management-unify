@@ -5,19 +5,47 @@ import { targetRolesUtils } from '../lib/target_roles_utils';
 
 // Teacher API methods for role-based fund access
 export const teacherAPI = {
-  
-  // Get all categories and subcategories visible to teacher - Using NEW API
-  async getVisibleFundsStructure(year = '2568') {
+
+  // Read LIVE application window (system_config/window)
+  async getApplicationWindow() {
     try {
+      const response = await apiClient.get('/system-config/window');
+      return response; // { current_year, start_date, end_date, is_open, window_state, ... }
+    } catch (error) {
+      console.error('Error fetching application window:', error);
+      throw error;
+    }
+  },
+
+  // Snapshot: current budget year (system_config/current-year)
+  async getCurrentSystemYear() {
+    try {
+      const response = await apiClient.get('/system-config/current-year');
+      return response; // { current_year, start_date, end_date, is_open, now }
+    } catch (error) {
+      console.error('Error fetching current system year:', error);
+      throw error;
+    }
+  },
+
+  // Get all categories and subcategories visible to teacher - Using NEW API
+  async getVisibleFundsStructure(year) {
+    try {
+      // If no year provided, use current year from system_config (live)
+      if (!year) {
+        const win = await this.getApplicationWindow();
+        year = win?.current_year;
+      }
+
       console.log('Getting teacher funds structure for year:', year);
 
       // Step 1: Get years to convert year to year_id
       const yearsResponse = await apiClient.get('/years');
       console.log('Years response:', yearsResponse);
-      
+
       // Handle different response formats
       const yearsData = yearsResponse.years || yearsResponse.data || [];
-      
+
       if (!Array.isArray(yearsData) || yearsData.length === 0) {
         throw new Error('No years data available');
       }
@@ -31,7 +59,7 @@ export const teacherAPI = {
       const response = await apiClient.get('/funds/structure', {
         year_id: targetYear.year_id
       });
-      
+
       console.log('Fund structure response:', response);
 
       return {
@@ -51,13 +79,13 @@ export const teacherAPI = {
       const params = {};
       if (categoryId) params.category_id = categoryId;
       if (yearId) params.year_id = yearId;
-      
+
       console.log('Getting teacher subcategories with params:', params);
-      
+
       // เรียก Teacher specific endpoint
       const response = await apiClient.get('/teacher/subcategories', params);
       console.log('Teacher subcategories response:', response);
-      
+
       return response;
     } catch (error) {
       console.error('Error fetching teacher subcategories:', error);
@@ -71,7 +99,7 @@ export const teacherAPI = {
       const response = await apiClient.get('/teacher/subcategories', {
         subcategory_id: subcategoryId
       });
-      
+
       return response.subcategories && response.subcategories.length > 0;
     } catch (error) {
       console.error('Error checking teacher fund visibility:', error);
@@ -121,13 +149,21 @@ export const teacherAPI = {
       console.error('Error fetching teacher profile:', error);
       throw error;
     }
-  }
+  },
+
+  // ภายใน export const teacherAPI = { ... }
+  async getApplicationWindow() {
+    const response = await apiClient.get('/system-config/window');
+    return response; // { current_year, start_date, end_date, is_open, window_state, ... }
+  },
+
+
 };
 
 // ==================== NEW SUBMISSION MANAGEMENT API ====================
 
 export const submissionAPI = {
-  
+
   // 1. Get user's submissions with filters
   async getSubmissions(params = {}) {
     try {
@@ -195,7 +231,7 @@ export const submissionAPI = {
 
 // ==================== SUBMISSION USERS MANAGEMENT API ====================
 export const submissionUsersAPI = {
-  
+
   // 1. เพิ่ม user ลงใน submission (co-author, advisor, etc.)
   async addUser(submissionId, userData) {
     try {
@@ -332,13 +368,13 @@ export const submissionUsersAPI = {
 // ==================== FILE UPLOAD API ====================
 
 export const fileAPI = {
-  
+
   // 1. Upload file
   async uploadFile(file) {
     try {
       // Use apiClient's uploadFile helper to handle FormData and headers
       const response = await apiClient.uploadFile('/files/upload', file);
-      
+
       return response;
     } catch (error) {
       console.error('Error uploading file:', error);
@@ -385,7 +421,7 @@ export const fileAPI = {
 // ==================== DOCUMENT MANAGEMENT API ====================
 
 export const documentAPI = {
-  
+
   // 1. Attach document to submission
   async attachDocument(submissionId, documentData) {
     try {
@@ -423,17 +459,17 @@ export const documentAPI = {
 // ==================== FUND APPLICATION DETAILS API ====================
 
 export const fundApplicationAPI = {
-  
+
   // Create publication reward application with all details and files
   async createApplication(applicationData) {
     try {
       console.log('Creating publication reward application:', applicationData);
-      
+
       const {
         // Basic submission data
         submission_type = 'publication_reward',
         year_id,
-        
+
         // Publication details - อัปเดตตาม database schema ใหม่
         author_status,                    // จะส่งเป็น author_type
         article_title,
@@ -447,7 +483,7 @@ export const fundApplicationAPI = {
         page_numbers,
         volume_issue,
         indexing,
-        
+
         // === เงินรางวัลและการคำนวณ (ใหม่) ===
         publication_reward,               // เงินรางวัลฐาน
         reward_approve_amount = 0,        // จำนวนเงินรางวัลที่อนุมัติ
@@ -456,18 +492,18 @@ export const fundApplicationAPI = {
         external_funding_amount = 0,      // รวมจำนวนเงินจากทุนที่ user แนบเข้ามา
         total_amount = 0,                 // ยอดรวมหลังหักลบ
         total_approve_amount = 0,         // จำนวนเงินจริงที่วิทยาลัยจ่ายให้
-        
+
         // === ข้อมูลผู้แต่ง ===
         author_count = 1,
-        
+
         // === อื่นๆ ===
         announce_reference_number = '',
-        
+
         // Files และ Coauthors
         uploadedFiles = {},
         otherDocuments = [],
         coauthors = [],
-        
+
         // Other data
         ...otherData
       } = applicationData;
@@ -477,14 +513,14 @@ export const fundApplicationAPI = {
         submission_type,
         year_id,
       });
-      
+
       const submissionId = submissionResponse.submission.submission_id;
       console.log('Created submission:', submissionId);
 
       // Step 2: Add co-authors to submission_users
       if (coauthors && coauthors.length > 0) {
         console.log('Adding co-authors to submission:', coauthors);
-        
+
         try {
           await submissionUsersAPI.setCoauthors(submissionId, coauthors);
           console.log('Co-authors added successfully');
@@ -496,12 +532,12 @@ export const fundApplicationAPI = {
 
       // Step 3: Upload files and attach documents
       const uploadPromises = [];
-      
+
       // Regular documents
       Object.entries(uploadedFiles).forEach(([documentTypeId, file]) => {
         if (file) {
           uploadPromises.push(
-            fileAPI.uploadFile(file).then(fileResponse => 
+            fileAPI.uploadFile(file).then(fileResponse =>
               documentAPI.attachDocument(submissionId, {
                 file_id: fileResponse.file.file_id,
                 document_type_id: parseInt(documentTypeId)
@@ -514,7 +550,7 @@ export const fundApplicationAPI = {
       // Other documents (multiple files)
       otherDocuments.forEach((file, index) => {
         uploadPromises.push(
-          fileAPI.uploadFile(file).then(fileResponse => 
+          fileAPI.uploadFile(file).then(fileResponse =>
             documentAPI.attachDocument(submissionId, {
               file_id: fileResponse.file.file_id,
               document_type_id: 11, // Other documents type
@@ -541,7 +577,7 @@ export const fundApplicationAPI = {
         page_numbers,
         volume_issue,
         indexing,
-        
+
         // === เงินรางวัลและการคำนวณ (ใหม่) ===
         publication_reward: parseFloat(publication_reward) || 0,
         reward_approve_amount: parseFloat(reward_approve_amount) || 0,
@@ -550,14 +586,14 @@ export const fundApplicationAPI = {
         external_funding_amount: parseFloat(external_funding_amount) || 0,
         total_amount: parseFloat(total_amount) || 0,
         total_approve_amount: parseFloat(total_approve_amount) || 0,
-        
+
         // === ข้อมูลผู้แต่ง ===
         author_status,  // จะถูกแปลงเป็น author_type ใน backend
         author_count: parseInt(author_count) || 1,
-        
+
         // === อื่นๆ ===
         announce_reference_number,
-        
+
         // Coauthors (for reference in publication details)
         coauthors: coauthors.map(c => c.user_id),
         ...otherData
@@ -568,7 +604,7 @@ export const fundApplicationAPI = {
         submission: submissionResponse.submission,
         details: detailsResponse
       };
-      
+
     } catch (error) {
       console.error('Error creating publication reward application:', error);
       throw error;
@@ -590,31 +626,31 @@ export const fundApplicationAPI = {
 // ==================== PUBLICATION REWARD API ====================
 
 export const publicationRewardAPI = {
-  
+
   // Create publication reward application with all details and files
   async createApplication(applicationData) {
     try {
       console.log('Creating publication reward application:', applicationData);
-      
+
       const {
         // Basic submission data
         submission_type = 'publication_reward',
         year_id,
-        
+
         // Publication details
         author_status,
         article_title,
         journal_name,
         journal_quartile,
         publication_reward,
-        
+
         // Files
         uploadedFiles = {},
         otherDocuments = [],
-        
+
         // Coauthors
         coauthors = [],
-        
+
         // Other data
         ...otherData
       } = applicationData;
@@ -624,14 +660,14 @@ export const publicationRewardAPI = {
         submission_type,
         year_id,
       });
-      
+
       const submissionId = submissionResponse.submission.submission_id;
       console.log('Created submission:', submissionId);
 
       // Step 2: Add co-authors to submission_users
       if (coauthors && coauthors.length > 0) {
         console.log('Adding co-authors to submission:', coauthors);
-        
+
         try {
           await submissionUsersAPI.setCoauthors(submissionId, coauthors);
           console.log('Co-authors added successfully via submissionUsersAPI');
@@ -643,12 +679,12 @@ export const publicationRewardAPI = {
 
       // Step 3: Upload files and attach documents
       const uploadPromises = [];
-      
+
       // Regular documents
       Object.entries(uploadedFiles).forEach(([documentTypeId, file]) => {
         if (file) {
           uploadPromises.push(
-            fileAPI.uploadFile(file).then(fileResponse => 
+            fileAPI.uploadFile(file).then(fileResponse =>
               documentAPI.attachDocument(submissionId, {
                 file_id: fileResponse.file.file_id,
                 document_type_id: parseInt(documentTypeId)
@@ -661,7 +697,7 @@ export const publicationRewardAPI = {
       // Other documents (multiple files)
       otherDocuments.forEach((file, index) => {
         uploadPromises.push(
-          fileAPI.uploadFile(file).then(fileResponse => 
+          fileAPI.uploadFile(file).then(fileResponse =>
             documentAPI.attachDocument(submissionId, {
               file_id: fileResponse.file.file_id,
               document_type_id: 11, // Other documents type
@@ -691,7 +727,7 @@ export const publicationRewardAPI = {
         submissionId: submissionId,
         details: detailsResponse
       };
-      
+
     } catch (error) {
       console.error('Error creating publication reward application:', error);
       throw error;
@@ -713,7 +749,7 @@ export const publicationRewardAPI = {
 // ==================== UTILITY FUNCTIONS ====================
 
 export const submissionUtils = {
-  
+
   // Get submission type display name
   getSubmissionTypeName(type) {
     const types = {
@@ -761,5 +797,5 @@ export default {
   document: documentAPI,
   fundApplication: fundApplicationAPI,
   publicationReward: publicationRewardAPI,
-  utils: submissionUtils
+  utils: submissionUtils,
 };
