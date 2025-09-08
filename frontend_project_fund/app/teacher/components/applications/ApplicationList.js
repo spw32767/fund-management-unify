@@ -211,7 +211,14 @@ export default function ApplicationList({ onNavigate }) {
       header: "ชื่อทุน",
       accessor: "subcategory_name",
       className: "text-sm",
-      render: (value) => (value === null || value === undefined || value === '' ? '-' : value)
+      render: (value) => {
+        const v = (value === null || value === undefined || value === '') ? '-' : String(value);
+        return (
+          <div className="truncate overflow-hidden whitespace-nowrap max-w-xs" title={v}>
+            {v}
+          </div>
+        );
+      }
     },
     {
       header: "ชื่อโครงการ/บทความ",
