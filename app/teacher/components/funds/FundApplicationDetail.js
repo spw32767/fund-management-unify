@@ -307,48 +307,73 @@ export default function FundApplicationDetail({ submissionId, onNavigate }) {
       <Card title="เอกสารแนบ (Attachments)" icon={FileText} collapsible={false}>
         <div className="space-y-4">
           {documents.length > 0 ? (
-            <ul className="divide-y divide-gray-200">
-              {documents.map((doc, index) => {
-                const fileId =
-                  doc.file_id || doc.File?.file_id || doc.file?.file_id;
-                const docName =
-                  doc.File?.original_name ||
-                  doc.file?.original_name ||
-                  doc.original_filename ||
-                  doc.file_name ||
-                  doc.name ||
-                  `เอกสารที่ ${index + 1}`;
-                return (
-                  <li
-                    key={doc.document_id || fileId || index}
-                    className="py-3 flex items-center justify-between"
-                  >
-                    <div className="flex items-center">
-                      <FileText className="h-5 w-5 text-gray-400 mr-3" />
-                      <span className="text-sm text-gray-700">{docName}</span>
-                    </div>
-                    {fileId && (
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => handleView(fileId)}
-                          className="inline-flex items-center gap-1 px-3 py-1 text-sm text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-md"
-                        >
-                          <Eye className="h-4 w-4" />
-                          ดู
-                        </button>
-                        <button
-                          onClick={() => handleDownload(fileId, docName)}
-                          className="inline-flex items-center gap-1 px-3 py-1 text-sm text-green-600 bg-green-50 hover:bg-green-100 rounded-md"
-                        >
-                          <Download className="h-4 w-4" />
-                          ดาวน์โหลด
-                        </button>
-                      </div>
-                    )}
-                  </li>
-                );
-              })}
-            </ul>
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      No.
+                    </th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      File Type
+                    </th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Attached File
+                    </th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Actions
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {documents.map((doc, index) => {
+                    const fileId = doc.file_id || doc.File?.file_id || doc.file?.file_id;
+                    const docName =
+                      doc.File?.original_name ||
+                      doc.file?.original_name ||
+                      doc.original_filename ||
+                      doc.file_name ||
+                      doc.name ||
+                      `เอกสารที่ ${index + 1}`;
+                    const docType =
+                      doc.document_type_name ||
+                      doc.document_type?.document_type_name ||
+                      doc.DocumentType?.document_type_name ||
+                      "-";
+                    return (
+                      <tr key={doc.document_id || fileId || index}>
+                        <td className="px-4 py-2 text-sm text-gray-500">{index + 1}</td>
+                        <td className="px-4 py-2 text-sm text-gray-700">{docType}</td>
+                        <td className="px-4 py-2">
+                          <div className="flex items-center">
+                            <FileText className="h-5 w-5 text-gray-400 mr-2" />
+                            <span className="text-sm text-gray-700">{docName}</span>
+                          </div>
+                        </td>
+                        <td className="px-4 py-2">
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => handleView(fileId)}
+                              className="inline-flex items-center gap-1 px-3 py-1 text-sm text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-md"
+                            >
+                              <Eye className="h-4 w-4" />
+                              ดู
+                            </button>
+                            <button
+                              onClick={() => handleDownload(fileId, docName)}
+                              className="inline-flex items-center gap-1 px-3 py-1 text-sm text-green-600 bg-green-50 hover:bg-green-100 rounded-md"
+                            >
+                              <Download className="h-4 w-4" />
+                              ดาวน์โหลด
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           ) : (
             <p className="text-center text-gray-500 py-8">ไม่มีเอกสารแนบ</p>
           )}
