@@ -10,6 +10,7 @@ import {
   AlertCircle,
   Clock,
   Eye,
+  Download,
 } from "lucide-react";
 import { submissionAPI, submissionUsersAPI } from "@/app/lib/teacher_api";
 import apiClient from "@/app/lib/api";
@@ -97,6 +98,14 @@ export default function FundApplicationDetail({ submissionId, onNavigate }) {
       window.URL.revokeObjectURL(fileURL);
     } catch (error) {
       console.error("Error viewing document:", error);
+    }
+  };
+
+  const handleDownload = async (fileId, fileName = "document") => {
+    try {
+      await apiClient.downloadFile(`/files/managed/${fileId}/download`, fileName);
+    } catch (error) {
+      console.error("Error downloading document:", error);
     }
   };
 
@@ -226,6 +235,19 @@ export default function FundApplicationDetail({ submissionId, onNavigate }) {
                   </span>
                 </div>
               )}
+              {submission.status_id === 2 &&
+                (submission.announce_reference_number ||
+                  detail.announce_reference_number) && (
+                  <div className="md:col-span-3">
+                    <span className="text-gray-500">
+                      เลขอ้างอิงประกาศ (Announcement Reference):
+                    </span>
+                    <span className="ml-2 font-medium">
+                      {submission.announce_reference_number ||
+                        detail.announce_reference_number}
+                    </span>
+                  </div>
+                )}
               {submission.approved_at && (
                 <div>
                   <span className="text-gray-500">วันที่อนุมัติ (Approval Date):</span>
@@ -306,13 +328,22 @@ export default function FundApplicationDetail({ submissionId, onNavigate }) {
                       <span className="text-sm text-gray-700">{docName}</span>
                     </div>
                     {fileId && (
-                      <button
-                        onClick={() => handleView(fileId)}
-                        className="inline-flex items-center gap-1 px-3 py-1 text-sm text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-md"
-                      >
-                        <Eye className="h-4 w-4" />
-                        ดู
-                      </button>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => handleView(fileId)}
+                          className="inline-flex items-center gap-1 px-3 py-1 text-sm text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-md"
+                        >
+                          <Eye className="h-4 w-4" />
+                          ดู
+                        </button>
+                        <button
+                          onClick={() => handleDownload(fileId, docName)}
+                          className="inline-flex items-center gap-1 px-3 py-1 text-sm text-green-600 bg-green-50 hover:bg-green-100 rounded-md"
+                        >
+                          <Download className="h-4 w-4" />
+                          ดาวน์โหลด
+                        </button>
+                      </div>
                     )}
                   </li>
                 );

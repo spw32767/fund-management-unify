@@ -2,7 +2,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { TrendingUp, FileText, Search, Download, X, Info } from "lucide-react";
+import { TrendingUp, FileText, Search, Download, X, Info, Clock, AlertTriangle } from "lucide-react";
 import PageLayout from "../common/PageLayout";
 import { teacherAPI } from '../../../lib/teacher_api';
 import { targetRolesUtils } from '../../../lib/target_roles_utils';
@@ -13,8 +13,12 @@ export default function PromotionFundContent({ onNavigate }) {
   const [fundCategories, setFundCategories] = useState([]);
   const [filteredFunds, setFilteredFunds] = useState([]);
   const [years, setYears] = useState([]);
+  const [systemConfig, setSystemConfig] = useState(null);
+  const [isWithinApplicationPeriod, setIsWithinApplicationPeriod] = useState(true);
+  const [endDateLabel, setEndDateLabel] = useState(""); // <— NEW: for appending to fund_condition
   const [loading, setLoading] = useState(true);
   const [yearsLoading, setYearsLoading] = useState(false);
+  const [configLoading, setConfigLoading] = useState(false);
   const [error, setError] = useState(null);
   const [userRole, setUserRole] = useState(null);
   
@@ -41,25 +45,62 @@ export default function PromotionFundContent({ onNavigate }) {
     if (selectedYear) {
       loadFundData(selectedYear);
     }
-  }, [selectedYear]);
+  }, [selectedYear, isWithinApplicationPeriod, endDateLabel]); // reload when window status/label changes
 
   useEffect(() => {
     applyFilters();
   }, [searchTerm, statusFilter, fundCategories]);
+
+  // ---------- helpers ----------
+  // Accepts "YYYY-MM-DD HH:mm:ss" (treated as local) or ISO (respects Z/offset)
+  const computeApplicationOpen = (start, end) => {
+    if (!start || !end) return true; // if not configured => allow
+    const parse = (v) => {
+      if (v == null) return NaN;
+      const s = String(v).trim();
+      // If it already has timezone info (Z or ±HH:MM), let Date handle it
+      if (/[zZ]|[+\-]\d{2}:\d{2}$/.test(s)) return new Date(s);
+      // Otherwise treat SQL-like as local time by inserting 'T'
+      return new Date(s.replace(" ", "T"));
+    };
+    const s = parse(start);
+    const e = parse(end);
+    if (isNaN(s) || isNaN(e)) return true;
+
+    const now = new Date();
+    // inclusive window: start <= now <= end
+    return s.getTime() <= now.getTime() && now.getTime() <= e.getTime();
+  };
+
+
+  // Thai date (date only) like "1 มกราคม 2569"
+  const formatThaiDate = (value) => {
+    if (!value) return "";
+    const d = new Date(String(value).replace(" ", "T"));
+    if (isNaN(d.getTime())) return "";
+    const thaiMonths = [
+      'มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน',
+      'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'
+    ];
+    return `${d.getDate()} ${thaiMonths[d.getMonth()]} ${d.getFullYear() + 543}`;
+  };
 
   const loadInitialData = async () => {
     try {
       setLoading(true);
       setError(null);
 
-      const [roleInfo, yearsData] = await Promise.all([
+      const [roleInfo, yearsData, configData] = await Promise.all([
         targetRolesUtils.getCurrentUserRole(),
-        loadAvailableYears()
+        loadAvailableYears(),
+        loadSystemConfig()
       ]);
 
       setUserRole(roleInfo);
       setYears(yearsData);
-      await loadFundData(selectedYear);
+      setSystemConfig(configData);
+
+      // funds will reload via selectedYear effect
     } catch (err) {
       console.error('Error loading initial data:', err);
       setError(err.message || 'เกิดข้อผิดพลาดในการโหลดข้อมูล');
@@ -91,69 +132,224 @@ export default function PromotionFundContent({ onNavigate }) {
     }
   };
 
+  // === build Authorization header from localStorage (no TS) ===
+  const buildAuthHeader = () => {
+    if (typeof window === "undefined") return null;
+    const raw =
+      localStorage.getItem("access_token") ||
+      localStorage.getItem("token") ||
+      localStorage.getItem("auth_token");
+    if (!raw) return null;
+    return /^Bearer\s+/i.test(raw) ? raw : `Bearer ${raw}`;
+  };
+
+  // ---------- fetch system-config (requires Authorization) ----------
+  const loadSystemConfig = async () => {
+    try {
+      setConfigLoading(true);
+      let headers = { Accept: "application/json", "Cache-Control": "no-store" };
+
+      // Add Authorization from localStorage if available
+      if (typeof window !== "undefined") {
+        const raw =
+          localStorage.getItem("access_token") ||
+          localStorage.getItem("token") ||
+          localStorage.getItem("auth_token");
+        if (raw) headers.Authorization = /^Bearer\s+/i.test(raw) ? raw : `Bearer ${raw}`;
+      }
+
+      const res = await fetch("/api/system-config", {
+        method: "GET",
+        headers,
+        cache: "no-store",
+        credentials: "include", // include cookies if you log in via cookies
+      });
+
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok || !json?.success) {
+        throw new Error(json?.error || `Failed to load system-config (${res.status})`);
+      }
+
+      const cfg = json?.config || json?.data || {};
+      const start_date = cfg.start_date || null;
+      const end_date = cfg.end_date || null;
+
+      // Coerce is_open: accept booleans OR string "true"/"false"
+      let openFlag = undefined;
+      if (typeof cfg.is_open === "boolean") {
+        openFlag = cfg.is_open;
+      } else if (typeof cfg.is_open === "string") {
+        openFlag = cfg.is_open.trim().toLowerCase() === "true";
+      }
+
+      const open = (openFlag !== undefined)
+        ? !!openFlag
+        : computeApplicationOpen(start_date, end_date);
+
+      // Debug (you can keep or remove later)
+      console.log("[system-config]", {
+        start_date,
+        end_date,
+        is_open_raw: cfg.is_open,
+        is_open_effective: open,
+        now: new Date().toISOString(),
+      });
+
+      setIsWithinApplicationPeriod(open);
+      setEndDateLabel(formatThaiDate(end_date));
+      return cfg;
+    } catch (e) {
+      console.warn("loadSystemConfig failed:", e);
+      // Treat as open if request fails (do not block users)
+      setIsWithinApplicationPeriod(true);
+      setEndDateLabel("");
+      return null;
+    } finally {
+      setConfigLoading(false);
+    }
+  };
+
+
+  // (kept for banner rendering compatibility)
+  const checkApplicationPeriod = (config) => {
+    if (!config || !config.start_date || !config.end_date) {
+      setIsWithinApplicationPeriod(true); // Default to allow if no config
+      return;
+    }
+
+    const now = new Date();
+    const startDate = new Date(config.start_date);
+    const endDate = new Date(config.end_date);
+
+    // Check if dates are valid (not "0000-00-00 00:00:00")
+    if (config.start_date === "0000-00-00 00:00:00" || config.end_date === "0000-00-00 00:00:00") {
+      setIsWithinApplicationPeriod(true); // Allow if dates are not set
+      return;
+    }
+
+    const withinPeriod = now >= startDate && now <= endDate;
+    setIsWithinApplicationPeriod(withinPeriod);
+  };
+
+  const formatDateThai = (dateString) => {
+    if (!dateString || dateString === "0000-00-00 00:00:00") {
+      return 'ไม่ระบุ';
+    }
+
+    try {
+      const date = new Date(dateString);
+      if (isNaN(date.getTime())) return 'วันที่ไม่ถูกต้อง';
+
+      const thaiMonths = [
+        'มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน',
+        'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'
+      ];
+
+      const day = date.getDate();
+      const month = thaiMonths[date.getMonth()];
+      const year = date.getFullYear() + 543; // Convert to Buddhist year
+      const hours = date.getHours().toString().padStart(2, '0');
+      const minutes = date.getMinutes().toString().padStart(2, '0');
+
+      return `${day} ${month} ${year} เวลา ${hours}:${minutes} น.`;
+    } catch (err) {
+      return 'วันที่ไม่ถูกต้อง';
+    }
+  };
+
+  const getDaysUntilDeadline = () => {
+    if (!systemConfig || !systemConfig.end_date || systemConfig.end_date === "0000-00-00 00:00:00") {
+      return null;
+    }
+
+    try {
+      const now = new Date();
+      const endDate = new Date(systemConfig.end_date);
+      const diffTime = endDate - now;
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      
+      return diffDays;
+    } catch (err) {
+      return null;
+    }
+  };
+
   const loadFundData = async (year) => {
     try {
       setLoading(true);
       setError(null);
-      
+
       // ใช้ API ใหม่ที่ส่งข้อมูลแบบจัดกลุ่มแล้ว
       const response = await teacherAPI.getVisibleFundsStructure(year);
-      console.log('Fund structure response:', response);
-      
+      console.log("Fund structure response:", response);
+
       if (!response.categories || !Array.isArray(response.categories)) {
-        console.error('No categories found or invalid format');
+        console.error("No categories found or invalid format");
         setFundCategories([]);
         return;
       }
-      
+
       // กรองเฉพาะทุนอุดหนุนกิจกรรม (category_id = 2)
-      const promotionFunds = response.categories.filter(category =>
-        category.category_id === 2
+      const promotionFunds = response.categories.filter(
+        (category) => category.category_id === 2
       );
 
-      // รวมทุนเงินรางวัลการตีพิมพ์ (ผู้แต่งชื่อแรก/ผู้ประพันธ์บรรณกิจ) ให้เป็นตัวเลือกเดียว
-      const mergedPromotionFunds = promotionFunds.map(category => {
+      // รวมทุน publication_reward ให้เป็น 1 แถว (คงพฤติกรรมเดิม)
+      const mergedPromotionFunds = promotionFunds.map((category) => {
         if (!Array.isArray(category.subcategories)) return category;
 
         const publicationSubs = category.subcategories.filter(
-          sub => sub.form_type === 'publication_reward'
+          (sub) => sub.form_type === "publication_reward"
         );
 
         if (publicationSubs.length > 1) {
           const merged = {
             ...publicationSubs[0],
-            category_id: category.category_id,  // เพิ่มบรรทัดนี้
-            subcategory_name: 'เงินรางวัลการตีพิมพ์เผยแพร่ผลงานวิจัย',
+            category_id: category.category_id,
+            subcategory_name: "เงินรางวัลการตีพิมพ์เผยแพร่ผลงานวิจัย",
             remaining_budget: publicationSubs.reduce(
               (sum, s) => sum + (s.remaining_budget || 0),
               0
             ),
-            has_multiple_levels: publicationSubs.some(s => s.has_multiple_levels),
+            has_multiple_levels: publicationSubs.some((s) => s.has_multiple_levels),
             budget_count: publicationSubs.reduce(
               (sum, s) => sum + (s.budget_count || 0),
               0
             ),
-            merged_subcategories: publicationSubs
+            merged_subcategories: publicationSubs,
           };
 
           const others = category.subcategories.filter(
-            sub => sub.form_type !== 'publication_reward'
+            (sub) => sub.form_type !== "publication_reward"
           );
-
-          return { ...category, subcategories: [...others, merged] };
+          return { ...category, subcategories: [merged, ...others] };
         }
-
         return category;
       });
 
-      console.log('Promotion funds:', mergedPromotionFunds);
+      // 🔒 ถ้า application window ปิด: ทำให้ปุ่ม Apply เทา/กดไม่ได้
+      // โดย "ไม่แตะ JSX" — แก้เฉพาะข้อมูล: remaining_budget = 0
+      // และเพิ่มบรรทัด "สิ้นสุดรับคำขอ: <วันที่ไทย>" ใน fund_condition ถ้ายังไม่มี
+      const adjusted = mergedPromotionFunds.map((category) => {
+        const newSubs = (category.subcategories || []).map((sub) => {
+          let next = { ...sub };
+          if (!isWithinApplicationPeriod) {
+            next.remaining_budget = 0;
 
-      // ข้อมูลพร้อมใช้งานเลย ไม่ต้องประมวลผลเพิ่ม
-      setFundCategories(mergedPromotionFunds);
-      
+            const note = endDateLabel ? `\nสิ้นสุดรับคำขอ: ${endDateLabel}` : "";
+            const base = (next.fund_condition || "").trim();
+            const already = base.includes("สิ้นสุดรับคำขอ:");
+            next.fund_condition = already ? base : `${base}${note}`;
+          }
+          return next;
+        });
+        return { ...category, subcategories: newSubs };
+      });
+
+      setFundCategories(adjusted);
     } catch (err) {
-      console.error('Error loading fund data:', err);
-      setError(err.message || 'เกิดข้อผิดพลาดในการโหลดข้อมูลทุน');
+      console.error("Error loading fund data:", err);
+      setError(err.message || "เกิดข้อผิดพลาดในการโหลดข้อมูลทุน");
       setFundCategories([]);
     } finally {
       setLoading(false);
@@ -195,6 +391,11 @@ export default function PromotionFundContent({ onNavigate }) {
   };
 
   const handleViewForm = (subcategory) => {
+    // Check if within application period first
+    if (!isWithinApplicationPeriod) {
+      return; // Do nothing if not within period
+    }
+
     const formType = subcategory.form_type || 'download';
     const formConfig = FORM_TYPE_CONFIG[formType];
     
@@ -234,6 +435,67 @@ export default function PromotionFundContent({ onNavigate }) {
     setShowConditionModal(true);
   };
 
+  const renderApplicationPeriodInfo = () => {
+    if (!systemConfig) return null;
+
+    const daysUntilDeadline = getDaysUntilDeadline();
+    const endDateFormatted = formatDateThai(systemConfig.end_date);
+
+    if (!isWithinApplicationPeriod) {
+      return (
+        <div className="mb-6 bg-red-50 border border-red-200 rounded-lg p-4">
+          <div className="flex items-center gap-3">
+            <AlertTriangle className="text-red-600 flex-shrink-0" size={20} />
+            <div>
+              <h3 className="text-red-800 font-medium">หมดเวลาการยื่นขอทุน</h3>
+              <p className="text-red-700 text-sm mt-1">
+                การยื่นขอทุนได้สิ้นสุดลงเมื่อ {endDateFormatted}
+              </p>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    if (daysUntilDeadline !== null && daysUntilDeadline <= 7) {
+      return (
+        <div className="mb-6 bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+          <div className="flex items-center gap-3">
+            <Clock className="text-yellow-600 flex-shrink-0" size={20} />
+            <div>
+              <h3 className="text-yellow-800 font-medium">
+                {daysUntilDeadline > 0 
+                  ? `เหลือเวลาอีก ${daysUntilDeadline} วัน` 
+                  : 'วันสุดท้ายของการยื่นขอทุน'}
+              </h3>
+              <p className="text-yellow-700 text-sm mt-1">
+                การยื่นขอทุนจะสิ้นสุดในวันที่ {endDateFormatted}
+              </p>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    if (systemConfig.end_date && systemConfig.end_date !== "0000-00-00 00:00:00") {
+      return (
+        <div className="mb-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
+          <div className="flex items-center gap-3">
+            <Info className="text-blue-600 flex-shrink-0" size={20} />
+            <div>
+              <h3 className="text-blue-800 font-medium">ระยะเวลาการยื่นขอทุน</h3>
+              <p className="text-blue-700 text-sm mt-1">
+                สามารถยื่นขอทุนได้ถึงวันที่ {endDateFormatted}
+              </p>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    return null;
+  };
+
   if (loading) {
     return (
       <div className="flex justify-center items-center h-64">
@@ -268,9 +530,12 @@ export default function PromotionFundContent({ onNavigate }) {
     const buttonText = formConfig.buttonText;
     const ButtonIcon = formConfig.buttonIcon === 'FileText' ? FileText : Download;
     const remainingBudget = fund.remaining_budget || 0;
+    
+    // Check if button should be disabled
+    const isDisabled = remainingBudget === 0 || !isWithinApplicationPeriod;
 
     return (
-      <tr key={fundId} className={!isAvailable ? 'bg-gray-50' : ''}>
+      <tr key={fundId} className={!isAvailable || !isWithinApplicationPeriod ? 'bg-gray-50' : ''}>
         <td className="px-6 py-4">
           <div className="text-sm font-medium text-gray-900 max-w-lg break-words leading-relaxed">
             {fundName}
@@ -310,10 +575,12 @@ export default function PromotionFundContent({ onNavigate }) {
           <button
             onClick={() => handleViewForm(fund)}
             className={`inline-flex items-center gap-2 px-4 py-2 text-sm font-medium 
-              ${remainingBudget > 0 
+              ${!isDisabled
                 ? 'text-blue-600 hover:text-blue-700' 
                 : 'text-gray-400 cursor-not-allowed'}`}
-            disabled={remainingBudget === 0}
+            disabled={isDisabled}
+            title={!isWithinApplicationPeriod ? 'หมดเวลาการยื่นขอทุนแล้ว' : 
+                   remainingBudget === 0 ? 'งบประมาณหมดแล้ว' : ''}
           >
             <ButtonIcon size={16} />
             {buttonText}
@@ -333,6 +600,20 @@ export default function PromotionFundContent({ onNavigate }) {
         { label: "ทุนอุดหนุนกิจกรรม" }
       ]}
     >
+      {/* Application Period Info */}
+      {renderApplicationPeriodInfo()}
+
+      {/* Closing Date Announcement (Always visible) */}
+      {systemConfig?.end_date && systemConfig.end_date !== "0000-00-00 00:00:00" && (
+        <div className="mb-4 bg-blue-50 border border-blue-200 rounded-lg p-3">
+          <div className="flex items-center gap-2 text-sm text-blue-800">
+            <Info className="w-4 h-4" />
+            <span className="font-medium">ประกาศ:</span>
+            <span>สิ้นสุดรับคำขอ: วันที่ {formatDateThai(systemConfig.end_date)}</span>
+          </div>
+        </div>
+      )}
+
       {/* Control Bar */}
       <div className="mb-6 bg-white rounded-lg shadow-sm p-4">
         <div className="flex flex-col md:flex-row gap-4 items-center justify-between">
