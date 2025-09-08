@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"fund-management-api/controllers"
 	"fund-management-api/middleware"
+	"fund-management-api/monitor"
 	"log"
 	"net/http"
 	"net/url"
@@ -25,6 +26,8 @@ func SetupRoutes(router *gin.Engine) {
 		c.Next()
 	})
 
+	monitor.RegisterDeployPage(router)
+
 	// API v1 group
 	v1 := router.Group("/api/v1")
 	{
@@ -34,6 +37,8 @@ func SetupRoutes(router *gin.Engine) {
 
 			RegisterUploadRoutes(public) // สำหรับ POST /upload
 			RegisterFileRoutes(public)   // สำหรับ GET /files, DELETE /files/:name
+
+			public.GET("/years", controllers.GetActiveYears)
 
 			// Authentication
 			public.POST("/login", controllers.Login)
@@ -102,12 +107,11 @@ func SetupRoutes(router *gin.Engine) {
 			protected.POST("/sessions/revoke-others", controllers.RevokeOtherSessions)
 
 			// Common endpoints (all authenticated users)
-			protected.GET("/years", controllers.GetYears)
 			protected.GET("/categories", controllers.GetCategories)
 			protected.GET("/subcategories", controllers.GetSubcategories)
 			protected.GET("/application-status", controllers.GetApplicationStatuses)
 			protected.GET("/system-config/current-year", controllers.GetCurrentYear)
-			protected.GET("/system-config/window", controllers.GetApplicationWindow)
+			protected.GET("/system-config/window", controllers.GetSystemConfigWindow)
 
 			// General submissions listing (all users)
 			protected.GET("/submissions", controllers.GetAllSubmissions)        // ดูรายการ submissions (filtered by role)
@@ -406,6 +410,13 @@ func SetupRoutes(router *gin.Engine) {
 				// File system utilities (เพิ่มเติมในอนาคต)
 				// admin.GET("/files/orphaned", controllers.FindOrphanedFiles)     // หาไฟล์ที่ไม่มีใน DB
 				// admin.DELETE("/files/orphaned", controllers.DeleteOrphanedFiles) // ลบไฟล์ที่ไม่มีใน DB
+
+				// ===== SYSTEM CONFIG (Admin) =====
+				systemConfig := admin.Group("/system-config")
+				{
+					systemConfig.GET("", controllers.GetSystemConfigAdmin)
+					systemConfig.PUT("", controllers.UpdateSystemConfig)
+				}
 
 				submissionManagement := admin.Group("/submissions")
 				{
