@@ -2,7 +2,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { FileText, Upload, Save, Send, X, Eye, ArrowLeft, AlertCircle } from "lucide-react";
+import { FileText, Upload, Save, Send, X, Eye, ArrowLeft, AlertCircle, DollarSign } from "lucide-react";
 import PageLayout from "../common/PageLayout";
 import SimpleCard from "../common/SimpleCard";
 import { authAPI, systemAPI } from '../../../lib/api';
@@ -119,6 +119,7 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
   const [formData, setFormData] = useState({
     name: "",
     phone: "",
+    requested_amount: "",
   });
   
   // Document requirements and uploaded files
@@ -302,6 +303,10 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
       }
     }
 
+    if (!formData.requested_amount || isNaN(parseFloat(formData.requested_amount)) || parseFloat(formData.requested_amount) <= 0) {
+      newErrors.requested_amount = 'กรุณาระบุจำนวนเงินที่ขอ';
+    }
+
     // Validate required documents
     documentRequirements.forEach(docType => {
       if (docType.required && !uploadedFiles[docType.document_type_id]) {
@@ -369,7 +374,7 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
         await apiClient.post(`/submissions/${submissionId}/fund-details`, {
           project_title: formData.name,
           project_description: formData.phone,
-          requested_amount: 0,
+          requested_amount: parseFloat(formData.requested_amount) || 0,
           subcategory_id: subcategoryData.subcategory_id
         });
       }
@@ -521,6 +526,31 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
           </div>
         </SimpleCard>
 
+        {/* Request Amount */}
+        <SimpleCard title="จำนวนเงินที่ขอ (Request Amount)" icon={DollarSign}>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              จำนวนเงินที่ขอ
+              <br />
+              <span className="text-xs font-normal text-gray-500">Request Amount (THB)</span>
+            </label>
+            <input
+              type="number"
+              min="0"
+              value={formData.requested_amount}
+              onChange={(e) => handleInputChange('requested_amount', e.target.value)}
+              placeholder="Request Amount"
+              className={`w-full bg-gray-50 rounded-lg p-3 text-2xl font-semibold text-gray-800 border ${errors.requested_amount ? 'border-red-500' : 'border-gray-200'}`}
+            />
+            {errors.requested_amount && (
+              <p className="text-red-500 text-sm mt-1 flex items-center gap-1">
+                <AlertCircle className="h-4 w-4" />
+                {errors.requested_amount}
+              </p>
+            )}
+          </div>
+        </SimpleCard>
+        
         {/* File Attachments */}
         <SimpleCard title="เอกสารแนบ" icon={Upload}>
           {documentRequirements.length === 0 ? (
