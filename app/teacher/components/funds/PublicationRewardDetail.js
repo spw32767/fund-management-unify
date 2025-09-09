@@ -792,10 +792,9 @@ export default function PublicationRewardDetail({ submissionId, onNavigate }) {
                       const fileId = doc.file_id || doc.File?.file_id || doc.file?.file_id;
                       const docName = doc.File?.original_name || doc.file?.original_name || doc.original_filename || doc.file_name || doc.name || `เอกสารที่ ${index + 1}`;
                       const docType =
-                        doc.document_type_name ||
-                        doc.document_type?.document_type_name ||
-                        doc.DocumentType?.document_type_name ||
-                        "-";
+                        doc.document_type_name && doc.document_type_name.trim() !== ""
+                          ? doc.document_type_name
+                          : "-";
                       return (
                         <tr key={doc.document_id || fileId || index}>
                           <td className="px-4 py-2 text-sm text-gray-500">{index + 1}</td>
