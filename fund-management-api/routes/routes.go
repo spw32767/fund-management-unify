@@ -279,6 +279,10 @@ func SetupRoutes(router *gin.Engine) {
 			// Document types with category filter
 			protected.GET("/document-types", controllers.GetDocumentTypes)
 
+			// User profile related research outputs
+			protected.GET("/publications", controllers.GetUserPublications)
+			protected.GET("/innovations", controllers.GetUserInnovations)
+
 			// ===== ANNOUNCEMENTS AND FUND FORMS =====
 			announcements := protected.Group("/announcements")
 			{
