@@ -106,6 +106,17 @@ func SetupRoutes(router *gin.Engine) {
 			protected.GET("/sessions", controllers.GetActiveSessions)
 			protected.POST("/sessions/revoke-others", controllers.RevokeOtherSessions)
 
+			// ===== NOTIFICATIONS (NEW) =====
+			notifications := protected.Group("/notifications")
+			{
+				notifications.POST("", controllers.CreateNotification)                                                   // สร้างแจ้งเตือน 1 รายการ
+				notifications.GET("", controllers.GetNotifications)                                                      // list ของ user ปัจจุบัน
+				notifications.GET("/counter", controllers.GetNotificationCounter)                                        // นับ unread
+				notifications.PATCH("/:id/read", controllers.MarkNotificationRead)                                       // อ่าน 1 รายการ
+				notifications.POST("/mark-all-read", controllers.MarkAllNotificationsRead)                               // อ่านทั้งหมด
+				notifications.POST("/events/submissions/:submissionId/submitted", controllers.NotifySubmissionSubmitted) // อีเวนต์: ส่งคำร้องสำเร็จ
+			}
+
 			// Common endpoints (all authenticated users)
 			protected.GET("/categories", controllers.GetCategories)
 			protected.GET("/subcategories", controllers.GetSubcategories)
@@ -123,6 +134,12 @@ func SetupRoutes(router *gin.Engine) {
 				// ไม่ต้องใส่ RequireRole(1) เพราะ GetSubcategoryForRole จะ check role เอง
 				teacher.GET("/subcategories", controllers.GetSubcategoryForRole)
 				teacher.GET("/submissions", controllers.GetTeacherSubmissions) // Teacher ดู submissions ของตัวเอง
+				// User Publications
+				teacher.GET("/user-publications", controllers.GetUserPublications)
+				teacher.POST("/user-publications/upsert", controllers.UpsertUserPublication)
+				teacher.DELETE("/user-publications/:id", controllers.DeleteUserPublication)
+				teacher.PATCH("/user-publications/:id/restore", controllers.RestoreUserPublication)
+				teacher.GET("/user-publications/scholar/search", controllers.TeacherScholarAuthorSearch)
 			}
 
 			// Staff-specific endpoints
@@ -315,6 +332,11 @@ func SetupRoutes(router *gin.Engine) {
 				// Dashboard
 				admin.GET("/dashboard/stats", controllers.GetDashboardStats)
 				admin.GET("/submissions", controllers.GetAdminSubmissions) // Admin ดู submissions ทั้งหมด
+				// User Publications Import from Scholar
+				admin.POST("/user-publications/import/scholar", controllers.AdminImportScholarPublications)
+				admin.POST("/user-publications/import/scholar/all", controllers.AdminImportScholarForAll)
+				admin.GET("/user-publications/scholar/search", controllers.TeacherScholarAuthorSearch)
+				admin.GET("/users/search", controllers.AdminSearchUsers)
 
 				// ========== YEAR MANAGEMENT ==========
 				years := admin.Group("/years")
