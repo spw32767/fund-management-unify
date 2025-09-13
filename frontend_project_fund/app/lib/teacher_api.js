@@ -129,6 +129,17 @@ export const teacherAPI = {
     }
   },
 
+  // Get current user's innovations
+  async getUserInnovations(params = {}) {
+    try {
+      const response = await apiClient.get('/teacher/user-innovations', params);
+      return response;
+    } catch (error) {
+      console.error('Error fetching user innovations:', error);
+      throw error;
+    }
+  },
+
   // Get teacher's applications
   async getMyApplications(params = {}) {
     try {

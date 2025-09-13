@@ -60,9 +60,18 @@ export default function ProfileContent({ onNavigate }) {
   const [currentPage, setCurrentPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(10);
 
+  const [innovations, setInnovations] = useState([]);
+  const [innovLoading, setInnovLoading] = useState(true);
+  const [innovSearchTerm, setInnovSearchTerm] = useState('');
+  const [innovSortField, setInnovSortField] = useState('registered_date');
+  const [innovSortDirection, setInnovSortDirection] = useState('desc');
+  const [innovPage, setInnovPage] = useState(1);
+  const [innovRowsPerPage, setInnovRowsPerPage] = useState(10);
+
   useEffect(() => {
     loadProfileData();
     loadPublications();
+    loadInnovations();
   }, []);
 
   const loadProfileData = async () => {
@@ -133,6 +142,19 @@ export default function ProfileContent({ onNavigate }) {
     }
   };
 
+  const loadInnovations = async () => {
+    try {
+      setInnovLoading(true);
+      const res = await teacherAPI.getUserInnovations({ limit: 1000 });
+      const items = res.data || res.items || [];
+      setInnovations(items);
+    } catch (error) {
+      console.error('Error loading innovations:', error);
+    } finally {
+      setInnovLoading(false);
+    }
+  };
+
   const handleSort = (field) => {
     if (sortField === field) {
       setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
@@ -175,6 +197,48 @@ export default function ProfileContent({ onNavigate }) {
 
   const totalPages = Math.ceil(sortedPublications.length / rowsPerPage) || 1;
 
+  const handleInnovSort = (field) => {
+    if (innovSortField === field) {
+      setInnovSortDirection(innovSortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      setInnovSortField(field);
+      setInnovSortDirection(field === 'registered_date' ? 'desc' : 'asc');
+    }
+  };
+
+  const innovFieldValue = (item, field) => {
+    switch (field) {
+      case 'title':
+        return item.title?.toLowerCase() || '';
+      case 'innovation_type':
+        return item.innovation_type?.toLowerCase() || '';
+      case 'registered_date':
+      default:
+        return item.registered_date || '';
+    }
+  };
+
+  const sortedInnovations = useMemo(() => {
+    const filtered = innovations.filter((i) =>
+      i.title?.toLowerCase().includes(innovSearchTerm.toLowerCase())
+    );
+    const sorted = filtered.sort((a, b) => {
+      const aVal = innovFieldValue(a, innovSortField);
+      const bVal = innovFieldValue(b, innovSortField);
+      if (aVal === bVal) return 0;
+      if (innovSortDirection === 'asc') return aVal > bVal ? 1 : -1;
+      return aVal < bVal ? 1 : -1;
+    });
+    return sorted;
+  }, [innovations, innovSearchTerm, innovSortField, innovSortDirection]);
+
+  const paginatedInnovations = useMemo(() => {
+    const start = (innovPage - 1) * innovRowsPerPage;
+    return sortedInnovations.slice(start, start + innovRowsPerPage);
+  }, [sortedInnovations, innovPage, innovRowsPerPage]);
+
+  const innovTotalPages = Math.ceil(sortedInnovations.length / innovRowsPerPage) || 1;
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-96">
@@ -190,18 +254,6 @@ export default function ProfileContent({ onNavigate }) {
     <div className="flex">
       {/* Main Content Area */}
       <div className="flex-1 lg:mr-80 p-6 space-y-8">
-        {/* Budget Summary */}
-        <section>
-          <h2 className="text-xl font-semibold text-gray-900 mb-4">สรุปงบประมาณ</h2>
-          <BudgetSummary
-            budget={{
-              total: teacherData.stats.totalBudgetReceived,
-              thisYear: teacherData.stats.usedBudget,
-              remaining: teacherData.stats.remainingBudget
-            }}
-          />
-        </section>
-
         {/* Publications */}
         <section>
           <h2 className="text-xl font-semibold text-gray-900 mb-4">ผลงานตีพิมพ์ (Publications)</h2>
@@ -364,6 +416,157 @@ export default function ProfileContent({ onNavigate }) {
               </>
             )}
           </div>
+        </section>
+
+        {/* Innovations */}
+        <section>
+          <h2 className="text-xl font-semibold text-gray-900 mb-4">นวัตกรรม (Innovations)</h2>
+          <div className="mb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+            <input
+              type="text"
+              value={innovSearchTerm}
+              onChange={(e) => {
+                setInnovSearchTerm(e.target.value);
+                setInnovPage(1);
+              }}
+              placeholder="ค้นหาชื่อเรื่อง..."
+              className="border border-gray-300 rounded-md px-3 py-2 w-full sm:w-64 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-gray-600">แสดง</span>
+              <select
+                value={innovRowsPerPage}
+                onChange={(e) => {
+                  setInnovRowsPerPage(parseInt(e.target.value));
+                  setInnovPage(1);
+                }}
+                className="border border-gray-300 rounded-md px-2 py-2 text-sm"
+              >
+                <option value={10}>10</option>
+                <option value={20}>20</option>
+              </select>
+              <span className="text-sm text-gray-600">รายการ</span>
+            </div>
+          </div>
+
+          <div className="overflow-x-auto">
+            {innovLoading ? (
+              <div className="space-y-2 animate-pulse">
+                {[...Array(5)].map((_, i) => (
+                  <div key={i} className="h-6 bg-gray-100 rounded" />
+                ))}
+              </div>
+            ) : sortedInnovations.length === 0 ? (
+              <p className="text-center text-gray-500 py-6">ยังไม่มีนวัตกรรม</p>
+            ) : (
+              <>
+                <table className="min-w-full divide-y divide-gray-200 text-sm">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th
+                        className="px-4 py-2 text-left font-medium text-gray-700 cursor-pointer"
+                        onClick={() => handleInnovSort('title')}
+                      >
+                        ชื่อเรื่อง
+                        {innovSortField === 'title' ? (
+                          innovSortDirection === 'asc' ? (
+                            <ArrowUp className="inline ml-1" size={14} />
+                          ) : (
+                            <ArrowDown className="inline ml-1" size={14} />
+                          )
+                        ) : (
+                          <ArrowUpDown className="inline ml-1 text-gray-400" size={14} />
+                        )}
+                      </th>
+                      <th
+                        className="px-4 py-2 text-left font-medium text-gray-700 cursor-pointer w-40"
+                        onClick={() => handleInnovSort('innovation_type')}
+                      >
+                        ประเภท
+                        {innovSortField === 'innovation_type' ? (
+                          innovSortDirection === 'asc' ? (
+                            <ArrowUp className="inline ml-1" size={14} />
+                          ) : (
+                            <ArrowDown className="inline ml-1" size={14} />
+                          )
+                        ) : (
+                          <ArrowUpDown className="inline ml-1 text-gray-400" size={14} />
+                        )}
+                      </th>
+                      <th
+                        className="px-4 py-2 text-center font-medium text-gray-700 w-32 cursor-pointer"
+                        onClick={() => handleInnovSort('registered_date')}
+                      >
+                        วันที่จดทะเบียน
+                        {innovSortField === 'registered_date' ? (
+                          innovSortDirection === 'asc' ? (
+                            <ArrowUp className="inline ml-1" size={14} />
+                          ) : (
+                            <ArrowDown className="inline ml-1" size={14} />
+                          )
+                        ) : (
+                          <ArrowUpDown className="inline ml-1 text-gray-400" size={14} />
+                        )}
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200">
+                    {paginatedInnovations.map((inv) => (
+                      <tr key={inv.id} className="hover:bg-gray-50">
+                        <td className="px-4 py-2 max-w-xs lg:max-w-md">
+                          <span className="truncate block" title={inv.title}>
+                            {inv.title}
+                          </span>
+                        </td>
+                        <td className="px-4 py-2">
+                          <span className="truncate block" title={inv.innovation_type}>
+                            {inv.innovation_type || '-'}
+                          </span>
+                        </td>
+                        <td className="px-4 py-2 text-center">
+                          {inv.registered_date || '-'}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                <div className="flex items-center justify-between mt-4 text-sm">
+                  <span className="text-gray-600">
+                    แสดง { (innovPage - 1) * innovRowsPerPage + 1 }-
+                    { Math.min(innovPage * innovRowsPerPage, sortedInnovations.length) } จาก { sortedInnovations.length }
+                  </span>
+                  <div className="space-x-2">
+                    <button
+                      onClick={() => setInnovPage((p) => Math.max(1, p - 1))}
+                      disabled={innovPage === 1}
+                      className="px-3 py-1 border rounded disabled:opacity-50"
+                    >
+                      ก่อนหน้า
+                    </button>
+                    <button
+                      onClick={() => setInnovPage((p) => Math.min(innovTotalPages, p + 1))}
+                      disabled={innovPage === innovTotalPages}
+                      className="px-3 py-1 border rounded disabled:opacity-50"
+                    >
+                      ถัดไป
+                    </button>
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+        </section>
+
+        {/* Budget Summary */}
+        <section>
+          <h2 className="text-xl font-semibold text-gray-900 mb-4">สรุปงบประมาณ</h2>
+          <BudgetSummary
+            budget={{
+              total: teacherData.stats.totalBudgetReceived,
+              thisYear: teacherData.stats.usedBudget,
+              remaining: teacherData.stats.remainingBudget
+            }}
+          />
         </section>
       </div>
 
