@@ -29,6 +29,7 @@ import { toast } from 'react-hot-toast';
 import apiClient from '@/app/lib/api';
 import { adminSubmissionAPI } from '@/app/lib/admin_submission_api';
 import { rewardConfigAPI } from '@/app/lib/publication_api';
+import adminAPI from '@/app/lib/admin_api';
 
 import Swal from 'sweetalert2';
 import 'sweetalert2/dist/sweetalert2.min.css';
@@ -100,24 +101,113 @@ const getUserFullName = (user) => {
 
 const getUserEmail = (user) => (user?.email ? user.email : '');
 
-// Map quartile codes to full labels
-const mapQuartileLabel = (q) => {
-  const s = String(q || '').trim().toUpperCase();
-  const map = {
-    Q1: 'Quartile 1',
-    Q2: 'Quartile 2',
-    Q3: 'Quartile 3',
-    Q4: 'Quartile 4',
-    T10: 'Top 10%',
-    T5: 'Top 5%',
-    T20: 'Top 20%',
-    T25: 'Top 25%',
-    TCI: 'TCI',
-  };
-  return map[s] || (s || '-');
+// ---------- Add: helpers for subcategory name from payload ----------
+const firstNonEmpty = (...vals) => {
+  for (const v of vals) {
+    if (typeof v === 'string' && v.trim() !== '') return v.trim();
+  }
+  return null;
 };
 
-/* ===== Reusable money inputs (hoisted to avoid remount/focus loss) ===== */
+const getSubcategoryName = (submission, pubDetail) => {
+  // 1) จากรายละเอียดบทความ
+  const fromDetail = firstNonEmpty(
+    pubDetail?.subcategory_name_th,
+    pubDetail?.subcategory_name,
+    pubDetail?.fund_subcategory_name,
+    pubDetail?.subcategory_label,
+    pubDetail?.fund_subcategory_label
+  );
+  if (fromDetail) return fromDetail;
+
+  // 2) จากฟิลด์แบนบน submission
+  const fromSubmissionFlat = firstNonEmpty(
+    submission?.subcategory_name_th,
+    submission?.subcategory_name,
+    submission?.fund_subcategory_name,
+    submission?.subcategory_label,
+    submission?.fund_subcategory_label
+  );
+  if (fromSubmissionFlat) return fromSubmissionFlat;
+
+  // 3) จากอ็อบเจ็กต์ย่อย
+  const subcatObj =
+    submission?.subcategory ||
+    submission?.fund_subcategory ||
+    submission?.Subcategory ||
+    submission?.FundSubcategory ||
+    submission?.fundSubcategory;
+
+  const fromObj = firstNonEmpty(
+    subcatObj?.name_th,
+    subcatObj?.title_th,
+    subcatObj?.label_th,
+    subcatObj?.name_en,
+    subcatObj?.title_en,
+    subcatObj?.label_en,
+    subcatObj?.name,
+    subcatObj?.title,
+    subcatObj?.label
+  );
+  return fromObj || '-';
+};
+
+// ---------- Add: helpers for resolving names via adminAPI ----------
+const pickCategoryName = (cat) => {
+  const o = cat || {};
+  const cands = [
+    o.category_name,
+    o.name_th, o.title_th, o.label_th,
+    o.name, o.title, o.label,
+    o.name_en, o.title_en, o.label_en,
+  ].filter((v) => typeof v === 'string' && v.trim() !== '');
+  return cands[0] || null;
+};
+
+const pickSubcategoryName = (sub) => {
+  const o = sub || {};
+  const cands = [
+    o.subcategory_name,
+    o.name_th, o.title_th, o.label_th,
+    o.name, o.title, o.label,
+    o.name_en, o.title_en, o.label_en,
+  ].filter((v) => typeof v === 'string' && v.trim() !== '');
+  return cands[0] || null;
+};
+
+async function fetchFundNamesWithAdminAPI({ categoryId, subcategoryId, yearId }) {
+  const result = { category: null, subcategory: null };
+
+  try {
+    // Category
+    if (categoryId != null) {
+      const catsResp = await adminAPI.getCategories(yearId); // array / {data:[]}
+      const catList = Array.isArray(catsResp) ? catsResp : (catsResp?.data || catsResp?.categories || []);
+      const hit = (catList || []).find((c) => String(c.category_id ?? c.id) === String(categoryId));
+      result.category = pickCategoryName(hit);
+    }
+
+    // Subcategory
+    if (subcategoryId != null) {
+      let subList = [];
+      if (categoryId != null) {
+        const resp = await adminAPI.getSubcategories(categoryId); // array / {data:[]}
+        subList = Array.isArray(resp) ? resp : (resp?.data || resp?.subcategories || []);
+      } else {
+        const resp = await adminAPI.getAllSubcategories(null, yearId); // array / {data:[]}
+        subList = Array.isArray(resp) ? resp : (resp?.data || resp?.subcategories || []);
+      }
+      const subHit = (subList || []).find((s) => String(s.subcategory_id ?? s.id) === String(subcategoryId));
+      result.subcategory = pickSubcategoryName(subHit);
+    }
+  } catch (e) {
+    console.warn('Failed to resolve fund names via adminAPI:', e);
+  }
+
+  return result;
+}
+
+/* ===== Reusable money inputs ===== */
 function MoneyInput({
   value, onChange, error, bold = false, disabled = false, aria,
   max, min = 0, autoSyncWhenDisabled = false, helperRight = null,
@@ -146,11 +236,9 @@ function MoneyInput({
     const upper = typeof max === 'number' ? max : Number.POSITIVE_INFINITY;
     const clamped = Math.min(Math.max(num, min), upper);
 
-    if (num > upper) {
-      setText(String(upper));
-    } else {
-      setText(raw);
-    }
+    if (num > upper) setText(String(upper));
+    else setText(raw);
+
     onChange(clamped);
   };
 
@@ -182,9 +270,7 @@ function MoneyInput({
         />
       </div>
       <div className="h-5 mt-1 flex items-center gap-2">
-        {error ? (
-          <p className="text-red-600 text-xs text-right">{error}</p>
-        ) : null}
+        {error ? <p className="text-red-600 text-xs text-right">{error}</p> : null}
         {helperRight}
       </div>
     </div>
@@ -217,47 +303,62 @@ function ReadonlyMoney({ value, aria }) {
 /* =========================
  * Approval Panel (admin-only)
  * ========================= */
+/* =========================
+ * Approval Panel (admin-only)
+ * ========================= */
 function ApprovalPanel({ submission, pubDetail, onApprove, onReject }) {
   const approvable = submission?.status_id === 1; // อยู่ระหว่างการพิจารณา
   if (!approvable) return null;
 
-  // Requested values (display/reference only)
+  // Defaults from "ข้อมูลการเงิน"
   const requestedReward = Number(pubDetail?.reward_amount || 0);
+  const requestedRevision = Number(pubDetail?.revision_fee || pubDetail?.editing_fee || 0);
+  const requestedPublication = Number(pubDetail?.publication_fee || pubDetail?.page_charge || 0);
   const extFunding = Number(pubDetail?.external_funding_amount || 0);
 
-  // Approval states
-  const [rewardApprove, setRewardApprove] = useState(pubDetail?.reward_approve_amount ?? 0);
-  const [revisionApprove, setRevisionApprove] = useState(pubDetail?.revision_fee_approve_amount ?? 0);
-  const [publicationApprove, setPublicationApprove] = useState(pubDetail?.publication_fee_approve_amount ?? 0);
+  // Approved values (start from FI)
+  const [rewardApprove, setRewardApprove] = useState(requestedReward);
+  const [revisionApprove, setRevisionApprove] = useState(requestedRevision);
+  const [publicationApprove, setPublicationApprove] = useState(requestedPublication);
   const [totalApprove, setTotalApprove] = useState(
-    pubDetail?.total_approve_amount ??
-      ((pubDetail?.reward_approve_amount || 0) +
-        (pubDetail?.revision_fee_approve_amount || 0) +
-        (pubDetail?.publication_fee_approve_amount || 0))
+    requestedReward + requestedRevision + requestedPublication
   );
 
   const [announceRef, setAnnounceRef] = useState(pubDetail?.announce_reference_number || '');
 
-  // Shared cap states (from API only)
-  const [feeCap, setFeeCap] = useState(null); // number|null
+  // Shared cap from announcement
+  const [feeCap, setFeeCap] = useState(null);
   const [capLoading, setCapLoading] = useState(false);
   const [capError, setCapError] = useState(null);
 
-  const [manualTotal, setManualTotal] = useState(false);
+  const [manualEdit, setManualEdit] = useState(false);
   const [rejectReason, setRejectReason] = useState('');
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState({});
 
-  // Fetch shared cap (from reward_config via API ONLY)
+  // ซ่อน 2 ฟิลด์เมื่อไม่พบเพดาน
+  const hideSharedFeeFields = !!capError && /ไม่พบเพดานวงเงินจากประกาศ/.test(capError);
+
+  // ADD
+  const [hydrated, setHydrated] = useState(false);
+
+  useEffect(() => {
+    // เปลี่ยน submission แล้วให้ hydrate ใหม่
+    setHydrated(false);
+  }, [submission?.submission_id]);
+
+  // โหลดเพดานจาก reward config
   useEffect(() => {
     const fetchCap = async () => {
       try {
         setCapLoading(true);
         setCapError(null);
 
-        const qCode = String(pubDetail?.quartile || pubDetail?.journal_quartile || '').toUpperCase().trim();
+        const qCode = String(pubDetail?.quartile || pubDetail?.journal_quartile || '')
+          .toUpperCase()
+          .trim();
 
-        // Compute BE year
+        // ปี พ.ศ.
         let yearBE = null;
         if (pubDetail?.publication_year) {
           yearBE = String(pubDetail.publication_year);
@@ -275,13 +376,11 @@ function ApprovalPanel({ submission, pubDetail, onApprove, onReject }) {
 
         const resp = await rewardConfigAPI.lookupMaxAmount(yearBE, qCode);
         const maxAmount = Number(resp?.max_amount);
-
         if (!maxAmount || maxAmount <= 0) {
           setFeeCap(null);
           setCapError('ไม่พบเพดานวงเงินจากประกาศ');
           return;
         }
-
         setFeeCap(maxAmount);
       } catch (err) {
         console.error('Failed to fetch shared fee cap:', err);
@@ -295,35 +394,46 @@ function ApprovalPanel({ submission, pubDetail, onApprove, onReject }) {
     fetchCap();
   }, [pubDetail?.quartile, pubDetail?.journal_quartile, pubDetail?.publication_year, pubDetail?.publication_date]);
 
-  // Sync from pubDetail on load
+  // REPLACE — hydrate จาก FI แค่ครั้งแรกหลังรู้ผลเพดาน และอย่ารีเซ็ตเมื่อปิดสวิตช์
   useEffect(() => {
-    setRewardApprove(pubDetail?.reward_approve_amount ?? 0);
-    setRevisionApprove(pubDetail?.revision_fee_approve_amount ?? 0);
-    setPublicationApprove(pubDetail?.publication_fee_approve_amount ?? 0);
-    setTotalApprove(
-      pubDetail?.total_approve_amount ??
-        ((pubDetail?.reward_approve_amount || 0) +
-          (pubDetail?.revision_fee_approve_amount || 0) +
-          (pubDetail?.publication_fee_approve_amount || 0))
-    );
-    setAnnounceRef(pubDetail?.announce_reference_number || '');
-  }, [pubDetail]);
+    if (capLoading) return;
 
-  // Auto-recalc total (no clamp)
-  useEffect(() => {
-    if (!manualTotal) {
-      const sum =
-        Number(rewardApprove || 0) +
-        Number(revisionApprove || 0) +
-        Number(publicationApprove || 0);
-      setTotalApprove(sum);
+    // ครั้งแรกเท่านั้น
+    if (!hydrated) {
+      setRewardApprove(requestedReward);
+      setRevisionApprove(hideSharedFeeFields ? 0 : requestedRevision);
+      setPublicationApprove(hideSharedFeeFields ? 0 : requestedPublication);
+      setHydrated(true);
+      return;
     }
-  }, [rewardApprove, revisionApprove, publicationApprove, manualTotal]);
 
-  // Helpers: shared cap clamp
+    // ถ้าภายหลังถูกบังคับซ่อน 2 ฟิลด์ ให้บังคับเป็น 0 (ไม่แตะ reward)
+    if (hideSharedFeeFields) {
+      if (revisionApprove !== 0) setRevisionApprove(0);
+      if (publicationApprove !== 0) setPublicationApprove(0);
+    }
+  }, [
+    capLoading,
+    hideSharedFeeFields,
+    requestedReward,
+    requestedRevision,
+    requestedPublication,
+    hydrated,
+    revisionApprove,
+    publicationApprove,
+  ]);
+
+
+  // รวมอัตโนมัติ (Total อ่านอย่างเดียว)
+  useEffect(() => {
+    const sum = Number(rewardApprove || 0) + Number(revisionApprove || 0) + Number(publicationApprove || 0);
+    setTotalApprove(sum);
+  }, [rewardApprove, revisionApprove, publicationApprove]);
+
+  // Clamp helper สำหรับวงเงินร่วม (Revision+Publication)
   const clampShared = (val, other) => {
     const n = Number.isFinite(val) ? val : 0;
-    if (feeCap == null) return Math.max(0, n); // cannot edit when disabled anyway
+    if (feeCap == null) return Math.max(0, n);
     const remain = Math.max(0, feeCap - Math.max(0, other || 0));
     return Math.max(0, Math.min(n, remain));
   };
@@ -343,35 +453,33 @@ function ApprovalPanel({ submission, pubDetail, onApprove, onReject }) {
     return null;
   };
 
-  // Change handlers with SHARED CAP enforcement
+  // เปลี่ยนค่าเมื่อเปิดสวิตช์
+  const handleChangeReward = (next) => {
+    if (!manualEdit) return;
+    let n = Number(next || 0);
+    if (Number.isNaN(n) || n < 0) n = 0;
+    if (n > requestedReward) n = requestedReward; // ล็อกไม่เกินที่ขอ
+    setRewardApprove(n);
+    setErrors((prev) => ({ ...prev, rewardApprove: undefined }));
+  };
+
   const handleChangeRevision = (next) => {
+    if (!manualEdit || hideSharedFeeFields) return;
     const clamped = clampShared(Number(next || 0), publicationApprove);
     setRevisionApprove(clamped);
-    if (!manualTotal) {
-      setTotalApprove(Number(rewardApprove || 0) + clamped + Number(publicationApprove || 0));
-    }
     setErrors((e) => ({ ...e, sharedCap: undefined, revisionApprove: undefined }));
   };
 
   const handleChangePublication = (next) => {
+    if (!manualEdit || hideSharedFeeFields) return;
     const clamped = clampShared(Number(next || 0), revisionApprove);
     setPublicationApprove(clamped);
-    if (!manualTotal) {
-      setTotalApprove(Number(rewardApprove || 0) + Number(revisionApprove || 0) + clamped);
-    }
     setErrors((e) => ({ ...e, sharedCap: undefined, publicationApprove: undefined }));
   };
 
-  // Validation with shared cap (require API cap)
+  // ตรวจสอบก่อนบันทึก
   const validate = () => {
     const e = {};
-
-    if (feeCap == null) {
-      e.sharedCap = capError || 'ยังไม่พบเพดานวงเงินจากประกาศ';
-      setErrors(e);
-      return false;
-    }
-
     const checkNonNeg = (k, v) => {
       const num = Number(v);
       if (Number.isNaN(num)) e[k] = 'กรุณากรอกตัวเลขที่ถูกต้อง';
@@ -379,32 +487,39 @@ function ApprovalPanel({ submission, pubDetail, onApprove, onReject }) {
     };
 
     checkNonNeg('rewardApprove', rewardApprove);
-    checkNonNeg('revisionApprove', revisionApprove);
-    checkNonNeg('publicationApprove', publicationApprove);
+    if (!hideSharedFeeFields) {
+      checkNonNeg('revisionApprove', revisionApprove);
+      checkNonNeg('publicationApprove', publicationApprove);
+    }
     checkNonNeg('totalApprove', totalApprove);
 
-    const sum = Number(revisionApprove || 0) + Number(publicationApprove || 0);
-    if (sum > feeCap) {
-      e.sharedCap = `ค่าปรับปรุง + ค่าธรรมเนียมตีพิมพ์ รวมกันต้องไม่เกิน ฿${formatCurrency(feeCap)}`;
+    if (!hideSharedFeeFields) {
+      if (feeCap == null) {
+        e.sharedCap = capError || 'ยังไม่พบเพดานวงเงินจากประกาศ';
+      } else {
+        const sum = Number(revisionApprove || 0) + Number(publicationApprove || 0);
+        if (sum > feeCap) {
+          e.sharedCap = `ค่าปรับปรุง + ค่าธรรมเนียมตีพิมพ์ รวมกันต้องไม่เกิน ฿${formatCurrency(feeCap)}`;
+        }
+      }
     }
 
     setErrors(e);
     return Object.keys(e).length === 0;
   };
 
+  // รีเซ็ตกลับค่าเริ่มต้นจาก FI (หรือ 0 ถ้าซ่อนฟิลด์ร่วม)
   const recalc = () => {
-    setManualTotal(false);
-    const sum =
-      Number(rewardApprove || 0) +
-      Number(revisionApprove || 0) +
-      Number(publicationApprove || 0);
-    setTotalApprove(sum);
+    const baseRevision = hideSharedFeeFields ? 0 : requestedRevision;
+    const basePublication = hideSharedFeeFields ? 0 : requestedPublication;
+    setRewardApprove(requestedReward);
+    setRevisionApprove(baseRevision);
+    setPublicationApprove(basePublication);
   };
 
-  // Approve confirmation
+  // ยืนยันอนุมัติ
   const confirmApprove = async () => {
     if (!validate()) return;
-    if (!manualTotal) recalc();
 
     const capHint =
       typeof feeCap === 'number' && feeCap > 0
@@ -413,40 +528,57 @@ function ApprovalPanel({ submission, pubDetail, onApprove, onReject }) {
            </div>`
         : '';
 
-    const html = `
-      <div style="text-align:left;font-size:14px;">
-        <div style="display:flex;justify-content:space-between;margin:.25rem 0;">
-          <span>เลขประกาศ</span>
-          <strong>${announceRef ? announceRef.replace(/</g,'&lt;').replace(/>/g,'&gt;') : '—'}</strong>
-        </div>
-        <div style="display:flex;justify-content:space-between;margin:.25rem 0;">
-          <span>เงินรางวัลที่อนุมัติ</span>
-          <strong>฿${formatCurrency(rewardApprove)}</strong>
-        </div>
-        <div style="display:flex;justify-content:space-between;margin:.25rem 0;">
-          <span>ค่าปรับปรุงบทความ (อนุมัติ)</span>
-          <strong>฿${formatCurrency(revisionApprove)}</strong>
-        </div>
-        <div style="display:flex;justify-content:space-between;margin:.25rem 0;">
-          <span>ค่าธรรมเนียมการตีพิมพ์ (อนุมัติ)</span>
-          <strong>฿${formatCurrency(publicationApprove)}</strong>
-        </div>
-        <hr style="margin:.5rem 0;" />
-        <div style="display:flex;justify-content:space-between;margin:.25rem 0;">
-          <span class="swal2-title" style="font-size:14px;">รวมอนุมัติ</span>
-          <span style="font-weight:700;color:#047857;">฿${formatCurrency(totalApprove)}</span>
-        </div>
-        ${capHint}
-        <p style="font-size:12px;color:#6b7280;margin-top:.5rem;">
-          จำนวนอนุมัติจะถูกบันทึกและสถานะคำร้องจะเปลี่ยนเป็น “อนุมัติ”
-        </p>
-      </div>
-    `;
+        const html = `
+          <div style="
+            text-align:left;
+            font-size:14px;
+            line-height:1.6;
+            display:grid;
+            row-gap:.6rem; 
+          ">
+
+            <div style="display:flex;justify-content:space-between;align-items:center;">
+              <span>เงินรางวัลที่จะอนุมัติ</span>
+              <strong>฿${formatCurrency(rewardApprove)}</strong>
+            </div>
+
+            ${hideSharedFeeFields ? '' : `
+              <div style="display:flex;justify-content:space-between;align-items:center;">
+                <span>ค่าปรับปรุงบทความที่จะอนุมัติ</span>
+                <strong>฿${formatCurrency(revisionApprove)}</strong>
+              </div>
+              <div style="display:flex;justify-content:space-between;align-items:center;">
+                <span>ค่าธรรมเนียมการตีพิมพ์ที่จะอนุมัติ</span>
+                <strong>฿${formatCurrency(publicationApprove)}</strong>
+              </div>
+            `}
+
+            <hr style="margin:1rem 0 1rem;border-color:#999999;" />
+
+            <div style="display:flex;justify-content:space-between;align-items:center;">
+              <span style="font-weight:700;">รวมจำนวนเงินที่อนุมัติ</span>
+              <span style="font-weight:700;color:#047857;">฿${formatCurrency(totalApprove)}</span>
+            </div>
+
+            <div style="display:flex;justify-content:space-between;align-items:center;">
+              <span style="font-weight:700;">หมายเลขประกาศ</span>
+              <strong>${announceRef ? announceRef.replace(/</g,'&lt;').replace(/>/g,'&gt;') : '—'}</strong>
+            </div>
+
+            ${capHint}
+            <p style="font-size:12px;color:#6b7280;">
+              จำนวนเงินที่จะอนุมัติจะถูกบันทึกและสถานะคำร้องจะเปลี่ยนเป็น “อนุมัติ”
+            </p>
+          </div>
+        `;
+
 
     const result = await Swal.fire({
       title: 'ยืนยันการอนุมัติ',
       html,
       icon: 'question',
+      padding: '1.6rem',          // << เพิ่มพื้นที่รอบเนื้อหา
+      width: 600,                 // (ตัวเลือก) ทำให้โปร่งขึ้นเล็กน้อย
       showCancelButton: true,
       confirmButtonText: 'ยืนยันอนุมัติ',
       cancelButtonText: 'ยกเลิก',
@@ -458,8 +590,8 @@ function ApprovalPanel({ submission, pubDetail, onApprove, onReject }) {
           setSaving(true);
           await onApprove({
             reward_approve_amount: Number(rewardApprove),
-            revision_fee_approve_amount: Number(revisionApprove),
-            publication_fee_approve_amount: Number(publicationApprove),
+            revision_fee_approve_amount: hideSharedFeeFields ? 0 : Number(revisionApprove),
+            publication_fee_approve_amount: hideSharedFeeFields ? 0 : Number(publicationApprove),
             total_approve_amount: Number(totalApprove),
             announce_reference_number: announceRef.trim() || null,
           });
@@ -482,7 +614,7 @@ function ApprovalPanel({ submission, pubDetail, onApprove, onReject }) {
     }
   };
 
-  // Reject confirmation
+  // ยืนยันไม่อนุมัติ
   const confirmReject = async () => {
     if (!rejectReason.trim()) {
       setErrors((p) => ({ ...p, rejectReason: 'กรุณาระบุเหตุผลการไม่อนุมัติ' }));
@@ -547,69 +679,70 @@ function ApprovalPanel({ submission, pubDetail, onApprove, onReject }) {
         <div className="grid grid-cols-2 pb-2 border-b text-sm text-gray-600">
           <div></div>
           <div className="text-right">
-            <div>จำนวนที่อนุมัติ</div>
-            <div className="text-xs text-gray-500">Approved Amount</div>
+            <div>จำนวนเงินที่จะอนุมัติ</div>
+            <div className="text-xs text-gray-500">Approve Amount</div>
           </div>
         </div>
 
         {/* Reward */}
-        <div className="grid grid-cols-2 items-center">
-          <label className="block text-sm font-medium text-gray-700">
-            เงินรางวัลที่อนุมัติ
-            <br /><span className="text-xs font-normal text-gray-600">Reward</span>
+        <div className="grid grid-cols-2 items-center min-h-[76px]">
+          <label className="block text-sm font-medium text-gray-700 leading-tight">
+            เงินรางวัลที่จะอนุมัติ
+            <br /><span className="text-xs font-normal text-gray-600">Approve Reward Amount</span>
           </label>
           <MoneyInput
             aria="Approved reward amount"
             value={rewardApprove}
-            onChange={(v) => {
-              let n = Number(v || 0);
-              if (n < 0) n = 0;
-              if (n > requestedReward) n = requestedReward; // keep reward within requested (policy)
-              setRewardApprove(n);
-              setErrors((prev) => ({ ...prev, rewardApprove: undefined }));
-            }}
+            onChange={handleChangeReward}
             error={errors.rewardApprove}
             max={requestedReward}
             helperRight={null}
-            disabled={false}
+            disabled={!manualEdit}
+            autoSyncWhenDisabled
           />
         </div>
 
-        {/* Revision */}
-        <div className="grid grid-cols-2 items-center">
-          <label className="block text-sm font-medium text-gray-700">
-            ค่าปรับปรุงบทความ (อนุมัติ)
-            <br /><span className="text-xs font-normal text-gray-600">Manuscript Editing Fee</span>
-          </label>
-          <MoneyInput
-            aria="Approved revision fee"
-            value={revisionApprove}
-            onChange={handleChangeRevision}
-            error={errors.revisionApprove || errors.sharedCap}
-            helperRight={renderCapHelper()}
-            disabled={capLoading || feeCap == null}
-            max={feeCap == null ? undefined : Math.max(0, feeCap - Number(publicationApprove || 0))}
-          />
-        </div>
+        {/* Revision — hidden when not eligible */}
+        {!hideSharedFeeFields && (
+          <div className="grid grid-cols-2 items-center min-h-[76px]">
+            <label className="block text-sm font-medium text-gray-700 leading-tight">
+              ค่าปรับปรุงบทความที่จะอนุมัติ
+              <br /><span className="text-xs font-normal text-gray-600">Approve Manuscript Editing Fee</span>
+            </label>
+            <MoneyInput
+              aria="Approved revision fee"
+              value={revisionApprove}
+              onChange={handleChangeRevision}
+              error={errors.revisionApprove || errors.sharedCap}
+              helperRight={renderCapHelper()}
+              disabled={!manualEdit || capLoading || feeCap == null}
+              max={feeCap == null ? undefined : Math.max(0, feeCap - Number(publicationApprove || 0))}
+              autoSyncWhenDisabled
+            />
+          </div>
+        )}
 
-        {/* Publication fee */}
-        <div className="grid grid-cols-2 items-center">
-          <label className="block text-sm font-medium text-gray-700">
-            ค่าธรรมเนียมการตีพิมพ์ (อนุมัติ)
-            <br /><span className="text-xs font-normal text-gray-600">Page Charge</span>
-          </label>
-          <MoneyInput
-            aria="Approved publication fee"
-            value={publicationApprove}
-            onChange={handleChangePublication}
-            error={errors.publicationApprove || errors.sharedCap}
-            helperRight={renderCapHelper()}
-            disabled={capLoading || feeCap == null}
-            max={feeCap == null ? undefined : Math.max(0, feeCap - Number(revisionApprove || 0))}
-          />
-        </div>
+        {/* Publication — hidden when not eligible */}
+        {!hideSharedFeeFields && (
+          <div className="grid grid-cols-2 items-center min-h-[76px]">
+            <label className="block text-sm font-medium text-gray-700 leading-tight">
+              ค่าธรรมเนียมการตีพิมพ์ที่จะอนุมัติ
+              <br /><span className="text-xs font-normal text-gray-600">Approve Page Charge</span>
+            </label>
+            <MoneyInput
+              aria="Approved publication fee"
+              value={publicationApprove}
+              onChange={handleChangePublication}
+              error={errors.publicationApprove || errors.sharedCap}
+              helperRight={renderCapHelper()}
+              disabled={!manualEdit || capLoading || feeCap == null}
+              max={feeCap == null ? undefined : Math.max(0, feeCap - Number(revisionApprove || 0))}
+              autoSyncWhenDisabled
+            />
+          </div>
+        )}
 
-        {/* External funding (read-only number) */}
+        {/* External funding (read-only) */}
         {extFunding > 0 && (
           <div className="grid grid-cols-2 items-center">
             <label className="block text-sm font-medium text-gray-700">
@@ -620,25 +753,24 @@ function ApprovalPanel({ submission, pubDetail, onApprove, onReject }) {
           </div>
         )}
 
-        {/* Total */}
-        <div className="grid grid-cols-2 items-center pt-2 border-t">
-          <label className="block font-medium text-gray-700">
-            รวมอนุมัติ (Total Approved)
+        {/* Total (read-only) + switch + recalc */}
+        <div className="grid grid-cols-2 items-center pt-2 border-t min-h-[76px]">
+          <label className="block font-medium text-gray-700 leading-tight">
+            รวมจำนวนเงินที่อนุมัติ
             <div className="text-xs font-normal text-gray-600 flex items-center gap-3 mt-1">
-              {/* Switch: ปรับแก้ข้อมูล */}
               <div className="inline-flex items-center gap-2">
                 <button
                   type="button"
                   role="switch"
-                  aria-checked={manualTotal}
-                  onClick={() => setManualTotal((v) => !v)}
+                  aria-checked={manualEdit}
+                  onClick={() => setManualEdit((v) => !v)}
                   className={`relative inline-flex h-5 w-9 items-center rounded-full transition ${
-                    manualTotal ? 'bg-blue-600' : 'bg-gray-300'
+                    manualEdit ? 'bg-blue-600' : 'bg-gray-300'
                   }`}
                 >
                   <span
                     className={`inline-block h-4 w-4 transform rounded-full bg-white transition ${
-                      manualTotal ? 'translate-x-4' : 'translate-x-1'
+                      manualEdit ? 'translate-x-4' : 'translate-x-1'
                     }`}
                   />
                 </button>
@@ -651,28 +783,15 @@ function ApprovalPanel({ submission, pubDetail, onApprove, onReject }) {
               </button>
             </div>
           </label>
-          <MoneyInput
-            aria="Total approved amount"
-            value={totalApprove}
-            onChange={(v) => {
-              let n = Number(v || 0);
-              if (n < 0) n = 0;
-              setTotalApprove(n);
-              setErrors((prev) => ({ ...prev, totalApprove: undefined }));
-            }}
-            error={errors.totalApprove}
-            bold
-            disabled={!manualTotal}
-            autoSyncWhenDisabled
-          />
+          <ReadonlyMoney aria="Total approved amount (readonly)" value={totalApprove} />
         </div>
 
         {/* Announcement number */}
         <div className="grid grid-cols-2 items-start pt-2">
           <label className="block font-medium text-gray-700 pt-2">
-            เลขประกาศ
+            หมายเลขประกาศ
             <div className="text-xs text-gray-500 mt-1">
-              จะถูกบันทึกลง <code>announce_reference_number</code>
+              ระบุหมายเลขประกาศที่เกี่ยวข้อง (ถ้ามี)
             </div>
           </label>
           <div className="flex flex-col items-end w-full">
@@ -714,7 +833,7 @@ function ApprovalPanel({ submission, pubDetail, onApprove, onReject }) {
           {saving && <span className="text-sm text-gray-500">กำลังดำเนินการ...</span>}
         </div>
 
-        {/* Reject reason (input-like bordered) */}
+        {/* Reject reason */}
         <div className="space-y-1">
           <label className="text-sm text-gray-600">เหตุผลการไม่อนุมัติ (กรณีปฏิเสธ)</label>
           <div
@@ -749,6 +868,10 @@ export default function SubmissionDetails({ submissionId, onBack }) {
   const [loading, setLoading] = useState(true);
   const [submission, setSubmission] = useState(null);
   const [activeTab, setActiveTab] = useState('details');
+
+  // Add: resolved fund names
+  const [fundNames, setFundNames] = useState({ category: null, subcategory: null });
+  const [fundNamesLoading, setFundNamesLoading] = useState(false);
 
   // Load data
   useEffect(() => {
@@ -954,6 +1077,36 @@ export default function SubmissionDetails({ submissionId, onBack }) {
     setSubmission(data);
   };
 
+  // --------- Add: resolve subcategory/category names from ids via adminAPI ---------
+  useEffect(() => {
+    if (!submission) return;
+
+    const catId = submission?.category_id;
+    const subId = submission?.subcategory_id;
+
+    // ถ้า payload มีชื่ออยู่แล้ว ก็ไม่ต้องยิงเพิ่ม
+    const payloadSubName = getSubcategoryName(submission, pubDetail);
+    const hasPayloadSubName = payloadSubName && payloadSubName !== '-';
+
+    if ((catId || subId) && !hasPayloadSubName && !fundNames.subcategory && !fundNamesLoading) {
+      (async () => {
+        try {
+          setFundNamesLoading(true);
+          const names = await fetchFundNamesWithAdminAPI({
+            categoryId: catId,
+            subcategoryId: subId,
+            yearId: submission?.year_id,
+          });
+          setFundNames((prev) => ({ ...prev, ...names }));
+        } catch (e) {
+          console.warn('Resolve fund names failed:', e);
+        } finally {
+          setFundNamesLoading(false);
+        }
+      })();
+    }
+  }, [submission, pubDetail, fundNames.subcategory, fundNamesLoading]);
+
   if (loading) {
     return (
       <PageLayout
@@ -1025,33 +1178,51 @@ export default function SubmissionDetails({ submissionId, onBack }) {
                 <StatusBadge statusId={submission.status_id} />
               </div>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4 text-sm">
-              <div>
-                <span className="text-gray-500">วันที่สร้างคำร้อง:</span>
-                <span className="ml-2 font-medium">{formatDate(submission.created_at)}</span>
+            <div className="flex flex-col gap-3 mt-4 text-sm">
+              {/* ผู้ขอทุน */}
+              <div className="flex flex-wrap items-start gap-2">
+                <span className="text-gray-500 shrink-0 min-w-[80px]">ผู้ขอทุน:</span>
+                <span className="font-medium break-words flex-1">
+                  {getUserFullName(getApplicant())}
+                </span>
               </div>
-              {submission.submitted_at && (
-                <div>
-                  <span className="text-gray-500">วันที่ส่งคำร้อง:</span>
-                  <span className="ml-2 font-medium">{formatDate(submission.submitted_at)}</span>
-                </div>
-              )}
-              {submission.approved_at && (
-                <div>
-                  <span className="text-gray-500">วันที่อนุมัติ:</span>
-                  <span className="ml-2 font-medium">{formatDate(submission.approved_at)}</span>
-                </div>
-              )}
 
-              {/* Announce reference number (after approved) */}
-              {submission.status_id === 2 && pubDetail?.announce_reference_number && (
-                <div>
-                  <span className="text-gray-500">เลขประกาศ:</span>
-                  <span className="ml-2 font-medium break-all">
-                    {pubDetail.announce_reference_number}
-                  </span>
-                </div>
-              )}
+              {/* ชื่อทุน */}
+              <div className="flex flex-wrap items-start gap-2">
+                <span className="text-gray-500 shrink-0 min-w-[80px]">ชื่อทุน:</span>
+                <span className="font-medium break-words flex-1">
+                  {fundNames?.subcategory || getSubcategoryName(submission, pubDetail)}
+                </span>
+              </div>
+
+              {/* Additional fields in a responsive grid below */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-3 mt-2">
+                {/* วันที่ส่ง */}
+                {submission.submitted_at && (
+                  <div className="flex items-start gap-2">
+                    <span className="text-gray-500 shrink-0">วันที่ส่งคำร้อง:</span>
+                    <span className="font-medium">{formatDate(submission.submitted_at)}</span>
+                  </div>
+                )}
+
+                {/* วันที่อนุมัติ */}
+                {submission.approved_at && (
+                  <div className="flex items-start gap-2">
+                    <span className="text-gray-500 shrink-0">วันที่อนุมัติ:</span>
+                    <span className="font-medium">{formatDate(submission.approved_at)}</span>
+                  </div>
+                )}
+
+                {/* เลขประกาศ */}
+                {submission.status_id === 2 && pubDetail?.announce_reference_number && (
+                  <div className="flex items-start gap-2">
+                    <span className="text-gray-500 shrink-0">เลขประกาศ:</span>
+                    <span className="font-medium break-all">
+                      {pubDetail.announce_reference_number}
+                    </span>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
           <div className="text-right">
@@ -1182,7 +1353,7 @@ export default function SubmissionDetails({ submissionId, onBack }) {
                 <div>
                   <label className="text-sm text-gray-500">ควอร์ไทล์ (Quartile)</label>
                   <p className="font-medium">
-                    {mapQuartileLabel(pubDetail.quartile || pubDetail.journal_quartile || '')}
+                    {String(pubDetail.quartile || pubDetail.journal_quartile || '').toUpperCase() || '-'}
                   </p>
                 </div>
                 <div>
@@ -1238,26 +1409,26 @@ export default function SubmissionDetails({ submissionId, onBack }) {
             </div>
           </Card>
           
-          {/* Financial Information */}
-          <Card title="ข้อมูลการเงิน (Financial Information)" icon={DollarSign} collapsible={false}>
+          {/* Request Information */}
+          <Card title="ข้อมูลการเงิน (Request Information)" icon={DollarSign} collapsible={false}>
             <div className="space-y-4">
               <div className={`grid ${submission?.status_id === 2 ? 'grid-cols-3' : 'grid-cols-2'} pb-2 border-b text-sm text-gray-600`}>
                 <div></div>
                 <div className="text-right">
-                  <div>จำนวนที่ขอ</div>
+                  <div>จำนวนเงินที่ขอ</div>
                   <div className="text-xs text-gray-500">Requested Amount</div>
                 </div>
                 {submission?.status_id === 2 && (
                   <div className="text-right">
-                    <div>จำนวนที่อนุมัติ</div>
-                    <div className="text-xs text-gray-500">Approved Amount</div>
+                    <div>จำนวนเงินที่จะอนุมัติ</div>
+                    <div className="text-xs text-gray-500">Approve Amount</div>
                   </div>
                 )}
               </div>
 
               {/* Reward */}
-              <div className={`grid ${submission?.status_id === 2 ? 'grid-cols-3' : 'grid-cols-2'} items-center`}>
-                <label className="block text-sm font-medium text-gray-700">
+              <div className={`grid ${submission?.status_id === 2 ? 'grid-cols-3' : 'grid-cols-2'} items-center min-h-[76px]`}>
+                <label className="block text-sm font-medium text-gray-700 leading-tight">
                   เงินรางวัลที่ขอ
                   <br />
                   <span className="text-xs font-normal text-gray-600">Requested Reward Amount</span>
@@ -1272,11 +1443,11 @@ export default function SubmissionDetails({ submissionId, onBack }) {
 
               {/* Revision fee */}
               {(pubDetail.revision_fee > 0 || pubDetail.editing_fee > 0) && (
-                <div className={`grid ${submission?.status_id === 2 ? 'grid-cols-3' : 'grid-cols-2'} items-center`}>
-                  <label className="block text-sm font-medium text-gray-700">
+              <div className={`grid ${submission?.status_id === 2 ? 'grid-cols-3' : 'grid-cols-2'} items-center min-h-[76px]`}>
+                <label className="block text-sm font-medium text-gray-700 leading-tight">
                     ค่าปรับปรุงบทความ
                     <br />
-                    <span className="text-xs font-normal text-gray-600">Manuscript Editing Fee (Baht)</span>
+                    <span className="text-xs font-normal text-gray-600">Requested Manuscript Editing Fee</span>
                   </label>
                   <span className="text-right">
                     ฿{formatCurrency(pubDetail.revision_fee || pubDetail.editing_fee || 0)}
@@ -1293,11 +1464,11 @@ export default function SubmissionDetails({ submissionId, onBack }) {
 
               {/* Publication fee */}
               {(pubDetail.publication_fee > 0 || pubDetail.page_charge > 0) && (
-                <div className={`grid ${submission?.status_id === 2 ? 'grid-cols-3' : 'grid-cols-2'} items-center`}>
-                  <label className="block text-sm font-medium text-gray-700">
+              <div className={`grid ${submission?.status_id === 2 ? 'grid-cols-3' : 'grid-cols-2'} items-center min-h-[76px]`}>
+                <label className="block text-sm font-medium text-gray-700 leading-tight">
                     ค่าธรรมเนียมการตีพิมพ์
                     <br />
-                    <span className="text-xs font-normal text-gray-600">Page Charge</span>
+                    <span className="text-xs font-normal text-gray-600">Requested Page Charge</span>
                   </label>
                   <span className="text-right">฿{formatCurrency(pubDetail.publication_fee || pubDetail.page_charge || 0)}</span>
                   {submission?.status_id === 2 && (
@@ -1310,7 +1481,7 @@ export default function SubmissionDetails({ submissionId, onBack }) {
                 </div>
               )}
 
-              {/* External funding (divider + parentheses) */}
+              {/* External funding */}
               {pubDetail.external_funding_amount > 0 && (
                 <div className={`grid ${submission?.status_id === 2 ? 'grid-cols-3' : 'grid-cols-2'} items-center pt-2 mt-2 border-t`}>
                   <label className="block text-sm font-medium text-gray-700">
@@ -1326,11 +1497,11 @@ export default function SubmissionDetails({ submissionId, onBack }) {
               )}
 
               {/* Total */}
-              <div className={`grid ${submission?.status_id === 2 ? 'grid-cols-3' : 'grid-cols-2'} items-center pt-2 border-t`}>
-                <label className="block font-medium text-gray-700">
+              <div className={`grid ${submission?.status_id === 2 ? 'grid-cols-3' : 'grid-cols-2'} items-center pt-2 border-t min-h-[76px]`}>
+                <label className="block font-medium text-gray-700 leading-tight">
                   รวมเบิกจากวิทยาลัยการคอม
                   <br />
-                  <span className="text-xs font-normal text-gray-600">Total Reimbursement from CP-KKU</span>
+                  <span className="text-xs font-normal text-gray-600">Total Requested to CP-KKU</span>
                 </label>
                 <span className="text-right font-bold text-blue-600">
                   ฿{formatCurrency(pubDetail.total_amount || pubDetail.reward_amount || 0)}

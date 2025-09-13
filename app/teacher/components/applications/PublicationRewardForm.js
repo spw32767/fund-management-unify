@@ -872,7 +872,7 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
               subcategory_id: result.subcategory_id,
               subcategory_budget_id: result.subcategory_budget_id,
               publication_reward: result.reward_amount,
-              reward_amount: result.reward_amount
+              reward_amount: result.reward_amount,
             }));
             setResolutionError(result.remaining_budget > 0 ? '' : 'งบประมาณสำหรับทุนนี้หมดแล้ว');
           } else {
@@ -881,7 +881,7 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
               subcategory_id: null,
               subcategory_budget_id: null,
               publication_reward: 0,
-              reward_amount: 0
+              reward_amount: 0,
             }));
             setResolutionError('ไม่พบทุนสำหรับปี/สถานะ/ควอร์ไทล์ที่เลือก');
           }
