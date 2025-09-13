@@ -118,6 +118,17 @@ export const teacherAPI = {
     }
   },
 
+  // Get current user's publications
+  async getUserPublications(params = {}) {
+    try {
+      const response = await apiClient.get('/teacher/user-publications', params);
+      return response;
+    } catch (error) {
+      console.error('Error fetching user publications:', error);
+      throw error;
+    }
+  },
+
   // Get teacher's applications
   async getMyApplications(params = {}) {
     try {
