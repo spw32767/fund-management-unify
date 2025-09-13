@@ -527,7 +527,7 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
         </SimpleCard>
 
         {/* Request Amount */}
-        <SimpleCard title="จำนวนเงินที่ขอ (Request Amount)" icon={DollarSign}>
+        <SimpleCard title="รวมจำนวนทุนที่ขอ (Total Request Amount)" icon={DollarSign}>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
               จำนวนเงินที่ขอ
@@ -550,7 +550,7 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
             )}
           </div>
         </SimpleCard>
-        
+
         {/* File Attachments */}
         <SimpleCard title="เอกสารแนบ" icon={Upload}>
           {documentRequirements.length === 0 ? (

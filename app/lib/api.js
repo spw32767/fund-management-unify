@@ -940,3 +940,27 @@ export const documentTypesAPI = {
     return apiClient.delete(`/admin/document-types/${documentTypeId}`);
   }
 };
+
+// ==================== PUBLICATIONS (Scholar Import - ADMIN) ====================
+export const publicationsAPI = {
+  async searchScholarAuthorsAdmin(q) {
+    return apiClient.get('/admin/user-publications/scholar/search', { q });
+  },
+  async importScholarForUser(userId, authorId) {
+    const url = `/admin/user-publications/import/scholar?user_id=${encodeURIComponent(
+      userId
+    )}&author_id=${encodeURIComponent(authorId)}`;
+    const res = await apiClient.post(url);
+    return res.summary || res;
+  },
+  async importScholarBatch() {
+    const res = await apiClient.post('/admin/user-publications/import/scholar/all');
+    return res.summary || res;
+  },
+};
+
+export const usersAPI = {
+  async search(q) {
+    return apiClient.get('/admin/users/search', { q });
+  },
+};

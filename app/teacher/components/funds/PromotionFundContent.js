@@ -7,6 +7,7 @@ import PageLayout from "../common/PageLayout";
 import { teacherAPI } from '../../../lib/teacher_api';
 import { targetRolesUtils } from '../../../lib/target_roles_utils';
 import { FORM_TYPE_CONFIG } from '../../../lib/form_type_config';
+import systemConfigAPI from '../../../lib/system_config_api';
 
 export default function PromotionFundContent({ onNavigate }) {
   const [selectedYear, setSelectedYear] = useState("2568");
@@ -143,66 +144,56 @@ export default function PromotionFundContent({ onNavigate }) {
     return /^Bearer\s+/i.test(raw) ? raw : `Bearer ${raw}`;
   };
 
-  // ---------- fetch system-config (requires Authorization) ----------
+  // REPLACE: whole function
   const loadSystemConfig = async () => {
     try {
       setConfigLoading(true);
-      let headers = { Accept: "application/json", "Cache-Control": "no-store" };
 
-      // Add Authorization from localStorage if available
-      if (typeof window !== "undefined") {
-        const raw =
-          localStorage.getItem("access_token") ||
-          localStorage.getItem("token") ||
-          localStorage.getItem("auth_token");
-        if (raw) headers.Authorization = /^Bearer\s+/i.test(raw) ? raw : `Bearer ${raw}`;
-      }
+      // เรียกตรง backend ผ่าน apiClient (ไม่ผ่าน /app/api/* อีกแล้ว)
+      const res = await systemConfigAPI.getWindow();
+      const win = systemConfigAPI.normalizeWindow(res);
 
-      const res = await fetch("/api/system-config", {
-        method: "GET",
-        headers,
-        cache: "no-store",
-        credentials: "include", // include cookies if you log in via cookies
-      });
+      // กันค่าผิดปกติ
+      const norm = (v) => {
+        if (!v) return null;
+        const s = String(v).trim();
+        if (!s || s === '0000-00-00 00:00:00') return null;
+        return s;
+      };
 
-      const json = await res.json().catch(() => ({}));
-      if (!res.ok || !json?.success) {
-        throw new Error(json?.error || `Failed to load system-config (${res.status})`);
-      }
+      const start_date = norm(win.start_date);
+      const end_date   = norm(win.end_date);
 
-      const cfg = json?.config || json?.data || {};
-      const start_date = cfg.start_date || null;
-      const end_date = cfg.end_date || null;
-
-      // Coerce is_open: accept booleans OR string "true"/"false"
-      let openFlag = undefined;
-      if (typeof cfg.is_open === "boolean") {
-        openFlag = cfg.is_open;
-      } else if (typeof cfg.is_open === "string") {
-        openFlag = cfg.is_open.trim().toLowerCase() === "true";
-      }
-
-      const open = (openFlag !== undefined)
-        ? !!openFlag
+      // ใช้ค่าสถานะเปิดจาก backend ถ้ามี ไม่งั้นคำนวณเอง
+      const open = (typeof win.is_open_effective === 'boolean')
+        ? win.is_open_effective
         : computeApplicationOpen(start_date, end_date);
 
-      // Debug (you can keep or remove later)
-      console.log("[system-config]", {
+      setIsWithinApplicationPeriod(open);
+      setEndDateLabel(end_date ? formatThaiDate(end_date) : '');
+      setSystemConfig({
         start_date,
         end_date,
-        is_open_raw: cfg.is_open,
         is_open_effective: open,
-        now: new Date().toISOString(),
+        current_year: win.current_year,
+        last_updated: win.last_updated,
+        now: win.now,
       });
 
-      setIsWithinApplicationPeriod(open);
-      setEndDateLabel(formatThaiDate(end_date));
-      return cfg;
+      // debug ให้ดูบน console
+      console.log('[system-config]', {
+        start_date,
+        end_date,
+        is_open_effective: open,
+        now: win.now,
+      });
+
+      return { start_date, end_date, is_open_effective: open };
     } catch (e) {
-      console.warn("loadSystemConfig failed:", e);
-      // Treat as open if request fails (do not block users)
+      console.warn('loadSystemConfig failed:', e);
+      // อย่าบล็อกหน้า ถ้าโหลดไม่ได้ให้ถือว่าเปิดไว้ก่อน
       setIsWithinApplicationPeriod(true);
-      setEndDateLabel("");
+      setEndDateLabel('');
       return null;
     } finally {
       setConfigLoading(false);
@@ -327,15 +318,10 @@ export default function PromotionFundContent({ onNavigate }) {
         return category;
       });
 
-      // 🔒 ถ้า application window ปิด: ทำให้ปุ่ม Apply เทา/กดไม่ได้
-      // โดย "ไม่แตะ JSX" — แก้เฉพาะข้อมูล: remaining_budget = 0
-      // และเพิ่มบรรทัด "สิ้นสุดรับคำขอ: <วันที่ไทย>" ใน fund_condition ถ้ายังไม่มี
       const adjusted = mergedPromotionFunds.map((category) => {
         const newSubs = (category.subcategories || []).map((sub) => {
           let next = { ...sub };
           if (!isWithinApplicationPeriod) {
-            next.remaining_budget = 0;
-
             const note = endDateLabel ? `\nสิ้นสุดรับคำขอ: ${endDateLabel}` : "";
             const base = (next.fund_condition || "").trim();
             const already = base.includes("สิ้นสุดรับคำขอ:");
@@ -345,6 +331,7 @@ export default function PromotionFundContent({ onNavigate }) {
         });
         return { ...category, subcategories: newSubs };
       });
+
 
       setFundCategories(adjusted);
     } catch (err) {
@@ -390,39 +377,57 @@ export default function PromotionFundContent({ onNavigate }) {
     loadFundData(selectedYear);
   };
 
-  const handleViewForm = (subcategory) => {
-    // Check if within application period first
-    if (!isWithinApplicationPeriod) {
-      return; // Do nothing if not within period
-    }
+  const findParentCategoryId = (subcategoryId) => {
+    const parent = fundCategories.find(cat =>
+      cat.subcategories?.some(sub => sub.subcategory_id === subcategoryId)
+    );
+    return parent?.category_id;
+  };
 
+  const handleViewDetails = (subcategory) => {
     const formType = subcategory.form_type || 'download';
-    const formConfig = FORM_TYPE_CONFIG[formType];
-    
+    const formConfig = FORM_TYPE_CONFIG[formType] || {};
     if (formConfig.isOnlineForm && onNavigate) {
-      // Find parent category for this subcategory
-      const parentCategory = fundCategories.find(cat => 
-        cat.subcategories?.some(sub => sub.subcategory_id === subcategory.subcategory_id)
-      );
+      const categoryId = findParentCategoryId(subcategory.subcategory_id);
       const yearObj = years.find(y => y.year === selectedYear);
       const yearId = yearObj?.year_id;
-      
-      console.log('Navigate to publication form:', {
-        category_id: parentCategory?.category_id,
-        year_id: yearId,
-        subcategory: subcategory
-      });
-      
-      // Pass both category_id and year_id in navigation
+
+      try { sessionStorage.setItem('fund_form_readonly', '1'); } catch {}
+
+      // จะใส่ query ย้ำด้วยก็ได้: `${formConfig.route}?readonly=1`
       onNavigate(formConfig.route, {
-        category_id: parentCategory?.category_id,
+        category_id: categoryId,
         year_id: yearId,
-        subcategory: subcategory
+        subcategory,
       });
     } else {
       const docUrl = subcategory.form_url || '/documents/default-fund-form.docx';
       window.open(docUrl, '_blank');
     }
+  };
+
+  // REPLACE: handleApplyForm — ล้าง read-only เพื่อให้กรอกได้
+  const handleApplyForm = (subcategory) => {
+    const formType = subcategory.form_type || 'download';
+    const formConfig = FORM_TYPE_CONFIG[formType] || {};
+    if (!formConfig.isOnlineForm) {
+      const docUrl = subcategory.form_url || '/documents/default-fund-form.docx';
+      window.open(docUrl, '_blank');
+      return;
+    }
+    if (!isWithinApplicationPeriod) return;
+
+    const categoryId = findParentCategoryId(subcategory.subcategory_id);
+    const yearObj = years.find(y => y.year === selectedYear);
+    const yearId = yearObj?.year_id;
+
+    try { sessionStorage.removeItem('fund_form_readonly'); } catch {}
+
+    onNavigate(formConfig.route, {
+      category_id: categoryId,
+      year_id: yearId,
+      subcategory,
+    });
   };
 
   const formatAmount = (amount) => {
@@ -524,18 +529,26 @@ export default function PromotionFundContent({ onNavigate }) {
   }
 
   const renderFundRow = (fund, isAvailable) => {
-    const fundName = fund.subcategory_name || 'ไม่ระบุชื่อทุน';
-    const fundId = fund.subcategory_id;
-    const formConfig = FORM_TYPE_CONFIG[fund.form_type] || FORM_TYPE_CONFIG['download'];
-    const buttonText = formConfig.buttonText;
-    const ButtonIcon = formConfig.buttonIcon === 'FileText' ? FileText : Download;
-    const remainingBudget = fund.remaining_budget || 0;
-    
-    // Check if button should be disabled
-    const isDisabled = remainingBudget === 0 || !isWithinApplicationPeriod;
+    const fundName = fund.subcategory_name || 'ไม่ระบุ';
+    const remainingBudget = fund.remaining_budget ?? 0;
+    const formType = fund.form_type || 'download';
+    const formConfig = FORM_TYPE_CONFIG[formType] || {};
+    const ButtonIcon = formConfig.icon || FileText;
+    const isOnlineForm = !!formConfig.isOnlineForm;
+
+    // ถ้าเป็น online form และ "อยู่ในช่วงเปิดรับ" ให้ disable เมื่อ "งบหมด" เท่านั้น
+    // ถ้า "นอกช่วงเวลา" ให้กดได้เสมอเพื่อดูรายละเอียด (read-only)
+    const isDisabled = isOnlineForm
+      ? (isWithinApplicationPeriod ? remainingBudget === 0 : false)
+      : false;
+
+    // เปลี่ยนข้อความปุ่มเป็น “ดูรายละเอียด” เมื่ออยู่นอกช่วงเวลา
+    const buttonText = (!isWithinApplicationPeriod && isOnlineForm)
+      ? 'ดูรายละเอียด'
+      : (formConfig.buttonText || 'ดาวน์โหลดแบบฟอร์ม');
 
     return (
-      <tr key={fundId} className={!isAvailable || !isWithinApplicationPeriod ? 'bg-gray-50' : ''}>
+      <tr key={fund.subcategory_id} className={!isWithinApplicationPeriod ? 'bg-gray-50' : ''}>
         <td className="px-6 py-4">
           <div className="text-sm font-medium text-gray-900 max-w-lg break-words leading-relaxed">
             {fundName}
@@ -565,27 +578,72 @@ export default function PromotionFundContent({ onNavigate }) {
           <div className="text-sm font-medium text-gray-900">
             {formatAmount(remainingBudget)}
           </div>
-          {remainingBudget === 0 && (
-            <div className="text-xs text-red-600 mt-1">
-              งบประมาณหมด
-            </div>
-          )}
+
+          {isWithinApplicationPeriod && remainingBudget === 0 ? (
+            <div className="text-xs text-red-600 mt-1">งบประมาณหมด</div>
+          ) : !isWithinApplicationPeriod ? (
+            <div className="text-xs text-gray-500 mt-1">ปิดรับคำขอ</div>
+          ) : null}
         </td>
         <td className="px-6 py-4 text-center">
-          <button
-            onClick={() => handleViewForm(fund)}
-            className={`inline-flex items-center gap-2 px-4 py-2 text-sm font-medium 
-              ${!isDisabled
-                ? 'text-blue-600 hover:text-blue-700' 
-                : 'text-gray-400 cursor-not-allowed'}`}
-            disabled={isDisabled}
-            title={!isWithinApplicationPeriod ? 'หมดเวลาการยื่นขอทุนแล้ว' : 
-                   remainingBudget === 0 ? 'งบประมาณหมดแล้ว' : ''}
-          >
-            <ButtonIcon size={16} />
-            {buttonText}
-          </button>
+          {(() => {
+            const isOnlineForm = (FORM_TYPE_CONFIG[fund.form_type] || FORM_TYPE_CONFIG['download'])?.isOnlineForm === true;
+            const applyDisabled = !isWithinApplicationPeriod || remainingBudget === 0;
+
+            // ถ้าเป็น online form → แสดงปุ่มคู่ "ดูรายละเอียด / กรอกแบบฟอร์ม"
+            if (isOnlineForm) {
+              return (
+                <div className="inline-flex items-center gap-2">
+                  {/* ดูรายละเอียด (อ่านอย่างเดียวเสมอ) */}
+                  <button
+                    onClick={() => handleViewDetails(fund)}
+                    className="inline-flex items-center gap-2 px-1 py-2 text-sm font-medium text-blue-600 hover:text-blue-700"
+                    title="เปิดดูรายละเอียด (อ่านอย่างเดียว)"
+                  >
+                    <ButtonIcon size={16} />
+                    ดูรายละเอียด
+                  </button>
+
+                  {/* ตัวคั่น "/" */}
+                  <span className="text-gray-300 select-none">/</span>
+
+                  {/* กรอกแบบฟอร์ม (ปิด/เทา ถ้านอกช่วงเวลา หรือ งบหมด) */}
+                  <button
+                    onClick={() => handleApplyForm(fund)}
+                    className={`inline-flex items-center gap-2 px-1 py-2 text-sm font-medium ${
+                      applyDisabled ? 'text-gray-400 cursor-not-allowed' : 'text-blue-600 hover:text-blue-700'
+                    }`}
+                    disabled={applyDisabled}
+                    title={
+                      !isWithinApplicationPeriod
+                        ? 'อยู่นอกช่วงเวลายื่นขอ'
+                        : (remainingBudget === 0 ? 'งบประมาณหมดแล้ว' : 'กรอกแบบฟอร์ม')
+                    }
+                  >
+                    <ButtonIcon size={16} />
+                    กรอกแบบฟอร์ม
+                  </button>
+                </div>
+              );
+            }
+
+            // ถ้าเป็นแบบ download → ใช้ปุ่มเดิม (ดาวน์โหลดฟอร์ม)
+            return (
+              <button
+                onClick={() => {
+                  const docUrl = fund.form_url || '/documents/default-fund-form.docx';
+                  window.open(docUrl, '_blank');
+                }}
+                className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-blue-600 hover:text-blue-700"
+                title="ดาวน์โหลดแบบฟอร์ม"
+              >
+                <Download size={16} />
+                ดาวน์โหลดฟอร์ม
+              </button>
+            );
+          })()}
         </td>
+
       </tr>
     );
   };
@@ -602,17 +660,6 @@ export default function PromotionFundContent({ onNavigate }) {
     >
       {/* Application Period Info */}
       {renderApplicationPeriodInfo()}
-
-      {/* Closing Date Announcement (Always visible) */}
-      {systemConfig?.end_date && systemConfig.end_date !== "0000-00-00 00:00:00" && (
-        <div className="mb-4 bg-blue-50 border border-blue-200 rounded-lg p-3">
-          <div className="flex items-center gap-2 text-sm text-blue-800">
-            <Info className="w-4 h-4" />
-            <span className="font-medium">ประกาศ:</span>
-            <span>สิ้นสุดรับคำขอ: วันที่ {formatDateThai(systemConfig.end_date)}</span>
-          </div>
-        </div>
-      )}
 
       {/* Control Bar */}
       <div className="mb-6 bg-white rounded-lg shadow-sm p-4">

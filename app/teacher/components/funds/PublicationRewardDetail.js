@@ -32,7 +32,7 @@ import { formatCurrency } from "@/app/utils/format";
 
 const getStatusName = (statusId) => {
   const statuses = {
-    1: "รอพิจารณา",
+    1: "อยู่ระหว่างการพิจารณา",
     2: "อนุมัติ",
     3: "ไม่อนุมัติ",
     4: "ต้องแก้ไข",
@@ -314,6 +314,7 @@ export default function PublicationRewardDetail({ submissionId, onNavigate }) {
   // documents may come from different property names depending on the API response
   const documents =
     submission.documents || submission.submission_documents || [];
+  const applicant = getApplicant();
   
   return (
     <PageLayout
@@ -346,13 +347,18 @@ export default function PublicationRewardDetail({ submissionId, onNavigate }) {
           <div>
             <div className="flex flex-wrap items-center gap-3 mb-2">
               {getStatusIcon(submission.status_id)}
-              <h3 className="text-lg font-semibold">สถานะคำร้อง (Submission Status)</h3>
+              <h3 className="text-lg font-semibold">
+                สถานะคำร้อง (Submission Status)
+              </h3>
               <div className="flex-shrink-0">
                 <StatusBadge
                   status={submission.Status?.status_name}
                   statusId={submission.status_id}
                 />
               </div>
+              <h3 className="text-lg font-semibold w-full">
+                ชื่อทุน: {submission?.subcategory_name && ` ${submission.subcategory_name}`}
+              </h3>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4 text-sm">
               <div>
@@ -433,6 +439,27 @@ export default function PublicationRewardDetail({ submissionId, onNavigate }) {
               </div>
             )}
           </div>
+        </div>
+      </Card>
+
+      {/* Applicant Info */}
+      <Card
+        title="ข้อมูลผู้ยื่นคำร้อง (Applicant Details)"
+        icon={User}
+        collapsible={false}
+        className="mb-6"
+      >
+        <div className="space-y-4">
+          <div>
+            <label className="text-sm text-gray-500">ชื่อผู้ยื่นคำร้อง (Applicant)</label>
+            <p className="font-medium">{getUserFullName(applicant)}</p>
+          </div>
+          {getUserEmail(applicant) && (
+            <div>
+              <label className="text-sm text-gray-500">อีเมล (Email)</label>
+              <p className="font-medium">{getUserEmail(applicant)}</p>
+            </div>
+          )}
         </div>
       </Card>
 

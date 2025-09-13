@@ -201,13 +201,18 @@ export default function FundApplicationDetail({ submissionId, onNavigate }) {
           <div>
             <div className="flex flex-wrap items-center gap-3 mb-2">
               {getStatusIcon(submission.status_id)}
-              <h3 className="text-lg font-semibold">สถานะคำร้อง (Submission Status)</h3>
+              <h3 className="text-lg font-semibold">
+                สถานะคำร้อง (Submission Status)
+              </h3>
               <div className="flex-shrink-0">
                 <StatusBadge
                   status={submission.Status?.status_name}
                   statusId={submission.status_id}
                 />
               </div>
+              <h3 className="text-lg font-semibold w-full">
+                ชื่อทุน: {submission?.subcategory_name && ` ${submission.subcategory_name}`}
+              </h3>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4 text-sm">
               <div>
