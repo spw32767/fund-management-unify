@@ -104,7 +104,10 @@ func GetSubmission(c *gin.Context) {
 	roleID, _ := c.Get("roleID")
 
 	var submission models.Submission
-	query := config.DB.
+	query := config.DB.Model(&models.Submission{}).
+		Joins("LEFT JOIN fund_categories ON submissions.category_id = fund_categories.category_id").
+		Joins("LEFT JOIN fund_subcategories ON fund_subcategories.subcategory_id = submissions.subcategory_id AND fund_subcategories.category_id = submissions.category_id").
+		Select("submissions.*, fund_categories.category_name AS category_name, CASE WHEN fund_subcategories.subcategory_id IS NULL THEN NULL ELSE submissions.subcategory_id END AS subcategory_id, fund_subcategories.subcategory_name AS subcategory_name").
 		Preload("User").
 		Preload("Year").
 		Preload("Status").
@@ -201,9 +204,11 @@ func CreateSubmission(c *gin.Context) {
 	userID, _ := c.Get("userID")
 
 	type CreateSubmissionRequest struct {
-		SubmissionType string `json:"submission_type" binding:"required"` // 'fund_application', 'publication_reward'
-		YearID         int    `json:"year_id" binding:"required"`
-		//Priority       string `json:"priority"`
+		SubmissionType      string `json:"submission_type" binding:"required"` // 'fund_application', 'publication_reward', ...
+		YearID              int    `json:"year_id" binding:"required"`
+		CategoryID          *int   `json:"category_id"`           // <-- ใหม่
+		SubcategoryID       *int   `json:"subcategory_id"`        // <-- ใหม่
+		SubcategoryBudgetID *int   `json:"subcategory_budget_id"` // <-- ใหม่
 	}
 
 	var req CreateSubmissionRequest
@@ -233,26 +238,27 @@ func CreateSubmission(c *gin.Context) {
 		return
 	}
 
-	// Generate submission number
-	submissionNumber := generateSubmissionNumber(req.SubmissionType)
-
-	// Set default priority
-	// priority := req.Priority
-	// if priority == "" {
-	// 	priority = "normal"
-	// }
-
 	// Create submission
 	now := time.Now()
 	submission := models.Submission{
 		SubmissionType:   req.SubmissionType,
-		SubmissionNumber: submissionNumber,
+		SubmissionNumber: generateSubmissionNumber(req.SubmissionType),
 		UserID:           userID.(int),
 		YearID:           req.YearID,
-		StatusID:         1, // Draft status
-		//Priority:         priority,
-		CreatedAt: now,
-		UpdatedAt: now,
+		StatusID:         1,
+		CreatedAt:        now,
+		UpdatedAt:        now,
+	}
+
+	// เซ็ตฟิลด์หมวดหมู่ถ้ามีส่งมา
+	if req.CategoryID != nil {
+		submission.CategoryID = req.CategoryID
+	}
+	if req.SubcategoryID != nil {
+		submission.SubcategoryID = req.SubcategoryID
+	}
+	if req.SubcategoryBudgetID != nil {
+		submission.SubcategoryBudgetID = req.SubcategoryBudgetID
 	}
 
 	if err := config.DB.Create(&submission).Error; err != nil {
@@ -260,9 +266,7 @@ func CreateSubmission(c *gin.Context) {
 		return
 	}
 
-	// Load relations for response
 	config.DB.Preload("User").Preload("Year").Preload("Status").First(&submission, submission.SubmissionID)
-
 	c.JSON(http.StatusCreated, gin.H{
 		"success":    true,
 		"message":    "Submission created successfully",
@@ -276,45 +280,40 @@ func UpdateSubmission(c *gin.Context) {
 	userID, _ := c.Get("userID")
 	roleID, _ := c.Get("roleID")
 
-	// type UpdateSubmissionRequest struct {
-	// 	Priority string `json:"priority"`
-	// }
-
-	// var req UpdateSubmissionRequest
-	// if err := c.ShouldBindJSON(&req); err != nil {
-	// 	c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-	// 	return
-	// }
-
-	// Find submission
-	var submission models.Submission
-	query := config.DB.Where("submission_id = ? AND deleted_at IS NULL", submissionID)
-
-	// Check permission
-	if roleID.(int) != 3 { // Not admin
-		query = query.Where("user_id = ?", userID)
+	type UpdateSubmissionRequest struct {
+		CategoryID          *int `json:"category_id"`
+		SubcategoryID       *int `json:"subcategory_id"`
+		SubcategoryBudgetID *int `json:"subcategory_budget_id"`
+		// อนาคตจะมีฟิลด์อื่นก็ใส่เพิ่มได้
 	}
 
+	var req UpdateSubmissionRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	var submission models.Submission
+	query := config.DB.Where("submission_id = ? AND deleted_at IS NULL", submissionID)
+	if roleID.(int) != 3 { // ถ้าไม่ใช่ admin ต้องเป็นเจ้าของรายการเท่านั้น
+		query = query.Where("user_id = ?", userID)
+	}
 	if err := query.First(&submission).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Submission not found"})
 		return
 	}
 
-	// Check if editable
-	if !submission.IsEditable() {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Submission cannot be edited"})
-		return
-	}
+	updates := map[string]interface{}{"updated_at": time.Now()}
 
-	// Update submission
-	now := time.Now()
-	updates := map[string]interface{}{
-		"updated_at": now,
+	if req.CategoryID != nil {
+		updates["category_id"] = req.CategoryID
 	}
-
-	// if req.Priority != "" {
-	// 	updates["priority"] = req.Priority
-	// }
+	if req.SubcategoryID != nil {
+		updates["subcategory_id"] = req.SubcategoryID
+	}
+	if req.SubcategoryBudgetID != nil {
+		updates["subcategory_budget_id"] = req.SubcategoryBudgetID
+	}
 
 	if err := config.DB.Model(&submission).Updates(updates).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update submission"})
@@ -895,7 +894,8 @@ func generateSubmissionNumber(submissionType string) string {
 	defer submissionNumberMutex.Unlock()
 
 	now := time.Now()
-	dateStr := now.Format("20060102")
+	buddhistYear := now.Year() + 543
+	dateStr := fmt.Sprintf("%04d%02d%02d", buddhistYear, int(now.Month()), now.Day())
 
 	var prefix string
 	switch submissionType {
@@ -914,7 +914,7 @@ func generateSubmissionNumber(submissionType string) string {
 	// Try sequential number first (user-friendly)
 	var count int64
 	config.DB.Model(&models.Submission{}).
-		Where("submission_type = ? AND DATE(created_at) = DATE(NOW())", submissionType).
+		Where("submission_type = ? AND YEAR(created_at) = YEAR(NOW())", submissionType).
 		Count(&count)
 
 	// Try up to 10 sequential numbers
