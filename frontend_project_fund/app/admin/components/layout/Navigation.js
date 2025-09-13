@@ -9,7 +9,8 @@ import {
   LogOut,
   HandHelping,
   ClipboardCheck,
-  FileCheck
+  FileCheck,
+  BookOpen
 } from "lucide-react";
 import { useAuth } from "../../../contexts/AuthContext";
 import { useRouter } from "next/navigation";
@@ -59,6 +60,12 @@ export default function Navigation({
       id: 'approval-records',
       label: 'บันทึกข้อมูลการอนุมัติทุน',
       icon: FileCheck,
+      hasSubmenu: false
+    },
+    {
+      id: 'publications-import',
+      label: 'นำเข้าผลงาน (Scholar)',
+      icon: BookOpen,
       hasSubmenu: false
     }
   ];

@@ -19,6 +19,7 @@ import {
 } from '../../../lib/publication_api';
 import Swal from 'sweetalert2';
 import { PDFDocument } from 'pdf-lib';
+import { notificationsAPI } from '../../../lib/notifications_api';
 
 // =================================================================
 // CONFIGURATION & CONSTANTS
@@ -296,31 +297,38 @@ const getDocumentTypeName = (documentTypeId) => {
   return typeMap[documentTypeId] || `เอกสารประเภท ${documentTypeId}`;
 };
 
-// PDF merging utility
+// PDF merging utility (robust)
 const mergePDFs = async (pdfFiles) => {
-  try {
-    const mergedPdf = await PDFDocument.create();
-    
-    for (const file of pdfFiles) {
-      if (file.type === 'application/pdf') {
-        const pdfBytes = await file.arrayBuffer();
-        // เพิ่ม option ignoreEncryption: true เพื่อข้ามการเข้ารหัส
-        const pdf = await PDFDocument.load(pdfBytes, { 
-          ignoreEncryption: true 
-        });
-        const pages = await mergedPdf.copyPages(pdf, pdf.getPageIndices());
-        pages.forEach((page) => mergedPdf.addPage(page));
-      }
+  const merged = await PDFDocument.create();
+  const skipped = [];
+
+  for (const f of pdfFiles) {
+    if (!f) continue;
+    try {
+      const bytes = await f.arrayBuffer();
+      const src = await PDFDocument.load(bytes, { ignoreEncryption: true });
+      const pages = await merged.copyPages(src, src.getPageIndices());
+      pages.forEach(p => merged.addPage(p));
+    } catch (e) {
+      console.warn('mergePDFs: skip file', f?.name, e);
+      skipped.push(f?.name || 'unknown.pdf');
+      // ข้ามไฟล์ที่เสียแทนที่จะล้มทั้งกระบวนการ
+      continue;
     }
-    
-    const mergedPdfBytes = await mergedPdf.save();
-    const blob = new Blob([mergedPdfBytes], { type: 'application/pdf' });
-    return new File([blob], 'merged_documents.pdf', { type: 'application/pdf' });
-  } catch (error) {
-    console.error('Error merging PDFs:', error);
-    throw error;
   }
+
+  // ไม่มีหน้าสำหรับรวมเลย -> โยน error เพื่อให้ fallback เป็น “ส่งไฟล์แยก”
+  if (merged.getPageCount() === 0) {
+    const err = new Error('No PDF pages to merge');
+    err.skipped = skipped;
+    throw err;
+  }
+
+  const mergedBytes = await merged.save();
+  const blob = new Blob([mergedBytes], { type: 'application/pdf' });
+  return { blob, skipped }; // << คืน Blob + รายชื่อไฟล์ที่ถูกข้าม
 };
+
 
 // =================================================================
 // DRAFT MANAGEMENT FUNCTIONS
@@ -595,11 +603,10 @@ const FileUpload = ({ onFileSelect, accept, multiple = false, error, label }) =>
 // MAIN COMPONENT START
 // =================================================================
 
-export default function PublicationRewardForm({ onNavigate, categoryId, yearId }) {
+export default function PublicationRewardForm({ onNavigate, categoryId, yearId, readOnly = false }) {
   // =================================================================
   // STATE DECLARATIONS
   // =================================================================
-  
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState({});
@@ -675,6 +682,34 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId }
 
   // External funding sources
   const [externalFundings, setExternalFundings] = useState([])
+
+  const [isReadOnly, setIsReadOnly] = useState(false);
+
+  useEffect(() => {
+    let ro = false;
+
+    // 1) รับจาก prop
+    if (readOnly === true) ro = true;
+
+    // 2) รับจาก URL query
+    if (typeof window !== 'undefined') {
+      const sp = new URLSearchParams(window.location.search);
+      const roq = (sp.get('readonly') || '').toLowerCase();
+      const mode = (sp.get('mode') || '').toLowerCase();
+      if (['1', 'true', 'yes'].includes(roq)) ro = true;
+      if (['view', 'detail', 'details', 'readonly'].includes(mode)) ro = true;
+
+      // 3) รับจาก sessionStorage (fallback ที่เราตั้งจากหน้ารายการ)
+      try {
+        const s = window.sessionStorage.getItem('fund_form_readonly');
+        if (s === '1') ro = true;
+        // เคลียร์เพื่อไม่ให้ติดไปหน้าอื่น
+        window.sessionStorage.removeItem('fund_form_readonly');
+      } catch {}
+    }
+
+    setIsReadOnly(ro);
+  }, [readOnly]);
 
   // Helper: resolve subcategory and budget via backend resolver
   const resolveBudgetAndSubcategory = async ({ category_id, year_id, author_status, journal_quartile }) => {
@@ -1875,31 +1910,34 @@ const showSubmissionConfirmation = async () => {
       
       if (pdfFiles.length > 0) {
         if (pdfFiles.length > 1) {
-          // Merge multiple PDFs
-          mergedPdfBlob = await mergePDFs(pdfFiles);
-          const mergedFile = new File([mergedPdfBlob], 'merged_documents.pdf', { type: 'application/pdf' });
+          // Merge multiple PDFs (robust)
+          const { blob, skipped } = await mergePDFs(pdfFiles);
+          const mergedFile = new File([blob], 'merged_documents.pdf', { type: 'application/pdf' });
           setMergedPdfFile(mergedFile);
+          mergedPdfUrl = URL.createObjectURL(blob);
+          if (skipped?.length) {
+            Toast.fire({ icon: 'warning', title: 'ข้ามไฟล์ PDF บางไฟล์', text: skipped.join(', ') });
+          }
         } else {
           // Use single PDF
-          mergedPdfBlob = pdfFiles[0];
-          setMergedPdfFile(pdfFiles[0]);
+          const one = pdfFiles[0];
+          setMergedPdfFile(one);
+          mergedPdfUrl = URL.createObjectURL(one);
         }
-        mergedPdfUrl = URL.createObjectURL(mergedPdfBlob);
       }
-
       Swal.close();
-    } catch (error) {
-      console.error('Error creating merged PDF:', error);
-      Swal.close();
-      setMergedPdfFile(null);
-      Swal.fire({
-        icon: 'error',
-        title: 'ไม่สามารถรวมไฟล์ PDF ได้',
-        text: 'กรุณาตรวจสอบไฟล์และลองใหม่อีกครั้ง',
-        confirmButtonColor: '#3085d6'
-      });
-      return false;
-    }
+      } catch (error) {
+        console.error('Error creating merged PDF:', error);
+        Swal.close();
+        setMergedPdfFile(null);
+        // อย่าหยุด flow — ส่งไฟล์แยกแทน
+        Toast.fire({
+          icon: 'warning',
+          title: 'ไม่สามารถรวมไฟล์ PDF',
+          text: 'ระบบจะส่งไฟล์แยกแทน'
+        });
+        // ไม่ return false; ให้ไปต่อได้
+      }
 
     const summaryHTML = `
       <div class="text-left space-y-4">
@@ -2192,14 +2230,51 @@ const showSubmissionConfirmation = async () => {
         });
       }
 
-      // ไม่ต้องเพิ่ม merged PDF ถ้าไม่จำเป็น หรือเช็คก่อนว่าซ้ำหรือไม่
-      if (mergedPdfFile && !processedFiles.has(mergedPdfFile.name)) {
+      // --- Ensure merged PDF is included reliably ---
+      const collectPdfSources = () => {
+        const pdfs = [];
+        // 1) จากเอกสารหลัก
+        Object.values(uploadedFiles).forEach(f => {
+          if (f && f.type === 'application/pdf') pdfs.push(f);
+        });
+        // 2) จากเอกสารอื่น ๆ
+        if (otherDocuments?.length) {
+          otherDocuments.forEach(d => {
+            const f = d.file || d;
+            if (f?.type === 'application/pdf') pdfs.push(f);
+          });
+        }
+        // 3) จากทุนภายนอก
+        if (externalFundingFiles?.length) {
+          externalFundingFiles.forEach(d => {
+            if (d.file?.type === 'application/pdf') pdfs.push(d.file);
+          });
+        }
+        return pdfs;
+      };
+
+      let mergedForUpload = mergedPdfFile;
+
+      // fallback: ถ้า state ยังไม่มี ให้รวม/เลือกใหม่ตรงนี้เลย
+      if (!mergedForUpload) {
+        const pdfs = collectPdfSources();
+        if (pdfs.length > 1) {
+          const blob = await mergePDFs(pdfs);
+          mergedForUpload = new File([blob], 'merged_documents.pdf', { type: 'application/pdf' });
+        } else if (pdfs.length === 1) {
+          mergedForUpload = pdfs[0]; // กรณีมีไฟล์เดียว ใช้อันเดียว
+        }
+      }
+
+      if (mergedForUpload && !processedFiles.has(mergedForUpload.name)) {
         allFiles.push({
-          file: mergedPdfFile,
-          document_type_id: 1,
+          file: mergedForUpload,
+          document_type_id: 11, // แนบเป็น "เอกสารอื่น ๆ" เพื่อลดการชนกับชนิดหลัก
           description: 'เอกสารรวม (Merged PDF)'
         });
+        processedFiles.add(mergedForUpload.name);
       }
+
 
       console.log(`Total files to upload: ${allFiles.length}`);
 
@@ -2565,6 +2640,12 @@ const showSubmissionConfirmation = async () => {
 
       await submissionAPI.submitSubmission(submissionId);
 
+      try {
+        await notificationsAPI.notifySubmissionSubmitted(submissionId);
+      } catch (e) {
+        console.warn('notifySubmissionSubmitted failed:', e);
+      }
+
       // Delete draft from localStorage
       deleteDraftFromLocal();
 
@@ -2646,6 +2727,12 @@ const showSubmissionConfirmation = async () => {
       ]}
     >
       <form className="space-y-6">
+      {isReadOnly && (
+        <div className="rounded-lg border border-yellow-300 bg-yellow-50 p-4 text-sm text-yellow-800">
+          ขณะนี้เป็นโหมด <strong>อ่านอย่างเดียว</strong> — ไม่สามารถแก้ไขหรือส่งคำร้องได้
+        </div>
+      )}
+      <fieldset disabled={isReadOnly} aria-disabled={isReadOnly} className="space-y-6">
         {/* =================================================================
         // BASIC INFORMATION SECTION
         // ================================================================= */}
@@ -3601,57 +3688,53 @@ const showSubmissionConfirmation = async () => {
         // ================================================================= */}
         <SimpleCard title="ข้อมูลเพิ่มเติม (Additional Information)" icon={FileText}>
           <div className="space-y-4">
-            {/* University funding */}
+            {/* University funding — checkbox under question; inline field when checked */}
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              ได้รับการสนับสนุนทุนจากมหาวิทยาลัยหรือไม่?
+              ได้รับการสนับสนุนทุนจากมหาวิทยาลัยขอนแก่นหรือไม่?
               <br />
               <span className="text-xs font-normal text-gray-600">
-                (Did you receive funding support from the university?)
+                (Did you receive funding support from the Khon Kaen University?)
               </span>
             </label>
 
-            {/* ปุ่มชิดซ้าย: เอา justify-between ออก → ใช้ justify-start + gap */}
-            <div className="flex items-center justify-start gap-4 rounded-lg border border-gray-200 p-4">
-              {/* ปุ่มสวิตช์อยู่ซ้ายสุด */}
-              <label className="relative inline-flex items-center cursor-pointer select-none">
+            <div className="flex flex-wrap items-center gap-4 rounded-lg border border-gray-200 p-4">
+              {/* Checkbox */}
+              <label className="inline-flex items-center gap-2 cursor-pointer select-none">
                 <input
                   type="checkbox"
+                  className="h-5 w-5 accent-blue-600"
                   checked={formData.has_university_fund === 'yes'}
                   onChange={(e) =>
                     setFormData(prev => ({
                       ...prev,
-                      has_university_fund: e.target.checked ? 'yes' : 'no'
+                      has_university_fund: e.target.checked ? 'yes' : 'no',
+                      // ถ้ายกเลิกติ๊กให้ล้างค่า:
+                      university_fund_ref: e.target.checked ? (prev.university_fund_ref || '') : ''
                     }))
                   }
-                  className="sr-only peer"
                 />
-                <div className="w-11 h-6 bg-gray-200 rounded-full transition-colors peer-checked:bg-blue-600"></div>
-                <div className="absolute left-0.5 top-0.5 h-5 w-5 bg-white rounded-full shadow transition-transform peer-checked:translate-x-5"></div>
+                <span className="text-sm text-gray-700">
+                  {formData.has_university_fund === 'yes' ? 'ได้รับ (Yes)' : 'ไม่ได้รับ (No)'}
+                </span>
               </label>
 
-              {/* ข้อความสถานะชิดขวาของปุ่ม */}
-              <span className="text-sm text-gray-700">
-                {formData.has_university_fund === 'yes' ? 'ได้รับ (Yes)' : 'ไม่ได้รับ (No)'}
-              </span>
+              {/* Inline field (same row; จะห่อบรรทัดเมื่อจอแคบ) */}
+              {formData.has_university_fund === 'yes' && (
+                <div className="flex items-center gap-2 flex-1 min-w-[260px]">
+                  <input
+                    id="university_fund_ref"
+                    type="text"
+                    name="university_fund_ref"
+                    value={formData.university_fund_ref}
+                    onChange={handleInputChange}
+                    placeholder="กรอกหมายเลขอ้างอิงทุน (Enter fund reference number)"
+                    className="w-full min-w-0 px-4 py-2 rounded-lg border border-gray-300
+                              focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500
+                              placeholder:text-gray-400"
+                  />
+                </div>
+              )}
             </div>
-
-
-            {/* University fund reference */}
-            {formData.has_university_fund === 'yes' && (
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  หมายเลขอ้างอิงทุน (Fund Reference Number)
-                </label>
-                <input
-                  type="text"
-                  name="university_fund_ref"
-                  value={formData.university_fund_ref}
-                  onChange={handleInputChange}
-                  placeholder="กรอกหมายเลขอ้างอิงทุน (Enter fund reference number)"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
-                />
-              </div>
-            )}
 
             {/* University ranking */}
             <div>
@@ -3730,6 +3813,7 @@ const showSubmissionConfirmation = async () => {
             </div>
           </div>
         </div>
+      </fieldset>
       </form>
     </PageLayout>
   );
