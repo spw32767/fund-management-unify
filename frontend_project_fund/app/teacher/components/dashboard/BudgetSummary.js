@@ -22,7 +22,7 @@ export default function BudgetSummary({ budget }) {
 
   const budgetItems = [
     {
-      label: "งบประมาณที่ได้รับทั้งหมด",
+      label: "งบประมาณที่ขอทั้งหมด",
       value: formatCurrency(budget.total),
       icon: DollarSign,
       bgColor: "bg-gray-50",

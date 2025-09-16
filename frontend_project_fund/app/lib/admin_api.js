@@ -624,17 +624,6 @@ export const adminAPI = {
   },
 
   // ==================== USER MANAGEMENT ====================
-  
-  // Get all users
-  async getAllUsers(params = {}) {
-    try {
-      const response = await apiClient.get('/admin/users', params);
-      return response;
-    } catch (error) {
-      console.error('Error fetching all users:', error);
-      throw error;
-    }
-  },
 
   // Create user
   async createUser(userData) {
@@ -1006,7 +995,16 @@ export const adminAPI = {
     if (budgetData.max_grants && (isNaN(parseInt(budgetData.max_grants)) || parseInt(budgetData.max_grants) <= 0)) {
       throw new Error('Max grants must be a positive integer');
     }
-  }
+  },
+
+  // ===== Approval Records (Admin) =====
+  async getApprovalTotals(params = {}) {
+    return apiClient.get('/admin/approval-records/totals', params);
+  },
+
+  async getApprovalRecords(params = {}) {
+    return apiClient.get('/admin/approval-records', params);
+  },
 };
 
 export default adminAPI;

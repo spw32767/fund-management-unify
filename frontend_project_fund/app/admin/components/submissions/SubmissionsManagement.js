@@ -456,8 +456,8 @@ export default function SubmissionsManagement() {
   // ---------- List View ----------
   return (
     <PageLayout
-      title="จัดการคำร้องขอทุน"
-      subtitle="บันทึกข้อมูลการอนุมัติทุนและจัดการคำร้องทั้งหมด"
+      title="รายการการขอทุน"
+      subtitle="บันทึกข้อมูลคำร้องขอทุนและจัดการคำร้องทั้งหมด"
       icon={FileText}
       breadcrumbs={[
         { label: "หน้าแรก", href: "/admin" },
@@ -502,10 +502,10 @@ export default function SubmissionsManagement() {
       {/* Statistics (client-side over current year) */}
       <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-5 mb-6">
         <StatCard label="คำร้องทั้งหมด" value={statistics.total_submissions} />
-        <StatCard label="รอพิจารณา" value={statistics.pending_count} color="text-yellow-600" />
+        <StatCard label="อยู่ระหว่างการพิจารณา" value={statistics.pending_count} color="text-yellow-600" />
         <StatCard label="อนุมัติแล้ว" value={statistics.approved_count} color="text-green-600" />
         <StatCard label="ไม่อนุมัติ" value={statistics.rejected_count} color="text-red-600" />
-        <StatCard label="ต้องแก้ไข" value={statistics.revision_count} color="text-orange-600" />
+        <StatCard label="ต้องการข้อมูลเพิ่มเติม" value={statistics.revision_count} color="text-orange-600" />
       </div>
 
       {/* Filters */}

@@ -37,13 +37,27 @@ export const notificationsAPI = {
     return apiClient.post(`/notifications/events/submissions/${submissionId}/submitted`);
   },
 
-  /**
-   * (ออปชัน) สร้างแจ้งเตือนแบบกำหนดผู้รับเอง
-   * payload: { user_id?, title, message, type, related_submission_id? }
-   */
+  /* แจ้งเตือนเมื่อ "อนุมัติ" */
+  async notifySubmissionApproved(submissionId, { announce_reference_number } = {}) {
+    return apiClient.post(
+      `/notifications/events/submissions/${submissionId}/approved`,
+      { announce_reference_number: announce_reference_number || '' }
+    );
+  },
+
+  /* แจ้งเตือนเมื่อ "ไม่อนุมัติ" */
+  async notifySubmissionRejected(submissionId, { reason } = {}) {
+    return apiClient.post(
+      `/notifications/events/submissions/${submissionId}/rejected`,
+      { reason: reason || '' }
+    );
+  },
+
   async create(payload) {
     return apiClient.post('/notifications', payload);
   },
+
+  
 };
 
 export default notificationsAPI;
