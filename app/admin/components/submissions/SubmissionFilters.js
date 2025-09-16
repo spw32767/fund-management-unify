@@ -161,11 +161,10 @@ export default function SubmissionFilters({ filters, onFilterChange, onSearch })
           >
             <option value="">ทั้งหมด</option>
             {/* สถานะตามตาราง application_status */}
-            <option value="1">รอพิจารณา</option>
-            <option value="2">อนุมัติ</option>
-            <option value="3">ปฏิเสธ</option>
+            <option value="1">อยู่ระหว่างการพิจารณา</option>
+            <option value="2">อนุมัติแล้ว</option>
+            <option value="3">ไม่อนุมัติ</option>
             <option value="4">ต้องการข้อมูลเพิ่มเติม</option>
-            <option value="5">ร่าง</option>
           </select>
         </div>
 
@@ -234,11 +233,11 @@ export default function SubmissionFilters({ filters, onFilterChange, onSearch })
             
             {filters.status && (
               <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-800 border border-green-200">
-                สถานะ: {filters.status === '1' ? 'รอพิจารณา' : 
+                สถานะ: {filters.status === '1' ? 'อยู่ระหว่างการพิจารณา' : 
                         filters.status === '2' ? 'อนุมัติ' :
                         filters.status === '3' ? 'ปฏิเสธ' :
                         filters.status === '4' ? 'ต้องการข้อมูลเพิ่มเติม' :
-                        filters.status === '5' ? 'ร่าง' : filters.status}
+                        filters.status}
                 <button
                   type="button"
                   onClick={() => handleChange('status', '')}

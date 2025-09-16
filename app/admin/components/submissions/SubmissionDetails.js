@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowLeft,
   FileText,
@@ -12,6 +12,7 @@ import {
   CheckCircle,
   XCircle,
   AlertCircle,
+  AlertTriangle,
   Download,
   Eye,
   Users,
@@ -19,53 +20,63 @@ import {
   FileCheck,
   RefreshCcw,
   Check,
+  BadgeCheck,
   X as XIcon,
 } from 'lucide-react';
 
 import PageLayout from '../common/PageLayout';
 import Card from '../common/Card';
 import { toast } from 'react-hot-toast';
+import StatusBadge from '@/app/admin/components/common/StatusBadge';
 
 import apiClient from '@/app/lib/api';
 import { adminSubmissionAPI } from '@/app/lib/admin_submission_api';
 import { rewardConfigAPI } from '@/app/lib/publication_api';
 import adminAPI from '@/app/lib/admin_api';
+import { notificationsAPI } from '@/app/lib/notifications_api';
 
 import Swal from 'sweetalert2';
 import 'sweetalert2/dist/sweetalert2.min.css';
 
+import { PDFDocument } from 'pdf-lib';
+
 /* =========================
  * Helpers
  * ========================= */
-const StatusBadge = ({ statusId }) => {
-  const map = {
-    1: 'bg-yellow-100 text-yellow-800',
-    2: 'bg-green-100 text-green-800',
-    3: 'bg-red-100 text-red-800',
-    4: 'bg-orange-100 text-orange-800',
-    5: 'bg-gray-100 text-gray-800',
-  };
-  // 1 -> อยู่ระหว่างการพิจารณา
-  const label = { 1: 'อยู่ระหว่างการพิจารณา', 2: 'อนุมัติ', 3: 'ไม่อนุมัติ', 4: 'ต้องแก้ไข', 5: 'แบบร่าง' }[statusId] || 'ไม่ทราบสถานะ';
-  return (
-    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${map[statusId] || map[5]}`}>
-      {label}
-    </span>
-  );
-};
 
+// ก่อนหน้านี้น่าจะ return แบบ <Clock /> → ผิด
 const getStatusIcon = (statusId) => {
   switch (statusId) {
-    case 2:
-      return <CheckCircle className="h-5 w-5 text-green-600" />;
-    case 3:
-      return <XCircle className="h-5 w-5 text-red-600" />;
-    case 4:
-      return <AlertCircle className="h-5 w-5 text-orange-600" />;
-    default:
-      return <Clock className="h-5 w-5 text-yellow-600" />;
+    case 2: return CheckCircle;     // อนุมัติ
+    case 3: return XCircle;         // ไม่อนุมัติ
+    case 4: return AlertTriangle;   // ต้องแก้ไข
+    case 5: return FileText;        // แบบร่าง
+    case 1:
+    default: return Clock;          // อยู่ระหว่างการพิจารณา / ไม่ทราบ
   }
 };
+
+// สีของไอคอนให้สอดคล้องกับ StatusBadge
+const getStatusIconColor = (statusId) => {
+  switch (statusId) {
+    case 2: return 'text-green-600';
+    case 3: return 'text-red-600';
+    case 4: return 'text-orange-600';
+    case 5: return 'text-gray-500';
+    case 1:
+    default: return 'text-yellow-600';
+  }
+};
+
+const getColoredStatusIcon = (statusId) => {
+  const Icon = getStatusIcon(statusId);
+  const color = getStatusIconColor(statusId);
+  // คืน "คอมโพเนนต์" ที่ Card จะเรียกใช้ (จะได้รับ props เช่น className/size)
+  return function ColoredStatusIcon(props) {
+    return <Icon {...props} className={`${props.className || ''} ${color}`} />;
+  };
+};
+
 
 const formatDate = (dateString) => {
   if (!dateString) return '-';
@@ -588,6 +599,8 @@ function ApprovalPanel({ submission, pubDetail, onApprove, onReject }) {
       preConfirm: async () => {
         try {
           setSaving(true);
+
+          // อนุมัติบนระบบหลัก
           await onApprove({
             reward_approve_amount: Number(rewardApprove),
             revision_fee_approve_amount: hideSharedFeeFields ? 0 : Number(revisionApprove),
@@ -595,6 +608,18 @@ function ApprovalPanel({ submission, pubDetail, onApprove, onReject }) {
             total_approve_amount: Number(totalApprove),
             announce_reference_number: announceRef.trim() || null,
           });
+
+          // NEW: แจ้งเตือน + ส่งอีเมล (best-effort; ไม่ให้พัง flow อนุมัติ)
+          try {
+            await notificationsAPI.notifySubmissionApproved(
+              submission?.submission_id,
+              { announce_reference_number: announceRef?.trim() || '' }
+            );
+          } catch (err) {
+            console.warn('notify approved failed:', err);
+            // ไม่ throw — เพื่อไม่ให้ Swal แสดง validation error
+          }
+
         } catch (e) {
           Swal.showValidationMessage(e?.message || 'อนุมัติไม่สำเร็จ');
           throw e;
@@ -653,6 +678,18 @@ function ApprovalPanel({ submission, pubDetail, onApprove, onReject }) {
         try {
           setSaving(true);
           await onReject(rejectReason.trim());
+
+          // NEW: แจ้งเตือน + ส่งอีเมล (best-effort)
+          try {
+            await notificationsAPI.notifySubmissionRejected(
+              submission?.submission_id,
+              { reason: rejectReason?.trim() || '' }
+            );
+          } catch (e) {
+            console.warn('notify rejected failed:', e);
+            // ไม่ throw — ไม่ให้บล็อก flow
+          }
+
         } catch (e) {
           Swal.showValidationMessage(e?.message || 'ไม่อนุมัติไม่สำเร็จ');
           throw e;
@@ -873,6 +910,9 @@ export default function SubmissionDetails({ submissionId, onBack }) {
   const [fundNames, setFundNames] = useState({ category: null, subcategory: null });
   const [fundNamesLoading, setFundNamesLoading] = useState(false);
 
+  const [attachments, setAttachments] = useState([]);
+  const [attachmentsLoading, setAttachmentsLoading] = useState(false)
+
   // Load data
   useEffect(() => {
     if (!submissionId) return;
@@ -915,6 +955,76 @@ export default function SubmissionDetails({ submissionId, onBack }) {
     };
     load();
   }, [submissionId]);
+
+  // ADD — fetch attachments + document types then merge label
+  useEffect(() => {
+    if (!submission?.submission_id) return;
+    let cancel = false;
+
+    (async () => {
+      try {
+        setAttachmentsLoading(true);
+
+        // ดึงจาก endpoint ที่มีอยู่แล้ว
+        const [docRes, typeRes] = await Promise.all([
+          adminSubmissionAPI.getSubmissionDocuments(submission.submission_id),
+          adminSubmissionAPI.getDocumentTypes(),
+        ]);
+
+        const docsApi = docRes?.documents || docRes || [];
+        const typesArr = typeRes?.document_types || typeRes || [];
+
+        // ทำ map: document_type_id -> display name
+        const typeMap = {};
+        for (const t of typesArr) {
+          const id = t.document_type_id ?? t.id;
+          typeMap[id] =
+            t.document_type_name || t.name || t.code || t.category || 'ไม่ระบุหมวด';
+        }
+
+        // ถ้า API ไม่มีเอกสาร ให้ fallback ใช้จาก payload เดิม
+        const docsFallback =
+          submission.documents || submission.submission_documents || [];
+
+        const rawDocs = docsApi.length ? docsApi : docsFallback;
+
+        const merged = rawDocs.map((d, i) => {
+          const fileId = d.file_id ?? d.File?.file_id ?? d.file?.file_id ?? d.id;
+          const name =
+            d.file_name ??
+            d.original_name ??
+            d.original_filename ??
+            d.File?.original_name ??
+            d.file?.original_name ??
+            d.name ??
+            `เอกสารที่ ${i + 1}`;
+
+          const docTypeId = d.document_type_id ?? d.DocumentTypeID ?? d.doc_type_id ?? null;
+          const docTypeName =
+            d.document_type_name || typeMap[docTypeId] || 'ไม่ระบุหมวด';
+
+          return {
+            ...d,
+            file_id: fileId,
+            original_name: name,
+            document_type_id: docTypeId,
+            document_type_name: docTypeName,
+          };
+        });
+
+        if (!cancel) setAttachments(merged);
+      } catch (e) {
+        console.error('load attachments failed', e);
+        if (!cancel) setAttachments([]);
+      } finally {
+        if (!cancel) setAttachmentsLoading(false);
+      }
+    })();
+
+    return () => {
+      cancel = true;
+    };
+  }, [submission?.submission_id]);
 
   // Applicant detection (robust)
   const getApplicant = useMemo(
@@ -1050,6 +1160,106 @@ export default function SubmissionDetails({ submissionId, onBack }) {
     }
   };
 
+  // === PDF merge helpers (on-the-fly) ===
+  const [merging, setMerging] = useState(false);
+  const mergedUrlRef = useRef(null);
+
+  const cleanupMergedUrl = () => {
+    if (mergedUrlRef.current) {
+      URL.revokeObjectURL(mergedUrlRef.current);
+      mergedUrlRef.current = null;
+    }
+  };
+
+  const fetchFileAsBlob = async (fileId) => {
+    const token = apiClient.getToken();
+    const url = `${apiClient.baseURL}/files/managed/${fileId}/download`;
+    const resp = await fetch(url, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+    if (!resp.ok) throw new Error('File not found');
+    return await resp.blob();
+  };
+
+  // รวม PDF จากรายการ attachments (ข้ามไฟล์ที่โหลด/แปลงไม่สำเร็จ)
+  const mergeAttachmentsToPdf = async (list) => {
+    const merged = await PDFDocument.create();
+    const skipped = [];
+
+    for (const doc of list) {
+      try {
+        const blob = await fetchFileAsBlob(doc.file_id);
+        const src = await PDFDocument.load(await blob.arrayBuffer(), { ignoreEncryption: true });
+        const pages = await merged.copyPages(src, src.getPageIndices());
+        pages.forEach(p => merged.addPage(p));
+      } catch (e) {
+        console.warn('merge: skip', doc?.original_name || doc?.file_name || doc?.file_id, e);
+        skipped.push(doc?.original_name || doc?.file_name || `file-${doc.file_id}.pdf`);
+        continue;
+      }
+    }
+
+    if (merged.getPageCount() === 0) {
+      const err = new Error('No PDF pages');
+      err.skipped = skipped;
+      throw err;
+    }
+
+    const bytes = await merged.save();
+    const blob = new Blob([bytes], { type: 'application/pdf' });
+    return { blob, skipped };
+  };
+
+  const createMergedUrl = async () => {
+    setMerging(true);
+    try {
+      // เลือกไฟล์ .pdf ก่อน ถ้าไม่มีเลยค่อยลองทุกไฟล์ (ให้ merge functionเป็นคนคัดทิ้งเอง)
+      const pdfLike = attachments.filter(d => {
+        const name = (d.original_name || d.file_name || '').toLowerCase();
+        return name.endsWith('.pdf');
+      });
+      const list = pdfLike.length ? pdfLike : attachments;
+
+      const { blob, skipped } = await mergeAttachmentsToPdf(list);
+      cleanupMergedUrl();
+      const url = URL.createObjectURL(blob);
+      mergedUrlRef.current = url;
+
+      if (skipped.length) {
+        toast((t) => (
+          <span>ข้ามไฟล์ที่ไม่ใช่/เสียหาย {skipped.length} รายการ</span>
+        ));
+      }
+      return url;
+    } catch (e) {
+      console.error('merge failed', e);
+      toast.error(`รวมไฟล์ไม่สำเร็จ: ${e?.message || 'ไม่ทราบสาเหตุ'}`);
+      return null;
+    } finally {
+      setMerging(false);
+    }
+  };
+
+  const handleViewMerged = async () => {
+    const url = mergedUrlRef.current || await createMergedUrl();
+    if (url) window.open(url, '_blank');
+  };
+
+  const handleDownloadMerged = async () => {
+    const url = mergedUrlRef.current || await createMergedUrl();
+    if (!url) return;
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `merged_documents_${submission?.submission_number || submission?.submission_id || ''}.pdf`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  };
+
+  // cleanup URL ตอน component unmount
+  useEffect(() => {
+    return () => cleanupMergedUrl();
+  }, []);
+
+
   // Admin actions → API wiring
   const approve = async (payload) => {
     await adminSubmissionAPI.approveSubmission(submission.submission_id, { ...payload });
@@ -1146,12 +1356,10 @@ export default function SubmissionDetails({ submissionId, onBack }) {
     );
   }
 
-  const documents = submission.documents || submission.submission_documents || [];
-
   return (
     <PageLayout
       title={`เงินรางวัลตีพิมพ์ #${submission.submission_number}`}
-      subtitle="รายละเอียดคำร้องขอเงินรางวัลการตีพิมพ์ผลงานวิชาการ (มุมมองผู้ดูแล)"
+      subtitle="รายละเอียดคำร้องขอเงินรางวัลการตีพิมพ์ผลงานวิชาการ"
       icon={Award}
       actions={
         <div className="flex gap-2">
@@ -1168,16 +1376,19 @@ export default function SubmissionDetails({ submissionId, onBack }) {
       ]}
     >
       {/* Status Summary */}
-      <Card className="mb-6 border-l-4 border-blue-500" collapsible={false}>
+      <Card
+        icon={getColoredStatusIcon(submission?.status_id)}
+        collapsible={false}
+        headerClassName="items-center"
+        title={
+          <div className="flex items-center gap-2">
+            <span>สถานะคำร้อง (Submission Status)</span>
+            <StatusBadge statusId={submission?.status_id} />
+          </div>
+        }
+      >
         <div className="flex justify-between items-start">
           <div>
-            <div className="flex flex-wrap items-center gap-3 mb-2">
-              {getStatusIcon(submission.status_id)}
-              <h3 className="text-lg font-semibold">สถานะคำร้อง (Submission Status)</h3>
-              <div className="flex-shrink-0">
-                <StatusBadge statusId={submission.status_id} />
-              </div>
-            </div>
             <div className="flex flex-col gap-3 mt-4 text-sm">
               {/* ผู้ขอทุน */}
               <div className="flex flex-wrap items-start gap-2">
@@ -1248,7 +1459,7 @@ export default function SubmissionDetails({ submissionId, onBack }) {
       </Card>
 
       {/* Tabs */}
-      <div className="border-b border-gray-200 mb-6">
+      <div className="border-b border-gray-200 mb-6 mt-6">
         <nav className="-mb-px flex space-x-8">
           <button
             onClick={() => setActiveTab('details')}
@@ -1581,23 +1792,61 @@ export default function SubmissionDetails({ submissionId, onBack }) {
       {activeTab === 'documents' && (
         <Card title="เอกสารแนบ (Attachments)" icon={FileText} collapsible={false}>
           <div className="space-y-4">
-            {documents.length > 0 ? (
+            {/* Action bar สำหรับรวม PDF */}
+            <div className="flex items-center justify-between">
+              <div className="text-sm text-gray-500">
+                {attachmentsLoading ? 'กำลังโหลดเอกสาร…' : `${attachments.length} ไฟล์`}
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleViewMerged}
+                  disabled={merging || attachmentsLoading || attachments.length === 0}
+                  className="inline-flex items-center gap-1 px-3 py-1 text-sm text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-md disabled:opacity-60"
+                >
+                  <Eye className="h-4 w-4" />
+                  {merging ? 'กำลังรวม…' : 'ดูเอกสารรวม'}
+                </button>
+                <button
+                  onClick={handleDownloadMerged}
+                  disabled={merging || attachmentsLoading || attachments.length === 0}
+                  className="inline-flex items-center gap-1 px-3 py-1 text-sm text-green-700 bg-green-50 hover:bg-green-100 rounded-md disabled:opacity-60"
+                >
+                  <Download className="h-4 w-4" />
+                  ดาวน์โหลดเอกสารรวม
+                </button>
+              </div>
+            </div>
+
+            {attachmentsLoading ? (
+              <div className="py-8 text-center text-gray-500">กำลังโหลดเอกสาร…</div>
+            ) : attachments.length > 0 ? (
               <ul className="divide-y divide-gray-200">
-                {documents.map((doc, index) => {
-                  const fileId = doc.file_id || doc.File?.file_id || doc.file?.file_id;
+                {attachments.map((doc, index) => {
+                  const fileId = doc.file_id;
                   const docName =
-                    doc.File?.original_name ||
-                    doc.file?.original_name ||
-                    doc.original_filename ||
+                    doc.original_name ||
                     doc.file_name ||
                     doc.name ||
                     `เอกสารที่ ${index + 1}`;
+                  const docTypeName = doc.document_type_name || 'ไม่ระบุหมวด';
+
                   return (
-                    <li key={doc.document_id || fileId || index} className="py-3 flex items-center justify-between">
-                      <div className="flex items-center">
-                        <FileText className="h-5 w-5 text-gray-400 mr-3" />
-                        <span className="text-sm text-gray-700">{docName}</span>
+                    <li
+                      key={doc.document_id || fileId || index}
+                      className="py-3 flex items-center justify-between"
+                    >
+                      <div className="flex items-center gap-2 min-w-0">
+                        <FileText className="h-5 w-5 text-gray-400" />
+                        <span className="text-sm text-gray-700 truncate">
+                          {docName}
+                        </span>
+
+                        {/* Badge หมวดเอกสาร */}
+                        <span className="inline-flex items-center rounded-full bg-gray-100 text-gray-700 px-2 py-0.5 text-xs flex-shrink-0">
+                          {docTypeName}
+                        </span>
                       </div>
+
                       <div className="flex items-center gap-2">
                         <button
                           onClick={() => handleView(fileId)}

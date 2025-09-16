@@ -36,6 +36,17 @@ export const adminSubmissionAPI = {
     const res = await apiClient.get('/admin/users', { params: { ids: ids.join(',') } }); // { users: [{user_id, user_fname, user_lname, email}] }
     return res;
   },
+
+  async getSubmissionDocuments(submissionId, params = {}) {
+    // GET /api/v1/submissions/:id/documents
+    return apiClient.get(`/submissions/${submissionId}/documents`, { params });
+  },
+
+  async getDocumentTypes(params = {}) {
+    // GET /api/v1/document-types   (หรือใช้ /admin/document-types ถ้าอยากดึงทั้งหมดแบบไม่กรอง)
+    return apiClient.get('/document-types', { params });
+  }
+
 };
 
 // Add to existing submissions listing API

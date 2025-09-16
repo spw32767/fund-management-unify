@@ -2,6 +2,7 @@
 'use client';
 
 import { ChevronDown, ChevronUp, Eye } from 'lucide-react';
+import StatusBadge from '../common/StatusBadge';
 
 export default function SubmissionTable({
   submissions,
@@ -33,15 +34,7 @@ export default function SubmissionTable({
     return `฿${n.toLocaleString()}`;
   };
 
-  const getStatusBadge = (statusId) => {
-    switch (statusId) {
-      case 1: return 'bg-yellow-100 text-yellow-800 border-yellow-200';
-      case 2: return 'bg-green-100 text-green-800 border-green-200';
-      case 3: return 'bg-red-100 text-red-800 border-red-200';
-      case 4: return 'bg-orange-100 text-orange-800 border-orange-200';
-      default: return 'bg-gray-100 text-gray-800 border-gray-200';
-    }
-  };
+  // ❌ ลบ getStatusBadge เดิมทิ้ง (ใช้ StatusBadge แทน)
 
   const handleSort = (column) => onSort(column);
 
@@ -72,7 +65,7 @@ export default function SubmissionTable({
     s?.FundApplicationDetail?.Subcategory?.subcategory_name ||
     s?.subcategory_name || '-';
 
-  // ----- Normalize detail payloads (your logs showed details under details.data) -----
+  // ----- Normalize detail payloads -----
   const getDP = (s) => detailsMap[s.submission_id] || null;
   const getDPO = (s) =>
     getDP(s)?.details?.data ||
@@ -81,7 +74,6 @@ export default function SubmissionTable({
     getDP(s) ||
     null;
 
-  // Pull PublicationRewardDetail from details/list in a resilient way
   const getPRDetail = (s) => {
     const dpo = getDPO(s);
     return (
@@ -90,16 +82,13 @@ export default function SubmissionTable({
       dpo?.publication_reward_detail ||
       dpo?.submission?.PublicationRewardDetail ||
       dpo?.Submission?.PublicationRewardDetail ||
-      // Some backends put these fields directly on details.data
       (dpo && (dpo.paper_title || dpo.total_amount || dpo.reward_amount) ? dpo : null) ||
       null
     );
   };
 
-  // ---- ชื่อบทความ (Article Title) ONLY (no journal/indexing, no budget description) ----
   const getArticleTitle = (s) => {
     const pr = getPRDetail(s);
-    // Try paper_title first, then other possible title fields, then row title
     return (
       pr?.paper_title ||
       pr?.title_th ||
@@ -109,7 +98,6 @@ export default function SubmissionTable({
     );
   };
 
-  // ---- ผู้ยื่น (Author) — already working; keep as is but robust ----
   const pickNameFromUserObj = (u) => {
     if (!u || typeof u !== 'object') return '';
     const first = u.user_fname || u.first_name || u.given_name || '';
@@ -161,7 +149,6 @@ export default function SubmissionTable({
     return s?.user_id ? `ID ${s.user_id}` : 'ไม่ระบุผู้ยื่น';
   };
 
-  // ---- จำนวนเงิน — uses PR detail (already correct) ----
   const getAmount = (s) => {
     const pr =
       getPRDetail(s) ||
@@ -169,15 +156,8 @@ export default function SubmissionTable({
 
     if (pr) {
       const total =
-        pr.total_amount ??
-        pr.total_reward_amount ??
-        pr.net_amount ??
-        (
-          (pr.reward_amount || 0) +
-          (pr.revision_fee || 0) +
-          (pr.publication_fee || 0) -
-          (pr.external_funding_amount || 0)
-        );
+        pr.total_amount ?? pr.total_reward_amount ?? pr.net_amount ??
+        ((pr.reward_amount || 0) + (pr.revision_fee || 0) + (pr.publication_fee || 0) - (pr.external_funding_amount || 0));
       const n = Number(total || 0);
       return isFinite(n) ? n : 0;
     }
@@ -247,7 +227,6 @@ export default function SubmissionTable({
             <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
               ผู้ยื่น
             </th>
-
 
             {/* จำนวนเงิน */}
             <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -332,9 +311,14 @@ export default function SubmissionTable({
 
                 {/* สถานะ */}
                 <td className="px-6 py-4 whitespace-nowrap text-sm">
-                  <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${getStatusBadge(s.status_id)}`}>
+                  <StatusBadge
+                    statusId={s.status_id}
+                    label={s.display_status || s.status?.status_name}
+                    text={s.display_status || s.status?.status_name}
+                    statusName={s.display_status || s.status?.status_name}
+                  >
                     {s.display_status || s.status?.status_name || 'ไม่ทราบสถานะ'}
-                  </span>
+                  </StatusBadge>
                 </td>
 
                 {/* วันที่ส่งคำร้อง */}

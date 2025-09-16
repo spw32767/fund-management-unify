@@ -13,6 +13,7 @@ import FundSettingsContent from "./components/settings/FundSettingsContent";
 import UnderDevelopmentContent from "./components/common/UnderDevelopmentContent";
 import SubmissionsManagement from "./components/submissions/SubmissionsManagement"
 import AdminPublicationsImport from "./components/settings/AdminPublicationsImport";
+import ApprovalRecords from "./components/approves/ApprovalRecords";
 
 function AdminPageContent() {
   const [isOpen, setIsOpen] = useState(false);
@@ -36,16 +37,15 @@ function AdminPageContent() {
       case 'promotion-fund':
         return <PromotionFundContent onNavigate={handleNavigate} />;
       case 'applications-list':
-        return <UnderDevelopmentContent currentPage={currentPage} />;
+        return <SubmissionsManagement currentPage={handleNavigate} />;
       case 'fund-settings':
         return <FundSettingsContent currentPage={handleNavigate} />;
       case 'approval-records':
-        return <SubmissionsManagement currentPage={handleNavigate} />;
-      default:
-        return <UnderDevelopmentContent currentPage={currentPage} />;
+        return <ApprovalRecords currentPage={handleNavigate} />;
       case 'publications-import':
         return <AdminPublicationsImport currentPage={handleNavigate} />;
-
+      default:
+        return <UnderDevelopmentContent currentPage={currentPage} />;
     }
   };
 

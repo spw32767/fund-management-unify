@@ -18,6 +18,7 @@ import PublicationRewardDetail from "./components/funds/PublicationRewardDetail"
 import FundApplicationDetail from "./components/funds/FundApplicationDetail";
 import AnnouncementPage from "./components/announcements/AnnouncementPage";
 import GenericFundApplicationForm from "./components/applications/GenericFundApplicationForm";
+import ReceivedFundsList from "./components/funds/ReceivedFundsList";
 
 
 function TeacherPageContent() {
@@ -69,7 +70,7 @@ function TeacherPageContent() {
       case 'applications':
         return <ApplicationList onNavigate={handleNavigate} />;
       case 'received-funds':
-        return <UnderDevelopmentContent currentPage={currentPage} title="ทุนที่เคยได้รับ" />;
+        return <ReceivedFundsList onNavigate={handleNavigate} />;
       case 'application-form':
         return <ApplicationForm selectedFund={selectedFundData} />;
       case 'publication-reward-detail':
