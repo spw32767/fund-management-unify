@@ -115,6 +115,8 @@ func SetupRoutes(router *gin.Engine) {
 				notifications.PATCH("/:id/read", controllers.MarkNotificationRead)                                       // อ่าน 1 รายการ
 				notifications.POST("/mark-all-read", controllers.MarkAllNotificationsRead)                               // อ่านทั้งหมด
 				notifications.POST("/events/submissions/:submissionId/submitted", controllers.NotifySubmissionSubmitted) // อีเวนต์: ส่งคำร้องสำเร็จ
+				notifications.POST("/events/submissions/:submissionId/approved", controllers.NotifySubmissionApproved)
+				notifications.POST("/events/submissions/:submissionId/rejected", controllers.NotifySubmissionRejected)
 			}
 
 			// Common endpoints (all authenticated users)
@@ -335,11 +337,15 @@ func SetupRoutes(router *gin.Engine) {
 				// Dashboard
 				admin.GET("/dashboard/stats", controllers.GetDashboardStats)
 				admin.GET("/submissions", controllers.GetAdminSubmissions) // Admin ดู submissions ทั้งหมด
+
 				// User Publications Import from Scholar
 				admin.POST("/user-publications/import/scholar", controllers.AdminImportScholarPublications)
 				admin.POST("/user-publications/import/scholar/all", controllers.AdminImportScholarForAll)
 				admin.GET("/user-publications/scholar/search", controllers.TeacherScholarAuthorSearch)
 				admin.GET("/users/search", controllers.AdminSearchUsers)
+
+				admin.GET("/approval-records/totals", controllers.GetApprovalTotals)
+				admin.GET("/approval-records", controllers.GetApprovalRecords)
 
 				// ========== YEAR MANAGEMENT ==========
 				years := admin.Group("/years")

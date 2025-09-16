@@ -112,6 +112,25 @@ func getUserDashboard(userID int) map[string]interface{} {
 
 	stats["my_applications"] = submissionStats
 
+	// Budget summary metrics
+	var budgetSummary struct {
+		TotalRequested  float64 `json:"total_requested"`
+		TotalApproved   float64 `json:"total_approved"`
+		Remaining       float64 `json:"remaining"`
+		SubmissionCount int64   `json:"submission_count"`
+	}
+
+	budgetSummary.TotalRequested = submissionStats.TotalAmount
+	budgetSummary.TotalApproved = submissionStats.ApprovedAmount
+	budgetSummary.SubmissionCount = submissionStats.Total
+
+	config.DB.Table("user_fund_eligibilities").
+		Where("user_id = ? AND delete_at IS NULL", userID).
+		Select("COALESCE(SUM(remaining_quota),0)").
+		Scan(&budgetSummary.Remaining)
+
+	stats["budget_summary"] = budgetSummary
+
 	// Recent submissions
 	var recentSubmissions []map[string]interface{}
 	config.DB.Table("submissions s").
