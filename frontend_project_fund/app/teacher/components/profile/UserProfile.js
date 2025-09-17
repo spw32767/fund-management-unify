@@ -43,7 +43,7 @@ const defaultTeacherData = {
   quickLinks: [],
 };
 
-export default function ProfileContent({ onNavigate }) {
+export default function ProfileContent() {
   const [teacherData, setTeacherData] = useState(defaultTeacherData);
   const [loading, setLoading] = useState(true);
   const [publications, setPublications] = useState([]);
@@ -363,9 +363,6 @@ export default function ProfileContent({ onNavigate }) {
     remainingBudget,
   ]);
 
-  const quickLinks = teacherData.quickLinks || [];
-  const hasQuickLinks = quickLinks.length > 0;
-
   if (loading) {
     return (
       <div className="flex items-center justify-center h-96">
@@ -456,395 +453,356 @@ export default function ProfileContent({ onNavigate }) {
           )}
         </section>
 
-        <div className="grid gap-8 lg:grid-cols-[2fr_1fr]">
-          <div className="space-y-8">
-            <section className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
-              <div className="mb-4 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                <h2 className="text-xl font-semibold text-gray-900">
-                  ผลงานตีพิมพ์ (Publications)
-                </h2>
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4">
-                  <input
-                    type="text"
-                    value={searchTerm}
+        <div className="space-y-8">
+          <section className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
+            <div className="mb-4 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+              <h2 className="text-xl font-semibold text-gray-900">
+                ผลงานตีพิมพ์ (Publications)
+              </h2>
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4">
+                <input
+                  type="text"
+                  value={searchTerm}
+                  onChange={(e) => {
+                    setSearchTerm(e.target.value);
+                    setCurrentPage(1);
+                  }}
+                  placeholder="ค้นหาชื่อเรื่อง..."
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 sm:w-64"
+                />
+                <div className="flex items-center gap-2 text-sm text-gray-600">
+                  <span>แสดง</span>
+                  <select
+                    value={rowsPerPage}
                     onChange={(e) => {
-                      setSearchTerm(e.target.value);
+                      setRowsPerPage(parseInt(e.target.value));
                       setCurrentPage(1);
                     }}
-                    placeholder="ค้นหาชื่อเรื่อง..."
-                    className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 sm:w-64"
-                  />
-                  <div className="flex items-center gap-2 text-sm text-gray-600">
-                    <span>แสดง</span>
-                    <select
-                      value={rowsPerPage}
-                      onChange={(e) => {
-                        setRowsPerPage(parseInt(e.target.value));
-                        setCurrentPage(1);
-                      }}
-                      className="rounded-md border border-gray-300 px-2 py-2"
-                    >
-                      <option value={10}>10</option>
-                      <option value={20}>20</option>
-                    </select>
-                    <span>รายการ</span>
-                  </div>
+                    className="rounded-md border border-gray-300 px-2 py-2"
+                  >
+                    <option value={10}>10</option>
+                    <option value={20}>20</option>
+                  </select>
+                  <span>รายการ</span>
                 </div>
               </div>
-              <div className="overflow-x-auto">
-                {pubLoading ? (
-                  <div className="space-y-2 animate-pulse">
-                    {[...Array(5)].map((_, i) => (
-                      <div key={i} className="h-6 rounded bg-gray-100" />
-                    ))}
-                  </div>
-                ) : sortedPublications.length === 0 ? (
-                  <p className="py-6 text-center text-gray-500">
-                    ยังไม่มีผลงานตีพิมพ์
-                  </p>
-                ) : (
-                  <>
-                    <table className="min-w-full divide-y divide-gray-200 text-sm">
-                      <thead className="bg-gray-50">
-                        <tr>
-                          <th
-                            className="cursor-pointer px-4 py-2 text-left font-medium text-gray-700"
-                            onClick={() => handleSort("title")}
-                          >
-                            ชื่อเรื่อง
-                            {sortField === "title" ? (
-                              sortDirection === "asc" ? (
-                                <ArrowUp className="ml-1 inline" size={14} />
-                              ) : (
-                                <ArrowDown className="ml-1 inline" size={14} />
-                              )
-                            ) : (
-                              <ArrowUpDown
-                                className="ml-1 inline text-gray-400"
-                                size={14}
-                              />
-                            )}
-                          </th>
-                          <th
-                            className="w-24 cursor-pointer px-4 py-2 text-right font-medium text-gray-700"
-                            onClick={() => handleSort("cited_by")}
-                          >
-                            อ้างโดย
-                            {sortField === "cited_by" ? (
-                              sortDirection === "asc" ? (
-                                <ArrowUp className="ml-1 inline" size={14} />
-                              ) : (
-                                <ArrowDown className="ml-1 inline" size={14} />
-                              )
-                            ) : (
-                              <ArrowUpDown
-                                className="ml-1 inline text-gray-400"
-                                size={14}
-                              />
-                            )}
-                          </th>
-                          <th
-                            className="w-20 cursor-pointer px-4 py-2 text-center font-medium text-gray-700"
-                            onClick={() => handleSort("year")}
-                          >
-                            ปี
-                            {sortField === "year" ? (
-                              sortDirection === "asc" ? (
-                                <ArrowUp className="ml-1 inline" size={14} />
-                              ) : (
-                                <ArrowDown className="ml-1 inline" size={14} />
-                              )
-                            ) : (
-                              <ArrowUpDown
-                                className="ml-1 inline text-gray-400"
-                                size={14}
-                              />
-                            )}
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-gray-200">
-                        {paginatedPublications.map((pub) => (
-                          <tr key={pub.id} className="hover:bg-gray-50">
-                            <td className="max-w-xs px-4 py-2 lg:max-w-md">
-                              {pub.url ? (
-                                <a
-                                  href={pub.url}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="block truncate text-blue-600 hover:underline"
-                                  title={pub.title}
-                                >
-                                  {pub.title}
-                                </a>
-                              ) : (
-                                <span className="block truncate" title={pub.title}>
-                                  {pub.title}
-                                </span>
-                              )}
-                            </td>
-                            <td className="px-4 py-2 text-right">
-                              {pub.cited_by ? (
-                                pub.cited_by_url ? (
-                                  <a
-                                    href={pub.cited_by_url}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="text-blue-600 hover:underline"
-                                  >
-                                    {pub.cited_by}
-                                  </a>
-                                ) : (
-                                  <span>{pub.cited_by}</span>
-                                )
-                              ) : (
-                                <span>-</span>
-                              )}
-                            </td>
-                            <td className="px-4 py-2 text-center">
-                              {pub.publication_year || "-"}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                    <div className="mt-4 flex items-center justify-between text-sm">
-                      <span className="text-gray-600">
-                        แสดง {(currentPage - 1) * rowsPerPage + 1}-
-                        {Math.min(
-                          currentPage * rowsPerPage,
-                          sortedPublications.length,
-                        )} จาก {sortedPublications.length}
-                      </span>
-                      <div className="space-x-2">
-                        <button
-                          onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                          disabled={currentPage === 1}
-                          className="rounded border px-3 py-1 disabled:opacity-50"
-                        >
-                          ก่อนหน้า
-                        </button>
-                        <button
-                          onClick={() =>
-                            setCurrentPage((p) => Math.min(totalPages, p + 1))
-                          }
-                          disabled={currentPage === totalPages}
-                          className="rounded border px-3 py-1 disabled:opacity-50"
-                        >
-                          ถัดไป
-                        </button>
-                      </div>
-                    </div>
-                  </>
-                )}
-              </div>
-            </section>
-
-            <section className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
-              <div className="mb-4 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                <h2 className="text-xl font-semibold text-gray-900">
-                  นวัตกรรม (Innovations)
-                </h2>
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4">
-                  <input
-                    type="text"
-                    value={innovSearchTerm}
-                    onChange={(e) => {
-                      setInnovSearchTerm(e.target.value);
-                      setInnovPage(1);
-                    }}
-                    placeholder="ค้นหาชื่อเรื่อง..."
-                    className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 sm:w-64"
-                  />
-                  <div className="flex items-center gap-2 text-sm text-gray-600">
-                    <span>แสดง</span>
-                    <select
-                      value={innovRowsPerPage}
-                      onChange={(e) => {
-                        setInnovRowsPerPage(parseInt(e.target.value));
-                        setInnovPage(1);
-                      }}
-                      className="rounded-md border border-gray-300 px-2 py-2"
-                    >
-                      <option value={10}>10</option>
-                      <option value={20}>20</option>
-                    </select>
-                    <span>รายการ</span>
-                  </div>
-                </div>
-              </div>
-              <div className="overflow-x-auto">
-                {innovLoading ? (
-                  <div className="space-y-2 animate-pulse">
-                    {[...Array(5)].map((_, i) => (
-                      <div key={i} className="h-6 rounded bg-gray-100" />
-                    ))}
-                  </div>
-                ) : sortedInnovations.length === 0 ? (
-                  <p className="py-6 text-center text-gray-500">ยังไม่มีนวัตกรรม</p>
-                ) : (
-                  <>
-                    <table className="min-w-full divide-y divide-gray-200 text-sm">
-                      <thead className="bg-gray-50">
-                        <tr>
-                          <th
-                            className="cursor-pointer px-4 py-2 text-left font-medium text-gray-700"
-                            onClick={() => handleInnovSort("title")}
-                          >
-                            ชื่อนวัตกรรม
-                            {innovSortField === "title" ? (
-                              innovSortDirection === "asc" ? (
-                                <ArrowUp className="ml-1 inline" size={14} />
-                              ) : (
-                                <ArrowDown className="ml-1 inline" size={14} />
-                              )
-                            ) : (
-                              <ArrowUpDown
-                                className="ml-1 inline text-gray-400"
-                                size={14}
-                              />
-                            )}
-                          </th>
-                          <th
-                            className="w-40 cursor-pointer px-4 py-2 text-left font-medium text-gray-700"
-                            onClick={() => handleInnovSort("innovation_type")}
-                          >
-                            ประเภท
-                            {innovSortField === "innovation_type" ? (
-                              innovSortDirection === "asc" ? (
-                                <ArrowUp className="ml-1 inline" size={14} />
-                              ) : (
-                                <ArrowDown className="ml-1 inline" size={14} />
-                              )
-                            ) : (
-                              <ArrowUpDown
-                                className="ml-1 inline text-gray-400"
-                                size={14}
-                              />
-                            )}
-                          </th>
-                          <th
-                            className="w-32 cursor-pointer px-4 py-2 text-center font-medium text-gray-700"
-                            onClick={() => handleInnovSort("registered_date")}
-                          >
-                            วันที่จดทะเบียน
-                            {innovSortField === "registered_date" ? (
-                              innovSortDirection === "asc" ? (
-                                <ArrowUp className="ml-1 inline" size={14} />
-                              ) : (
-                                <ArrowDown className="ml-1 inline" size={14} />
-                              )
-                            ) : (
-                              <ArrowUpDown
-                                className="ml-1 inline text-gray-400"
-                                size={14}
-                              />
-                            )}
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-gray-200">
-                        {paginatedInnovations.map((inv) => (
-                          <tr key={inv.id} className="hover:bg-gray-50">
-                            <td className="max-w-xs px-4 py-2 lg:max-w-md">
-                              <span className="block truncate" title={inv.title}>
-                                {inv.title}
-                              </span>
-                            </td>
-                            <td className="px-4 py-2">
-                              <span className="block truncate" title={inv.innovation_type}>
-                                {inv.innovation_type || "-"}
-                              </span>
-                            </td>
-                            <td className="px-4 py-2 text-center">
-                              {formatThaiDate(inv.registered_date)}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                    <div className="mt-4 flex items-center justify-between text-sm">
-                      <span className="text-gray-600">
-                        แสดง {(innovPage - 1) * innovRowsPerPage + 1}-
-                        {Math.min(
-                          innovPage * innovRowsPerPage,
-                          sortedInnovations.length,
-                        )} จาก {sortedInnovations.length}
-                      </span>
-                      <div className="space-x-2">
-                        <button
-                          onClick={() => setInnovPage((p) => Math.max(1, p - 1))}
-                          disabled={innovPage === 1}
-                          className="rounded border px-3 py-1 disabled:opacity-50"
-                        >
-                          ก่อนหน้า
-                        </button>
-                        <button
-                          onClick={() =>
-                            setInnovPage((p) => Math.min(innovTotalPages, p + 1))
-                          }
-                          disabled={innovPage === innovTotalPages}
-                          className="rounded border px-3 py-1 disabled:opacity-50"
-                        >
-                          ถัดไป
-                        </button>
-                      </div>
-                    </div>
-                  </>
-                )}
-              </div>
-            </section>
-
-            <section className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
-              <h2 className="text-xl font-semibold text-gray-900">สรุปงบประมาณ</h2>
-              <div className="mt-4">
-                <BudgetSummary
-                  budget={{
-                    total: teacherData.stats.totalBudgetReceived,
-                    thisYear: teacherData.stats.usedBudget,
-                    remaining: teacherData.stats.remainingBudget,
-                  }}
-                />
-              </div>
-            </section>
-          </div>
-
-          <aside className="space-y-6">
-            <section className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
-              <h4 className="text-lg font-semibold text-gray-900">คำร้องของฉัน</h4>
-              {hasQuickLinks ? (
-                <div className="mt-4 space-y-3">
-                  {quickLinks.map((link) => (
-                    <button
-                      type="button"
-                      key={link.id ?? `${link.name}-${link.destination}`}
-                      onClick={() =>
-                        onNavigate &&
-                        onNavigate(link.destination ? link.destination : "applications")
-                      }
-                      className="w-full rounded-lg border border-transparent px-3 py-2 text-left transition-colors hover:border-blue-200 hover:bg-blue-50"
-                    >
-                      <p className="text-sm font-medium text-gray-900" title={link.name}>
-                        {link.name}
-                      </p>
-                      <p className="mt-1 text-xs font-semibold text-blue-600">
-                        {link.status}
-                      </p>
-                    </button>
+            </div>
+            <div className="overflow-x-auto">
+              {pubLoading ? (
+                <div className="space-y-2 animate-pulse">
+                  {[...Array(5)].map((_, i) => (
+                    <div key={i} className="h-6 rounded bg-gray-100" />
                   ))}
                 </div>
+              ) : sortedPublications.length === 0 ? (
+                <p className="py-6 text-center text-gray-500">
+                  ยังไม่มีผลงานตีพิมพ์
+                </p>
               ) : (
-                <p className="mt-4 text-sm text-gray-500">ยังไม่มีคำร้องล่าสุด</p>
+                <>
+                  <table className="min-w-full divide-y divide-gray-200 text-sm">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th
+                          className="cursor-pointer px-4 py-2 text-left font-medium text-gray-700"
+                          onClick={() => handleSort("title")}
+                        >
+                          ชื่อเรื่อง
+                          {sortField === "title" ? (
+                            sortDirection === "asc" ? (
+                              <ArrowUp className="ml-1 inline" size={14} />
+                            ) : (
+                              <ArrowDown className="ml-1 inline" size={14} />
+                            )
+                          ) : (
+                            <ArrowUpDown
+                              className="ml-1 inline text-gray-400"
+                              size={14}
+                            />
+                          )}
+                        </th>
+                        <th
+                          className="w-24 cursor-pointer px-4 py-2 text-right font-medium text-gray-700"
+                          onClick={() => handleSort("cited_by")}
+                        >
+                          อ้างโดย
+                          {sortField === "cited_by" ? (
+                            sortDirection === "asc" ? (
+                              <ArrowUp className="ml-1 inline" size={14} />
+                            ) : (
+                              <ArrowDown className="ml-1 inline" size={14} />
+                            )
+                          ) : (
+                            <ArrowUpDown
+                              className="ml-1 inline text-gray-400"
+                              size={14}
+                            />
+                          )}
+                        </th>
+                        <th
+                          className="w-20 cursor-pointer px-4 py-2 text-center font-medium text-gray-700"
+                          onClick={() => handleSort("year")}
+                        >
+                          ปี
+                          {sortField === "year" ? (
+                            sortDirection === "asc" ? (
+                              <ArrowUp className="ml-1 inline" size={14} />
+                            ) : (
+                              <ArrowDown className="ml-1 inline" size={14} />
+                            )
+                          ) : (
+                            <ArrowUpDown
+                              className="ml-1 inline text-gray-400"
+                              size={14}
+                            />
+                          )}
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-200">
+                      {paginatedPublications.map((pub) => (
+                        <tr key={pub.id} className="hover:bg-gray-50">
+                          <td className="max-w-xs px-4 py-2 lg:max-w-md">
+                            {pub.url ? (
+                              <a
+                                href={pub.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="block truncate text-blue-600 hover:underline"
+                                title={pub.title}
+                              >
+                                {pub.title}
+                              </a>
+                            ) : (
+                              <span className="block truncate" title={pub.title}>
+                                {pub.title}
+                              </span>
+                            )}
+                          </td>
+                          <td className="px-4 py-2 text-right">
+                            {pub.cited_by ? (
+                              pub.cited_by_url ? (
+                                <a
+                                  href={pub.cited_by_url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-blue-600 hover:underline"
+                                >
+                                  {pub.cited_by}
+                                </a>
+                              ) : (
+                                <span>{pub.cited_by}</span>
+                              )
+                            ) : (
+                              <span>-</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-2 text-center">
+                            {pub.publication_year || "-"}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  <div className="mt-4 flex items-center justify-between text-sm">
+                    <span className="text-gray-600">
+                      แสดง {(currentPage - 1) * rowsPerPage + 1}-
+                      {Math.min(
+                        currentPage * rowsPerPage,
+                        sortedPublications.length,
+                      )} จาก {sortedPublications.length}
+                    </span>
+                    <div className="space-x-2">
+                      <button
+                        onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                        disabled={currentPage === 1}
+                        className="rounded border px-3 py-1 disabled:opacity-50"
+                      >
+                        ก่อนหน้า
+                      </button>
+                      <button
+                        onClick={() =>
+                          setCurrentPage((p) => Math.min(totalPages, p + 1))
+                        }
+                        disabled={currentPage === totalPages}
+                        className="rounded border px-3 py-1 disabled:opacity-50"
+                      >
+                        ถัดไป
+                      </button>
+                    </div>
+                  </div>
+                </>
               )}
-              <button
-                type="button"
-                onClick={() => onNavigate && onNavigate("applications")}
-                className="mt-6 w-full text-center text-sm font-medium text-purple-600 transition-colors hover:text-purple-700"
-              >
-                ดูทั้งหมด
-              </button>
-            </section>
-          </aside>
+            </div>
+          </section>
+
+          <section className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
+            <div className="mb-4 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+              <h2 className="text-xl font-semibold text-gray-900">
+                นวัตกรรม (Innovations)
+              </h2>
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4">
+                <input
+                  type="text"
+                  value={innovSearchTerm}
+                  onChange={(e) => {
+                    setInnovSearchTerm(e.target.value);
+                    setInnovPage(1);
+                  }}
+                  placeholder="ค้นหาชื่อเรื่อง..."
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 sm:w-64"
+                />
+                <div className="flex items-center gap-2 text-sm text-gray-600">
+                  <span>แสดง</span>
+                  <select
+                    value={innovRowsPerPage}
+                    onChange={(e) => {
+                      setInnovRowsPerPage(parseInt(e.target.value));
+                      setInnovPage(1);
+                    }}
+                    className="rounded-md border border-gray-300 px-2 py-2"
+                  >
+                    <option value={10}>10</option>
+                    <option value={20}>20</option>
+                  </select>
+                  <span>รายการ</span>
+                </div>
+              </div>
+            </div>
+            <div className="overflow-x-auto">
+              {innovLoading ? (
+                <div className="space-y-2 animate-pulse">
+                  {[...Array(5)].map((_, i) => (
+                    <div key={i} className="h-6 rounded bg-gray-100" />
+                  ))}
+                </div>
+              ) : sortedInnovations.length === 0 ? (
+                <p className="py-6 text-center text-gray-500">ยังไม่มีนวัตกรรม</p>
+              ) : (
+                <>
+                  <table className="min-w-full divide-y divide-gray-200 text-sm">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th
+                          className="cursor-pointer px-4 py-2 text-left font-medium text-gray-700"
+                          onClick={() => handleInnovSort("title")}
+                        >
+                          ชื่อนวัตกรรม
+                          {innovSortField === "title" ? (
+                            innovSortDirection === "asc" ? (
+                              <ArrowUp className="ml-1 inline" size={14} />
+                            ) : (
+                              <ArrowDown className="ml-1 inline" size={14} />
+                            )
+                          ) : (
+                            <ArrowUpDown
+                              className="ml-1 inline text-gray-400"
+                              size={14}
+                            />
+                          )}
+                        </th>
+                        <th
+                          className="w-40 cursor-pointer px-4 py-2 text-left font-medium text-gray-700"
+                          onClick={() => handleInnovSort("innovation_type")}
+                        >
+                          ประเภท
+                          {innovSortField === "innovation_type" ? (
+                            innovSortDirection === "asc" ? (
+                              <ArrowUp className="ml-1 inline" size={14} />
+                            ) : (
+                              <ArrowDown className="ml-1 inline" size={14} />
+                            )
+                          ) : (
+                            <ArrowUpDown
+                              className="ml-1 inline text-gray-400"
+                              size={14}
+                            />
+                          )}
+                        </th>
+                        <th
+                          className="w-32 cursor-pointer px-4 py-2 text-center font-medium text-gray-700"
+                          onClick={() => handleInnovSort("registered_date")}
+                        >
+                          วันที่จดทะเบียน
+                          {innovSortField === "registered_date" ? (
+                            innovSortDirection === "asc" ? (
+                              <ArrowUp className="ml-1 inline" size={14} />
+                            ) : (
+                              <ArrowDown className="ml-1 inline" size={14} />
+                            )
+                          ) : (
+                            <ArrowUpDown
+                              className="ml-1 inline text-gray-400"
+                              size={14}
+                            />
+                          )}
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-200">
+                      {paginatedInnovations.map((inv) => (
+                        <tr key={inv.id} className="hover:bg-gray-50">
+                          <td className="max-w-xs px-4 py-2 lg:max-w-md">
+                            <span className="block truncate" title={inv.title}>
+                              {inv.title}
+                            </span>
+                          </td>
+                          <td className="px-4 py-2">
+                            <span className="block truncate" title={inv.innovation_type}>
+                              {inv.innovation_type || "-"}
+                            </span>
+                          </td>
+                          <td className="px-4 py-2 text-center">
+                            {formatThaiDate(inv.registered_date)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  <div className="mt-4 flex items-center justify-between text-sm">
+                    <span className="text-gray-600">
+                      แสดง {(innovPage - 1) * innovRowsPerPage + 1}-
+                      {Math.min(
+                        innovPage * innovRowsPerPage,
+                        sortedInnovations.length,
+                      )} จาก {sortedInnovations.length}
+                    </span>
+                    <div className="space-x-2">
+                      <button
+                        onClick={() => setInnovPage((p) => Math.max(1, p - 1))}
+                        disabled={innovPage === 1}
+                        className="rounded border px-3 py-1 disabled:opacity-50"
+                      >
+                        ก่อนหน้า
+                      </button>
+                      <button
+                        onClick={() =>
+                          setInnovPage((p) => Math.min(innovTotalPages, p + 1))
+                        }
+                        disabled={innovPage === innovTotalPages}
+                        className="rounded border px-3 py-1 disabled:opacity-50"
+                      >
+                        ถัดไป
+                      </button>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+          </section>
+
+          <section className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
+            <h2 className="text-xl font-semibold text-gray-900">สรุปงบประมาณ</h2>
+            <div className="mt-4">
+              <BudgetSummary
+                budget={{
+                  total: teacherData.stats.totalBudgetReceived,
+                  thisYear: teacherData.stats.usedBudget,
+                  remaining: teacherData.stats.remainingBudget,
+                }}
+              />
+            </div>
+          </section>
         </div>
       </div>
     </div>
