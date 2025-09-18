@@ -12,34 +12,14 @@ import { toast } from 'react-hot-toast';
 import adminAPI from '@/app/lib/admin_api';
 import apiClient from '@/app/lib/api';
 
-// ===== Mock เฉพาะ “ตารางสรุป” ชั่วคราว จนกว่า endpoint รายงานผลจะพร้อม =====
-const MOCK_DATA = [
-  {
-    categoryId: 1,
-    categoryName: 'ทุนส่งเสริมงานวิจัย',
-    subItems: [
-      { id: 11, name: 'ทุนย่อย 1', amount: 5000 },
-      { id: 12, name: 'ทุนย่อย 2', amount: null },
-      { id: 13, name: 'ทุนย่อย 3', amount: 200 },
-    ],
-  },
-  {
-    categoryId: 2,
-    categoryName: 'ทุนอุดหนุนกิจกรรม',
-    subItems: [
-      { id: 21, name: 'ทุนย่อย 1', amount: null },
-      { id: 22, name: 'ทุนย่อย 2', amount: 5000 },
-      { id: 23, name: 'ทุนย่อย 3', amount: null },
-    ],
-  },
-];
-
-const formatTHB0 = (n) =>
+// =========================
+// Helpers
+// =========================
+const fmtTHB0 = (n) =>
   typeof n === 'number' && !Number.isNaN(n)
     ? n.toLocaleString('th-TH', { maximumFractionDigits: 0 })
     : '-';
 
-// ---- normalizers ----
 const normalizeYear = (y) => {
   if (typeof y === 'number' || typeof y === 'string') {
     const num = Number(y);
@@ -64,19 +44,72 @@ const normalizeUser = (u) => {
   };
 };
 
-// ---- main component ----
+// คืนค่าเป็นอาร์เรย์ถ้าเป็นไปได้ มิฉะนั้น []
+function asArray(maybe) {
+  if (Array.isArray(maybe)) return maybe;
+  return [];
+}
+
+// แปลง rows ดิบ → โครงหมวดหมู่
+function groupRowsToCategories(rows) {
+  const list = asArray(rows);
+  if (list.length === 0) return [];
+
+  const map = new Map();
+  for (const r of list) {
+    const categoryId = r.category_id ?? r.CategoryID ?? r.categoryId ?? null;
+    const categoryName = r.category_name ?? r.CategoryName ?? r.category ?? '-';
+    const catKey = `${categoryId}::${categoryName}`;
+
+    if (!map.has(catKey)) {
+      map.set(catKey, {
+        categoryId,
+        categoryName,
+        items: [],
+        total: 0,
+      });
+    }
+
+    const label =
+      r.subcategory_budget_label ||
+      r.subcategory_budget_name ||
+      r.subcategory_name ||
+      r.SubcategoryBudgetLabel ||
+      r.SubcategoryName ||
+      'ทุนย่อย';
+
+    const amount = Number(
+      r.approved_amount ??
+        r.total_approved_amount ??
+        r.TotalApprovedAmount ??
+        r.amount ??
+        0
+    ) || 0;
+
+    const cat = map.get(catKey);
+    cat.items.push({ label, amount });
+    cat.total += amount;
+  }
+  return Array.from(map.values());
+}
+
+// =========================
 export default function ApprovalRecords() {
   // meta
   const [years, setYears] = useState([]);     // [{id,label}]
   const [users, setUsers] = useState([]);     // normalized users
-
-  // filters
-  const [year, setYear] = useState('');
-  const [userId, setUserId] = useState('');
-
   const [loadingMeta, setLoadingMeta] = useState(true);
 
-  // 1) โหลดปี + ผู้ใช้ (ทุกคน ยกเว้น admin)
+  // filters
+  const [yearId, setYearId] = useState(null);
+  const [yearLabel, setYearLabel] = useState('');
+  const [userId, setUserId] = useState(null);
+
+  // data
+  const [categories, setCategories] = useState([]); // [{categoryId,categoryName,items:[{label,amount}], total}]
+  const [loadingData, setLoadingData] = useState(false);
+
+  // ---------- Load years & users ----------
   useEffect(() => {
     let alive = true;
 
@@ -84,8 +117,8 @@ export default function ApprovalRecords() {
       setLoadingMeta(true);
       try {
         const [yearsRes, usersRes] = await Promise.all([
-          adminAPI.getYears(),                            // มีอยู่แล้วใน lib
-          apiClient.get('/users', { page_size: 1000 }),   // ดึงทั้งหมดจาก /users
+          adminAPI.getYears(),                       // GET /admin/years
+          apiClient.get('/users', { page_size: 1000 }) // GET /users
         ]);
 
         const yearListRaw = Array.isArray(yearsRes) ? yearsRes : yearsRes?.years || yearsRes?.data || [];
@@ -94,23 +127,26 @@ export default function ApprovalRecords() {
         const yearList = yearListRaw.map(normalizeYear);
         const allUsers = userListRaw.map(normalizeUser);
 
-        // เงื่อนไข “แสดงทุกคน ยกเว้น admin (role_id=3)” และกัน soft-delete
+        // แสดงทุกคน ยกเว้น admin (role_id=3) และไม่เอาที่ soft-delete
         const visibleUsers = allUsers
           .filter((u) => u.user_id != null)
           .filter((u) => u.role_id !== 3)
-          .filter((u) => !u.delete_at);
-
-        // เรียงตามชื่อเพื่อ UX
-        visibleUsers.sort((a, b) => (a.display_name || '').localeCompare(b.display_name || '', 'th'));
+          .filter((u) => !u.delete_at)
+          .sort((a, b) => (a.display_name || '').localeCompare(b.display_name || '', 'th'));
 
         if (!alive) return;
 
         setYears(yearList);
         setUsers(visibleUsers);
 
-        // ตั้ง default
-        if (!year && yearList.length) setYear(yearList[0].label);
-        if (!userId && visibleUsers.length) setUserId(visibleUsers[0].user_id);
+        // defaults
+        if (!yearId && yearList.length) {
+          setYearId(yearList[0].id);
+          setYearLabel(yearList[0].label);
+        }
+        if (!userId && visibleUsers.length) {
+          setUserId(visibleUsers[0].user_id);
+        }
       } catch (err) {
         console.error(err);
         toast.error('โหลดปี/ผู้ใช้ไม่สำเร็จ');
@@ -121,12 +157,77 @@ export default function ApprovalRecords() {
 
     loadMeta();
     return () => { alive = false; };
-  }, []); // โหลดครั้งเดียว
+  }, []); // load once
 
-  // รวมทั้งหมดจาก MOCK_DATA (เฉพาะตอนยังไม่มี API สรุปจริง)
+  // ---------- Load totals on filters change ----------
+  useEffect(() => {
+    if (!userId || !yearId) return;
+
+    let alive = true;
+
+    async function loadTotals() {
+      setLoadingData(true);
+      try {
+        const params = {
+          user_id: userId,
+          teacher_id: userId,   // เผื่อฝั่ง BE ใช้ key นี้
+          year_id: yearId,
+          year: Number(yearLabel) || undefined, // เผื่อฝั่ง BE รับเป็นปี พ.ศ.
+          sort: 'category_name',
+          dir: 'ASC',
+        };
+
+        const res = await adminAPI.getApprovalTotals(params); // /admin/approval-records/totals
+
+        // ----- คลาย payload ให้รองรับหลายรูปแบบ -----
+        const payload = res?.data ?? res ?? {};
+        let cats = [];
+
+        // (A) categories พร้อมใช้
+        const catsA = payload?.categories ?? payload?.data?.categories;
+        if (Array.isArray(catsA)) {
+          cats = catsA.map((c) => ({
+            categoryId: c.categoryId ?? c.category_id ?? null,
+            categoryName: c.categoryName ?? c.category_name ?? '-',
+            items: asArray(c.items).map((it) => ({
+              label: it.label ?? it.name ?? it.budget_name ?? it.subcategory_name ?? '-',
+              amount: Number(it.amount ?? it.total ?? 0) || 0,
+            })),
+            total:
+              Number(c.total ?? 0) ||
+              asArray(c.items).reduce((s, it) => s + (Number(it.amount) || 0), 0),
+          }));
+        } else {
+          // (B) ไม่มี categories → ลองหาชุด rows
+          const rowsCandidate =
+            asArray(payload?.rows) ||
+            asArray(payload?.data?.rows) ||
+            asArray(payload?.records) ||
+            asArray(payload?.data?.records) ||
+            (Array.isArray(payload) ? payload : []) ||
+            asArray(payload?.data);
+
+          cats = groupRowsToCategories(rowsCandidate);
+        }
+
+        if (!alive) return;
+        setCategories(cats);
+      } catch (e) {
+        console.error(e);
+        toast.error('โหลดข้อมูลสรุปอนุมัติไม่สำเร็จ');
+        setCategories([]);
+      } finally {
+        if (alive) setLoadingData(false);
+      }
+    }
+
+    loadTotals();
+    return () => { alive = false; };
+  }, [userId, yearId, yearLabel]);
+
   const grandTotal = useMemo(
-    () => MOCK_DATA.reduce((sum, cat) => sum + cat.subItems.reduce((acc, it) => acc + (it.amount ?? 0), 0), 0),
-    []
+    () => categories.reduce((s, c) => s + (Number(c.total) || 0), 0),
+    [categories]
   );
 
   const selectedUser = users.find((u) => String(u.user_id) === String(userId));
@@ -146,7 +247,7 @@ export default function ApprovalRecords() {
       ]}
       actions={
         <div className="flex gap-2">
-          <button onClick={handleExport} className="btn btn-primary">
+          <button onClick={handleExport} className="btn btn-primary" disabled={loadingMeta || loadingData}>
             <Download size={18} />
             Export
           </button>
@@ -157,12 +258,12 @@ export default function ApprovalRecords() {
       <div className="mb-6">
         <Card title="ตัวกรอง (Filters)" icon={Filter} collapsible={false}>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* ผู้ใช้ (อาจารย์/เจ้าหน้าที่ ทั้งหมด ยกเว้น admin) */}
+            {/* ผู้ใช้ (ยกเว้น Admin) */}
             <div className="space-y-2">
               <label className="block text-ml font-medium text-gray-700">ผู้ใช้</label>
               <select
                 className="w-full rounded-md border border-gray-300 px-3 py-2 text-ml"
-                value={userId || ''}
+                value={userId ?? ''}
                 disabled={loadingMeta || !users.length}
                 onChange={(e) => setUserId(Number(e.target.value))}
               >
@@ -178,20 +279,25 @@ export default function ApprovalRecords() {
               </select>
             </div>
 
-            {/* ปีงบประมาณ */}
+            {/* ปีงบประมาณ (พ.ศ.) */}
             <div className="space-y-2">
               <label className="block text-ml font-medium text-gray-700">ปีงบประมาณ (พ.ศ.)</label>
               <select
                 className="w-full rounded-md border border-gray-300 px-3 py-2 text-ml"
-                value={year || ''}
+                value={yearId ?? ''}
                 disabled={loadingMeta || !years.length}
-                onChange={(e) => setYear(e.target.value)}
+                onChange={(e) => {
+                  const id = Number(e.target.value);
+                  const found = years.find((y) => y.id === id);
+                  setYearId(id);
+                  setYearLabel(found?.label ?? '');
+                }}
               >
                 {years.length === 0 ? (
                   <option value="">{loadingMeta ? 'กำลังโหลด…' : '— ไม่มีข้อมูล —'}</option>
                 ) : (
                   years.map((y) => (
-                    <option key={y.id} value={y.label}>
+                    <option key={y.id} value={y.id}>
                       {y.label}
                     </option>
                   ))
@@ -202,7 +308,7 @@ export default function ApprovalRecords() {
         </Card>
       </div>
 
-      {/* สรุปผล + ป้ายสถานะ */}
+      {/* ผลการอนุมัติ */}
       <Card
         icon={FileText}
         collapsible={false}
@@ -214,50 +320,50 @@ export default function ApprovalRecords() {
         }
         headerClassName="items-center"
       >
-        {/* ตารางตามหมวดทุน (ยังใช้ mock จนกว่า API จะพร้อม) */}
-        <div className="space-y-8">
-          {MOCK_DATA.map((cat) => (
-            <div key={cat.categoryId} className="space-y-3">
-              <div className="font-bold">{cat.categoryName}</div>
-              <div className="overflow-hidden rounded-md border border-gray-200">
-                <table className="w-full">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-4 py-3 text-left text-ml font-medium text-gray-700">รายการ</th>
-                      <th className="px-4 py-3 text-right text-ml font-medium text-gray-700 w-48">
-                        จำนวนเงิน (บาท)
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-100 bg-white">
-                    {cat.subItems.map((item) => (
-                      <tr key={item.id}>
-                        <td className="px-4 py-3 text-ml">{item.name}</td>
-                        <td className="px-4 py-3 text-ml text-right">
-                          {item.amount == null ? (
-                            <span className="text-gray-400 italic">-</span>
-                          ) : (
-                            formatTHB0(item.amount)
-                          )}
-                        </td>
+        {/* ตารางตามหมวดทุน */}
+        {loadingData ? (
+          <div className="py-16 text-center text-sm text-gray-500">กำลังโหลดข้อมูล…</div>
+        ) : categories.length === 0 ? (
+          <div className="py-16 text-center text-sm text-gray-500">ไม่พบบันทึกการอนุมัติ</div>
+        ) : (
+          <div className="space-y-8">
+            {categories.map((cat) => (
+              <div key={cat.categoryId ?? cat.categoryName} className="space-y-3">
+                <div className="font-bold">{cat.categoryName}</div>
+                <div className="overflow-hidden rounded-md border border-gray-200">
+                  <table className="w-full">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-4 py-3 text-left text-ml font-medium text-gray-700">ทุนย่อย / งบประมาณ</th>
+                        <th className="px-4 py-3 text-right text-ml font-medium text-gray-700 w-48">จำนวนเงิน (บาท)</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100 bg-white">
+                      {cat.items?.map((it, idx) => (
+                        <tr key={idx}>
+                          <td className="px-4 py-3 text-ml">{it.label}</td>
+                          <td className="px-4 py-3 text-ml text-right">
+                            {typeof it.amount === 'number' ? fmtTHB0(it.amount) : <span className="text-gray-400 italic">-</span>}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
 
-              {/* รวมต่อหมวด */}
-              <div className="flex justify-end">
-                <div className="bg-gray-50 rounded px-4 py-2 text-ml">
-                  <span className="text-gray-600">รวมหมวด:</span>
-                  <span className="ml-2 font-medium">
-                    {formatTHB0(cat.subItems.reduce((s, it) => s + (it.amount ?? 0), 0))} บาท
-                  </span>
+                {/* รวมต่อหมวด */}
+                <div className="flex justify-end">
+                  <div className="bg-gray-50 rounded px-4 py-2 text-ml">
+                    <span className="text-gray-600">รวมหมวด:</span>
+                    <span className="ml-2 font-medium">
+                      {fmtTHB0(cat.items?.reduce((s, it) => s + (Number(it.amount) || 0), 0))} บาท
+                    </span>
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
 
         {/* สรุปผลรวม (อยู่ล่างสุดของการ์ด) */}
         <div className="mt-10 pt-6 border-t flex flex-col md:flex-row md:items-center md:justify-between gap-3">
@@ -266,15 +372,13 @@ export default function ApprovalRecords() {
             <span className="font-semibold text-gray-900">
               {selectedUser?.display_name || '—'}
             </span>{' '}
-            ได้รับอนุมัติให้เบิกในงบประมาณปี{' '}
-            <span className="font-semibold text-gray-900">
-              {year || '—'}
-            </span>
+            ได้รับอนุมัติให้เบิกในปีงบประมาณ{' '}
+            <span className="font-semibold text-gray-900">{yearLabel || '—'}</span>
           </div>
           <div className="text-right">
             <div className="text-sm md:text-base text-gray-500">รวมทั้งสิ้น</div>
             <div className="text-3xl md:text-4xl font-extrabold">
-              {formatTHB0(grandTotal)} บาท
+              {fmtTHB0(grandTotal)} บาท
             </div>
           </div>
         </div>

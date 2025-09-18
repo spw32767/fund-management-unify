@@ -1,6 +1,6 @@
 // FundSettingsContent.js - Updated Main Component with SweetAlert2
 import React, { useState, useEffect } from "react";
-import { Settings, Calendar, DollarSign, PencilLine } from "lucide-react";
+import { Settings, Calendar, DollarSign, PencilLine, FileText } from "lucide-react";
 import Swal from 'sweetalert2';
 
 // Import separated components
@@ -10,6 +10,7 @@ import YearManagementTab from "./YearManagementTab";
 import FundManagementTab from "./FundManagementTab";
 import RewardConfigManager from "./RewardConfigManager";
 import SystemConfigSettings from "./SystemConfigSettings";
+import AnnouncementManager from "./AnnouncementManager";
 
 // Import modals
 import CategoryModal from "./CategoryModal";
@@ -818,6 +819,19 @@ export default function FundSettingsContent({ onNavigate }) {
                   ตั้งค่าระบบ
               </div>
           </button>
+          <button
+            onClick={() => setActiveTab("announcements")}
+            className={`px-6 py-3 font-medium transition-colors ${
+              activeTab === "announcements"
+                ? "text-blue-600 border-b-2 border-blue-600"
+                : "text-gray-600 hover:text-gray-900"
+            }`}
+          >
+            <div className="flex items-center gap-2">
+              <FileText size={20} />
+              ประกาศ/ไฟล์
+            </div>
+          </button>
         </div>
       </div>
 
@@ -867,6 +881,10 @@ export default function FundSettingsContent({ onNavigate }) {
         <SystemConfigSettings />
       )}
       
+      {activeTab === "announcements" && (
+        <AnnouncementManager />
+      )}
+
       {/* Modals */}
       <CategoryModal
         isOpen={categoryModalOpen}

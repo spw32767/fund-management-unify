@@ -388,6 +388,21 @@ class APIClient {
     });
   }
 
+  // PUT with FormData (multipart PUT — ใช้สำหรับแทนไฟล์)
+  async putFormData(endpoint, formData) {
+    const token = this.getToken();
+    const headers = {};
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
+    }
+
+    const url = `${this.baseURL}${endpoint}`;
+    return this.makeRequestWithRetry(url, {
+      method: 'PUT',
+      headers,
+      body: formData,
+    });
+  }
   // ==================== DOWNLOAD METHODS ====================
   
   // Download file
@@ -964,3 +979,5 @@ export const usersAPI = {
     return apiClient.get('/admin/users/search', { q });
   },
 };
+
+export { apiClient };
