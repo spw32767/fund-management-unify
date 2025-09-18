@@ -44,7 +44,6 @@ import { PDFDocument } from 'pdf-lib';
  * Helpers
  * ========================= */
 
-// ก่อนหน้านี้น่าจะ return แบบ <Clock /> → ผิด
 const getStatusIcon = (statusId) => {
   switch (statusId) {
     case 2: return CheckCircle;     // อนุมัติ
@@ -83,6 +82,7 @@ const formatDate = (dateString) => {
   const d = new Date(dateString);
   return d.toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' });
 };
+
 
 const formatCurrency = (n) =>
   Number(n || 0).toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -314,9 +314,6 @@ function ReadonlyMoney({ value, aria }) {
 /* =========================
  * Approval Panel (admin-only)
  * ========================= */
-/* =========================
- * Approval Panel (admin-only)
- * ========================= */
 function ApprovalPanel({ submission, pubDetail, onApprove, onReject }) {
   const approvable = submission?.status_id === 1; // อยู่ระหว่างการพิจารณา
   if (!approvable) return null;
@@ -327,7 +324,7 @@ function ApprovalPanel({ submission, pubDetail, onApprove, onReject }) {
   const requestedPublication = Number(pubDetail?.publication_fee || pubDetail?.page_charge || 0);
   const extFunding = Number(pubDetail?.external_funding_amount || 0);
 
-  // Approved values (start from FI)
+  // Approved values
   const [rewardApprove, setRewardApprove] = useState(requestedReward);
   const [revisionApprove, setRevisionApprove] = useState(requestedRevision);
   const [publicationApprove, setPublicationApprove] = useState(requestedPublication);
@@ -348,7 +345,7 @@ function ApprovalPanel({ submission, pubDetail, onApprove, onReject }) {
   const [errors, setErrors] = useState({});
 
   // ซ่อน 2 ฟิลด์เมื่อไม่พบเพดาน
-  const hideSharedFeeFields = !!capError && /ไม่พบเพดานวงเงินจากประกาศ/.test(capError);
+  const hideSharedFeeFields = !!capError && /ไม่สามารถเบิกค่าใช้จ่ายนี้ได้/.test(capError);
 
   // ADD
   const [hydrated, setHydrated] = useState(false);
@@ -389,14 +386,14 @@ function ApprovalPanel({ submission, pubDetail, onApprove, onReject }) {
         const maxAmount = Number(resp?.max_amount);
         if (!maxAmount || maxAmount <= 0) {
           setFeeCap(null);
-          setCapError('ไม่พบเพดานวงเงินจากประกาศ');
+          setCapError('ไม่สามารถเบิกค่าใช้จ่ายนี้ได้');
           return;
         }
         setFeeCap(maxAmount);
       } catch (err) {
         console.error('Failed to fetch shared fee cap:', err);
         setFeeCap(null);
-        setCapError('ไม่สามารถดึงเพดานวงเงินจากประกาศ');
+        setCapError('ดึงจำนวนเงินวงเงินไม่สำเร็จ');
       } finally {
         setCapLoading(false);
       }
@@ -412,14 +409,14 @@ function ApprovalPanel({ submission, pubDetail, onApprove, onReject }) {
     // ครั้งแรกเท่านั้น
     if (!hydrated) {
       setRewardApprove(requestedReward);
-      setRevisionApprove(hideSharedFeeFields ? 0 : requestedRevision);
-      setPublicationApprove(hideSharedFeeFields ? 0 : requestedPublication);
+      setRevisionApprove(feeCap == null ? 0 : requestedRevision);
+      setPublicationApprove(feeCap == null ? 0 : requestedPublication);
       setHydrated(true);
       return;
     }
 
     // ถ้าภายหลังถูกบังคับซ่อน 2 ฟิลด์ ให้บังคับเป็น 0 (ไม่แตะ reward)
-    if (hideSharedFeeFields) {
+    if (feeCap == null) {
       if (revisionApprove !== 0) setRevisionApprove(0);
       if (publicationApprove !== 0) setPublicationApprove(0);
     }
@@ -475,14 +472,14 @@ function ApprovalPanel({ submission, pubDetail, onApprove, onReject }) {
   };
 
   const handleChangeRevision = (next) => {
-    if (!manualEdit || hideSharedFeeFields) return;
+    if (!manualEdit || feeCap == null) return;
     const clamped = clampShared(Number(next || 0), publicationApprove);
     setRevisionApprove(clamped);
     setErrors((e) => ({ ...e, sharedCap: undefined, revisionApprove: undefined }));
   };
 
   const handleChangePublication = (next) => {
-    if (!manualEdit || hideSharedFeeFields) return;
+    if (!manualEdit || feeCap == null) return;
     const clamped = clampShared(Number(next || 0), revisionApprove);
     setPublicationApprove(clamped);
     setErrors((e) => ({ ...e, sharedCap: undefined, publicationApprove: undefined }));
@@ -498,20 +495,17 @@ function ApprovalPanel({ submission, pubDetail, onApprove, onReject }) {
     };
 
     checkNonNeg('rewardApprove', rewardApprove);
-    if (!hideSharedFeeFields) {
+
+    if (feeCap != null) {
       checkNonNeg('revisionApprove', revisionApprove);
       checkNonNeg('publicationApprove', publicationApprove);
     }
     checkNonNeg('totalApprove', totalApprove);
 
-    if (!hideSharedFeeFields) {
-      if (feeCap == null) {
-        e.sharedCap = capError || 'ยังไม่พบเพดานวงเงินจากประกาศ';
-      } else {
-        const sum = Number(revisionApprove || 0) + Number(publicationApprove || 0);
-        if (sum > feeCap) {
-          e.sharedCap = `ค่าปรับปรุง + ค่าธรรมเนียมตีพิมพ์ รวมกันต้องไม่เกิน ฿${formatCurrency(feeCap)}`;
-        }
+    if (feeCap != null) {
+      const sum = Number(revisionApprove || 0) + Number(publicationApprove || 0);
+      if (sum > feeCap) {
+        e.sharedCap = 'ยอดรวมเกินวงเงินร่วม';
       }
     }
 
@@ -572,7 +566,7 @@ function ApprovalPanel({ submission, pubDetail, onApprove, onReject }) {
             </div>
 
             <div style="display:flex;justify-content:space-between;align-items:center;">
-              <span style="font-weight:700;">หมายเลขประกาศ</span>
+              <span style="font-weight:700;">หมายเลขอ้างอิงประกาศผลการพิจารณา</span>
               <strong>${announceRef ? announceRef.replace(/</g,'&lt;').replace(/>/g,'&gt;') : '—'}</strong>
             </div>
 
@@ -739,45 +733,41 @@ function ApprovalPanel({ submission, pubDetail, onApprove, onReject }) {
           />
         </div>
 
-        {/* Revision — hidden when not eligible */}
-        {!hideSharedFeeFields && (
-          <div className="grid grid-cols-2 items-center min-h-[76px]">
-            <label className="block text-sm font-medium text-gray-700 leading-tight">
-              ค่าปรับปรุงบทความที่จะอนุมัติ
-              <br /><span className="text-xs font-normal text-gray-600">Approve Manuscript Editing Fee</span>
-            </label>
-            <MoneyInput
-              aria="Approved revision fee"
-              value={revisionApprove}
-              onChange={handleChangeRevision}
-              error={errors.revisionApprove || errors.sharedCap}
-              helperRight={renderCapHelper()}
-              disabled={!manualEdit || capLoading || feeCap == null}
-              max={feeCap == null ? undefined : Math.max(0, feeCap - Number(publicationApprove || 0))}
-              autoSyncWhenDisabled
-            />
-          </div>
-        )}
+        {/* Revision — always visible; disabled if no cap */}
+        <div className="grid grid-cols-2 items-center min-h-[76px]">
+          <label className="block text-sm font-medium text-gray-700 leading-tight">
+            ค่าปรับปรุงบทความที่จะอนุมัติ
+            <br /><span className="text-xs font-normal text-gray-600">Approve Manuscript Editing Fee</span>
+          </label>
+          <MoneyInput
+            aria="Approved revision fee"
+            value={revisionApprove}
+            onChange={handleChangeRevision}
+            error={errors.revisionApprove || errors.sharedCap}
+            helperRight={renderCapHelper()}
+            disabled={!manualEdit || capLoading || feeCap == null}
+            max={feeCap == null ? undefined : Math.max(0, feeCap - Number(publicationApprove || 0))}
+            autoSyncWhenDisabled
+          />
+        </div>
 
-        {/* Publication — hidden when not eligible */}
-        {!hideSharedFeeFields && (
-          <div className="grid grid-cols-2 items-center min-h-[76px]">
-            <label className="block text-sm font-medium text-gray-700 leading-tight">
-              ค่าธรรมเนียมการตีพิมพ์ที่จะอนุมัติ
-              <br /><span className="text-xs font-normal text-gray-600">Approve Page Charge</span>
-            </label>
-            <MoneyInput
-              aria="Approved publication fee"
-              value={publicationApprove}
-              onChange={handleChangePublication}
-              error={errors.publicationApprove || errors.sharedCap}
-              helperRight={renderCapHelper()}
-              disabled={!manualEdit || capLoading || feeCap == null}
-              max={feeCap == null ? undefined : Math.max(0, feeCap - Number(revisionApprove || 0))}
-              autoSyncWhenDisabled
-            />
-          </div>
-        )}
+        {/* Publication — always visible; disabled if no cap */}
+        <div className="grid grid-cols-2 items-center min-h-[76px]">
+          <label className="block text-sm font-medium text-gray-700 leading-tight">
+            ค่าธรรมเนียมการตีพิมพ์ที่จะอนุมัติ
+            <br /><span className="text-xs font-normal text-gray-600">Approve Page Charge</span>
+          </label>
+          <MoneyInput
+            aria="Approved publication fee"
+            value={publicationApprove}
+            onChange={handleChangePublication}
+            error={errors.publicationApprove || errors.sharedCap}
+            helperRight={renderCapHelper()}
+            disabled={!manualEdit || capLoading || feeCap == null}
+            max={feeCap == null ? undefined : Math.max(0, feeCap - Number(revisionApprove || 0))}
+            autoSyncWhenDisabled
+          />
+        </div>
 
         {/* External funding (read-only) */}
         {extFunding > 0 && (
@@ -826,9 +816,9 @@ function ApprovalPanel({ submission, pubDetail, onApprove, onReject }) {
         {/* Announcement number */}
         <div className="grid grid-cols-2 items-start pt-2">
           <label className="block font-medium text-gray-700 pt-2">
-            หมายเลขประกาศ
+            หมายเลขอ้างอิงประกาศผลการพิจารณา
             <div className="text-xs text-gray-500 mt-1">
-              ระบุหมายเลขประกาศที่เกี่ยวข้อง (ถ้ามี)
+              ระบุหมายหมายเลขอ้างอิงประกาศผลการพิจารณาที่เกี่ยวข้อง (ถ้ามี)
             </div>
           </label>
           <div className="flex flex-col items-end w-full">
@@ -901,7 +891,7 @@ function ApprovalPanel({ submission, pubDetail, onApprove, onReject }) {
 /* =========================
  * Main Component
  * ========================= */
-export default function SubmissionDetails({ submissionId, onBack }) {
+export default function PublicationSubmissionDetails({ submissionId, onBack }) {
   const [loading, setLoading] = useState(true);
   const [submission, setSubmission] = useState(null);
   const [activeTab, setActiveTab] = useState('details');
@@ -1129,10 +1119,38 @@ export default function SubmissionDetails({ submissionId, onBack }) {
       Number(pubDetail?.revision_fee_approve_amount || 0) +
       Number(pubDetail?.publication_fee_approve_amount || 0));
 
+  const submittedAt =
+    submission?.submitted_at ??
+    pubDetail?.submitted_at ??
+    submission?.submitted_date ??
+    null;
+
+  const approvedAt =
+    pubDetail?.approved_at ??
+    pubDetail?.approval_date ??
+    submission?.approved_at ??
+    submission?.approval_date ??
+    null;
+
   const showApprovedColumn =
     submission?.status_id === 2 &&
     approvedTotal != null &&
     !Number.isNaN(Number(approvedTotal));
+
+  // --- helpers for showing requested rows (0 should still show if shared cap or approved exists) ---
+  const reqRevision    = Number(pubDetail?.revision_fee ?? pubDetail?.editing_fee ?? 0);
+  const reqPublication = Number(pubDetail?.publication_fee ?? pubDetail?.page_charge ?? 0);
+
+  // shared cap ถือว่ามี ก็ต่อเมื่อดึงมาได้เป็นตัวเลข > 0 เท่านั้น (ถ้า null/0 = ไม่มี)
+  const hasSharedCap = typeof feeCap === 'number' && feeCap > 0;
+
+  // มีตัวเลขฝั่งอนุมัติแล้วหรือยัง
+  const hasRevisionApproved    = pubDetail?.revision_fee_approve_amount != null;
+  const hasPublicationApproved = pubDetail?.publication_fee_approve_amount != null;
+
+  // จะโชว์ row เมื่อ: มี shared cap หรือ requested > 0 หรือมี approved amount
+  const showRevisionRequestedRow    = hasSharedCap || reqRevision > 0 || hasRevisionApproved;
+  const showPublicationRequestedRow = hasSharedCap || reqPublication > 0 || hasPublicationApproved;
 
   // File actions
   const handleView = async (fileId) => {
@@ -1375,88 +1393,102 @@ export default function SubmissionDetails({ submissionId, onBack }) {
         { label: submission.submission_number },
       ]}
     >
-      {/* Status Summary */}
-      <Card
-        icon={getColoredStatusIcon(submission?.status_id)}
-        collapsible={false}
-        headerClassName="items-center"
-        title={
-          <div className="flex items-center gap-2">
-            <span>สถานะคำร้อง (Submission Status)</span>
-            <StatusBadge statusId={submission?.status_id} />
-          </div>
-        }
-      >
-        <div className="flex justify-between items-start">
-          <div>
-            <div className="flex flex-col gap-3 mt-4 text-sm">
-              {/* ผู้ขอทุน */}
-              <div className="flex flex-wrap items-start gap-2">
-                <span className="text-gray-500 shrink-0 min-w-[80px]">ผู้ขอทุน:</span>
-                <span className="font-medium break-words flex-1">
-                  {getUserFullName(getApplicant())}
-                </span>
-              </div>
-
-              {/* ชื่อทุน */}
-              <div className="flex flex-wrap items-start gap-2">
-                <span className="text-gray-500 shrink-0 min-w-[80px]">ชื่อทุน:</span>
-                <span className="font-medium break-words flex-1">
-                  {fundNames?.subcategory || getSubcategoryName(submission, pubDetail)}
-                </span>
-              </div>
-
-              {/* Additional fields in a responsive grid below */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-3 mt-2">
-                {/* วันที่ส่ง */}
-                {submission.submitted_at && (
-                  <div className="flex items-start gap-2">
-                    <span className="text-gray-500 shrink-0">วันที่ส่งคำร้อง:</span>
-                    <span className="font-medium">{formatDate(submission.submitted_at)}</span>
-                  </div>
-                )}
-
-                {/* วันที่อนุมัติ */}
-                {submission.approved_at && (
-                  <div className="flex items-start gap-2">
-                    <span className="text-gray-500 shrink-0">วันที่อนุมัติ:</span>
-                    <span className="font-medium">{formatDate(submission.approved_at)}</span>
-                  </div>
-                )}
-
-                {/* เลขประกาศ */}
-                {submission.status_id === 2 && pubDetail?.announce_reference_number && (
-                  <div className="flex items-start gap-2">
-                    <span className="text-gray-500 shrink-0">เลขประกาศ:</span>
-                    <span className="font-medium break-all">
-                      {pubDetail.announce_reference_number}
-                    </span>
-                  </div>
-                )}
-              </div>
+    {/* Status Summary */}
+    <Card
+      icon={getColoredStatusIcon(submission?.status_id)}
+      collapsible={false}
+      headerClassName="items-center"
+      title={
+        <div className="flex items-center gap-2">
+          <span>สถานะคำร้อง (Submission Status)</span>
+          <StatusBadge statusId={submission?.status_id} />
+        </div>
+      }
+    >
+      <div className="flex justify-between items-start">
+        <div>
+          <div className="flex flex-col gap-3 mt-4 text-sm">
+            {/* ชื่อทุน — ทำให้ตัวหนา */}
+            <div className="flex flex-wrap items-start gap-2">
+              <span className="text-gray-500 shrink-0 min-w-[80px]">ชื่อทุน:</span>
+              <span className="font-bold text-gray-700 break-words flex-1">
+                {fundNames?.subcategory || getSubcategoryName(submission, pubDetail)}
+              </span>
             </div>
-          </div>
-          <div className="text-right">
-            <div className="text-2xl font-bold text-blue-600">
-              {formatCurrency(pubDetail.reward_amount || 0)}
+
+            {/* ผู้ขอทุน */}
+            <div className="flex flex-wrap items-start gap-2">
+              <span className="text-gray-500 shrink-0 min-w-[80px]">ผู้ขอทุน:</span>
+              <span className="font-bold text-gray-700 break-words flex-1">
+                {getUserFullName(getApplicant())}
+              </span>
             </div>
-            <div className="text-sm text-gray-500">จำนวนเงินที่ขอ</div>
-            {submission?.status_id === 2 && (
-              <div className="mt-2">
-                <div className="text-lg font-bold text-green-600">
-                  {formatCurrency(
-                    pubDetail?.total_approve_amount ??
-                      (Number(pubDetail?.reward_approve_amount || 0) +
-                        Number(pubDetail?.revision_fee_approve_amount || 0) +
-                        Number(pubDetail?.publication_fee_approve_amount || 0))
-                  )}
+            
+            {/* Info grid: วันที่ต่าง ๆ และเลขอ้างอิงประกาศ */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-3 mt-2">
+              {/* วันที่สร้างคำร้อง (ถ้ามี) */}
+              {submission.created_at && (
+                <div className="flex items-start gap-2">
+                  <span className="text-gray-500 shrink-0">วันที่สร้างคำร้อง:</span>
+                  <span className="font-medium">{formatDate(submission.created_at)}</span>
                 </div>
-                <div className="text-sm text-gray-500">จำนวนเงินที่อนุมัติ</div>
-              </div>
-            )}
+              )}
+
+              {/* วันที่ส่งคำร้อง */}
+              {submittedAt && (
+                <div className="flex items-start gap-2">
+                  <span className="text-gray-500 shrink-0">วันที่ส่งคำร้อง:</span>
+                  <span className="font-medium">{formatDate(submittedAt)}</span>
+                </div>
+              )}
+
+
+              {/* วันที่อนุมัติ */}
+              {approvedAt && (
+                <div className="flex items-start gap-2">
+                  <span className="text-gray-500 shrink-0">วันที่อนุมัติ:</span>
+                  <span className="font-medium">{formatDate(approvedAt)}</span>
+                </div>
+              )}
+
+
+              {/* หมายเลขอ้างอิงประกาศ */}
+              {pubDetail?.announce_reference_number && (
+                <div className="flex items-start gap-2">
+                  <span className="text-gray-500 shrink-0">หมายเลขอ้างอิงประกาศผลการพิจารณา:</span>
+                  <span className="font-medium break-all">
+                    {pubDetail.announce_reference_number}
+                  </span>
+                </div>
+              )}
+            </div>
           </div>
         </div>
-      </Card>
+
+        {/* Amounts (คอลัมน์ขวา) */}
+        <div className="text-right">
+          <div className="text-2xl font-bold text-blue-600">
+            {formatCurrency(pubDetail.reward_amount || 0)}
+          </div>
+          <div className="text-sm text-gray-500">จำนวนเงินที่ขอ</div>
+
+          {submission?.status_id === 2 && (
+            <div className="mt-2">
+              <div className="text-lg font-bold text-green-600">
+                {formatCurrency(
+                  pubDetail?.total_approve_amount ??
+                    (Number(pubDetail?.reward_approve_amount || 0) +
+                    Number(pubDetail?.revision_fee_approve_amount || 0) +
+                    Number(pubDetail?.publication_fee_approve_amount || 0))
+                )}
+              </div>
+              <div className="text-sm text-gray-500">จำนวนเงินที่อนุมัติ</div>
+            </div>
+          )}
+        </div>
+      </div>
+    </Card>
+
 
       {/* Tabs */}
       <div className="border-b border-gray-200 mb-6 mt-6">
@@ -1652,45 +1684,37 @@ export default function SubmissionDetails({ submissionId, onBack }) {
                 )}
               </div>
 
-              {/* Revision fee */}
-              {(pubDetail.revision_fee > 0 || pubDetail.editing_fee > 0) && (
+              {/* Revision fee (always visible) */}
               <div className={`grid ${submission?.status_id === 2 ? 'grid-cols-3' : 'grid-cols-2'} items-center min-h-[76px]`}>
                 <label className="block text-sm font-medium text-gray-700 leading-tight">
-                    ค่าปรับปรุงบทความ
-                    <br />
-                    <span className="text-xs font-normal text-gray-600">Requested Manuscript Editing Fee</span>
-                  </label>
+                  ค่าปรับปรุงบทความ
+                  <br /><span className="text-xs font-normal text-gray-600">Requested Manuscript Editing Fee</span>
+                </label>
+                <span className="text-right">฿{formatCurrency(pubDetail.revision_fee || pubDetail.editing_fee || 0)}</span>
+                {submission?.status_id === 2 && (
                   <span className="text-right">
-                    ฿{formatCurrency(pubDetail.revision_fee || pubDetail.editing_fee || 0)}
+                    {pubDetail.revision_fee_approve_amount != null
+                      ? `฿${formatCurrency(pubDetail.revision_fee_approve_amount)}`
+                      : '-'}
                   </span>
-                  {submission?.status_id === 2 && (
-                    <span className="text-right">
-                      {pubDetail.revision_fee_approve_amount != null
-                        ? `฿${formatCurrency(pubDetail.revision_fee_approve_amount)}`
-                        : '-'}
-                    </span>
-                  )}
-                </div>
-              )}
+                )}
+              </div>
 
-              {/* Publication fee */}
-              {(pubDetail.publication_fee > 0 || pubDetail.page_charge > 0) && (
+              {/* Publication fee (always visible) */}
               <div className={`grid ${submission?.status_id === 2 ? 'grid-cols-3' : 'grid-cols-2'} items-center min-h-[76px]`}>
                 <label className="block text-sm font-medium text-gray-700 leading-tight">
-                    ค่าธรรมเนียมการตีพิมพ์
-                    <br />
-                    <span className="text-xs font-normal text-gray-600">Requested Page Charge</span>
-                  </label>
-                  <span className="text-right">฿{formatCurrency(pubDetail.publication_fee || pubDetail.page_charge || 0)}</span>
-                  {submission?.status_id === 2 && (
-                    <span className="text-right">
-                      {pubDetail.publication_fee_approve_amount != null
-                        ? `฿${formatCurrency(pubDetail.publication_fee_approve_amount)}`
-                        : '-'}
-                    </span>
-                  )}
-                </div>
-              )}
+                  ค่าธรรมเนียมการตีพิมพ์
+                  <br /><span className="text-xs font-normal text-gray-600">Requested Page Charge</span>
+                </label>
+                <span className="text-right">฿{formatCurrency(pubDetail.publication_fee || pubDetail.page_charge || 0)}</span>
+                {submission?.status_id === 2 && (
+                  <span className="text-right">
+                    {pubDetail.publication_fee_approve_amount != null
+                      ? `฿${formatCurrency(pubDetail.publication_fee_approve_amount)}`
+                      : '-'}
+                  </span>
+                )}
+              </div>
 
               {/* External funding */}
               {pubDetail.external_funding_amount > 0 && (
@@ -1791,84 +1815,113 @@ export default function SubmissionDetails({ submissionId, onBack }) {
 
       {activeTab === 'documents' && (
         <Card title="เอกสารแนบ (Attachments)" icon={FileText} collapsible={false}>
-          <div className="space-y-4">
-            {/* Action bar สำหรับรวม PDF */}
-            <div className="flex items-center justify-between">
-              <div className="text-sm text-gray-500">
-                {attachmentsLoading ? 'กำลังโหลดเอกสาร…' : `${attachments.length} ไฟล์`}
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={handleViewMerged}
-                  disabled={merging || attachmentsLoading || attachments.length === 0}
-                  className="inline-flex items-center gap-1 px-3 py-1 text-sm text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-md disabled:opacity-60"
-                >
-                  <Eye className="h-4 w-4" />
-                  {merging ? 'กำลังรวม…' : 'ดูเอกสารรวม'}
-                </button>
-                <button
-                  onClick={handleDownloadMerged}
-                  disabled={merging || attachmentsLoading || attachments.length === 0}
-                  className="inline-flex items-center gap-1 px-3 py-1 text-sm text-green-700 bg-green-50 hover:bg-green-100 rounded-md disabled:opacity-60"
-                >
-                  <Download className="h-4 w-4" />
-                  ดาวน์โหลดเอกสารรวม
-                </button>
-              </div>
-            </div>
-
+          <div className="space-y-6">
+            {/* Content */}
             {attachmentsLoading ? (
-              <div className="py-8 text-center text-gray-500">กำลังโหลดเอกสาร…</div>
+              <div className="flex items-center justify-center py-8">
+                <div className="flex items-center gap-3 text-gray-500">
+                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600"></div>
+                  <span>กำลังโหลดเอกสาร...</span>
+                </div>
+              </div>
             ) : attachments.length > 0 ? (
-              <ul className="divide-y divide-gray-200">
+              <div className="space-y-4">
                 {attachments.map((doc, index) => {
-                  const fileId = doc.file_id;
-                  const docName =
+                  const fileId = doc.file_id || doc.File?.file_id || doc.file?.file_id;
+                  const fileName =
                     doc.original_name ||
+                    doc.File?.original_name ||
+                    doc.file?.original_name ||
+                    doc.original_filename ||
                     doc.file_name ||
                     doc.name ||
                     `เอกสารที่ ${index + 1}`;
-                  const docTypeName = doc.document_type_name || 'ไม่ระบุหมวด';
-
+                  const docType = (doc.document_type_name || '').trim() || 'ไม่ระบุประเภท';
+                  
                   return (
-                    <li
+                    <div 
                       key={doc.document_id || fileId || index}
-                      className="py-3 flex items-center justify-between"
+                      className="bg-gray-50/50 rounded-lg p-4 hover:bg-gray-50 transition-colors duration-200"
                     >
-                      <div className="flex items-center gap-2 min-w-0">
-                        <FileText className="h-5 w-5 text-gray-400" />
-                        <span className="text-sm text-gray-700 truncate">
-                          {docName}
-                        </span>
+                      <div className="flex items-center justify-between">
+                        {/* Left: File Info */}
+                        <div className="flex items-center gap-4 flex-1 min-w-0">
+                          <div className="flex-shrink-0 w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center">
+                            <span className="text-gray-600 font-semibold text-sm">
+                              {index + 1}
+                            </span>
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1">
+                              <FileText size={16} className="text-gray-600 flex-shrink-0" />
+                              <p className="font-medium text-gray-900 truncate" title={fileName}>
+                                {fileName}
+                              </p>
+                            </div>
+                            <p className="text-sm text-gray-600">
+                              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-blue-100 text-blue-700">
+                                {docType}
+                              </span>
+                            </p>
+                          </div>
+                        </div>
 
-                        {/* Badge หมวดเอกสาร */}
-                        <span className="inline-flex items-center rounded-full bg-gray-100 text-gray-700 px-2 py-0.5 text-xs flex-shrink-0">
-                          {docTypeName}
-                        </span>
+                        {/* Right: Actions */}
+                        <div className="flex items-center gap-2 ml-4">
+                          <button
+                            className="inline-flex items-center gap-1 px-3 py-2 text-sm text-blue-600 hover:bg-blue-100 rounded-md transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                            onClick={() => handleView(fileId)}
+                            disabled={!fileId}
+                            title="เปิดดูไฟล์"
+                          >
+                            <Eye size={14} />
+                            <span>ดู</span>
+                          </button>
+                          <button
+                            className="inline-flex items-center gap-1 px-3 py-2 text-sm text-green-600 hover:bg-green-100 rounded-md transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                            onClick={() => handleDownload(fileId, fileName)}
+                            disabled={!fileId}
+                            title="ดาวน์โหลดไฟล์"
+                          >
+                            <Download size={14} />
+                            <span>ดาวน์โหลด</span>
+                          </button>
+                        </div>
                       </div>
-
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => handleView(fileId)}
-                          className="inline-flex items-center gap-1 px-3 py-1 text-sm text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-md"
-                        >
-                          <Eye className="h-4 w-4" />
-                          ดู
-                        </button>
-                        <button
-                          onClick={() => handleDownload(fileId, docName)}
-                          className="inline-flex items-center gap-1 px-3 py-1 text-sm text-green-600 bg-green-50 hover:bg-green-100 rounded-md"
-                        >
-                          <Download className="h-4 w-4" />
-                          ดาวน์โหลด
-                        </button>
-                      </div>
-                    </li>
+                    </div>
                   );
                 })}
-              </ul>
+              </div>
             ) : (
-              <p className="text-center text-gray-500 py-8">ไม่มีเอกสารแนบ</p>
+              <div className="text-center py-12">
+                <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <FileText className="w-8 h-8 text-gray-400" />
+                </div>
+                <p className="text-gray-500 text-lg font-medium mb-2">ไม่มีเอกสารแนบ</p>
+                <p className="text-gray-400 text-sm">ยังไม่มีการอัปโหลดเอกสารสำหรับคำร้องนี้</p>
+              </div>
+            )}
+
+            {/* Action Buttons - ย้ายมาด้านล่าง */}
+            {attachments.length > 0 && (
+              <div className="flex justify-end gap-3 pt-4 border-t-1 border-gray-300">
+                <button
+                  className="inline-flex items-center gap-1 px-3 py-2 text-sm text-blue-600 hover:bg-blue-50 rounded-md transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                  onClick={handleViewMerged}
+                  disabled={attachments.length === 0 || merging}
+                  title="เปิดดูไฟล์แนบที่ถูกรวมเป็น PDF"
+                >
+                  <Eye size={16} /> ดูไฟล์รวม (PDF)
+                </button>
+                <button
+                  className="inline-flex items-center gap-1 px-3 py-2 text-sm text-green-600 hover:bg-green-50 rounded-md transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                  onClick={handleDownloadMerged}
+                  disabled={attachments.length === 0 || merging}
+                  title="ดาวน์โหลดไฟล์แนบที่ถูกรวมเป็น PDF เดียว"
+                >
+                  <Download size={16} /> ดาวน์โหลดไฟล์รวม
+                </button>
+              </div>
             )}
           </div>
         </Card>

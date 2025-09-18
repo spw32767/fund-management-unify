@@ -6,7 +6,8 @@ import { FileText } from 'lucide-react';
 import PageLayout from '../common/PageLayout';
 import SubmissionTable from './SubmissionTable';
 import SubmissionFilters from './SubmissionFilters';
-import SubmissionDetails from './SubmissionDetails';
+import PublicationSubmissionDetails from './PublicationSubmissionDetails';
+import GeneralSubmissionDetails from './GeneralSubmissionDetails';
 import ExportButton from './ExportButton';
 import { submissionsListingAPI, adminSubmissionAPI, commonAPI } from '../../../lib/admin_submission_api';
 import { toast } from 'react-hot-toast';
@@ -19,6 +20,7 @@ export default function SubmissionsManagement() {
   // Views
   const [currentView, setCurrentView] = useState('list');
   const [selectedSubmissionId, setSelectedSubmissionId] = useState(null);
+  const [selectedFormType, setSelectedFormType] = useState('');
 
   // Data stores
   const [allSubmissions, setAllSubmissions] = useState([]); // everything for selected year (raw)
@@ -251,7 +253,7 @@ export default function SubmissionsManagement() {
         const statusStr = norm(s.display_status || s.status?.status_name || statusText(s.status_id));
 
         // date string
-        const dateVal = s?.display_date || s?.submitted_at || s?.created_at || '';
+        const dateVal = s?.display_date || s?.submitted_at || s?.created_at ||  s?.approved_at || '';
         const dateStr = dateVal ? new Date(dateVal).toLocaleDateString('th-TH') : '';
 
         const fields = [
@@ -277,6 +279,7 @@ export default function SubmissionsManagement() {
       switch (sortBy) {
         case 'updated_at': return new Date(s.updated_at || s.update_at || 0).getTime();
         case 'submitted_at': return new Date(s.submitted_at || 0).getTime();
+        case 'approved_at': return new Date(s.approved_at || 0).getTime();
         case 'submission_number': return (s.submission_number || '').toString();
         case 'status_id': return Number(s.status_id) || 0;
         case 'created_at':
@@ -416,6 +419,18 @@ export default function SubmissionsManagement() {
   };
 
   const handleViewSubmission = (submissionId) => {
+    // หาแถวที่คลิกจาก allSubmissions (โหลดไว้แล้วทั้งปี)
+    const row = allSubmissions.find(
+      (s) => String(s.submission_id) === String(submissionId)
+    );
+    // เผื่อไม่มีใน row ให้ลอง fallback จาก detailsMap ของแถวที่มองเห็น
+    const dp = detailsMap[submissionId];
+    const formType =
+      (row?.form_type || row?.submission_type || dp?.details?.type || '')
+        .toString()
+        .toLowerCase();
+
+    setSelectedFormType(formType);
     setSelectedSubmissionId(submissionId);
     setCurrentView('details');
   };
@@ -423,6 +438,7 @@ export default function SubmissionsManagement() {
   const handleBackToList = () => {
     setCurrentView('list');
     setSelectedSubmissionId(null);
+    setSelectedFormType('');
     // We already have all data locally; no refetch needed
   };
 
@@ -445,8 +461,17 @@ export default function SubmissionsManagement() {
 
   // ---------- Views ----------
   if (currentView === 'details' && selectedSubmissionId) {
+    const t = (selectedFormType || '').toLowerCase();
+    if (t === 'publication_reward') {
+      return (
+        <PublicationSubmissionDetails
+          submissionId={selectedSubmissionId}
+          onBack={handleBackToList}
+        />
+      );
+    }
     return (
-      <SubmissionDetails
+      <GeneralSubmissionDetails
         submissionId={selectedSubmissionId}
         onBack={handleBackToList}
       />
