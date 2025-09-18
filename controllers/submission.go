@@ -1053,11 +1053,11 @@ func AddPublicationDetails(c *gin.Context) {
 
 	type PublicationDetailsRequest struct {
 		// === ข้อมูลพื้นฐาน ===
-		PaperTitle      string  `json:"article_title"` // จาก frontend
+		PaperTitle      string  `json:"article_title"`
 		JournalName     string  `json:"journal_name"`
-		PublicationDate string  `json:"publication_date"` // รับเป็น string แล้วแปลง
+		PublicationDate string  `json:"publication_date"` // "YYYY-MM-DD"
 		PublicationType string  `json:"publication_type"`
-		Quartile        string  `json:"journal_quartile"` // จาก frontend
+		Quartile        string  `json:"journal_quartile"`
 		ImpactFactor    float64 `json:"impact_factor"`
 		DOI             string  `json:"doi"`
 		URL             string  `json:"url"`
@@ -1065,8 +1065,8 @@ func AddPublicationDetails(c *gin.Context) {
 		VolumeIssue     string  `json:"volume_issue"`
 		Indexing        string  `json:"indexing"`
 
-		// === เงินรางวัลและการคำนวณ (ใหม่) ===
-		RewardAmount                float64 `json:"publication_reward"` // จาก frontend
+		// === เงินรางวัลและการคำนวณ ===
+		RewardAmount                float64 `json:"publication_reward"`
 		RewardApproveAmount         float64 `json:"reward_approve_amount"`
 		RevisionFee                 float64 `json:"revision_fee"`
 		RevisionFeeApproveAmount    float64 `json:"revision_fee_approve_amount"`
@@ -1078,19 +1078,19 @@ func AddPublicationDetails(c *gin.Context) {
 
 		// === ข้อมูลผู้แต่ง ===
 		AuthorCount int    `json:"author_count"`
-		AuthorType  string `json:"author_status"` // จาก frontend (ยังใช้ชื่อเดิม)
+		AuthorType  string `json:"author_status"` // FE เดิมส่งเป็น author_status
 
 		// === อื่นๆ ===
 		AnnounceReferenceNumber string `json:"announce_reference_number"`
 
-		// === ฟิลด์ใหม่ ===
-		HasUniversityFunding string `json:"has_university_funding"` // "yes", "no"
-		FundingReferences    string `json:"funding_references"`     // หมายเลขอ้างอิงทุน
-		UniversityRankings   string `json:"university_rankings"`    // อันดับมหาวิทยาลัย
-
-		// === Snapshotted announcements (from system_config at submission time) ===
+		// === ฟิลด์ใหม่จาก FE (ไม่บังคับใช้ ใช้เป็น fallback) ===
 		MainAnnoucement    *int `json:"main_annoucement"`
 		RewardAnnouncement *int `json:"reward_announcement"`
+
+		// === ฟิลด์อื่น ===
+		HasUniversityFunding string `json:"has_university_funding"` // "yes" | "no"
+		FundingReferences    string `json:"funding_references"`
+		UniversityRankings   string `json:"university_rankings"`
 	}
 
 	var req PublicationDetailsRequest
@@ -1099,22 +1099,46 @@ func AddPublicationDetails(c *gin.Context) {
 		return
 	}
 
-	// Validate submission exists and user has permission
+	// ตรวจสอบ submission เป็นของ user นี้
 	var submission models.Submission
-	if err := config.DB.Where("submission_id = ? AND user_id = ?", submissionID, userID).First(&submission).Error; err != nil {
+	if err := config.DB.Where("submission_id = ? AND user_id = ?", submissionID, userID).
+		First(&submission).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Submission not found"})
 		return
 	}
 
-	// แปลง publication_date จาก string เป็น time.Time
+	// แปลงวันตีพิมพ์
 	pubDate, err := time.Parse("2006-01-02", req.PublicationDate)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid publication date format"})
 		return
 	}
 
+	// --- ดึง "เลขประกาศ" ปัจจุบันจาก system_config (snapshot ณ เวลายื่น) ---
+	var ann struct {
+		MainAnnoucement    *int
+		RewardAnnouncement *int
+	}
+	if err := config.DB.Raw(`
+		SELECT main_annoucement, reward_announcement
+		FROM system_config
+		ORDER BY config_id DESC
+		LIMIT 1
+	`).Scan(&ann).Error; err != nil {
+		// ถ้าดึงไม่ได้ ปล่อยให้ใช้ค่าจาก FE เป็น fallback
+		ann.MainAnnoucement = req.MainAnnoucement
+		ann.RewardAnnouncement = req.RewardAnnouncement
+	}
+	// ถ้าดึงได้แต่เป็น NULL ให้ fallbackไปใช้ที่ FE ส่งมา (ถ้ามี)
+	if ann.MainAnnoucement == nil && req.MainAnnoucement != nil {
+		ann.MainAnnoucement = req.MainAnnoucement
+	}
+	if ann.RewardAnnouncement == nil && req.RewardAnnouncement != nil {
+		ann.RewardAnnouncement = req.RewardAnnouncement
+	}
+
 	now := time.Now()
-	// สร้าง publication details ตรงกับ database schema ใหม่
+
 	publicationDetails := models.PublicationRewardDetail{
 		SubmissionID:    submission.SubmissionID,
 		PaperTitle:      req.PaperTitle,
@@ -1129,7 +1153,6 @@ func AddPublicationDetails(c *gin.Context) {
 		VolumeIssue:     req.VolumeIssue,
 		Indexing:        req.Indexing,
 
-		// === เงินรางวัลและการคำนวณ (ใหม่) ===
 		RewardAmount:                req.RewardAmount,
 		RewardApproveAmount:         req.RewardApproveAmount,
 		RevisionFee:                 req.RevisionFee,
@@ -1140,26 +1163,21 @@ func AddPublicationDetails(c *gin.Context) {
 		TotalAmount:                 req.TotalAmount,
 		TotalApproveAmount:          req.TotalApproveAmount,
 
-		// === ข้อมูลผู้แต่ง ===
 		AuthorCount: req.AuthorCount,
-		AuthorType:  req.AuthorType, // เปลี่ยนจาก author_status เป็น author_type
+		AuthorType:  req.AuthorType,
 
-		// === อื่นๆ ===
 		AnnounceReferenceNumber: req.AnnounceReferenceNumber,
 
-		// === ฟิลด์ใหม่ ===
-		HasUniversityFunding: req.HasUniversityFunding, // → database: has_university_funding
-		FundingReferences:    &req.FundingReferences,   // → database: funding_references
-		UniversityRankings:   &req.UniversityRankings,  // → database: university_rankings
+		// === Snapshotted announcements (announcement_id) ===
+		MainAnnoucement:    ann.MainAnnoucement,
+		RewardAnnouncement: ann.RewardAnnouncement,
 
-		// === Snapshotted announcements ===
-		MainAnnoucement:    req.MainAnnoucement,
-		RewardAnnouncement: req.RewardAnnouncement,
+		HasUniversityFunding: req.HasUniversityFunding,
+		FundingReferences:    &req.FundingReferences,
+		UniversityRankings:   &req.UniversityRankings,
 
-		// เพิ่ม timestamp fields
 		CreateAt: now,
 		UpdateAt: now,
-		// ไม่ต้องใส่ DeleteAt เลย ปล่อยให้เป็น zero value
 	}
 
 	if err := config.DB.Create(&publicationDetails).Error; err != nil {
