@@ -43,6 +43,171 @@ const defaultTeacherData = {
   quickLinks: [],
 };
 
+function MiniBarChart({ data, valueLabel, formatNumber }) {
+  const safeFormat = (value) => {
+    if (typeof formatNumber === "function") {
+      const formatted = formatNumber(value);
+      if (formatted !== null && formatted !== undefined) {
+        return formatted;
+      }
+    }
+    if (value === null || value === undefined) {
+      return "-";
+    }
+    return String(value);
+  };
+
+  if (!Array.isArray(data) || data.length === 0) {
+    return <p className="text-sm text-gray-500">ไม่มีข้อมูลการอ้างอิง</p>;
+  }
+
+  const maxValue = data.reduce(
+    (max, item) => Math.max(max, Number(item?.value) || 0),
+    0,
+  );
+
+  return (
+    <div className="relative">
+      <div className="flex h-40 items-end gap-3 overflow-x-auto pb-4">
+        {data.map(({ year, value }) => {
+          const numericValue = Number(value) || 0;
+          let heightPercent = 0;
+          if (maxValue > 0) {
+            heightPercent = (numericValue / maxValue) * 100;
+            heightPercent =
+              numericValue > 0 ? Math.max(6, heightPercent) : Math.max(2, heightPercent);
+          } else {
+            heightPercent = numericValue > 0 ? 100 : 4;
+          }
+
+          const barClasses =
+            numericValue > 0
+              ? "bg-gradient-to-t from-blue-600 to-sky-400 group-hover:from-blue-700 group-hover:to-sky-500"
+              : "bg-gray-200";
+
+          return (
+            <div
+              key={year}
+              className="group relative flex min-w-[48px] flex-col items-center text-xs text-gray-500"
+            >
+              <div className="relative flex h-32 w-full items-end justify-center">
+                <div
+                  className={`w-6 rounded-t ${barClasses}`}
+                  style={{ height: `${heightPercent}%` }}
+                ></div>
+                <div className="pointer-events-none absolute -top-3 hidden -translate-y-full rounded-md bg-gray-900 px-2 py-1 text-[11px] font-medium text-white shadow-lg group-hover:block">
+                  <div>
+                    {valueLabel} {safeFormat(numericValue)}
+                  </div>
+                  <div className="text-[10px] text-gray-200">ปี {year}</div>
+                </div>
+              </div>
+              <span className="mt-2 text-[11px] font-medium text-gray-600">{year}</span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function ScholarCitationsCard({ summary, recentStartYear, formatNumber }) {
+  if (!summary) {
+    return null;
+  }
+
+  const {
+    totalCitations,
+    recentCitations,
+    hIndexAll,
+    hIndexRecent,
+    i10IndexAll,
+    i10IndexRecent,
+    chartData,
+    chartIsFallback,
+  } = summary;
+
+  const safeFormat = (value) => {
+    if (value === null || value === undefined) {
+      return "-";
+    }
+    if (typeof formatNumber === "function") {
+      const formatted = formatNumber(value);
+      if (formatted !== null && formatted !== undefined) {
+        return formatted;
+      }
+    }
+    return String(value);
+  };
+
+  const rows = [
+    {
+      label: "การอ้างอิง",
+      all: totalCitations,
+      recent: recentCitations,
+    },
+    {
+      label: "ดัชนี h",
+      all: hIndexAll,
+      recent: hIndexRecent,
+    },
+    {
+      label: "ดัชนี i10",
+      all: i10IndexAll,
+      recent: i10IndexRecent,
+    },
+  ];
+
+  const hasChartData = Array.isArray(chartData) && chartData.length > 0;
+
+  return (
+    <div className="mt-6 rounded-xl border border-gray-100 bg-white p-4 shadow-sm">
+      <h3 className="text-lg font-semibold text-gray-900">อ้างโดย</h3>
+      <div className="mt-4 overflow-hidden rounded-lg border border-gray-100 bg-white text-sm">
+        <div className="grid grid-cols-[1fr_repeat(2,minmax(0,120px))] bg-gray-50 font-medium text-gray-600">
+          <div className="px-4 py-2"></div>
+          <div className="px-4 py-2 text-right">ทั้งหมด</div>
+          <div className="px-4 py-2 text-right">ตั้งแต่ปี {recentStartYear}</div>
+        </div>
+        <div className="divide-y divide-gray-100">
+          {rows.map((row) => (
+            <div
+              key={row.label}
+              className="grid grid-cols-[1fr_repeat(2,minmax(0,120px))]"
+            >
+              <div className="px-4 py-2 font-medium text-gray-700">{row.label}</div>
+              <div className="px-4 py-2 text-right text-gray-900">
+                {safeFormat(row.all)}
+              </div>
+              <div className="px-4 py-2 text-right text-gray-900">
+                {safeFormat(row.recent)}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+      <div className="mt-6">
+        {hasChartData ? (
+          <>
+            <MiniBarChart
+              data={chartData}
+              valueLabel={chartIsFallback ? "จำนวนผลงาน" : "การอ้างอิง"}
+              formatNumber={formatNumber}
+            />
+            {chartIsFallback && (
+              <p className="mt-2 text-xs text-amber-600">
+                แสดงจำนวนผลงานต่อปีชั่วคราว (TODO: ปรับเป็นจำนวนการอ้างอิงเมื่อ API พร้อม)
+              </p>
+            )}
+          </>
+        ) : (
+          <p className="text-sm text-gray-500">ไม่มีข้อมูลการอ้างอิง</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function ProfileContent({ onNavigate }) {
   const [teacherData, setTeacherData] = useState(defaultTeacherData);
   const [loading, setLoading] = useState(true);
@@ -216,6 +381,151 @@ export default function ProfileContent({ onNavigate }) {
     const start = (currentPage - 1) * rowsPerPage;
     return sortedPublications.slice(start, start + rowsPerPage);
   }, [sortedPublications, currentPage, rowsPerPage]);
+
+  const currentYear = useMemo(() => new Date().getFullYear(), []);
+  const recentStartYear = currentYear - 4;
+
+  const citationInsights = useMemo(() => {
+    const toNumber = (value) => {
+      if (value === null || value === undefined) return null;
+      if (typeof value === "number") {
+        return Number.isNaN(value) ? null : value;
+      }
+      if (typeof value === "string") {
+        const trimmed = value.trim();
+        if (trimmed === "") return null;
+        const num = Number(trimmed);
+        return Number.isNaN(num) ? null : num;
+      }
+      return null;
+    };
+
+    let totalCitations = 0;
+    let hasCitationCountData = false;
+
+    const citationCountsAll = [];
+    const recentCitationCounts = [];
+    const perYearMap = new Map();
+    let hasCitationHistory = false;
+
+    publications.forEach((pub) => {
+      if (!pub) return;
+
+      let parsedHistory = null;
+      if (pub.citation_history) {
+        try {
+          parsedHistory = JSON.parse(pub.citation_history);
+        } catch (error) {
+          parsedHistory = null;
+        }
+      }
+
+      let historyTotal = null;
+      if (parsedHistory && typeof parsedHistory === "object") {
+        let hasAnyHistory = false;
+        let pubRecentSum = 0;
+
+        Object.entries(parsedHistory).forEach(([yearKey, value]) => {
+          const yearNum = Number(yearKey);
+          const valNum = toNumber(value);
+          if (!Number.isNaN(yearNum) && valNum !== null) {
+            hasCitationHistory = true;
+            hasAnyHistory = true;
+            perYearMap.set(yearNum, (perYearMap.get(yearNum) || 0) + valNum);
+            historyTotal = (historyTotal || 0) + valNum;
+            if (yearNum >= recentStartYear) {
+              pubRecentSum += valNum;
+            }
+          }
+        });
+
+        if (hasAnyHistory) {
+          recentCitationCounts.push(pubRecentSum);
+        }
+      }
+
+      const citedByValue = toNumber(pub.cited_by);
+      const citationsForTotal =
+        citedByValue !== null ? citedByValue : historyTotal;
+
+      if (citationsForTotal !== null) {
+        hasCitationCountData = true;
+        totalCitations += citationsForTotal;
+        citationCountsAll.push(citationsForTotal);
+      }
+    });
+
+    if (!hasCitationHistory) {
+      // TODO: Replace fallback with citation counts once backend exposes per-year citations.
+      publications.forEach((pub) => {
+        const yearValue = toNumber(pub?.publication_year);
+        if (yearValue !== null) {
+          const yearInt = Math.trunc(yearValue);
+          if (!Number.isNaN(yearInt)) {
+            perYearMap.set(yearInt, (perYearMap.get(yearInt) || 0) + 1);
+          }
+        }
+      });
+    }
+
+    const chartData = Array.from(perYearMap.entries())
+      .filter(([year]) => !Number.isNaN(year))
+      .sort((a, b) => a[0] - b[0])
+      .map(([year, value]) => ({
+        year,
+        value,
+      }));
+
+    const computeHIndex = (values) => {
+      if (!values || values.length === 0) return 0;
+      const sorted = [...values].sort((a, b) => b - a);
+      let h = 0;
+      for (let i = 0; i < sorted.length; i += 1) {
+        if (sorted[i] >= i + 1) {
+          h = i + 1;
+        } else {
+          break;
+        }
+      }
+      return h;
+    };
+
+    const computeI10 = (values) => {
+      if (!values || values.length === 0) return 0;
+      return values.filter((val) => val >= 10).length;
+    };
+
+    const recentCitationsTotal = hasCitationHistory
+      ? chartData
+          .filter((item) => item.year >= recentStartYear)
+          .reduce((sum, item) => sum + (item.value || 0), 0)
+      : null;
+
+    const hIndexAll = hasCitationCountData
+      ? computeHIndex(citationCountsAll)
+      : null;
+    const i10IndexAll = hasCitationCountData
+      ? computeI10(citationCountsAll)
+      : null;
+
+    const hIndexRecent = hasCitationHistory
+      ? computeHIndex(recentCitationCounts)
+      : null;
+    const i10IndexRecent = hasCitationHistory
+      ? computeI10(recentCitationCounts)
+      : null;
+
+    return {
+      totalCitations: hasCitationCountData ? totalCitations : null,
+      recentCitations: recentCitationsTotal,
+      hIndexAll,
+      hIndexRecent,
+      i10IndexAll,
+      i10IndexRecent,
+      chartData,
+      chartIsFallback: !hasCitationHistory,
+    };
+  }, [publications, recentStartYear]);
 
   const totalPages = Math.ceil(sortedPublications.length / rowsPerPage) || 1;
 
@@ -635,6 +945,11 @@ export default function ProfileContent({ onNavigate }) {
                         </button>
                       </div>
                     </div>
+                    <ScholarCitationsCard
+                      summary={citationInsights}
+                      recentStartYear={recentStartYear}
+                      formatNumber={formatNumber}
+                    />
                   </>
                 )}
               </div>
