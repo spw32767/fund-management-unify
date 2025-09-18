@@ -43,6 +43,158 @@ const defaultTeacherData = {
   quickLinks: [],
 };
 
+const CITATION_RECENT_START_YEAR = 2020;
+
+const ScholarCitationsCard = ({ loading, metrics, formatNumber }) => {
+  const totals = metrics?.totals || { all: null, recent: null };
+  const hIndex = metrics?.hIndex || { all: null, recent: null };
+  const i10Index = metrics?.i10Index || { all: null, recent: null };
+  const chart = metrics?.chart || { data: [], isCitations: true };
+
+  const renderValue = (value) => {
+    if (value === null || value === undefined) {
+      return "-";
+    }
+    if (typeof value === "number") {
+      const formatted = formatNumber ? formatNumber(value) : value;
+      return formatted ?? value;
+    }
+    return value;
+  };
+
+  const chartData = Array.isArray(chart.data) ? chart.data : [];
+  const chartMax = chartData.reduce(
+    (max, item) => (typeof item.value === "number" && item.value > max ? item.value : max),
+    0,
+  );
+
+  const chartUnitLabel = chart.isCitations ? "การอ้างอิงต่อปี" : "จำนวนผลงานต่อปี";
+  const chartValueLabel = chart.isCitations ? "การอ้างอิง" : "ผลงาน";
+
+  const hasSummaryData =
+    totals.all !== null ||
+    totals.recent !== null ||
+    hIndex.all !== null ||
+    hIndex.recent !== null ||
+    i10Index.all !== null ||
+    i10Index.recent !== null;
+
+  return (
+    <div className="mt-6 rounded-xl border border-gray-100 bg-gradient-to-br from-white via-white to-slate-50 p-4 shadow-inner">
+      <h3 className="text-lg font-semibold text-gray-900">อ้างโดย</h3>
+      {loading ? (
+        <div className="mt-4 space-y-3">
+          <div className="h-16 animate-pulse rounded-md bg-gray-100" />
+          <div className="h-28 animate-pulse rounded-md bg-gray-100" />
+        </div>
+      ) : (
+        <>
+          <div className="mt-4 overflow-hidden rounded-lg border border-gray-200">
+            <table className="w-full text-sm text-gray-700">
+              <thead className="bg-gray-50 text-gray-500">
+                <tr>
+                  <th className="px-4 py-2 text-left font-medium">&nbsp;</th>
+                  <th className="px-4 py-2 text-right font-medium">ทั้งหมด</th>
+                  <th className="px-4 py-2 text-right font-medium">
+                    ตั้งแต่ปี {CITATION_RECENT_START_YEAR}
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr className="odd:bg-white even:bg-gray-50">
+                  <td className="px-4 py-2 font-medium text-gray-600">การอ้างอิง</td>
+                  <td className="px-4 py-2 text-right font-semibold text-gray-900">
+                    {renderValue(totals.all)}
+                  </td>
+                  <td className="px-4 py-2 text-right font-semibold text-gray-900">
+                    {renderValue(totals.recent)}
+                  </td>
+                </tr>
+                <tr className="odd:bg-white even:bg-gray-50">
+                  <td className="px-4 py-2 font-medium text-gray-600">ดัชนี h</td>
+                  <td className="px-4 py-2 text-right font-semibold text-gray-900">
+                    {renderValue(hIndex.all)}
+                  </td>
+                  <td className="px-4 py-2 text-right font-semibold text-gray-900">
+                    {renderValue(hIndex.recent)}
+                  </td>
+                </tr>
+                <tr className="odd:bg-white even:bg-gray-50">
+                  <td className="px-4 py-2 font-medium text-gray-600">ดัชนี i10</td>
+                  <td className="px-4 py-2 text-right font-semibold text-gray-900">
+                    {renderValue(i10Index.all)}
+                  </td>
+                  <td className="px-4 py-2 text-right font-semibold text-gray-900">
+                    {renderValue(i10Index.recent)}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div className="mt-6">
+            <div className="flex items-center justify-between text-xs text-gray-500">
+              <span>{chartUnitLabel}</span>
+              {chart.isCitations ? null : (
+                <span className="italic text-[11px] text-gray-400">
+                  TODO: เปลี่ยนเป็นจำนวนการอ้างอิงเมื่อมีข้อมูล
+                </span>
+              )}
+            </div>
+            {chartData.length > 0 ? (
+              <div className="mt-3 overflow-x-auto">
+                <div className="flex h-32 items-end gap-3">
+                  {chartData.map(({ year, value }) => {
+                    const numericValue = typeof value === "number" ? value : Number(value) || 0;
+                    const barStyle =
+                      chartMax > 0
+                        ? {
+                            height: `${Math.max(
+                              numericValue > 0 ? (numericValue / chartMax) * 100 : 0,
+                              numericValue > 0 ? 8 : 0,
+                            )}%`,
+                          }
+                        : { height: numericValue > 0 ? "100%" : "6px" };
+                    const formattedValue =
+                      typeof numericValue === "number"
+                        ? (formatNumber ? formatNumber(numericValue) : numericValue)
+                        : numericValue;
+                    return (
+                      <div
+                        key={year}
+                        className="flex min-w-[48px] flex-col items-center text-[11px] text-gray-500"
+                      >
+                        <div className="group relative flex h-24 w-6 items-end justify-center">
+                          <div
+                            className="relative w-full rounded-md bg-blue-100 shadow-sm transition-colors duration-150 group-hover:bg-blue-200"
+                            style={barStyle}
+                          >
+                            <div className="pointer-events-none absolute bottom-full left-1/2 mb-2 -translate-x-1/2 -translate-y-full opacity-0 whitespace-nowrap rounded-md bg-gray-800 px-2 py-1 text-xs text-white shadow-lg transition-opacity duration-150 group-hover:opacity-100">
+                              <div className="font-medium">
+                                {formattedValue ?? "-"} {chartValueLabel}
+                              </div>
+                              <div className="text-[10px] text-gray-200">{year}</div>
+                            </div>
+                          </div>
+                        </div>
+                        <span className="mt-2 font-medium text-gray-600">{year}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : hasSummaryData ? (
+              <p className="mt-3 text-sm text-gray-500">ไม่มีข้อมูลเพียงพอสำหรับสร้างกราฟ</p>
+            ) : (
+              <p className="mt-3 text-sm text-gray-500">ยังไม่มีข้อมูลการอ้างอิง</p>
+            )}
+          </div>
+        </>
+      )}
+    </div>
+  );
+};
+
 export default function ProfileContent() {
   const [teacherData, setTeacherData] = useState(defaultTeacherData);
   const [loading, setLoading] = useState(true);
@@ -216,6 +368,170 @@ export default function ProfileContent() {
     const start = (currentPage - 1) * rowsPerPage;
     return sortedPublications.slice(start, start + rowsPerPage);
   }, [sortedPublications, currentPage, rowsPerPage]);
+
+  const citationMetrics = useMemo(() => {
+    if (!publications || publications.length === 0) {
+      return {
+        totals: { all: null, recent: null },
+        hIndex: { all: null, recent: null },
+        i10Index: { all: null, recent: null },
+        chart: { data: [], isCitations: true },
+      };
+    }
+
+    const toNumber = (value) => {
+      if (value === null || value === undefined) return null;
+      if (typeof value === "string") {
+        const trimmed = value.trim();
+        if (trimmed === "") return null;
+        const num = Number(trimmed);
+        return Number.isFinite(num) ? num : null;
+      }
+      const num = Number(value);
+      return Number.isFinite(num) ? num : null;
+    };
+
+    const parseHistory = (raw) => {
+      if (!raw) return {};
+      let parsed = raw;
+      if (typeof raw === "string") {
+        try {
+          parsed = JSON.parse(raw);
+        } catch {
+          return {};
+        }
+      }
+      if (Array.isArray(parsed)) {
+        return parsed.reduce((acc, entry) => {
+          if (Array.isArray(entry) && entry.length >= 2) {
+            const [year, count] = entry;
+            if (year !== undefined && count !== undefined) {
+              acc[year] = count;
+            }
+          } else if (entry && typeof entry === "object") {
+            const year = entry.year ?? entry.Year ?? entry.y;
+            const count =
+              entry.citations ??
+              entry.Citations ??
+              entry.count ??
+              entry.value ??
+              entry.total;
+            if (year !== undefined && count !== undefined) {
+              acc[year] = count;
+            }
+          }
+          return acc;
+        }, {});
+      }
+      if (parsed && typeof parsed === "object") {
+        return parsed;
+      }
+      return {};
+    };
+
+    const perYearMap = new Map();
+    const publicationCountMap = new Map();
+    const allCitationCounts = [];
+    const recentCitationCounts = [];
+    let totalCitations = 0;
+
+    publications.forEach((pub) => {
+      if (Object.prototype.hasOwnProperty.call(pub, "cited_by")) {
+        const totalCited = toNumber(pub.cited_by);
+        if (totalCited !== null) {
+          totalCitations += totalCited;
+          allCitationCounts.push(totalCited);
+        }
+      }
+
+      const pubYear = toNumber(pub.publication_year);
+      if (pubYear !== null) {
+        publicationCountMap.set(
+          pubYear,
+          (publicationCountMap.get(pubYear) || 0) + 1,
+        );
+      }
+
+      const history = parseHistory(pub.citation_history);
+      const entries = Object.entries(history);
+      if (entries.length > 0) {
+        let recentSumForPub = 0;
+        entries.forEach(([yearKey, rawCount]) => {
+          const yearNum = Number(yearKey);
+          const countNum = toNumber(rawCount);
+          if (!Number.isFinite(yearNum) || countNum === null) return;
+          perYearMap.set(yearNum, (perYearMap.get(yearNum) || 0) + countNum);
+          if (yearNum >= CITATION_RECENT_START_YEAR) {
+            recentSumForPub += countNum;
+          }
+        });
+        recentCitationCounts.push(recentSumForPub);
+      }
+    });
+
+    const computeHIndex = (values) => {
+      if (!values || values.length === 0) return 0;
+      const sorted = [...values].sort((a, b) => b - a);
+      let h = 0;
+      for (let i = 0; i < sorted.length; i += 1) {
+        if (sorted[i] >= i + 1) {
+          h = i + 1;
+        } else {
+          break;
+        }
+      }
+      return h;
+    };
+
+    const computeI10 = (values) => {
+      if (!values || values.length === 0) return 0;
+      return values.filter((val) => val >= 10).length;
+    };
+
+    const hasOverallCitations = allCitationCounts.length > 0;
+    const hasPerYearCitations = perYearMap.size > 0;
+
+    let chartData = [];
+    let isCitationsChart = true;
+    if (hasPerYearCitations) {
+      chartData = Array.from(perYearMap.entries())
+        .sort((a, b) => a[0] - b[0])
+        .map(([year, value]) => ({ year, value }));
+    } else {
+      isCitationsChart = false;
+      // TODO: Switch to citation counts once the API exposes per-year citation data.
+      chartData = Array.from(publicationCountMap.entries())
+        .sort((a, b) => a[0] - b[0])
+        .map(([year, value]) => ({ year, value }));
+    }
+
+    const recentTotal = hasPerYearCitations
+      ? Array.from(perYearMap.entries()).reduce(
+          (sum, [year, value]) =>
+            year >= CITATION_RECENT_START_YEAR ? sum + value : sum,
+          0,
+        )
+      : null;
+
+    return {
+      totals: {
+        all: hasOverallCitations ? totalCitations : null,
+        recent: hasPerYearCitations ? recentTotal : null,
+      },
+      hIndex: {
+        all: hasOverallCitations ? computeHIndex(allCitationCounts) : null,
+        recent: hasPerYearCitations ? computeHIndex(recentCitationCounts) : null,
+      },
+      i10Index: {
+        all: hasOverallCitations ? computeI10(allCitationCounts) : null,
+        recent: hasPerYearCitations ? computeI10(recentCitationCounts) : null,
+      },
+      chart: {
+        data: chartData,
+        isCitations: isCitationsChart,
+      },
+    };
+  }, [publications]);
 
   const totalPages = Math.ceil(sortedPublications.length / rowsPerPage) || 1;
 
@@ -634,6 +950,11 @@ export default function ProfileContent() {
                 </>
               )}
             </div>
+            <ScholarCitationsCard
+              loading={pubLoading}
+              metrics={citationMetrics}
+              formatNumber={formatNumber}
+            />
           </section>
 
           <section className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
