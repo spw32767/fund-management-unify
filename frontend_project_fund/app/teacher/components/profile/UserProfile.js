@@ -142,45 +142,56 @@ const ScholarCitationsCard = ({ loading, metrics, formatNumber }) => {
               )}
             </div>
             {chartData.length > 0 ? (
-              <div className="mt-3 overflow-x-auto">
-                <div className="flex h-32 items-end gap-3">
-                  {chartData.map(({ year, value }) => {
-                    const numericValue = typeof value === "number" ? value : Number(value) || 0;
-                    const barStyle =
-                      chartMax > 0
-                        ? {
-                            height: `${Math.max(
-                              numericValue > 0 ? (numericValue / chartMax) * 100 : 0,
-                              numericValue > 0 ? 8 : 0,
-                            )}%`,
-                          }
-                        : { height: numericValue > 0 ? "100%" : "6px" };
-                    const formattedValue =
-                      typeof numericValue === "number"
-                        ? (formatNumber ? formatNumber(numericValue) : numericValue)
-                        : numericValue;
-                    return (
-                      <div
-                        key={year}
-                        className="flex min-w-[48px] flex-col items-center text-[11px] text-gray-500"
-                      >
-                        <div className="group relative flex h-24 w-6 items-end justify-center">
-                          <div
-                            className="relative w-full rounded-md bg-blue-100 shadow-sm transition-colors duration-150 group-hover:bg-blue-200"
-                            style={barStyle}
-                          >
-                            <div className="pointer-events-none absolute bottom-full left-1/2 mb-2 -translate-x-1/2 -translate-y-full opacity-0 whitespace-nowrap rounded-md bg-gray-800 px-2 py-1 text-xs text-white shadow-lg transition-opacity duration-150 group-hover:opacity-100">
-                              <div className="font-medium">
-                                {formattedValue ?? "-"} {chartValueLabel}
+              <div className="mt-4 overflow-x-auto">
+                <div className="relative">
+                  <div className="pointer-events-none absolute inset-x-6 top-4 bottom-12">
+                    <div className="flex h-full flex-col justify-between">
+                      {[...Array(4)].map((_, idx) => (
+                        <div
+                          key={`grid-${idx}`}
+                          className={`h-px w-full ${
+                            idx === 0 ? "border-t border-slate-200/80" : "border-t border-dashed border-slate-200/70"
+                          }`}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                  <div className="flex h-48 min-w-max items-end gap-4 px-6 pb-12 pt-4">
+                    {chartData.map(({ year, value }) => {
+                      const numericValue = typeof value === "number" ? value : Number(value) || 0;
+                      const ratio =
+                        chartMax > 0
+                          ? (numericValue / chartMax) * 100
+                          : numericValue > 0
+                            ? 100
+                            : 0;
+                      const basePercent = numericValue > 0 ? Math.max(ratio, 8) : 0;
+                      const barPercent = Math.min(basePercent, 100);
+                      const formattedValue =
+                        typeof numericValue === "number"
+                          ? (formatNumber ? formatNumber(numericValue) : numericValue)
+                          : numericValue;
+                      return (
+                        <div
+                          key={year}
+                          className="group flex h-full min-w-[56px] flex-1 flex-col items-center justify-end text-[11px] text-gray-500"
+                        >
+                          <div className="flex h-full w-full items-end">
+                            <div
+                              className="relative w-full overflow-visible rounded-lg bg-gradient-to-t from-blue-500/80 via-blue-400 to-blue-300 shadow-sm transition-all duration-200 group-hover:from-blue-600 group-hover:via-blue-500 group-hover:to-blue-400"
+                              style={{ height: `${barPercent}%` }}
+                            >
+                              <div className="pointer-events-none absolute left-1/2 top-0 -translate-x-1/2 -translate-y-2 whitespace-nowrap rounded-md bg-slate-900/90 px-2 py-1 text-xs font-medium text-white opacity-0 shadow-lg transition-all duration-150 group-hover:-translate-y-3 group-hover:opacity-100">
+                                <div>{formattedValue ?? "-"} {chartValueLabel}</div>
+                                <div className="text-[10px] font-normal text-slate-300">{year}</div>
                               </div>
-                              <div className="text-[10px] text-gray-200">{year}</div>
                             </div>
                           </div>
+                          <span className="mt-3 text-xs font-medium text-gray-600">{year}</span>
                         </div>
-                        <span className="mt-2 font-medium text-gray-600">{year}</span>
-                      </div>
-                    );
-                  })}
+                      );
+                    })}
+                  </div>
                 </div>
               </div>
             ) : hasSummaryData ? (
