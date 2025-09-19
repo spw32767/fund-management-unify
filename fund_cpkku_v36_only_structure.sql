@@ -701,6 +701,33 @@ CREATE TABLE `user_scholar_metrics` (
 -- --------------------------------------------------------
 
 --
+-- Table structure for table `scholar_import_runs`
+--
+
+CREATE TABLE `scholar_import_runs` (
+  `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT,
+  `trigger_source` varchar(64) NOT NULL,
+  `status` enum('running','success','failed') NOT NULL DEFAULT 'running',
+  `error_message` text DEFAULT NULL,
+  `started_at` datetime NOT NULL DEFAULT current_timestamp(),
+  `finished_at` datetime DEFAULT NULL,
+  `users_processed` int UNSIGNED NOT NULL DEFAULT 0,
+  `users_with_errors` int UNSIGNED NOT NULL DEFAULT 0,
+  `publications_fetched` int UNSIGNED NOT NULL DEFAULT 0,
+  `publications_created` int UNSIGNED NOT NULL DEFAULT 0,
+  `publications_updated` int UNSIGNED NOT NULL DEFAULT 0,
+  `publications_failed` int UNSIGNED NOT NULL DEFAULT 0,
+  `created_at` datetime NOT NULL DEFAULT current_timestamp(),
+  `updated_at` datetime NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `deleted_at` datetime DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `idx_scholar_import_runs_status` (`status`),
+  KEY `idx_scholar_import_runs_started_at` (`started_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+
+--
 -- Table structure for table `user_sessions`
 --
 
