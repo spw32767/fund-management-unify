@@ -972,6 +972,9 @@ export const publicationsAPI = {
     const res = await apiClient.post('/admin/user-publications/import/scholar/all');
     return res.summary || res;
   },
+  async getScholarImportRuns(params = {}) {
+    return apiClient.get('/admin/user-publications/import/scholar/runs', params);
+  },
 };
 
 export const usersAPI = {
