@@ -330,6 +330,7 @@ export default function AdminPublicationsImport() {
               <thead className="bg-gray-50">
                 <tr>
                   <th className="px-3 py-2 text-left font-semibold text-gray-700">run_id</th>
+                  <th className="px-3 py-2 text-left font-semibold text-gray-700">trigger_source</th>
                   <th className="px-3 py-2 text-left font-semibold text-gray-700">started_at</th>
                   <th className="px-3 py-2 text-left font-semibold text-gray-700">finished_at</th>
                   <th className="px-3 py-2 text-left font-semibold text-gray-700">status</th>
@@ -342,7 +343,7 @@ export default function AdminPublicationsImport() {
               <tbody className="divide-y divide-gray-200 bg-white">
                 {runs.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="px-3 py-6 text-center text-sm text-gray-500">
+                    <td colSpan={9} className="px-3 py-6 text-center text-sm text-gray-500">
                       ไม่มีประวัติการนำเข้า
                     </td>
                   </tr>
@@ -355,6 +356,7 @@ export default function AdminPublicationsImport() {
                     return (
                       <tr key={run.id || run.run_id} className="hover:bg-slate-50">
                         <td className="px-3 py-2 whitespace-nowrap text-gray-900">{run.id ?? run.run_id ?? "-"}</td>
+                        <td className="px-3 py-2 whitespace-nowrap text-gray-700">{run.trigger_source || "-"}</td>
                         <td className="px-3 py-2 whitespace-nowrap text-gray-700">{formatDateTime(run.started_at)}</td>
                         <td className="px-3 py-2 whitespace-nowrap text-gray-700">{formatDateTime(run.finished_at)}</td>
                         <td className="px-3 py-2 whitespace-nowrap text-gray-900 font-medium">{statusText}</td>
