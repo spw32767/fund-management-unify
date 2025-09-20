@@ -9,6 +9,8 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -86,25 +88,76 @@ func GetAnnouncement(c *gin.Context) {
 	})
 }
 
-// CreateAnnouncement - สร้างประกาศใหม่ (Admin only)
+// CreateAnnouncement - สร้างประกาศ (Admin only)
+// CreateAnnouncement - สร้างประกาศ (บันทึกไฟล์ที่ uploads/announcements ชื่อเดิม)
 func CreateAnnouncement(c *gin.Context) {
-	// Check admin role
-	roleID, exists := c.Get("roleID")
-	if !exists || roleID.(int) != 3 {
+	roleID, ok := c.Get("roleID")
+	if !ok || roleID.(int) != 3 {
 		c.JSON(http.StatusForbidden, gin.H{"error": "Admin access required"})
 		return
 	}
-
 	userID, _ := c.Get("userID")
 
-	// Parse form data
+	// bind + merge ค่า form เสมอ (เผื่อ multipart)
 	var req models.AnnouncementCreateRequest
-	if err := c.ShouldBind(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
+	_ = c.ShouldBind(&req)
+	pf := func(k string) string { return strings.TrimSpace(c.PostForm(k)) }
+	if v := pf("title"); v != "" {
+		req.Title = v
+	}
+	if v := c.PostForm("description"); v != "" {
+		req.Description = &v
+	}
+	if v := pf("announcement_type"); v != "" {
+		req.AnnouncementType = v
+	}
+	if v := pf("priority"); v != "" {
+		req.Priority = v
+	}
+	if v := pf("status"); v != "" {
+		req.Status = v
+	}
+	if v := pf("announcement_reference_number"); v != "" {
+		req.AnnouncementReferenceNumber = &v
+	}
+	if v := pf("year_id"); v != "" {
+		if iv, err := strconv.Atoi(v); err == nil {
+			req.YearID = &iv
+		}
+	}
+	if v := pf("display_order"); v != "" {
+		if iv, err := strconv.Atoi(v); err == nil {
+			req.DisplayOrder = &iv
+		}
+	}
+	if v := pf("published_at"); v != "" {
+		if t, err := time.Parse(time.RFC3339, v); err == nil {
+			req.PublishedAt = &t
+		}
+	}
+	if v := pf("expired_at"); v != "" {
+		if t, err := time.Parse(time.RFC3339, v); err == nil {
+			req.ExpiredAt = &t
+		}
 	}
 
-	// Handle file upload
+	// validate minimum
+	if strings.TrimSpace(req.Title) == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "title is required"})
+		return
+	}
+	if req.AnnouncementType == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "announcement_type is required"})
+		return
+	}
+	if req.Priority == "" {
+		req.Priority = "normal"
+	}
+	if req.Status == "" {
+		req.Status = "active"
+	}
+
+	// ไฟล์ (จำเป็น)
 	file, header, err := c.Request.FormFile("file")
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "File is required"})
@@ -112,87 +165,69 @@ func CreateAnnouncement(c *gin.Context) {
 	}
 	defer file.Close()
 
-	// Validate file type
-	allowedTypes := map[string]bool{
-		"application/pdf":    true,
-		"application/msword": true,
-		"application/vnd.openxmlformats-officedocument.wordprocessingml.document": true,
-		"application/vnd.ms-excel": true,
-		"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": true,
-		"image/jpeg": true,
-		"image/png":  true,
-	}
-
-	contentType := header.Header.Get("Content-Type")
-	if !allowedTypes[contentType] {
+	// ตรวจชนิด/ขนาดตามที่อนุญาต
+	ct := header.Header.Get("Content-Type")
+	if ct != "application/pdf" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "File type not allowed"})
 		return
 	}
-
-	// Validate file size (10MB max)
-	if header.Size > 10*1024*1024 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "File size exceeds 10MB limit"})
+	if header.Size > 20*1024*1024 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "File size exceeds 20MB limit"})
 		return
 	}
 
-	// Create upload directory
-	uploadDir := fmt.Sprintf("uploads/announcements/%d/%02d", time.Now().Year(), time.Now().Month())
+	// ==== จุดสำคัญ: โฟลเดอร์ + ชื่อไฟล์ ====
+	uploadDir := "uploads/announcements" // ไม่แยกปี/เดือน
 	if err := os.MkdirAll(uploadDir, 0755); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create upload directory"})
 		return
 	}
+	// ใช้ชื่อไฟล์เดิม (sanitize กันอักขระต้องห้าม) — ไม่มี timestamp
+	safeName := utils.SanitizeFilename(header.Filename)
+	dstPath := filepath.Join(uploadDir, safeName)
 
-	// Generate unique filename
-	ext := filepath.Ext(header.Filename)
-	timestamp := time.Now().Format("20060102_150405")
-	safeTitle := utils.SanitizeFilename(req.Title)
-	filename := fmt.Sprintf("%s_%s%s", safeTitle, timestamp, ext)
-	filePath := filepath.Join(uploadDir, filename)
+	// ถ้าไฟล์ปลายทางมีอยู่แล้ว: เขียนทับ (ลบไฟล์เก่าก่อนเพื่อความชัวร์)
+	if _, statErr := os.Stat(dstPath); statErr == nil {
+		_ = os.Remove(dstPath)
+	}
 
-	// Save file
-	if err := c.SaveUploadedFile(header, filePath); err != nil {
+	if err := c.SaveUploadedFile(header, dstPath); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save file"})
 		return
 	}
 
-	// Create announcement record
 	now := time.Now()
-	announcement := models.Announcement{
-		Title:            req.Title,
-		Description:      req.Description,
-		FileName:         header.Filename,
-		FilePath:         filePath,
-		FileSize:         &header.Size,
-		MimeType:         &contentType,
-		AnnouncementType: req.AnnouncementType,
-		Priority:         utils.DefaultString(req.Priority, "normal"),
-		DisplayOrder:     req.DisplayOrder, // <<-- เพิ่มบรรทัดนี้
-		Status:           utils.DefaultString(req.Status, "active"),
-		PublishedAt:      req.PublishedAt,
-		ExpiredAt:        req.ExpiredAt,
-		CreatedBy:        userID.(int),
-		CreateAt:         now,
-		UpdateAt:         now,
-
-		// ✅ ใส่ year_id และเลขอ้างอิงตอนสร้างด้วย
+	ann := models.Announcement{
+		Title:                       req.Title,
+		Description:                 req.Description,
+		FileName:                    safeName, // ใช้ชื่อเดิม
+		FilePath:                    dstPath,  // เก็บ relative path
+		FileSize:                    &header.Size,
+		MimeType:                    &ct,
+		AnnouncementType:            req.AnnouncementType,
+		Priority:                    req.Priority,
+		DisplayOrder:                req.DisplayOrder,
+		Status:                      req.Status,
+		PublishedAt:                 req.PublishedAt,
+		ExpiredAt:                   req.ExpiredAt,
 		YearID:                      req.YearID,
 		AnnouncementReferenceNumber: req.AnnouncementReferenceNumber,
+		CreatedBy:                   userID.(int),
+		CreateAt:                    now,
+		UpdateAt:                    now,
 	}
 
-	if err := config.DB.Create(&announcement).Error; err != nil {
-		// Remove uploaded file if database insert fails
-		os.Remove(filePath)
+	if err := config.DB.Create(&ann).Error; err != nil {
+		_ = os.Remove(dstPath)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create announcement"})
 		return
 	}
 
-	// Load creator info for response
-	config.DB.Preload("Creator").First(&announcement, announcement.AnnouncementID)
-
+	config.DB.Preload("Creator").Preload("Year").First(&ann, ann.AnnouncementID)
 	c.JSON(http.StatusCreated, gin.H{
 		"success": true,
 		"message": "Announcement created successfully",
-		"data":    announcement.ToResponse(),
+		"data":    ann.ToResponse(),
 	})
 }
 
@@ -229,51 +264,42 @@ func UpdateAnnouncement(c *gin.Context) {
 	if err == nil {
 		defer file.Close()
 
-		allowedTypes := map[string]bool{
-			"application/pdf":    true,
-			"application/msword": true,
-			"application/vnd.openxmlformats-officedocument.wordprocessingml.document": true,
-			"application/vnd.ms-excel": true,
-			"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": true,
-			"image/jpeg": true,
-			"image/png":  true,
-		}
-		contentType := header.Header.Get("Content-Type")
-		if !allowedTypes[contentType] {
+		// validate ชนิด/ขนาด
+		ct := header.Header.Get("Content-Type")
+		if ct != "application/pdf" {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "File type not allowed"})
 			return
 		}
-		if header.Size > 10*1024*1024 {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "File size exceeds 10MB limit"})
+		if header.Size > 20*1024*1024 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "File size exceeds 20MB limit"})
 			return
 		}
 
-		uploadDir := fmt.Sprintf("uploads/announcements/%d/%02d", time.Now().Year(), time.Now().Month())
+		// ==== จุดสำคัญ: โฟลเดอร์ + ชื่อไฟล์ ====
+		uploadDir := "uploads/announcements" // ไม่แยกปี/เดือน
 		if err := os.MkdirAll(uploadDir, 0755); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create upload directory"})
 			return
 		}
+		safeName := utils.SanitizeFilename(header.Filename)
+		dstPath := filepath.Join(uploadDir, safeName)
 
-		ext := filepath.Ext(header.Filename)
-		timestamp := time.Now().Format("20060102_150405")
-		title := announcement.Title
-		if req.Title != nil {
-			title = *req.Title
+		// ถ้าไฟล์ปลายทางมีอยู่แล้ว ให้ลบทิ้งเพื่อเขียนทับ
+		if _, statErr := os.Stat(dstPath); statErr == nil {
+			_ = os.Remove(dstPath)
 		}
-		safeTitle := utils.SanitizeFilename(title)
-		filename := fmt.Sprintf("%s_%s%s", safeTitle, timestamp, ext)
-		newFilePath = filepath.Join(uploadDir, filename)
-
-		if err := c.SaveUploadedFile(header, newFilePath); err != nil {
+		if err := c.SaveUploadedFile(header, dstPath); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save file"})
 			return
 		}
 
+		// อัปเดตฟิลด์ไฟล์ใน record
 		oldFilePath = announcement.FilePath
-		announcement.FileName = header.Filename
-		announcement.FilePath = newFilePath
+		newFilePath = dstPath
+		announcement.FileName = safeName
+		announcement.FilePath = dstPath
 		announcement.FileSize = &header.Size
-		announcement.MimeType = &contentType
+		announcement.MimeType = &ct
 	}
 
 	// ---- อัปเดตฟิลด์ตาม request ----
@@ -321,8 +347,8 @@ func UpdateAnnouncement(c *gin.Context) {
 		return
 	}
 
-	if oldFilePath != "" && newFilePath != "" {
-		os.Remove(oldFilePath)
+	if oldFilePath != "" && newFilePath != "" && oldFilePath != newFilePath {
+		_ = os.Remove(oldFilePath)
 	}
 
 	config.DB.Preload("Creator").Preload("Year").First(&announcement, announcement.AnnouncementID)
@@ -534,24 +560,82 @@ func GetFundForm(c *gin.Context) {
 	})
 }
 
-// CreateFundForm - สร้างแบบฟอร์มใหม่ (Admin only)
+// CreateFundForm - สร้างแบบฟอร์ม (ไฟล์อยู่ uploads/fund_forms ชื่อเดิม)
 func CreateFundForm(c *gin.Context) {
-	// ตรวจสิทธิ์แอดมิน
-	roleID, exists := c.Get("roleID")
-	if !exists || roleID.(int) != 3 {
+	// 1) ตรวจสิทธิ์
+	roleID, ok := c.Get("roleID")
+	if !ok || roleID.(int) != 3 {
 		c.JSON(http.StatusForbidden, gin.H{"error": "Admin access required"})
 		return
 	}
 	userID, _ := c.Get("userID")
 
-	// bind ตามสคีมา (รองรับ multipart/json ผ่าน ShouldBind)
+	// 2) Bind + merge จาก PostForm (รองรับ multipart)
 	var req models.FundFormCreateRequest
-	if err := c.ShouldBind(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+	_ = c.ShouldBind(&req)
+	pf := func(k string) string { return strings.TrimSpace(c.PostForm(k)) }
+
+	if v := pf("title"); v != "" {
+		req.Title = v
+	}
+	if v := c.PostForm("description"); v != "" {
+		req.Description = &v
+	}
+	if v := pf("form_type"); v != "" {
+		req.FormType = v
+	}
+	if v := pf("fund_category"); v != "" {
+		req.FundCategory = v
+	}
+	if v := pf("is_required"); v != "" {
+		b := v == "1" || strings.EqualFold(v, "true")
+		req.IsRequired = &b
+	}
+	if v := pf("display_order"); v != "" {
+		if iv, err := strconv.Atoi(v); err == nil {
+			req.DisplayOrder = &iv
+		}
+	}
+	if v := pf("status"); v != "" {
+		req.Status = v
+	}
+	if v := pf("year_id"); v != "" {
+		if iv, err := strconv.Atoi(v); err == nil {
+			req.YearID = &iv
+		}
+	}
+
+	// 3) Validate ตามสคีมาจริง
+	if strings.TrimSpace(req.Title) == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "title is required"})
+		return
+	}
+	if req.FormType == "" {
+		req.FormType = "application"
+	} else {
+		allowedFT := map[string]bool{"application": true, "report": true, "evaluation": true, "guidelines": true, "other": true}
+		if !allowedFT[req.FormType] {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid form_type"})
+			return
+		}
+	}
+	if req.FundCategory == "" {
+		req.FundCategory = "both"
+	} else {
+		allowedFC := map[string]bool{"research_fund": true, "promotion_fund": true, "both": true}
+		if !allowedFC[req.FundCategory] {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid fund_category"})
+			return
+		}
+	}
+	if req.Status == "" {
+		req.Status = "active"
+	} else if req.Status != "active" && req.Status != "inactive" && req.Status != "archived" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid status"})
 		return
 	}
 
-	// รับไฟล์ (required)
+	// 4) รับไฟล์ (บังคับ)
 	file, header, err := c.Request.FormFile("file")
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "File is required"})
@@ -559,8 +643,7 @@ func CreateFundForm(c *gin.Context) {
 	}
 	defer file.Close()
 
-	// ตรวจชนิด/ขนาด
-	allowed := map[string]bool{
+	allowedCT := map[string]bool{
 		"application/pdf":    true,
 		"application/msword": true,
 		"application/vnd.openxmlformats-officedocument.wordprocessingml.document": true,
@@ -568,7 +651,7 @@ func CreateFundForm(c *gin.Context) {
 		"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": true,
 	}
 	ct := header.Header.Get("Content-Type")
-	if !allowed[ct] {
+	if !allowedCT[ct] {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "File type not allowed"})
 		return
 	}
@@ -577,97 +660,111 @@ func CreateFundForm(c *gin.Context) {
 		return
 	}
 
-	// โฟลเดอร์ตามหมวดหมู่ (research_fund/promotion_fund/both)
-	fcat := req.FundCategory
-	if fcat == "" {
-		fcat = "both"
-	}
-	uploadDir := fmt.Sprintf("uploads/fund_forms/%s", fcat)
+	// 5) โฟลเดอร์ปลายทาง + ชื่อไฟล์เดิม (sanitize) — ไม่มี timestamp
+	uploadDir := "uploads/fund_forms"
 	if err := os.MkdirAll(uploadDir, 0755); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create upload directory"})
 		return
 	}
+	safeName := utils.SanitizeFilename(header.Filename)
+	dstPath := filepath.Join(uploadDir, safeName)
 
-	// ตั้งชื่อไฟล์ปลอดภัย + เวลา
-	ext := filepath.Ext(header.Filename)
-	timestamp := time.Now().Format("20060102_150405")
-	safeTitle := utils.SanitizeFilename(req.Title)
-	filename := fmt.Sprintf("%s_%s%s", safeTitle, timestamp, ext)
-	filePath := filepath.Join(uploadDir, filename)
-
-	if err := c.SaveUploadedFile(header, filePath); err != nil {
+	// ถ้ามีไฟล์ชื่อซ้ำ ให้ลบทิ้งก่อนเพื่อเขียนทับ
+	if _, statErr := os.Stat(dstPath); statErr == nil {
+		_ = os.Remove(dstPath)
+	}
+	if err := c.SaveUploadedFile(header, dstPath); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save file"})
 		return
 	}
 
+	// 6) เขียน DB
 	now := time.Now()
 	form := models.FundForm{
-		Title:        req.Title,
-		Description:  req.Description,
-		FileName:     header.Filename,
-		FilePath:     filePath,
-		FileSize:     &header.Size,
-		MimeType:     &ct,
-		FormType:     utils.DefaultString(req.FormType, "application"),
-		FundCategory: fcat,
-
-		// ตามสคีมา
-		IsRequired:   req.IsRequired, // ← *bool ตรงกับ model, ไม่ต้องดึง *
-		DisplayOrder: req.DisplayOrder,
-		Status:       utils.DefaultString(req.Status, "active"),
-		YearID:       req.YearID,
-
+		Title:         req.Title,
+		Description:   req.Description,
+		FileName:      safeName,
+		FilePath:      dstPath,
+		FileSize:      &header.Size,
+		MimeType:      &ct,
+		FormType:      req.FormType,
+		FundCategory:  req.FundCategory,
+		IsRequired:    req.IsRequired,
+		DisplayOrder:  req.DisplayOrder,
+		Status:        req.Status,
+		YearID:        req.YearID,
 		DownloadCount: 0,
 		CreatedBy:     userID.(int),
 		CreateAt:      now,
 		UpdateAt:      now,
 	}
-
 	if err := config.DB.Create(&form).Error; err != nil {
-		_ = os.Remove(filePath) // rollback ไฟล์
+		_ = os.Remove(dstPath)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create fund form"})
 		return
 	}
 
 	config.DB.Preload("Creator").Preload("Year").First(&form, form.FormID)
-	c.JSON(http.StatusCreated, gin.H{
-		"success": true,
-		"message": "Fund form created successfully",
-		"data":    form.ToResponse(),
-	})
+	c.JSON(http.StatusCreated, gin.H{"success": true, "message": "Fund form created successfully", "data": form.ToResponse()})
 }
 
-// UpdateFundForm - แก้ไขแบบฟอร์ม (Admin only)
+// UpdateFundForm - แทนที่ไฟล์/แก้เมทาดาทา (ไฟล์อยู่ uploads/fund_forms ชื่อเดิม)
 func UpdateFundForm(c *gin.Context) {
-	// ตรวจสิทธิ์แอดมิน
-	roleID, exists := c.Get("roleID")
-	if !exists || roleID.(int) != 3 {
+	// 1) ตรวจสิทธิ์
+	roleID, ok := c.Get("roleID")
+	if !ok || roleID.(int) != 3 {
 		c.JSON(http.StatusForbidden, gin.H{"error": "Admin access required"})
 		return
 	}
 
 	id := c.Param("id")
-
 	var form models.FundForm
-	if err := config.DB.Where("form_id = ? AND delete_at IS NULL", id).
-		First(&form).Error; err != nil {
+	if err := config.DB.Where("form_id = ? AND delete_at IS NULL", id).First(&form).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Fund form not found"})
 		return
 	}
 
+	// 2) Bind + merge
 	var req models.FundFormUpdateRequest
-	if err := c.ShouldBind(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
+	_ = c.ShouldBind(&req)
+	pf := func(k string) string { return strings.TrimSpace(c.PostForm(k)) }
+	if v := pf("title"); v != "" {
+		req.Title = &v
+	}
+	if v := c.PostForm("description"); v != "" {
+		req.Description = &v
+	}
+	if v := pf("form_type"); v != "" {
+		req.FormType = &v
+	}
+	if v := pf("fund_category"); v != "" {
+		req.FundCategory = &v
+	}
+	if v := pf("is_required"); v != "" {
+		b := v == "1" || strings.EqualFold(v, "true")
+		req.IsRequired = &b
+	}
+	if v := pf("display_order"); v != "" {
+		if iv, err := strconv.Atoi(v); err == nil {
+			req.DisplayOrder = &iv
+		}
+	}
+	if v := pf("status"); v != "" {
+		req.Status = &v
+	}
+	if v := pf("year_id"); v != "" {
+		if iv, err := strconv.Atoi(v); err == nil {
+			req.YearID = &iv
+		}
 	}
 
-	// (อัปไฟล์ใหม่ถ้ามี)
+	// 3) (ถ้ามีไฟล์ใหม่) → เซฟลง uploads/fund_forms ด้วยชื่อเดิม
 	file, header, err := c.Request.FormFile("file")
 	var newPath, oldPath string
 	if err == nil {
 		defer file.Close()
 
-		allowed := map[string]bool{
+		allowedCT := map[string]bool{
 			"application/pdf":    true,
 			"application/msword": true,
 			"application/vnd.openxmlformats-officedocument.wordprocessingml.document": true,
@@ -675,7 +772,7 @@ func UpdateFundForm(c *gin.Context) {
 			"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": true,
 		}
 		ct := header.Header.Get("Content-Type")
-		if !allowed[ct] {
+		if !allowedCT[ct] {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "File type not allowed"})
 			return
 		}
@@ -684,40 +781,31 @@ func UpdateFundForm(c *gin.Context) {
 			return
 		}
 
-		// ใช้ fund_category ที่จะเป็นค่าหลังอัปเดต (ถ้ามี)
-		targetCat := form.FundCategory
-		if req.FundCategory != nil && *req.FundCategory != "" {
-			targetCat = *req.FundCategory
-		}
-		uploadDir := fmt.Sprintf("uploads/fund_forms/%s", targetCat)
+		uploadDir := "uploads/fund_forms"
 		if err := os.MkdirAll(uploadDir, 0755); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create upload directory"})
 			return
 		}
+		safeName := utils.SanitizeFilename(header.Filename)
+		dstPath := filepath.Join(uploadDir, safeName)
 
-		ext := filepath.Ext(header.Filename)
-		timestamp := time.Now().Format("20060102_150405")
-		ttl := form.Title
-		if req.Title != nil && *req.Title != "" {
-			ttl = *req.Title
+		if _, statErr := os.Stat(dstPath); statErr == nil {
+			_ = os.Remove(dstPath)
 		}
-		safeTitle := utils.SanitizeFilename(ttl)
-		filename := fmt.Sprintf("%s_%s%s", safeTitle, timestamp, ext)
-		newPath = filepath.Join(uploadDir, filename)
-
-		if err := c.SaveUploadedFile(header, newPath); err != nil {
+		if err := c.SaveUploadedFile(header, dstPath); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save file"})
 			return
 		}
 
 		oldPath = form.FilePath
-		form.FileName = header.Filename
-		form.FilePath = newPath
+		newPath = dstPath
+		form.FileName = safeName
+		form.FilePath = dstPath
 		form.FileSize = &header.Size
 		form.MimeType = &ct
 	}
 
-	// อัปเดตฟิลด์ตาม req (เฉพาะที่มีในตารางจริง)
+	// 4) อัปเดตเมทาดาทาตามที่ส่งมา
 	now := time.Now()
 	if req.Title != nil {
 		form.Title = *req.Title
@@ -732,18 +820,17 @@ func UpdateFundForm(c *gin.Context) {
 		form.FundCategory = *req.FundCategory
 	}
 	if req.IsRequired != nil {
-		form.IsRequired = req.IsRequired // ← แก้ประเด็น type: *bool ไป *bool
+		form.IsRequired = req.IsRequired
 	}
 	if req.DisplayOrder != nil {
 		form.DisplayOrder = req.DisplayOrder
 	}
 	if req.Status != nil {
-		form.Status = *req.Status // ค่าจาก oneof: active/inactive/archived
+		form.Status = *req.Status
 	}
 	if req.YearID != nil {
 		form.YearID = req.YearID
 	}
-
 	form.UpdateAt = now
 
 	if err := config.DB.Save(&form).Error; err != nil {
@@ -753,16 +840,12 @@ func UpdateFundForm(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update fund form"})
 		return
 	}
-	if oldPath != "" && newPath != "" {
+	if oldPath != "" && newPath != "" && oldPath != newPath {
 		_ = os.Remove(oldPath)
 	}
 
 	config.DB.Preload("Creator").Preload("Year").First(&form, form.FormID)
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"message": "Fund form updated successfully",
-		"data":    form.ToResponse(),
-	})
+	c.JSON(http.StatusOK, gin.H{"success": true, "message": "Fund form updated successfully", "data": form.ToResponse()})
 }
 
 // DeleteFundForm - ลบแบบฟอร์ม (Admin only)
