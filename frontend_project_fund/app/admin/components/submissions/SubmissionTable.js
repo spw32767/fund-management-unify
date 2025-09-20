@@ -168,6 +168,13 @@ export default function SubmissionTable({
 
   const getDisplayDate = (s) => s?.display_date || s?.submitted_at || s?.created_at;
 
+  const makeRowKey = (s) => {
+    const id = s?.submission_id ?? s?.id ?? 'na';
+    const type = s?.submission_type || s?.form_type || 'general';
+    const ts = s?.updated_at || s?.created_at || s?.submitted_at || '';
+    return `${type}:${id}:${ts}`;
+  };
+
   // ---------- UI states ----------
   if (loading) {
     return (
@@ -274,7 +281,7 @@ export default function SubmissionTable({
             const author = getAuthorName(s);
 
             return (
-              <tr key={s.submission_id || s.id} className="hover:bg-gray-50 transition-colors duration-150">
+              <tr key={makeRowKey(s)} className="hover:bg-gray-50 transition-colors duration-150">
                 {/* เลขที่คำร้อง */}
                 <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                   {s.submission_number || s.id || '-'}
