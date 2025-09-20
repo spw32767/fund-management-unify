@@ -29,7 +29,8 @@ import Card from '../common/Card';
 import { toast } from 'react-hot-toast';
 import StatusBadge from '@/app/admin/components/common/StatusBadge';
 
-import apiClient from '@/app/lib/api';
+import apiClient from "@/app/lib/api";
+import { adminAnnouncementAPI } from "@/app/lib/admin_announcement_api";
 import { adminSubmissionAPI } from '@/app/lib/admin_submission_api';
 import { rewardConfigAPI } from '@/app/lib/publication_api';
 import adminAPI from '@/app/lib/admin_api';
@@ -896,6 +897,10 @@ export default function PublicationSubmissionDetails({ submissionId, onBack }) {
   const [submission, setSubmission] = useState(null);
   const [activeTab, setActiveTab] = useState('details');
 
+  // >>> Add for mapped announcements
+  const [mainAnn, setMainAnn] = useState(null);      // object จาก announcements/:id
+  const [rewardAnn, setRewardAnn] = useState(null);  // object จาก announcements/:id
+
   // Add: resolved fund names
   const [fundNames, setFundNames] = useState({ category: null, subcategory: null });
   const [fundNamesLoading, setFundNamesLoading] = useState(false);
@@ -1152,6 +1157,116 @@ export default function PublicationSubmissionDetails({ submissionId, onBack }) {
   const showRevisionRequestedRow    = hasSharedCap || reqRevision > 0 || hasRevisionApproved;
   const showPublicationRequestedRow = hasSharedCap || reqPublication > 0 || hasPublicationApproved;
 
+  function getFileURL(filePath) {
+    if (!filePath) return "#";
+    // ถ้าเป็น absolute (http/https) ใช้ได้เลย
+    if (/^https?:\/\//i.test(filePath)) return filePath;
+    // ต่อกับ BASE ของ backend (ตัด /api/v1 ทิ้งก่อน)
+    const base = apiClient.baseURL.replace(/\/?api\/v1$/, "");
+    return new URL(filePath, base).href;
+  }
+
+  useEffect(() => {
+    const detail =
+      submission?.PublicationRewardDetail ||
+      submission?.publication_reward_detail ||
+      submission?.details?.data?.publication_reward_detail ||
+      submission?.details?.data ||
+      null;
+
+    if (!detail) return;
+
+    const mainId = detail?.main_annoucement;
+    const rewardId = detail?.reward_announcement;
+
+    let cancelled = false;
+    (async () => {
+      try {
+        if (mainId) {
+          const res = await adminAnnouncementAPI.get(mainId);       // <— เปลี่ยนมาใช้ตัวนี้
+          // รองรับได้ทั้ง {announcement} / {data} / ตรง ๆ
+          const parsed = res?.announcement || res?.data || res || null;
+          if (!cancelled) setMainAnn(parsed);
+        } else {
+          setMainAnn(null);
+        }
+
+        if (rewardId) {
+          const res2 = await adminAnnouncementAPI.get(rewardId);    // <— และตัวนี้
+          const parsed2 = res2?.announcement || res2?.data || res2 || null;
+          if (!cancelled) setRewardAnn(parsed2);
+        } else {
+          setRewardAnn(null);
+        }
+      } catch (e) {
+        console.warn("Load announcements failed:", e);
+        if (!cancelled) { setMainAnn(null); setRewardAnn(null); }
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [
+    submission?.PublicationRewardDetail,
+    submission?.publication_reward_detail,
+    submission?.details?.data,
+  ]);
+
+  const handleViewAnnouncement = async (id, annObj) => {
+    // เปิดแท็บก่อน เพื่อให้ยังเป็น user-gesture (กัน popup-blocker)
+    const win = window.open('about:blank', '_blank', 'noopener,noreferrer');
+
+    // helper: fetch แล้วเปิดเป็น blob (มี Authorization)
+    const openAsBlob = async (url) => {
+      const token = apiClient.getToken();
+      const resp = await fetch(url, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
+      });
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const blob = await resp.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      if (win) win.location = blobUrl; else window.open(blobUrl, '_blank', 'noopener,noreferrer');
+      setTimeout(() => { try { URL.revokeObjectURL(blobUrl); } catch {} }, 60000);
+    };
+
+    try {
+      if (id) {
+        // 1) ลอง /view ก่อน (ดูในแท็บ)
+        await openAsBlob(`${apiClient.baseURL}/announcements/${id}/view`);
+        return;
+      }
+    } catch (e) {
+      console.warn('view failed, try download:', e);
+    }
+
+    try {
+      if (id) {
+        // 2) fallback: /download
+        await openAsBlob(`${apiClient.baseURL}/announcements/${id}/download`);
+        return;
+      }
+    } catch (e) {
+      console.warn('download failed, try file_path:', e);
+    }
+
+    // 3) สุดท้ายค่อยลอง file_path (หลีกเลี่ยง http บน https)
+    const raw = annObj?.file_path;
+    if (raw) {
+      if (/^https:\/\//i.test(raw)) {
+        window.open(raw, '_blank', 'noopener,noreferrer');
+      } else {
+        // ถ้าเป็น http อาจโดน block — แจ้งเตือนผู้ใช้ไว้
+        toast.error('ไม่สามารถเปิดไฟล์ผ่านลิงก์ภายนอก (http) ได้บนหน้า https');
+        if (win) win.close();
+      }
+      return;
+    }
+
+    if (win) win.close();
+    toast.error('ไม่พบไฟล์ประกาศ');
+  };
+
+
+
   // File actions
   const handleView = async (fileId) => {
     try {
@@ -1280,8 +1395,10 @@ export default function PublicationSubmissionDetails({ submissionId, onBack }) {
 
   // Admin actions → API wiring
   const approve = async (payload) => {
-    await adminSubmissionAPI.approveSubmission(submission.submission_id, { ...payload });
-    // reload
+    // ส่งตัวเลขอนุมัติ + หมายเลขอ้างอิงประกาศ ไปในคำสั่งอนุมัติครั้งเดียว
+    await adminSubmissionAPI.approveSubmission(submission.submission_id, payload);
+
+    // reload รายละเอียดเพื่อให้ได้ approved_at / approved_by / announce_reference_number ล่าสุด
     const res = await adminSubmissionAPI.getSubmissionDetails(submission.submission_id);
     let data = res?.submission || res;
     if (res?.submission_users) data.submission_users = res.submission_users;
@@ -1334,6 +1451,77 @@ export default function PublicationSubmissionDetails({ submissionId, onBack }) {
       })();
     }
   }, [submission, pubDetail, fundNames.subcategory, fundNamesLoading]);
+
+  useEffect(() => {
+    const detail =
+      submission?.PublicationRewardDetail ||
+      submission?.publication_reward_detail ||
+      submission?.details?.data?.publication_reward_detail ||
+      submission?.details?.data ||
+      null;
+
+    if (!detail) {
+      console.log('[DEBUG] no detail yet, skip fetch announcements');
+      return;
+    }
+
+    const mainId = detail?.main_annoucement;
+    const rewardId = detail?.reward_announcement;
+
+    console.log('[DEBUG] will fetch announcements with ids =', { mainId, rewardId });
+
+    let cancelled = false;
+    (async () => {
+      try {
+        // โหลด Main
+        if (mainId) {
+          const res = await announcementAPI.getAnnouncement(mainId);
+          console.log('[DEBUG] getAnnouncement(main) raw res =', res);
+          // รองรับหลากหลายทรง response
+          const parsed =
+            res?.announcement ||      // { announcement: {...} }
+            res?.data?.announcement ||// { data: { announcement: {...} } }
+            res?.data ||              // { data: {...} }
+            res;                      // {...}
+          if (!cancelled) {
+            setMainAnn(parsed || null);
+            console.log('[DEBUG] setMainAnn =', parsed);
+          }
+        } else {
+          setMainAnn(null);
+        }
+
+        // โหลด Reward
+        if (rewardId) {
+          const res2 = await announcementAPI.getAnnouncement(rewardId);
+          console.log('[DEBUG] getAnnouncement(reward) raw res =', res2);
+          const parsed2 =
+            res2?.announcement ||
+            res2?.data?.announcement ||
+            res2?.data ||
+            res2;
+          if (!cancelled) {
+            setRewardAnn(parsed2 || null);
+            console.log('[DEBUG] setRewardAnn =', parsed2);
+          }
+        } else {
+          setRewardAnn(null);
+        }
+      } catch (e) {
+        console.warn('[DEBUG] Load announcements failed:', e);
+        if (!cancelled) {
+          setMainAnn(null);
+          setRewardAnn(null);
+        }
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [
+    submission?.PublicationRewardDetail,
+    submission?.publication_reward_detail,
+    submission?.details?.data,
+  ]);
 
   if (loading) {
     return (
@@ -1459,6 +1647,46 @@ export default function PublicationSubmissionDetails({ submissionId, onBack }) {
                   <span className="font-medium break-all">
                     {pubDetail.announce_reference_number}
                   </span>
+                </div>
+              )}
+
+              {/* ประกาศหลักเกณฑ์ (Main Announcement) */}
+              {(mainAnn || pubDetail?.main_annoucement) && (
+                <div className="flex items-start gap-2">
+                  <span className="text-gray-500 shrink-0">ประกาศหลักเกณฑ์:</span>
+                  {mainAnn?.file_path ? (
+                    <a
+                      href={getFileURL(mainAnn.file_path)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-blue-600 hover:underline break-all cursor-pointer pointer-events-auto relative z-10"
+                      title={mainAnn?.title || mainAnn?.file_name || 'เปิดไฟล์ประกาศ'}
+                    >
+                      {mainAnn?.title || mainAnn?.file_name || `#${pubDetail?.main_annoucement}`}
+                    </a>
+                  ) : (
+                    <span className="text-gray-400">-</span>
+                  )}
+                </div>
+              )}
+
+              {/* ประกาศเงินรางวัล (Reward Announcement) */}
+              {(rewardAnn || pubDetail?.reward_announcement) && (
+                <div className="flex items-start gap-2">
+                  <span className="text-gray-500 shrink-0">ประกาศเงินรางวัล:</span>
+                  {rewardAnn?.file_path ? (
+                    <a
+                      href={getFileURL(rewardAnn.file_path)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-blue-600 hover:underline break-all cursor-pointer pointer-events-auto relative z-10"
+                      title={rewardAnn?.title || rewardAnn?.file_name || 'เปิดไฟล์ประกาศ'}
+                    >
+                      {rewardAnn?.title || rewardAnn?.file_name || `#${pubDetail?.reward_announcement}`}
+                    </a>
+                  ) : (
+                    <span className="text-gray-400">-</span>
+                  )}
                 </div>
               )}
             </div>

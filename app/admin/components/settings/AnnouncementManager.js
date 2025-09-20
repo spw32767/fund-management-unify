@@ -1,55 +1,38 @@
 "use client";
 
-import React, { useEffect, useMemo, useRef, useState } from "react";
-import {
-  Plus,
-  Edit,
-  Trash2,
-  Upload,
-  FileText,
-  ArrowUpDown,
-  ArrowUp,
-  ArrowDown,
-  Save,
-  X,
-  RefreshCw
-} from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { FileText, Eye, Download, Bell, BookOpen, Plus, Edit, Upload, Trash2, Save, X, GripVertical, RefreshCw } from "lucide-react";
 import Swal from "sweetalert2";
+import apiClient from "@/app/lib/api";
+import { adminAnnouncementAPI, adminFundFormAPI } from "@/app/lib/admin_announcement_api";
+import { motion, AnimatePresence } from "framer-motion";
+import AnnouncementModal from "@/app/admin/components/settings/AnnouncementModal"; 
+import FundFormModal from "@/app/admin/components/settings/FundFormModal";
 
-import { adminAnnouncementAPI } from "@/app/lib/admin_announcement_api";
-
-/** ===== Helpers reused across settings pages ===== */
-function getAuthHeader() {
-  try {
-    const keys = ["access_token", "token", "auth_token", "Authorization"];
-    for (const k of keys) {
-      const v = typeof window !== "undefined" ? window.localStorage.getItem(k) : null;
-      if (v) return /^Bearer\s+/i.test(v) ? v : `Bearer ${v}`;
-    }
-    if (typeof document !== "undefined") {
-      const m = document.cookie.match(/(?:^|;\s*)(access_token|token|auth_token)=([^;]+)/i);
-      if (m) return `Bearer ${decodeURIComponent(m[2])}`;
-    }
-  } catch {}
-  return null;
+/** ========= Helpers ========= */
+function toast(icon, title) {
+  Swal.fire({ icon, title, timer: 1600, showConfirmButton: false });
 }
 
-function toISOOrNull(v) {
-  if (!v) return null;
-  try {
-    const d = new Date(v);
-    if (isNaN(d.getTime())) return null;
-    return d.toISOString();
-  } catch { return null; }
+async function confirm(text) {
+  const r = await Swal.fire({
+    icon: "question",
+    title: "ยืนยันการทำรายการ",
+    text,
+    showCancelButton: true,
+    confirmButtonText: "ยืนยัน",
+    cancelButtonText: "ยกเลิก",
+    reverseButtons: true,
+  });
+  return r.isConfirmed;
 }
 
 function fmtBytes(n) {
   const num = +n || 0;
-  if (num >= 1<<20) return (num / (1<<20)).toFixed(2) + " MB";
-  if (num >= 1<<10) return (num / (1<<10)).toFixed(2) + " KB";
+  if (num >= 1 << 20) return (num / (1 << 20)).toFixed(2) + " MB";
+  if (num >= 1 << 10) return (num / (1 << 10)).toFixed(2) + " KB";
   return num + " B";
 }
-
 function formatThaiDateTime(isoOrNull) {
   if (!isoOrNull) return "-";
   try {
@@ -62,62 +45,215 @@ function formatThaiDateTime(isoOrNull) {
       hour: "2-digit",
       minute: "2-digit",
     });
-  } catch { return "-"; }
+  } catch {
+    return "-";
+  }
 }
 
-const TYPE_OPTIONS = [
-  { value: "general", label: "ทั่วไป" },
-  { value: "research_fund", label: "ทุนวิจัย" },
-  { value: "promotion_fund", label: "ทุนส่งเสริม" },
-  { value: "fund_application", label: "รับสมัครทุน/แบบฟอร์ม" },
-];
-const STATUS_OPTIONS = [
-  { value: "active", label: "เผยแพร่" },
-  { value: "inactive", label: "ปิดเผยแพร่" },
-];
-const PRIORITY_OPTIONS = [
-  { value: "normal", label: "ปกติ" },
-  { value: "high", label: "สูง" },
-  { value: "urgent", label: "ด่วน" },
-];
+function toISOOrNull(v) {
+  if (!v) return null;
+  try {
+    const d = new Date(v);
+    return isNaN(d.getTime()) ? null : d.toISOString();
+  } catch {
+    return null;
+  }
+}
 
-const BASE = "/api/announcements";
+ function getAnnouncementId(row) {
+   return row.announcement_id ?? row.id;
+ }
 
-/** ===== Main Component ===== */
+ // ==== Helpers ฝั่งฟอร์ม ====
+  function getFormId(row) {
+    return row.fund_form_id ?? row.form_id ?? row.id;
+  }
+
+  /** ทำแถวให้มีไฮไลต์เฉพาะตอน "ลากอยู่" และ "เมาส์อยู่เหนือ" */
+  function getFRowClass(row, fDraggingId, fOverId) {
+    const id = getFormId(row);
+    const isDragging = fDraggingId === id;
+    const isOver = fOverId === id && !isDragging;
+    return [
+      isDragging ? "bg-green-50 ring-2 ring-green-300" : "",
+      isOver ? "ring-2 ring-green-200" : "",
+    ].join(" ").trim();
+  }
+
+  function sameOrder(a, b) {
+    if (a.length !== b.length) return false;
+    for (let i = 0; i < a.length; i++) {
+      if (a[i] !== b[i]) return false;
+    }
+    return true;
+  }
+
+  const backdropVariants = {
+    hidden: { opacity: 0 },
+    visible: { opacity: 1 },
+    exit: { opacity: 0 },
+  };
+
+  const modalVariants = {
+    hidden: { opacity: 0, scale: 0.9, y: 16 },
+    visible: {
+      opacity: 1, scale: 1, y: 0,
+      transition: { type: "spring", stiffness: 320, damping: 26 }
+    },
+    exit: { opacity: 0, scale: 0.95, y: 10 },
+  };
+
+  const TYPE_LABEL = {
+    research_fund: "ทุนวิจัย",
+    promotion_fund: "ทุนกิจกรรม",
+    general: "ทั่วไป",
+    fund_application: "รับสมัครทุน/แบบฟอร์ม",
+  };
+  const PRIORITY_LABEL = { normal: "ปกติ", high: "สูง", urgent: "ด่วน" };
+  const FORM_TYPE_LABEL = {
+    application: "แบบฟอร์มสมัคร",
+    report: "แบบฟอร์มรายงาน",
+    evaluation: "แบบฟอร์มประเมิน",
+    guidelines: "แนวทางปฏิบัติ",
+    other: "อื่นๆ",
+  };
+  const FUND_CATEGORY_LABEL = {
+    research_fund: "ทุนวิจัย",
+    promotion_fund: "ทุนกิจกรรม",
+    both: "ทั้งสองประเภท",
+  };
+
 export default function AnnouncementManager() {
-  const [loading, setLoading] = useState(false);
+  /** ===== State: Announcements ===== */
+  const [loadingAnnouncements, setLoadingAnnouncements] = useState(true);
   const [announcements, setAnnouncements] = useState([]);
-  const [years, setYears] = useState([]);
-  const [filters, setFilters] = useState({
+  const [aEditOpen, setAEditOpen] = useState(false);
+  const [aFileOpen, setAFileOpen] = useState(false);
+  const [aEditing, setAEditing] = useState(null);
+  const [aForm, setAForm] = useState(blankAnnouncementForm());
+  const [aFileObj, setAFileObj] = useState(null);
+  const [aDraggingId, setADraggingId] = useState(null);
+  const [aOrderDirty, setAOrderDirty] = useState(false);
+
+  /** ===== State: Fund Forms ===== */
+  const [loadingForms, setLoadingForms] = useState(true);
+  const [fundForms, setFundForms] = useState([]);
+  const [fEditOpen, setFEditOpen] = useState(false);
+  const [fFileOpen, setFFileOpen] = useState(false);
+  const [fEditing, setFEditing] = useState(null);
+  const [fForm, setFForm] = useState(blankFundForm());
+  const [fFileObj, setFFileObj] = useState(null);
+  const [fDraggingId, setFDraggingId] = useState(null);
+  const [fOverId, setFOverId] = useState(null);
+  const [fOrderDirty, setFOrderDirty] = useState(false);
+  const [fBaselineOrder, setFBaselineOrder] = useState([]);
+
+  const aSearchRef = useRef(null);
+  const fSearchRef = useRef(null);
+  const debounceA = useRef(null);
+  const debounceF = useRef(null);
+
+  const [aFilters, setAFilters] = useState({
     q: "",
     type: "",
     status: "",
     year_id: "",
     sort: "display_order:asc,published_at:desc",
     page: 1,
-    limit: 20,
+    limit: 100,
   });
-  const [total, setTotal] = useState(0);
-
-  // Modals state
-  const [editOpen, setEditOpen] = useState(false);
-  const [fileOpen, setFileOpen] = useState(false);
-  const [editing, setEditing] = useState(null); // record
-  const [form, setForm] = useState(blankForm());
-  const [fileObj, setFileObj] = useState(null);
-
-  const debounceRef = useRef(null);
-
-  useEffect(() => {
-    loadYears();
-  }, []);
+  const [fFilters, setFFilters] = useState({
+    q: "",
+    form_type: "",
+    fund_category: "",
+    status: "",
+    year_id: "",
+    sort: "display_order:asc",
+    page: 1,
+    limit: 100,
+  });
 
   useEffect(() => {
     loadAnnouncements();
+    loadFundForms();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filters.page, filters.limit, filters.sort, filters.type, filters.status, filters.year_id]);
+  }, []);
 
-  function blankForm() {
+  useEffect(() => {
+    const anyOpen = aEditOpen || aFileOpen || fEditOpen || fFileOpen;
+    const prev = document.body.style.overflow;
+    if (anyOpen) document.body.style.overflow = "hidden";
+    else document.body.style.overflow = "";
+    return () => { document.body.style.overflow = prev; };
+  }, [aEditOpen, aFileOpen, fEditOpen, fFileOpen]);
+
+  /** ===== Loaders ===== */
+  async function loadAnnouncements() {
+    setLoadingAnnouncements(true);
+    try {
+      const data = await adminAnnouncementAPI.list(aFilters);
+      const list = Array.isArray(data?.data) ? data.data : Array.isArray(data) ? data : [];
+      setAnnouncements(list);
+      setAOrderDirty(false);
+    } catch (e) {
+      toast("error", e.message || "โหลดประกาศไม่สำเร็จ");
+    } finally {
+      setLoadingAnnouncements(false);
+    }
+  }
+  async function loadFundForms() {
+    setLoadingForms(true);
+    try {
+    const data = await adminFundFormAPI.list(fFilters);
+    const list = Array.isArray(data?.data) ? data.data : (Array.isArray(data) ? data : []);
+    setFundForms(list);
+    setFBaselineOrder(list.map((r) => getFormId(r)));  // <— เก็บ baseline
+    setFOrderDirty(false);                             // <— รีเซ็ตปุ่มเป็นไม่ dirty
+    } catch (e) {
+      toast("error", e.message || "โหลดแบบฟอร์มไม่สำเร็จ");
+    } finally {
+      setLoadingForms(false);
+    }
+  }
+
+  /** ===== Handlers: Common ===== */
+  function handleViewFile(filePath) {
+    if (!filePath) return;
+    const baseUrl = apiClient.baseURL.replace(/\/?api\/v1$/, "");
+    const url = new URL(filePath, baseUrl).href;
+    window.open(url, "_blank");
+  }
+
+  async function handleDownloadFile(filePath) {
+    if (!filePath) return;
+    const baseUrl = apiClient.baseURL.replace(/\/?api\/v1$/, "");
+    const url = new URL(filePath, baseUrl).href;
+    try {
+      const res = await fetch(url);
+      const blob = await res.blob();
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = filePath.split("/").pop() || "file";
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(link.href);
+    } catch (e) {
+      toast("error", "ดาวน์โหลดไม่สำเร็จ");
+    }
+  }
+
+ function getFileURL(filePath) {
+   if (!filePath) return "#";
+   // ถ้าเป็น absolute (http/https) ใช้ได้เลย
+   if (/^https?:\/\//i.test(filePath)) return filePath;
+   // ต่อกับ BASE ของ backend (ตัด /api/v1 ทิ้งก่อน)
+   const base = apiClient.baseURL.replace(/\/?api\/v1$/, "");
+   return new URL(filePath, base).href;
+ }
+
+  /** ===== Forms (Announcement) ===== */
+  function blankAnnouncementForm() {
     return {
       title: "",
       description: "",
@@ -131,66 +267,15 @@ export default function AnnouncementManager() {
       year_id: "",
     };
   }
-
-  async function loadYears() {
-    try {
-      const auth = getAuthHeader();
-      const res = await fetch("/api/years", { headers: { ...(auth ? { Authorization: auth } : {}) }});
-      const data = await res.json();
-      if (res.ok) {
-        const list = Array.isArray(data?.data) ? data.data : (Array.isArray(data) ? data : []);
-        const ys = list.map(y => ({ year_id: y.year_id ?? y.id ?? y.yearId ?? y.year, year: String(y.year ?? y.name ?? y.value ?? y.year_id) }));
-        setYears(ys);
-      }
-    } catch {}
+  function openACreate() {
+    setAEditing(null);
+    setAForm(blankAnnouncementForm());
+    setAFileObj(null);
+    setAEditOpen(true);
   }
-
-  async function loadAnnouncements() {
-    setLoading(true);
-    try {
-      const params = new URLSearchParams();
-      if (filters.q) params.set("q", filters.q);
-      if (filters.type) params.set("type", filters.type);
-      if (filters.status) params.set("status", filters.status);
-      if (filters.year_id) params.set("year_id", filters.year_id);
-      if (filters.page) params.set("page", String(filters.page));
-      if (filters.limit) params.set("limit", String(filters.limit));
-      if (filters.sort) params.set("sort", filters.sort);
-
-      const data = await adminAnnouncementAPI.list(Object.fromEntries(params));
-      setAnnouncements(Array.isArray(data?.data) ? data.data : (Array.isArray(data) ? data : []));
-      setTotal(+data?.total || 0);
-    } catch (e) {
-      toast("error", e.message || "เกิดข้อผิดพลาดในการโหลดข้อมูล");
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  function toast(icon, title) {
-    Swal.fire({ icon, title, timer: 1600, showConfirmButton: false });
-  }
-  async function confirm(text) {
-    const r = await Swal.fire({
-      icon: "question",
-      title: "ยืนยันการทำรายการ",
-      text,
-      showCancelButton: true,
-      confirmButtonText: "ยืนยัน",
-      cancelButtonText: "ยกเลิก",
-      reverseButtons: true,
-    });
-    return r.isConfirmed;
-  }
-
-  function openCreate() {
-    setEditing(null);
-    setForm(blankForm());
-    setEditOpen(true);
-  }
-  function openEdit(row) {
-    setEditing(row);
-    setForm({
+  function openAEdit(row) {
+    setAEditing(row);
+    setAForm({
       title: row.title || "",
       description: row.description || "",
       announcement_type: row.announcement_type || "",
@@ -198,103 +283,80 @@ export default function AnnouncementManager() {
       priority: row.priority || "normal",
       display_order: row.display_order ?? "",
       status: row.status || "active",
-      published_at: row.published_at ? row.published_at.substring(0,16) : "",
-      expired_at: row.expired_at ? row.expired_at.substring(0,16) : "",
+      published_at: row.published_at ? row.published_at.substring(0, 16) : "",
+      expired_at: row.expired_at ? row.expired_at.substring(0, 16) : "",
       year_id: row.year_id ?? "",
     });
-    setEditOpen(true);
+    setAEditOpen(true);
   }
-  function openReplaceFile(row) {
-    setEditing(row);
-    setFileObj(null);
-    setFileOpen(true);
+  function openAReplaceFile(row) {
+    setAEditing(row);
+    setAFileObj(null);
+    setAFileOpen(true);
   }
-
-  async function handleSaveMeta(e) {
+  async function handleASave(e) {
     e?.preventDefault?.();
-    if (!String(form.title).trim()) {
-      toast("warning", "กรุณากรอกหัวข้อประกาศ");
-      return;
+    if (!String(aForm.title).trim()) return toast("warning", "กรุณากรอกหัวข้อประกาศ");
+    if (!aEditing && !aFileObj) return toast("warning", "กรุณาแนบไฟล์ PDF");
+    if (aForm.published_at && aForm.expired_at && new Date(aForm.published_at) > new Date(aForm.expired_at)) {
+      return toast("warning", "วันเผยแพร่ต้องไม่เกินวันหมดอายุ");
     }
-    if (!editing && !fileObj) {
-      toast("warning", "กรุณาแนบไฟล์ PDF");
-      return;
-    }
-    if (form.published_at && form.expired_at && new Date(form.published_at) > new Date(form.expired_at)) {
-      toast("warning", "วันเผยแพร่ต้องไม่เกินวันหมดอายุ");
-      return;
-    }
-
     try {
-      if (!editing) {
-        // CREATE (multipart)
+      if (!aEditing) {
         await adminAnnouncementAPI.create({
-          title: String(form.title || "").trim(),
-          description: form.description || undefined,
-          announcement_type: form.announcement_type || undefined,
-          announcement_reference_number: form.announcement_reference_number || undefined,
-          priority: form.priority || "normal",
-          display_order: form.display_order === "" ? undefined : String(form.display_order),
-          status: form.status || "active",
-          published_at: form.published_at ? new Date(form.published_at).toISOString() : undefined,
-          expired_at: form.expired_at ? new Date(form.expired_at).toISOString() : undefined,
-          year_id: form.year_id || undefined,
-          file: fileObj, // สำคัญ
+          title: String(aForm.title || "").trim(),
+          description: aForm.description || undefined,
+          announcement_type: aForm.announcement_type || undefined,
+          announcement_reference_number: aForm.announcement_reference_number || undefined,
+          priority: aForm.priority || "normal",
+          display_order: aForm.display_order === "" ? undefined : String(aForm.display_order),
+          status: aForm.status || "active",
+          published_at: aForm.published_at ? new Date(aForm.published_at).toISOString() : undefined,
+          expired_at: aForm.expired_at ? new Date(aForm.expired_at).toISOString() : undefined,
+          year_id: aForm.year_id || undefined,
+          file: aFileObj,
         });
         toast("success", "สร้างประกาศสำเร็จ");
       } else {
-        // UPDATE (JSON)
         const payload = {
-          title: String(form.title || "").trim(),
-          description: form.description || null,
-          announcement_type: form.announcement_type || null,
-          announcement_reference_number: form.announcement_reference_number || null,
-          priority: form.priority || "normal",
-          display_order: form.display_order === "" ? null : +form.display_order,
-          status: form.status || "active",
-          published_at: form.published_at ? new Date(form.published_at).toISOString() : null,
-          expired_at: form.expired_at ? new Date(form.expired_at).toISOString() : null,
-          year_id: form.year_id || null,
+          title: String(aForm.title || "").trim(),
+          description: aForm.description || null,
+          announcement_type: aForm.announcement_type || null,
+          announcement_reference_number: aForm.announcement_reference_number || null,
+          priority: aForm.priority || "normal",
+          display_order: aForm.display_order === "" ? null : +aForm.display_order,
+          status: aForm.status || "active",
+          published_at: toISOOrNull(aForm.published_at),
+          expired_at: toISOOrNull(aForm.expired_at),
+          year_id: aForm.year_id || null,
         };
-        await adminAnnouncementAPI.update((editing.announcement_id || editing.id), payload);
+        await adminAnnouncementAPI.update(aEditing.announcement_id || aEditing.id, payload);
         toast("success", "บันทึกข้อมูลสำเร็จ");
       }
-
-      setEditOpen(false);
+      setAEditOpen(false);
       await loadAnnouncements();
     } catch (e) {
       toast("error", e.message || "เกิดข้อผิดพลาด");
     }
   }
-
-
-  async function handleReplaceFile(e) {
+  async function handleAReplaceFile(e) {
     e?.preventDefault?.();
-    if (!fileObj) {
-      toast("warning", "กรุณาเลือกไฟล์ PDF");
-      return;
-    }
+    if (!aFileObj) return toast("warning", "กรุณาเลือกไฟล์ PDF");
     try {
-      const fd = new FormData();
-      fd.append("file", fileObj);
-      const id = editing?.announcement_id || editing?.id;
-      const auth = getAuthHeader();
-      await adminAnnouncementAPI.replaceFile(id, fileObj);
+      const id = aEditing?.announcement_id || aEditing?.id;
+      await adminAnnouncementAPI.replaceFile(id, aFileObj);
       toast("success", "แทนที่ไฟล์สำเร็จ");
-      setFileOpen(false);
+      setAFileOpen(false);
       await loadAnnouncements();
     } catch (e) {
       toast("error", e.message || "เกิดข้อผิดพลาด");
     }
   }
-
-  async function handleDelete(row) {
+  async function handleADelete(row) {
     const ok = await confirm(`ต้องการลบประกาศ “${row.title}” ใช่หรือไม่?`);
     if (!ok) return;
     try {
-      const id = row.announcement_id || row.id;
-      const auth = getAuthHeader();
-      await adminAnnouncementAPI.remove(id);
+      await adminAnnouncementAPI.remove(row.announcement_id || row.id);
       toast("success", "ลบประกาศสำเร็จ");
       await loadAnnouncements();
     } catch (e) {
@@ -302,461 +364,595 @@ export default function AnnouncementManager() {
     }
   }
 
-  function onSearchChange(v) {
-    setFilters((f) => ({ ...f, page: 1, q: v }));
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => {
-      loadAnnouncements();
-    }, 400);
+  /** ===== Forms (Fund Forms) ===== */
+  function blankFundForm() {
+    return {
+      title: "",
+      description: "",
+      form_type: "",
+      fund_category: "",
+      display_order: "",
+      status: "active",
+      year_id: "",
+    };
+  }
+  function openFCreate() {
+    setFEditing(null);
+    setFForm(blankFundForm());
+    setFFileObj(null);
+    setFEditOpen(true);
+  }
+  function openFEdit(row) {
+    setFEditing(row);
+    setFForm({
+      title: row.title || "",
+      description: row.description || "",
+      form_type: row.form_type || "",
+      fund_category: row.fund_category || "",
+      display_order: row.display_order ?? "",
+      status: row.status || "active",
+      year_id: row.year_id ?? "",
+    });
+    setFEditOpen(true);
+  }
+  function openFReplaceFile(row) {
+    setFEditing(row);
+    setFFileObj(null);
+    setFFileOpen(true);
+  }
+  async function handleFSave(e) {
+    e?.preventDefault?.();
+    if (!String(fForm.title).trim()) return toast("warning", "กรุณากรอกชื่อไฟล์/หัวข้อ");
+    if (!fEditing && !fFileObj) return toast("warning", "กรุณาแนบไฟล์ PDF");
+    try {
+      if (!fEditing) {
+        await adminFundFormAPI.create({
+          title: String(fForm.title || "").trim(),
+          description: fForm.description || undefined,
+          form_type: fForm.form_type || undefined,
+          fund_category: fForm.fund_category || undefined,
+          display_order: fForm.display_order === "" ? undefined : String(fForm.display_order),
+          status: fForm.status || "active",
+          year_id: fForm.year_id || undefined,
+          file: fFileObj,
+        });
+        toast("success", "สร้างแบบฟอร์มสำเร็จ");
+      } else {
+        const payload = {
+          title: String(fForm.title || "").trim(),
+          description: fForm.description || null,
+          form_type: fForm.form_type || null,
+          fund_category: fForm.fund_category || null,
+          display_order: fForm.display_order === "" ? null : +fForm.display_order,
+          status: fForm.status || "active",
+          year_id: fForm.year_id || null,
+        };
+        await adminFundFormAPI.update(getFormId(fEditing), payload);
+        toast("success", "บันทึกข้อมูลสำเร็จ");
+      }
+      setFEditOpen(false);
+      await loadFundForms();
+    } catch (e) {
+      toast("error", e.message || "เกิดข้อผิดพลาด");
+    }
+  }
+  async function handleFReplaceFile(e) {
+    e?.preventDefault?.();
+    if (!fFileObj) return toast("warning", "กรุณาเลือกไฟล์ PDF");
+    try {
+      const id = getFormId(fEditing);
+      await adminFundFormAPI.replaceFile(id, fFileObj);
+      toast("success", "แทนที่ไฟล์สำเร็จ");
+      setFFileOpen(false);
+      await loadFundForms();
+    } catch (e) {
+      toast("error", e.message || "เกิดข้อผิดพลาด");
+    }
+  }
+  async function handleFDelete(row) {
+    const ok = await confirm(`ต้องการลบแบบฟอร์ม “${row.title || row.file_name}” ใช่หรือไม่?`);
+    if (!ok) return;
+    try {
+      await adminFundFormAPI.remove(getFormId(row));
+      toast("success", "ลบแบบฟอร์มสำเร็จ");
+      await loadFundForms();
+    } catch (e) {
+      toast("error", e.message || "เกิดข้อผิดพลาด");
+    }
   }
 
-  function toggleSort(key) {
-    const parts = (filters.sort || "").split(",").filter(Boolean);
-    const map = new Map(parts.map(p => {
-      const [k, d] = p.split(":");
-      return [k, d || "asc"];
-    }));
-    const cur = map.get(key) || "asc";
-    const next = cur === "asc" ? "desc" : "asc";
-    map.set(key, next);
-    const order = ["display_order","published_at","priority"];
-    const out = order.filter(k => map.has(k))
-      .map(k => `${k}:${map.get(k)}`).join(",");
-    setFilters(f => ({ ...f, sort: out || `${key}:${next}` }));
+  /** ===== Drag & Drop (Announcements) ===== */
+  function aDragStart(e, id) {
+    setADraggingId(id);
+    e.dataTransfer.effectAllowed = "move";
+  }
+  function aDragOver(e, overId) {
+    e.preventDefault();
+    if (aDraggingId == null || aDraggingId === overId) return;
+    setAnnouncements((prev) => {
+    const idxFrom = prev.findIndex((r) => getAnnouncementId(r) === aDraggingId);
+    const idxTo = prev.findIndex((r) => getAnnouncementId(r) === overId);
+    if (idxFrom === -1 || idxTo === -1) return prev;
+      const next = [...prev];
+      const [moved] = next.splice(idxFrom, 1);
+      next.splice(idxTo, 0, moved);
+      return next;
+    });
+    setAOrderDirty(true);
+  }
+  function aDragEnd() {
+    setADraggingId(null);
+  }
+  async function aPersistOrder() {
+    if (!aOrderDirty) return;
+    try {
+    const payloads = announcements.map((r, i) => ({
+      id: getAnnouncementId(r),
+        display_order: i + 1,
+      }));
+      for (const p of payloads) {
+        await adminAnnouncementAPI.update(p.id, { display_order: p.display_order });
+        // หลัง PUT สำเร็จ ก่อน toast:
+        setAnnouncements((prev) =>
+          prev.map((item) =>
+            item.announcement_id === aEditing.announcement_id
+              ? {
+                  ...item,
+                  ...meta,
+                  // ปรับชื่อ field ให้ตรงกับที่ list ใช้ (เช่น published_at/expired_at เป็น ISO):
+                  published_at: meta.published_at,
+                  expired_at: meta.expired_at,
+                  display_order: meta.display_order ?? item.display_order,
+                }
+              : item
+          )
+        );
+      }
+      toast("success", "บันทึกลำดับประกาศแล้ว");
+      setAOrderDirty(false);
+      await loadAnnouncements();
+    } catch (e) {
+      toast("error", e.message || "บันทึกลำดับไม่สำเร็จ");
+    }
   }
 
-  const sorted = useMemo(() => announcements, [announcements]);
+  /** ===== Drag & Drop (Fund Forms) — ไม่จำกัดกลุ่ม ===== */
+  function fDragStart(e, row) {
+    setFDraggingId(getFormId(row));
+    e.dataTransfer.effectAllowed = "move";
+  }
+
+  function fDragOver(e, row) {
+    e.preventDefault();
+    const currentOverId = getFormId(row);
+    setFOverId(currentOverId);
+
+    if (fDraggingId == null || fDraggingId === currentOverId) return;
+
+    setFundForms((prev) => {
+      const idxFrom = prev.findIndex((r) => getFormId(r) === fDraggingId);
+      const idxTo   = prev.findIndex((r) => getFormId(r) === currentOverId);
+      if (idxFrom === -1 || idxTo === -1) return prev;
+
+      const next = [...prev];
+      const [moved] = next.splice(idxFrom, 1);
+      next.splice(idxTo, 0, moved);
+      return next;
+    });
+
+    setFOrderDirty(true);
+  }
+
+  function fDragEnd() {
+    // เทียบลำดับปัจจุบันกับ baseline เพื่อกำหนดปุ่ม dirty
+    const current = fundForms.map((r) => getFormId(r));
+    setFOrderDirty(!sameOrder(fBaselineOrder, current));
+
+    setFDraggingId(null);
+    setFOverId(null);
+  }
+
+
+  /** บันทึกลำดับทั้งลิสต์ตามตำแหน่งที่เห็น */
+  async function fPersistOrder() {
+    if (!fOrderDirty) return;
+    try {
+      const payloads = fundForms.map((r, i) => ({
+        id: getFormId(r),
+        display_order: i + 1,
+      }));
+    for (const p of payloads) {
+      await adminFundFormAPI.update(p.id, { display_order: p.display_order });
+    }
+    toast("success", "บันทึกลำดับแบบฟอร์มแล้ว");
+    setFOrderDirty(false);
+    setFBaselineOrder(fundForms.map((r) => getFormId(r))); // <— อัปเดต baseline เป็นลำดับล่าสุด
+    await loadFundForms();  // (คงไว้ก็ได้ เพื่อรีเฟรชจากเซิร์ฟเวอร์)
+    } catch (e) {
+      toast("error", e.message || "บันทึกลำดับไม่สำเร็จ");
+    }
+  }
+
+
+  /** ===== Render Helpers ===== */
+  const A = useMemo(() => announcements, [announcements]);
+  const F = useMemo(() => fundForms, [fundForms]);
 
   return (
-    <div className="bg-white rounded-lg shadow-sm p-6">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-4">
-        <div>
-          <h2 className="text-lg font-semibold">จัดการประกาศ/ไฟล์ (Announcements)</h2>
-          <p className="text-sm text-gray-500">อัปโหลดไฟล์ PDF และกำหนดข้อมูลประกาศเพื่อเผยแพร่ให้ผู้ใช้งาน</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => loadAnnouncements()}
-            className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border text-sm hover:bg-gray-50"
-            title="โหลดข้อมูลใหม่"
-          >
-            <RefreshCw size={16} />
-            รีเฟรช
-          </button>
-          <button
-            onClick={openCreate}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700"
-          >
-            <Plus size={16} />
-            เพิ่มประกาศ
-          </button>
-        </div>
-      </div>
-
-      {/* Filters */}
-      <div className="grid grid-cols-1 md:grid-cols-5 gap-3 mb-4">
-        <div className="md:col-span-2">
-          <input
-            type="text"
-            placeholder="ค้นหา (หัวข้อ/รายละเอียด/เลขอ้างอิง)"
-            className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            value={filters.q}
-            onChange={(e) => onSearchChange(e.target.value)}
-          />
-        </div>
-        <select
-          className="px-3 py-2 border rounded-lg"
-          value={filters.type}
-          onChange={(e) => setFilters((f) => ({ ...f, page: 1, type: e.target.value }))}
-        >
-          <option value="">ทุกประเภท</option>
-          {TYPE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-        </select>
-        <select
-          className="px-3 py-2 border rounded-lg"
-          value={filters.status}
-          onChange={(e) => setFilters((f) => ({ ...f, page: 1, status: e.target.value }))}
-        >
-          <option value="">ทุกสถานะ</option>
-          {STATUS_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-        </select>
-        <select
-          className="px-3 py-2 border rounded-lg"
-          value={filters.year_id}
-          onChange={(e) => setFilters((f) => ({ ...f, page: 1, year_id: e.target.value }))}
-        >
-          <option value="">ทุกปี</option>
-          {years.map(y => <option key={y.year_id ?? y.year} value={y.year_id ?? y.year}>{y.year}</option>)}
-        </select>
-      </div>
-
-      {/* Table */}
-      <div className="overflow-x-auto border rounded-lg">
-        <table className="min-w-full divide-y divide-gray-200 text-sm">
-          <thead className="bg-gray-50">
-            <tr>
-              <Th label="ลำดับแสดง" sortKey="display_order" onSort={toggleSort} sortStr={filters.sort} />
-              <th className="px-3 py-2 text-left font-medium text-gray-600">หัวข้อ</th>
-              <th className="px-3 py-2 text-left font-medium text-gray-600">ประเภท</th>
-              <th className="px-3 py-2 text-left font-medium text-gray-600">ปี</th>
-              <Th label="เผยแพร่" sortKey="published_at" onSort={toggleSort} sortStr={filters.sort} />
-              <th className="px-3 py-2 text-left font-medium text-gray-600">หมดอายุ</th>
-              <Th label="ความสำคัญ" sortKey="priority" onSort={toggleSort} sortStr={filters.sort} />
-              <th className="px-3 py-2 text-left font-medium text-gray-600">สถานะ</th>
-              <th className="px-3 py-2 text-left font-medium text-gray-600">ไฟล์</th>
-              <th className="px-3 py-2 text-right font-medium text-gray-600">จัดการ</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-100">
-            {loading ? (
-              <tr>
-                <td colSpan={10} className="px-3 py-10 text-center text-gray-500">
-                  กำลังโหลด...
-                </td>
-              </tr>
-            ) : sorted.length === 0 ? (
-              <tr>
-                <td colSpan={10} className="px-3 py-10 text-center text-gray-500">
-                  ไม่พบข้อมูล
-                </td>
-              </tr>
-            ) : (
-              sorted.map((row) => (
-                <tr key={row.announcement_id || row.id}>
-                  <td className="px-3 py-2">{row.display_order ?? "-"}</td>
-                  <td className="px-3 py-2">
-                    <div className="font-medium">{row.title}</div>
-                    {row.announcement_reference_number && (
-                      <div className="text-xs text-gray-500">เลขอ้างอิง: {row.announcement_reference_number}</div>
-                    )}
-                    {row.description && (
-                      <div className="text-xs text-gray-500 line-clamp-1">{row.description}</div>
-                    )}
-                  </td>
-                  <td className="px-3 py-2">{TYPE_OPTIONS.find(o=>o.value===row.announcement_type)?.label || "-"}</td>
-                  <td className="px-3 py-2">{row.year_id ?? "-"}</td>
-                  <td className="px-3 py-2">{formatThaiDateTime(row.published_at)}</td>
-                  <td className="px-3 py-2">{formatThaiDateTime(row.expired_at)}</td>
-                  <td className="px-3 py-2">
-                    {row.priority === "urgent" ? "ด่วน" : row.priority === "high" ? "สูง" : "ปกติ"}
-                  </td>
-                  <td className="px-3 py-2">
-                    {row.status === "active" ? (
-                      <span className="px-2 py-1 rounded-full text-xs bg-green-100 text-green-700">เผยแพร่</span>
-                    ) : (
-                      <span className="px-2 py-1 rounded-full text-xs bg-gray-100 text-gray-600">ปิด</span>
-                    )}
-                  </td>
-                  <td className="px-3 py-2">
-                    {row.file_path ? (
-                      <a
-                        href={row.file_path}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 text-blue-600 hover:underline"
-                      >
-                        <FileText size={14} />
-                        เปิดไฟล์
-                      </a>
-                    ) : (
-                      <span className="text-gray-400">-</span>
-                    )}
-                    {row.file_size ? <div className="text-xs text-gray-400">{fmtBytes(row.file_size)}</div> : null}
-                  </td>
-                  <td className="px-3 py-2">
-                    <div className="flex items-center justify-end gap-2">
-                      <button
-                        onClick={() => openEdit(row)}
-                        className="inline-flex items-center gap-1 px-2 py-1 rounded border hover:bg-gray-50"
-                        title="แก้ไขข้อมูล"
-                      >
-                        <Edit size={14} />
-                        แก้ไข
-                      </button>
-                      <button
-                        onClick={() => openReplaceFile(row)}
-                        className="inline-flex items-center gap-1 px-2 py-1 rounded border hover:bg-gray-50"
-                        title="แทนที่ไฟล์"
-                      >
-                        <Upload size={14} />
-                        ไฟล์
-                      </button>
-                      <button
-                        onClick={() => handleDelete(row)}
-                        className="inline-flex items-center gap-1 px-2 py-1 rounded border hover:bg-red-50 text-red-600"
-                        title="ลบ"
-                      >
-                        <Trash2 size={14} />
-                        ลบ
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
-
-      {/* Pagination */}
-      <div className="flex items-center justify-between mt-4">
-        <div className="text-sm text-gray-500">
-          แสดง {sorted.length} รายการ {total ? `จากทั้งหมด ${total}` : ""}
-        </div>
-        <div className="flex items-center gap-2">
-          <select
-            value={filters.limit}
-            onChange={(e) => setFilters((f) => ({ ...f, page: 1, limit: +e.target.value }))}
-            className="px-2 py-1 border rounded"
-          >
-            {[10,20,50,100].map(n => <option key={n} value={n}>{n}/หน้า</option>)}
-          </select>
-          <button
-            disabled={filters.page <= 1}
-            onClick={() => setFilters((f) => ({ ...f, page: f.page - 1 }))}
-            className="px-3 py-1 border rounded disabled:opacity-50"
-          >
-            ก่อนหน้า
-          </button>
-          <div className="px-2 text-sm">หน้า {filters.page}</div>
-          <button
-            disabled={sorted.length < filters.limit}
-            onClick={() => setFilters((f) => ({ ...f, page: f.page + 1 }))}
-            className="px-3 py-1 border rounded disabled:opacity-50"
-          >
-            ถัดไป
-          </button>
-        </div>
-      </div>
-
-      {/* Create/Edit Modal */}
-      {editOpen && (
-        <div className="fixed inset-0 z-50 bg-black/30 flex items-center justify-center p-4">
-          <div className="w-full max-w-3xl bg-white rounded-xl shadow-lg">
-            <div className="flex items-center justify-between px-4 py-3 border-b">
-              <div className="flex items-center gap-2">
-                <FileText size={18} />
-                <h3 className="font-semibold">{editing ? "แก้ไขประกาศ" : "เพิ่มประกาศ"}</h3>
-              </div>
-              <button onClick={() => setEditOpen(false)} className="p-1 rounded hover:bg-gray-100">
-                <X size={18} />
-              </button>
+    <div className="animate-in fade-in duration-300 space-y-8">
+      {/* Announcements Section (Admin Controls included) */}
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+        <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-blue-100 rounded-lg">
+              <Bell size={20} className="text-blue-600" />
             </div>
-
-            <form onSubmit={handleSaveMeta} className="p-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="md:col-span-2">
-                <label className="block text-sm font-medium mb-1">หัวข้อประกาศ *</label>
-                <input
-                  type="text"
-                  value={form.title}
-                  onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
-                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  required
-                />
-              </div>
-
-              <div className="md:col-span-2">
-                <label className="block text-sm font-medium mb-1">รายละเอียด</label>
-                <textarea
-                  rows={3}
-                  value={form.description}
-                  onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
-                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-1">ประเภท</label>
-                <select
-                  value={form.announcement_type}
-                  onChange={(e) => setForm((f) => ({ ...f, announcement_type: e.target.value }))}
-                  className="w-full px-3 py-2 border rounded-lg"
-                >
-                  <option value="">-</option>
-                  {TYPE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-1">เลขอ้างอิงประกาศ</label>
-                <input
-                  type="text"
-                  value={form.announcement_reference_number}
-                  onChange={(e) => setForm((f) => ({ ...f, announcement_reference_number: e.target.value }))}
-                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-1">ความสำคัญ</label>
-                <select
-                  value={form.priority}
-                  onChange={(e) => setForm((f) => ({ ...f, priority: e.target.value }))}
-                  className="w-full px-3 py-2 border rounded-lg"
-                >
-                  {PRIORITY_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-1">ลำดับแสดง</label>
-                <input
-                  type="number"
-                  value={form.display_order}
-                  onChange={(e) => setForm((f) => ({ ...f, display_order: e.target.value }))}
-                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="ตัวเลขเรียงลำดับในหน้า"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-1">สถานะ</label>
-                <select
-                  value={form.status}
-                  onChange={(e) => setForm((f) => ({ ...f, status: e.target.value }))}
-                  className="w-full px-3 py-2 border rounded-lg"
-                >
-                  {STATUS_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-1">ปี</label>
-                <select
-                  value={form.year_id}
-                  onChange={(e) => setForm((f) => ({ ...f, year_id: e.target.value }))}
-                  className="w-full px-3 py-2 border rounded-lg"
-                >
-                  <option value="">-</option>
-                  {years.map(y => <option key={y.year_id ?? y.year} value={y.year_id ?? y.year}>{y.year}</option>)}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-1">วันเวลาเผยแพร่</label>
-                <input
-                  type="datetime-local"
-                  value={form.published_at}
-                  onChange={(e) => setForm((f) => ({ ...f, published_at: e.target.value }))}
-                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-1">วันเวลาหมดอายุ</label>
-                <input
-                  type="datetime-local"
-                  value={form.expired_at}
-                  onChange={(e) => setForm((f) => ({ ...f, expired_at: e.target.value }))}
-                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                />
-              </div>
-
-              {!editing && (
-                <div className="md:col-span-2">
-                  <label className="block text-sm font-medium mb-1">ไฟล์ PDF *</label>
-                  <input
-                    type="file"
-                    accept="application/pdf"
-                    onChange={(e) => setFileObj(e.target.files?.[0] || null)}
-                    className="block w-full text-sm text-gray-600 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
-                    required
-                  />
-                </div>
-              )}
-
-              <div className="md:col-span-2 flex items-center justify-end gap-2 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setEditOpen(false)}
-                  className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border"
-                >
-                  ยกเลิก
-                </button>
-                <button
-                  type="submit"
-                  className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700"
-                >
-                  <Save size={16} />
-                  บันทึก
-                </button>
-              </div>
-            </form>
+            <div>
+              <h2 className="text-lg font-semibold text-gray-800">ประกาศ</h2>
+              <p className="text-sm text-gray-600">จัดการประกาศ</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <button onClick={loadAnnouncements} className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border text-sm hover:bg-gray-50">
+              <RefreshCw size={16} /> รีเฟรช
+            </button>
+            <button
+              onClick={aPersistOrder}
+              disabled={!aOrderDirty}
+              className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border text-sm bg-white hover:bg-gray-50 disabled:opacity-50"
+            >
+              <Save size={16} /> บันทึกลำดับ
+            </button>
+            <button onClick={openACreate} className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700">
+              <Plus size={16} /> เพิ่มประกาศ
+            </button>
           </div>
         </div>
-      )}
 
-      {/* Replace File Modal */}
-      {fileOpen && (
-        <div className="fixed inset-0 z-50 bg-black/30 flex items-center justify-center p-4">
-          <div className="w-full max-w-xl bg-white rounded-xl shadow-lg">
-            <div className="flex items-center justify-between px-4 py-3 border-b">
-              <div className="flex items-center gap-2">
-                <Upload size={18} />
-                <h3 className="font-semibold">แทนที่ไฟล์: {editing?.title}</h3>
-              </div>
-              <button onClick={() => setFileOpen(false)} className="p-1 rounded hover:bg-gray-100">
-                <X size={18} />
-              </button>
+        <div className="p-6">
+          {loadingAnnouncements ? (
+            <div className="flex items-center justify-center py-8">
+              <div className="w-8 h-8 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin"></div>
+              <span className="ml-2 text-gray-600">กำลังโหลด...</span>
             </div>
+          ) : A.length === 0 ? (
+            <div className="text-center text-gray-500 py-10">ยังไม่มีประกาศ</div>
+          ) : (
+            <div className="overflow-x-auto border border-gray-300 rounded-lg">
+              <table className="min-w-full divide-y divide-gray-200 text-sm">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="w-10 px-3 py-2 text-center text-gray-600">ลำดับ</th>
+                    <th className="px-3 py-2 text-center text-gray-600">ชื่อไฟล์ / หัวข้อ</th>
+                    <th className="px-3 py-2 text-center text-gray-600">หมวดหมู่กองทุน</th>
+                    <th className="px-3 py-2 text-center text-gray-600">ปี</th>
+                    <th className="px-3 py-2 text-center text-gray-600">เผยแพร่</th>
+                    <th className="px-3 py-2 text-center text-gray-600">รายละเอียด</th>
+                    <th className="px-3 py-2 text-center text-gray-600">การจัดการ</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {A.map((row, idx) => {
+                    const id = row.announcement_id || row.id;
+                    return (
+                      <tr
+                        key={id}
+                        draggable
+                        onDragStart={(e) => aDragStart(e, id)}
+                        onDragOver={(e) => aDragOver(e, id)}
+                        onDragEnd={aDragEnd}
+                        className={`${aDraggingId === id ? "bg-blue-50" : ""}`}
+                      >
+                        <td className="px-3 py-2 text-gray-400">
+                          <div className="inline-flex items-center gap-1 cursor-grab" title="ลากเพื่อจัดลำดับ">
+                            <GripVertical size={16} /> {idx + 1}
+                          </div>
+                        </td>
+                        <td className="px-3 py-2">
+                          <div className="text-gray-500 line-clamp-1 max-w-[30ch] break-words">
+                            {row.file_path ? (
+                              <a
+                                href={getFileURL(row.file_path)}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-blue-600 hover:underline"
+                                title="เปิดดูไฟล์"
+                              >
+                                {row.file_name || "เปิดไฟล์"}
+                              </a>
+                            ) : (
+                              <span className="text-gray-400">-</span>
+                            )}
+                          </div>                          
+                        <div className="text-sm text-gray-500 line-clamp-1 max-w-[30ch] break-words ">
+                          {row.title || "-"}
+                        </div>
+                        </td>
+                        <td className="px-3 py-2">{TYPE_LABEL[row.announcement_type] || "-"}</td>
+                        <td className="px-3 py-2">{row.year_id || row.year || "-"}</td>
+                        <td className="px-3 py-2">{formatThaiDateTime(row.published_at)}</td>
+                        <td className="px-3 py-2">
+                          <span
+                            className="text-gray-500 line-clamp-2 max-w-[48ch] break-words"
+                            title={row.description || "-"}
+                          >
+                            {row.description || "-"}
+                          </span>
+                        </td>
+                        <td className="px-3 py-2">
+                        <div className="flex flex-row flex-wrap justify-end gap-2 [&>button]:whitespace-nowrap">
+                          {/* ดาวน์โหลด */}
+                          <button
+                            onClick={() => handleDownloadFile(getFileURL(row.file_path))}
+                            className="inline-flex items-center gap-1 px-3 py-1 text-sm text-green-600 bg-green-50 hover:bg-green-100 rounded-md"
+                            title="ดาวน์โหลดไฟล์"
+                          >
+                            <Download size={16} /> ดาวน์โหลด
+                          </button>
 
-            <form onSubmit={handleReplaceFile} className="p-4 space-y-4">
-              <div>
-                <label className="block text-sm font-medium mb-1">เลือกไฟล์ PDF ใหม่ *</label>
-                <input
-                  type="file"
-                  accept="application/pdf"
-                  onChange={(e) => setFileObj(e.target.files?.[0] || null)}
-                  className="block w-full text-sm text-gray-600 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
-                  required
-                />
-              </div>
+                          {/* แก้ไข (ใช้ธีมเดียวกับ 'ดู') */}
+                          <button
+                            onClick={() => openAEdit(row)}
+                            className="inline-flex items-center gap-1 px-3 py-1 text-sm text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-md"
+                            title="แก้ไข"
+                          >
+                            <Edit size={16} /> แก้ไข
+                          </button>
 
-              <div className="flex items-center justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={() => setFileOpen(false)}
-                  className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border"
-                >
-                  ยกเลิก
-                </button>
-                <button
-                  type="submit"
-                  className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700"
-                >
-                  <Upload size={16} />
-                  อัปโหลด
-                </button>
-              </div>
-            </form>
+                          {/* ลบ (โทนเดียวกัน: สีอ่อน + hover) */}
+                          <button
+                            onClick={() => handleADelete(row)}
+                            className="inline-flex items-center gap-1 px-3 py-1 text-sm text-red-600 bg-red-50 hover:bg-red-100 rounded-md"
+                            title="ลบ"
+                          >
+                            <Trash2 size={16} /> ลบ
+                          </button>
+                        </div>
+
+                        {/* ขนาดไฟล์ (ถ้ามี) */}
+                        {row.file_size ? <div className="text-xs text-gray-500 mt-1 text-right">ขนาดไฟล์: {fmtBytes(row.file_size)}</div> : null}
+                      </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Fund Forms Section (Admin Controls included) */}
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+        <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-green-100 rounded-lg">
+              <BookOpen size={20} className="text-green-600" />
+            </div>
+            <div>
+              <h2 className="text-lg font-semibold text-gray-800">แบบฟอร์มการขอทุน</h2>
+              <p className="text-sm text-gray-600">จัดการแบบฟอร์ม</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <button onClick={loadFundForms} className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border text-sm hover:bg-gray-50">
+              <RefreshCw size={16} /> รีเฟรช
+            </button>
+            <button
+              onClick={fPersistOrder}
+              disabled={!fOrderDirty}
+              className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border text-sm bg-white hover:bg-gray-50 disabled:opacity-50"
+            >
+              <Save size={16} /> บันทึกลำดับ
+            </button>
+            <button onClick={openFCreate} className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-green-600 text-white hover:bg-green-700">
+              <Plus size={16} /> เพิ่มแบบฟอร์ม
+            </button>
           </div>
         </div>
-      )}
+
+        <div className="p-6">
+          {loadingForms ? (
+            <div className="flex items-center justify-center py-8">
+              <div className="w-8 h-8 border-4 border-green-200 border-t-green-600 rounded-full animate-spin"></div>
+              <span className="ml-2 text-gray-600">กำลังโหลด...</span>
+            </div>
+          ) : F.length === 0 ? (
+            <div className="text-center text-gray-500 py-10">ยังไม่มีแบบฟอร์ม</div>
+          ) : (
+            <div className="overflow-x-auto border border-gray-300 rounded-lg">
+              <table className="min-w-full divide-y divide-gray-200 text-sm">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="w-10 px-3 py-2 text-center text-gray-600">ลำดับ</th>
+                    <th className="px-3 py-2 text-center text-gray-600">ชื่อไฟล์ / หัวข้อ</th>
+                    <th className="px-3 py-2 text-center text-gray-600">ประเภทฟอร์ม</th>
+                    <th className="px-3 py-2 text-center text-gray-600">หมวดหมู่กองทุน</th>
+                    <th className="px-3 py-2 text-center text-gray-600">ปี</th>
+                    <th className="px-3 py-2 text-center text-gray-600">รายละเอียด</th>
+                    <th className="px-3 py-2 text-center text-gray-600">การจัดการ</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {F.map((row, idx) => {
+                    const id = getFormId(row);
+                    return (
+                    <tr
+                      key={getFormId(row)}
+                      draggable
+                      onDragStart={(e) => fDragStart(e, row)}
+                      onDragOver={(e) => fDragOver(e, row)}
+                      onDragEnd={fDragEnd}
+                      className={getFRowClass(row, fDraggingId, fOverId)}
+                    >
+                        <td className="px-3 py-2 text-gray-500">
+                          <div className="inline-flex items-center gap-1 cursor-grab" title="ลากเพื่อจัดลำดับ">
+                            <GripVertical size={16} /> {idx + 1}
+                          </div>
+                        </td>
+                        <td className="px-3 py-2">
+                        <div className="font-medium">
+                          {row.file_path ? (
+                            <a
+                              href={getFileURL(row.file_path)}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-blue-600 hover:underline"
+                              title="เปิดดูไฟล์"
+                            >
+                              {row.file_name || "เปิดไฟล์"}
+                            </a>
+                          ) : (
+                            <span className="text-gray-500">-</span>
+                          )}
+                        </div>
+                          <div className="text-sm text-gray-500">{row.title || "-"}</div>
+                        </td>
+                        <td className="px-3 py-2">{FORM_TYPE_LABEL[row.form_type] || row.form_type || "-"}</td>
+                        <td className="px-3 py-2">{FUND_CATEGORY_LABEL[row.fund_category] || row.fund_category || "-"}</td>
+                        <td className="px-3 py-2">{row.year_id || row.year || "-"}</td>
+                        <td className="px-3 py-2 align-center">
+                          <div
+                            className="text-gray-500 line-clamp-2 max-w-[48ch] break-words"
+                            title={row.description || "-"}
+                          >
+                            {row.description || "-"}
+                          </div>
+                        </td>
+                        <td className="px-3 py-2">
+                          <div className="flex flex-row flex-wrap justify-end gap-2 [&>button]:whitespace-nowrap">
+                            {/* ดาวน์โหลด */}
+                            <button
+                              onClick={() => handleDownloadFile(getFileURL(row.file_path))}
+                              className="inline-flex items-center gap-1 px-3 py-1 text-sm text-green-600 bg-green-50 hover:bg-green-100 rounded-md"
+                              title="ดาวน์โหลดไฟล์"
+                            >
+                              <Download size={16} /> ดาวน์โหลด
+                            </button>
+
+                            {/* แก้ไข (ธีมเดียวกับ 'ดู') */}
+                            <button
+                              onClick={() => openFEdit(row)}
+                              className="inline-flex items-center gap-1 px-3 py-1 text-sm text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-md"
+                              title="แก้ไข"
+                            >
+                              <Edit size={16} /> แก้ไข
+                            </button>
+
+                            {/* ลบ (โทนอ่อน) */}
+                            <button
+                              onClick={() => handleFDelete(row)}
+                              className="inline-flex items-center gap-1 px-3 py-1 text-sm text-red-600 bg-red-50 hover:bg-red-100 rounded-md"
+                              title="ลบ"
+                            >
+                              <Trash2 size={16} /> ลบ
+                            </button>
+                          </div>
+
+                          {/* ขนาดไฟล์ (ถ้ามี) */}
+                          {row.file_size ? <div className="text-xs text-gray-500 mt-1 text-right">ขนาดไฟล์: {fmtBytes(row.file_size)}</div> : null}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* ประกาศ */}
+      <AnnouncementModal
+        open={aEditOpen}
+        onClose={() => setAEditOpen(false)}
+        data={aEditing}
+        onSubmit={async (payload) => {
+          try {
+            const toRFC3339 = (v) => (v ? new Date(v).toISOString() : "");
+
+            if (!aEditing) {
+              // === CREATE (multipart) ===
+              if (!payload.file) { toast("error","กรุณาเลือกไฟล์ PDF"); return; }
+              const fd = new FormData();
+              fd.append("title", (payload.title || "").trim());
+              if (payload.description) fd.append("description", payload.description);
+              fd.append("announcement_type", payload.announcement_type || "general");
+              fd.append("priority", payload.priority || "normal");
+              fd.append("status", payload.status || "active");
+              if (payload.announcement_reference_number) fd.append("announcement_reference_number", payload.announcement_reference_number);
+              if (payload.year_id) fd.append("year_id", String(Number(payload.year_id)));
+              if (payload.display_order !== "" && payload.display_order != null) fd.append("display_order", String(Number(payload.display_order)));
+              if (payload.published_at) fd.append("published_at", toRFC3339(payload.published_at));
+              if (payload.expired_at) fd.append("expired_at", toRFC3339(payload.expired_at));
+              fd.append("file", payload.file);
+
+              console.log("[CREATE] FormData keys:", [...fd.keys()]);
+              const resp = await adminAnnouncementAPI.create(fd);
+              console.log("[CREATE] resp:", resp?.status, resp?.data);
+              toast("success", "เพิ่มประกาศแล้ว");
+            } else {
+              // === UPDATE (PUT JSON) ===
+              const meta = {
+                title: (payload.title || "").trim(),
+                description: payload.description || null,
+                announcement_type: payload.announcement_type || "general",
+                priority: payload.priority || "normal",
+                status: payload.status || "active",
+                announcement_reference_number: payload.announcement_reference_number || null,
+                year_id: payload.year_id ? Number(payload.year_id) : null,
+                display_order:
+                  payload.display_order === "" || payload.display_order == null ? null : Number(payload.display_order),
+                published_at: payload.published_at ? toRFC3339(payload.published_at) : null,
+                expired_at: payload.expired_at ? toRFC3339(payload.expired_at) : null,
+              };
+              console.log("[UPDATE] meta:", meta);
+
+              const putResp = await adminAnnouncementAPI.update(aEditing.announcement_id, meta);
+              console.log("[UPDATE] resp:", putResp?.status, putResp?.data);
+
+              if (payload.file) {
+                console.log("[REPLACE FILE] id:", aEditing.announcement_id, "file:", payload.file?.name);
+                const rep = await adminAnnouncementAPI.replaceFile(aEditing.announcement_id, payload.file);
+                console.log("[REPLACE FILE] resp:", rep?.status, rep?.data);
+              }
+
+              toast("success", "บันทึกประกาศแล้ว");
+            }
+
+            // โหลดใหม่แล้วดูว่ามาไหม
+            await loadAnnouncements();
+            setAEditOpen(false);
+          } catch (err) {
+            console.error("[ANNOUNCEMENT SUBMIT ERROR]", err);
+            toast("error", err?.message || "บันทึกไม่สำเร็จ");
+          }
+        }}
+      />
+
+      {/* แบบฟอร์มการขอทุน */}
+      <FundFormModal
+        open={fEditOpen}
+        onClose={() => setFEditOpen(false)}
+        data={fEditing}
+        onSubmit={async (payload) => {
+          if (fEditing) {
+            await adminFundFormAPI.update(getFormId(fEditing), payload);
+            toast("success", "บันทึกแบบฟอร์มแล้ว");
+          } else {
+            const fd = new FormData();
+            Object.entries(payload).forEach(([k, v]) => v != null && fd.append(k, v));
+            await adminFundFormAPI.create(fd); // หรือ adminFundFormAPI.create(payload) ถ้า helper รองรับ
+            toast("success", "เพิ่มแบบฟอร์มแล้ว");
+          }
+          await loadFundForms();
+        }}
+        onReplaceFile={async (file) => {
+          await adminFundFormAPI.replaceFile(getFormId(fEditing), file);
+          toast("success", "อัปเดตไฟล์แบบฟอร์มแล้ว");
+          await loadFundForms();
+        }}
+      />
     </div>
-  );
-}
-
-/** ===== Small components ===== */
-function Th({ label, sortKey, sortStr, onSort }) {
-  const dir = useMemo(() => {
-    const map = new Map((sortStr || "").split(",").filter(Boolean).map(p => {
-      const [k, d] = p.split(":");
-      return [k, d || "asc"];
-    }));
-    return map.get(sortKey);
-  }, [sortStr, sortKey]);
-
-  return (
-    <th className="px-3 py-2 text-left font-medium text-gray-600 select-none">
-      <button
-        type="button"
-        onClick={() => onSort?.(sortKey)}
-        className="inline-flex items-center gap-1 hover:text-gray-900"
-      >
-        {label}
-        {dir === "asc" ? <ArrowUp size={14} /> : dir === "desc" ? <ArrowDown size={14} /> : <ArrowUpDown size={14} />}
-      </button>
-    </th>
   );
 }

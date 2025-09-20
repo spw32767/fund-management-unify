@@ -13,8 +13,7 @@ import { submissionsListingAPI, adminSubmissionAPI, commonAPI } from '../../../l
 import { toast } from 'react-hot-toast';
 
 // ----------- CONFIG -----------
-const WINDOW_SIZE = 20;        // how many rows to show at a time
-const PAGE_SIZE_BACKEND = 100; // how many per request when we fetch-all
+const PAGE_SIZE  = 10;        // how many rows to show at a time
 
 export default function SubmissionsManagement() {
   // Views
@@ -47,9 +46,10 @@ export default function SubmissionsManagement() {
     revision_count: 0
   });
 
-  // “Window” into filtered data (no page numbers)
-  const [cursor, setCursor] = useState(0); // start index of the window
-  const latestReq = useRef(0);             // race token for fetch-all
+  // Pagination states
+  const [currentPage, setCurrentPage] = useState(1); // เลขหน้า (เริ่มที่ 1)
+  const [cursor, setCursor] = useState(0);           // index เริ่มของหน้า (sync จาก currentPage)
+  const latestReq = useRef(0);                       // race token for fetch-all
 
   // Lookup maps for names/descriptions
   const [catMap, setCatMap] = useState({});
@@ -91,7 +91,6 @@ export default function SubmissionsManagement() {
       while (!done) {
         const params = {
           page,
-          limit: PAGE_SIZE_BACKEND,
           year_id: yearId || '',
           sort_by: 'created_at',
           sort_order: 'desc',
@@ -106,11 +105,11 @@ export default function SubmissionsManagement() {
 
         // stop if last page or no pagination info
         const totalPages = res?.pagination?.total_pages || 0;
-        if (!chunk.length || totalPages <= page) done = true;
+        if (!chunk.length || totalPages <= page || !totalPages) done = true;
         page += 1;
 
         // safety cap
-        if (aggregate.length > 5000) done = true;
+        if (aggregate.length > 10000) done = true;
       }
 
       // Client-side hard filter by year (belt & suspenders)
@@ -122,6 +121,7 @@ export default function SubmissionsManagement() {
       console.log('[FetchAll] total fetched:', aggregate.length, 'after year filter:', filteredByYear.length);
 
       setAllSubmissions(filteredByYear);
+      setCurrentPage(1); // เริ่มที่หน้าแรก
       setCursor(0);
 
       try {
@@ -308,7 +308,7 @@ export default function SubmissionsManagement() {
 
   // Fetch details for the visible 20 rows (for amount & author fallback)
   useEffect(() => {
-    const visible = filteredAndSorted.slice(cursor, cursor + WINDOW_SIZE);
+    const visible = filteredAndSorted.slice(cursor, cursor + PAGE_SIZE);
 
     // fetch details for ANY visible row that doesn't have details yet
     const need = visible
@@ -378,26 +378,50 @@ export default function SubmissionsManagement() {
     return () => { cancelled = true; };
   }, [cursor, filteredAndSorted, detailsMap]);
 
-  // Windowed slice (no page numbers)
+  // Dedupe ตาม submission_id/id ป้องกัน key ชนจากการรวมหลายหน้า
+  const deduped = useMemo(() => {
+    const seen = new Set();
+    const out = [];
+    for (const s of filteredAndSorted) {
+      const k = String(s?.submission_id ?? s?.id ?? '');
+      if (!k) { out.push(s); continue; } // ถ้าไม่มี id ก็ปล่อยผ่าน (หรือจะทำคีย์คอมโพสิตก็ได้)
+      if (seen.has(k)) continue;
+      seen.add(k);
+      out.push(s);
+    }
+    return out;
+  }, [filteredAndSorted]);
+
+  // หน้า & แบ่งหน้า
+  const totalPages = Math.max(1, Math.ceil(deduped.length / PAGE_SIZE));
+  useEffect(() => {
+    // sync cursor จาก currentPage เสมอ (เพื่อคง prop/JSX อื่น ๆ ที่อ้าง cursor)
+    const start = (Math.min(Math.max(1, currentPage), totalPages) - 1) * PAGE_SIZE;
+    setCursor(start);
+  }, [currentPage, totalPages]);
+
+  // ชุดที่แสดงในหน้านี้ (คงชื่อ windowed เดิม)
   const windowed = useMemo(() => {
-    const start = Math.max(0, Math.min(cursor, Math.max(0, filteredAndSorted.length - 1)));
-    return filteredAndSorted.slice(start, start + WINDOW_SIZE);
-  }, [filteredAndSorted, cursor]);
+    return deduped.slice(cursor, cursor + PAGE_SIZE);
+  }, [deduped, cursor]);
 
   // ---------- Handlers ----------
   const handleYearChange = (yearId) => {
     console.log('Year changed to:', yearId);
     setSelectedYear(yearId);
+    setCurrentPage(1);
     setCursor(0);
   };
 
   const handleFilterChange = (newFilters) => {
     setFilters(prev => ({ ...prev, ...newFilters }));
-    setCursor(0); // reset window on filter change
+    setCurrentPage(1);
+    setCursor(0);
   };
 
   const handleSearch = (searchTerm) => {
     setFilters(prev => ({ ...prev, search: searchTerm }));
+    setCurrentPage(1);
     setCursor(0);
   };
 
@@ -407,15 +431,16 @@ export default function SubmissionsManagement() {
         ? 'desc'
         : 'asc';
     setFilters(prev => ({ ...prev, sort_by: column, sort_order: newOrder }));
+    setCurrentPage(1);
     setCursor(0);
   };
 
   const handlePrev = () => {
-    setCursor(c => Math.max(0, c - WINDOW_SIZE));
+    setCurrentPage(p => Math.max(1, p - 1));
   };
 
   const handleNext = () => {
-    setCursor(c => (c + WINDOW_SIZE < filteredAndSorted.length ? c + WINDOW_SIZE : c));
+    setCurrentPage(p => Math.min(totalPages, p + 1));
   };
 
   const handleViewSubmission = (submissionId) => {
@@ -452,6 +477,34 @@ export default function SubmissionsManagement() {
       toast.error('ไม่สามารถ export ข้อมูลได้');
     }
   };
+
+  // สร้างรายการปุ่มหน้า: [1, '...', 4, 5, 6, '...', total]
+  const getPageItems = (current, total) => {
+    const delta = 1; // จำนวนเพื่อนบ้านรอบ current
+    const range = [];
+    const rangeWithDots = [];
+    let l;
+
+    for (let i = 1; i <= total; i++) {
+      if (i === 1 || i === total || (i >= current - delta && i <= current + delta)) {
+        range.push(i);
+      }
+    }
+
+    for (const i of range) {
+      if (l) {
+        if (i - l === 2) {
+          rangeWithDots.push(l + 1);
+        } else if (i - l > 2) {
+          rangeWithDots.push('...');
+        }
+      }
+      rangeWithDots.push(i);
+      l = i;
+    }
+    return rangeWithDots;
+  };
+
 
   const getSelectedYearInfo = () => {
     if (!selectedYear) return { year: 'ทั้งหมด', budget: 0 };
@@ -525,12 +578,11 @@ export default function SubmissionsManagement() {
       </div>
 
       {/* Statistics (client-side over current year) */}
-      <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-5 mb-6">
+      <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4 mb-6">
         <StatCard label="คำร้องทั้งหมด" value={statistics.total_submissions} />
         <StatCard label="อยู่ระหว่างการพิจารณา" value={statistics.pending_count} color="text-yellow-600" />
         <StatCard label="อนุมัติแล้ว" value={statistics.approved_count} color="text-green-600" />
         <StatCard label="ไม่อนุมัติ" value={statistics.rejected_count} color="text-red-600" />
-        <StatCard label="ต้องการข้อมูลเพิ่มเติม" value={statistics.revision_count} color="text-orange-600" />
       </div>
 
       {/* Filters */}
@@ -564,7 +616,7 @@ export default function SubmissionsManagement() {
               แสดง <span className="font-medium">{filteredAndSorted.length === 0 ? 0 : cursor + 1}</span>{' '}
               ถึง{' '}
               <span className="font-medium">
-                {Math.min(cursor + WINDOW_SIZE, filteredAndSorted.length)}
+                {Math.min(cursor + PAGE_SIZE , filteredAndSorted.length)}
               </span>{' '}
               จาก <span className="font-medium">{filteredAndSorted.length}</span> รายการ
             </div>
@@ -577,9 +629,27 @@ export default function SubmissionsManagement() {
               >
                 ◀ ก่อนหน้า
               </button>
+              {/* page numbers with ellipses */}
+              {getPageItems(currentPage, totalPages).map((it, idx) =>
+                it === '...' ? (
+                  <span key={`dots-${idx}`} className="px-2 text-gray-500 select-none">…</span>
+                ) : (
+                  <button
+                    key={`p-${it}`}
+                    onClick={() => setCurrentPage(it)}
+                    className={
+                      it === currentPage
+                        ? 'inline-flex items-center px-3 py-2 border border-indigo-600 text-sm font-semibold rounded-md text-white bg-indigo-600'
+                        : 'inline-flex items-center px-3 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50'
+                    }
+                  >
+                    {it}
+                  </button>
+                )
+              )}
               <button
                 onClick={handleNext}
-                disabled={cursor + WINDOW_SIZE >= filteredAndSorted.length}
+                disabled={cursor + PAGE_SIZE  >= filteredAndSorted.length}
                 className="inline-flex items-center px-3 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 ถัดไป ▶
