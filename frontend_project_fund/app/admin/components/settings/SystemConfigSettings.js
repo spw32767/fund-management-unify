@@ -245,11 +245,11 @@ const SystemConfigSettings = () => {
         <section className="rounded-lg border border-gray-300 p-5">
           <h3 className="text-base font-semibold text-gray-900 mb-4">ประกาศที่ใช้งาน</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-            {renderAnnSelect("ประกาศหลักเกณฑ์", "main_annoucement")}
-            {renderAnnSelect("ประกาศหลักเกณฑ์การขอใช้ทุนอุดหนุน", "reward_announcement")}
-            {renderAnnSelect("ประกาศหลักเกณฑ์การขอใช้ทุนส่งเสริม", "activity_support_announcement")}
-            {renderAnnSelect("ประกาศงานวิชาการ", "conference_announcement")}
-            {renderAnnSelect("ประกาศงานบริการ", "service_announcement")}
+            {renderAnnSelect("ประกาศหลักเกณฑ์การใช้จ่ายเงินกองทุนวิจัยฯ", "main_annoucement")}
+            {renderAnnSelect("ประกาศขอใช้เงินกองทุนอุดหนุนกิจกรรม", "reward_announcement")}
+            {renderAnnSelect("ประกาศขอใช้เงินกองทุนส่งเสริมการวิจัย", "activity_support_announcement")}
+            {renderAnnSelect("ประกาศงานประชุมวิชาการ", "conference_announcement")}
+            {renderAnnSelect("ประกาศงานบริการวิชาการและการบริการ", "service_announcement")}
           </div>
         </section>
 

@@ -11,6 +11,7 @@ import GeneralSubmissionDetails from './GeneralSubmissionDetails';
 import ExportButton from './ExportButton';
 import { submissionsListingAPI, adminSubmissionAPI, commonAPI } from '../../../lib/admin_submission_api';
 import { toast } from 'react-hot-toast';
+import systemConfigAPI from '../../../lib/system_config_api'
 
 // ----------- CONFIG -----------
 const PAGE_SIZE  = 10;        // how many rows to show at a time
@@ -62,18 +63,39 @@ export default function SubmissionsManagement() {
   // ---------- YEARS ----------
   const fetchYears = async () => {
     try {
-      const response = await commonAPI.getYears();
-      console.log('Years response:', response);
-      if (response?.years && Array.isArray(response.years)) {
-        setYears(response.years);
-        if (!selectedYear && response.years.length) {
-          const currentYear = response.years.find(y => y.is_current) || response.years[0];
-          setSelectedYear(String(currentYear.year_id));
-        }
+      // ดึง "รายการปี" และ "system window" พร้อมกัน
+      const [yearsRes, winRaw] = await Promise.all([
+        commonAPI.getYears(),
+        systemConfigAPI.getWindow(),
+      ]);
+
+      const list = yearsRes?.years && Array.isArray(yearsRes.years) ? yearsRes.years : [];
+      setYears(list);
+
+      // normalize แล้วดึง current_year
+      const win = systemConfigAPI.normalizeWindow(winRaw);
+      const cur = win?.current_year ?? null;
+
+      // จับคู่ current_year -> year_id
+      let prefer;
+      if (cur != null && list.length) {
+        // เทียบทั้ง field year และ year_id เผื่อฝั่งหลังบ้านส่งเป็นเลขปี BE หรือ id โดยตรง
+        prefer =
+          list.find(y => String(y.year) === String(cur)) ||
+          list.find(y => String(y.year_id) === String(cur));
+      }
+
+      // fallback: is_current > รายการแรก
+      if (!prefer && list.length) {
+        prefer = list.find(y => y.is_current) || list[0];
+      }
+
+      if (!selectedYear && prefer) {
+        setSelectedYear(String(prefer.year_id));
       }
     } catch (err) {
-      console.error('Error fetching years:', err);
-      toast.error('ไม่สามารถดึงข้อมูลปีงบประมาณได้');
+      console.error('Error fetching years/current_year:', err);
+      toast.error('ไม่สามารถดึงข้อมูลปีงบประมาณ/ปีปัจจุบันได้');
     }
   };
 
@@ -547,10 +569,6 @@ export default function SubmissionsManagement() {
       <div className="mb-6">
         <div className="bg-white rounded-lg shadow-md border border-gray-200 p-6">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
-            <div className="mb-4 sm:mb-0">
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">เลือกปีงบประมาณ</h3>
-              <p className="text-sm text-gray-600">เลือกปีงบประมาณเพื่อดูภาพรวมข้อมูลคำร้องขอทุน</p>
-            </div>
             <div className="flex flex-col sm:flex-row items-start sm:items-center space-y-2 sm:space-y-0 sm:space-x-4">
               <select
                 value={selectedYear}
@@ -564,14 +582,6 @@ export default function SubmissionsManagement() {
                   </option>
                 ))}
               </select>
-              {selectedYear && (
-                <div className="text-right">
-                  <div className="text-sm text-gray-600">งบประมาณทั้งหมด</div>
-                  <div className="text-xl font-bold text-indigo-600">
-                    ฿{(getSelectedYearInfo().budget || 0).toLocaleString()}
-                  </div>
-                </div>
-              )}
             </div>
           </div>
         </div>
