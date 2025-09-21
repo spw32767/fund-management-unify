@@ -42,8 +42,35 @@ export const adminAnnouncementAPI = {
   },
 
   // Update metadata (JSON PUT)
+  // ───────── Fund Forms ─────────
   async update(id, body = {}) {
-    return apiClient.put(`/announcements/${id}`, body); // PUT JSON /api/v1/announcements/:id
+    if (id == null || id === "" || Number.isNaN(Number(id))) {
+      throw new Error("form id is required");
+    }
+    const payload = { ...body };
+    if (payload.display_order != null) {
+      payload.display_order = Number(payload.display_order); // สำคัญ: บังคับเป็น number
+    }
+    try {
+      return await apiClient.put(`/fund-forms/${encodeURIComponent(id)}`, payload);
+    } catch (err) {
+      // โยนข้อความจาก backend ออกมาให้เห็นชัด ตอน dev
+      const msg =
+        err?.response?.data?.error ||
+        err?.response?.data?.message ||
+        err?.message ||
+        "Update fund form failed";
+      throw new Error(msg);
+    }
+  },
+
+  // (ออปชัน) สำหรับบันทึกลำดับทีละหลายรายการ เรียกแบบทีละตัวเรียงกัน
+  async reorderForms(rows = []) {
+    for (const r of rows) {
+      if (!r || r.form_id == null) continue;
+      await this.update(r.form_id, { display_order: Number(r.display_order) });
+    }
+    return { success: true };
   },
 
   // Replace file — multipart PUT

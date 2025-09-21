@@ -483,38 +483,73 @@ export default function AnnouncementManager() {
   function aDragEnd() {
     setADraggingId(null);
   }
+
+  // ===== บันทึกลำดับ: ประกาศ =====
   async function aPersistOrder() {
     if (!aOrderDirty) return;
     try {
-    const payloads = announcements.map((r, i) => ({
-      id: getAnnouncementId(r),
-        display_order: i + 1,
-      }));
-      for (const p of payloads) {
-        await adminAnnouncementAPI.update(p.id, { display_order: p.display_order });
-        // หลัง PUT สำเร็จ ก่อน toast:
-        setAnnouncements((prev) =>
-          prev.map((item) =>
-            item.announcement_id === aEditing.announcement_id
-              ? {
-                  ...item,
-                  ...meta,
-                  // ปรับชื่อ field ให้ตรงกับที่ list ใช้ (เช่น published_at/expired_at เป็น ISO):
-                  published_at: meta.published_at,
-                  expired_at: meta.expired_at,
-                  display_order: meta.display_order ?? item.display_order,
-                }
-              : item
-          )
-        );
+      // สร้าง payload เฉพาะรายการที่มี id
+      const payloads = (announcements || [])
+        .map((r, i) => ({ id: getAnnouncementId(r), display_order: i + 1 }))
+        .filter((p) => p.id != null);
+
+      if (payloads.length === 0) {
+        toast("warning", "ไม่มีรายการสำหรับบันทึกลำดับ");
+        return;
       }
+
+      // อัปเดตทีละตัว (หรือจะ Promise.all ก็ได้)
+      await Promise.all(
+        payloads.map((p) =>
+          adminAnnouncementAPI.update(p.id, { display_order: Number(p.display_order) })
+        )
+      );
+
       toast("success", "บันทึกลำดับประกาศแล้ว");
       setAOrderDirty(false);
       await loadAnnouncements();
     } catch (e) {
-      toast("error", e.message || "บันทึกลำดับไม่สำเร็จ");
+      console.error("[aPersistOrder] error:", e);
+      toast("error", e?.message || "บันทึกลำดับไม่สำเร็จ");
     }
   }
+
+  // ===== บันทึกลำดับ: แบบฟอร์ม =====
+  async function fPersistOrder() {
+    if (!fOrderDirty) return;
+    try {
+      const payloads = (fundForms || [])
+        .map((r, i) => ({ id: getFormId(r), display_order: i + 1 }))
+        .filter((p) => p.id != null);
+
+      if (payloads.length === 0) {
+        toast("warning", "ไม่มีรายการสำหรับบันทึกลำดับ");
+        return;
+      }
+
+      await Promise.all(
+        payloads.map((p) =>
+          adminFundFormAPI.update(p.id, { display_order: Number(p.display_order) })
+        )
+      );
+
+      toast("success", "บันทึกลำดับแบบฟอร์มแล้ว");
+      setFOrderDirty(false);
+      // อัปเดต baseline ให้สอดคล้องกับลำดับใหม่
+      setFBaselineOrder(fundForms.map((r) => getFormId(r)));
+      await loadFundForms();
+    } catch (e) {
+      console.error("[fPersistOrder] error:", e);
+      // ช่วย debug ถ้ามี response จากเซิร์ฟเวอร์
+      const msg =
+        e?.response?.data?.error ||
+        e?.response?.data?.message ||
+        e?.message ||
+        "บันทึกลำดับไม่สำเร็จ";
+      toast("error", msg);
+    }
+  }
+
 
   /** ===== Drag & Drop (Fund Forms) — ไม่จำกัดกลุ่ม ===== */
   function fDragStart(e, row) {
