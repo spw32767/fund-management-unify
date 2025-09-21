@@ -2065,9 +2065,9 @@ export default function PublicationSubmissionDetails({ submissionId, onBack }) {
                     doc.name ||
                     `เอกสารที่ ${index + 1}`;
                   const docType = (doc.document_type_name || '').trim() || 'ไม่ระบุประเภท';
-                  
+
                   return (
-                    <div 
+                    <div
                       key={doc.document_id || fileId || index}
                       className="bg-gray-50/50 rounded-lg p-4 hover:bg-gray-50 transition-colors duration-200"
                     >
@@ -2082,12 +2082,28 @@ export default function PublicationSubmissionDetails({ submissionId, onBack }) {
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 mb-1">
                               <FileText size={16} className="text-gray-600 flex-shrink-0" />
-                              <p className="font-medium text-gray-900 truncate" title={fileName}>
-                                {fileName}
-                              </p>
+
+                              {/* ชื่อไฟล์: ทำเป็นลิงก์สีน้ำเงิน กดแล้วเรียก handleView(fileId) */}
+                              {fileId ? (
+                                <a
+                                  href="#"
+                                  onClick={(e) => { e.preventDefault(); handleView(fileId); }}
+                                  className="font-medium text-blue-600 hover:underline truncate cursor-pointer"
+                                  title={`เปิดดู: ${fileName}`}
+                                >
+                                  {fileName}
+                                </a>
+                              ) : (
+                                <span
+                                  className="font-medium text-gray-400 truncate"
+                                  title={fileName}
+                                >
+                                  {fileName}
+                                </span>
+                              )}
                             </div>
                             <p className="text-sm text-gray-600">
-                              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-blue-100 text-blue-700">
+                              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-green-100 text-green-700">
                                 {docType}
                               </span>
                             </p>
