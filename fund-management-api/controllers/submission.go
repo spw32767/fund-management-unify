@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"fund-management-api/config"
 	"fund-management-api/models"
@@ -238,12 +239,51 @@ func CreateSubmission(c *gin.Context) {
 		return
 	}
 
+	userIDInt, ok := userID.(int)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Invalid user context"})
+		return
+	}
+
+	var resolvedCategoryID *int
+	if req.CategoryID != nil {
+		resolvedCategoryID = req.CategoryID
+	}
+	if resolvedCategoryID == nil && req.SubcategoryID != nil {
+		catID, err := resolveCategoryIDFromSubcategory(nil, *req.SubcategoryID)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Unable to determine category for subcategory"})
+			return
+		}
+		resolvedCategoryID = &catID
+	}
+
+	if resolvedCategoryID == nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Category or subcategory is required to evaluate eligibility"})
+		return
+	}
+
+	eligibility, err := findUserFundEligibility(nil, userIDInt, req.YearID, resolvedCategoryID, req.SubcategoryID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(http.StatusForbidden, gin.H{"error": "No eligibility record found for this fund"})
+		} else {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to verify eligibility"})
+		}
+		return
+	}
+
+	if err := ensureEligibilityAllowsStart(eligibility, nil); err != nil {
+		c.JSON(http.StatusForbidden, gin.H{"error": err.Error(), "eligibility": eligibility})
+		return
+	}
+
 	// Create submission
 	now := time.Now()
 	submission := models.Submission{
 		SubmissionType:   req.SubmissionType,
 		SubmissionNumber: generateSubmissionNumber(req.SubmissionType),
-		UserID:           userID.(int),
+		UserID:           userIDInt,
 		YearID:           req.YearID,
 		StatusID:         1,
 		CreatedAt:        now,

@@ -45,6 +45,41 @@ export default function ResearchFundContent({ onNavigate }) {
     applyFilters();
   }, [searchTerm, statusFilter, fundCategories]);
 
+  const hasBudgetAvailable = (fund) => {
+    if (!fund) return false;
+    const budget = typeof fund.remaining_budget === 'number' ? fund.remaining_budget : 0;
+    const grant = fund.remaining_grant;
+    const grantAvailable = grant === null || grant === undefined || grant > 0;
+    return budget > 0 && grantAvailable;
+  };
+
+  const canUserApply = (fund) => {
+    if (!fund) return true;
+    if (fund.user_can_apply === false) return false;
+    if (fund.user_eligibility && fund.user_eligibility.can_apply === false) return false;
+    return true;
+  };
+
+  const isFundAvailableForUser = (fund) => hasBudgetAvailable(fund) && canUserApply(fund);
+
+  const formatApplications = (value) => {
+    if (value === null || value === undefined) {
+      return 'ไม่จำกัดครั้ง';
+    }
+    const numeric = Number(value);
+    if (Number.isNaN(numeric)) {
+      return 'ไม่ระบุ';
+    }
+    return `${new Intl.NumberFormat('th-TH').format(numeric)} ครั้ง`;
+  };
+
+  const formatPersonalQuota = (value) => {
+    if (value === null || value === undefined) {
+      return 'ไม่จำกัด';
+    }
+    return formatAmount(value);
+  };
+
   // useEffect สำหรับ modal focus และ ESC key
   useEffect(() => {
     const handleEscKey = (event) => {
@@ -175,8 +210,7 @@ export default function ResearchFundContent({ onNavigate }) {
       filtered = filtered.map(category => ({
         ...category,
         subcategories: category.subcategories?.filter(sub => {
-          const isAvailable = sub.remaining_budget > 0 && 
-                            (sub.remaining_grant === null || sub.remaining_grant === undefined || sub.remaining_grant > 0);
+          const isAvailable = isFundAvailableForUser(sub);
           return statusFilter === "available" ? isAvailable : !isAvailable;
         }) || []
       })).filter(category => category.subcategories && category.subcategories.length > 0);
@@ -239,15 +273,32 @@ export default function ResearchFundContent({ onNavigate }) {
     );
   }
 
-  const renderFundRow = (fund, category, isAvailable) => {
+  const renderFundRow = (fund, category) => {
     // ตรวจสอบทั้ง subcategorie_name และ subcategory_name
     const fundName = fund.subcategorie_name || fund.subcategory_name || 'ไม่ระบุชื่อทุน';
     const fundId = fund.subcategorie_id || fund.subcategory_id;
     const hasOnlineForm = fund.has_online_form === true;
     const maxAmountPerGrant = fund.max_amount_per_grant || fund.allocated_amount;
-    // const formConfig = FORM_TYPE_CONFIG[fund.form_type] || FORM_TYPE_CONFIG['download'];
-    // const buttonText = formConfig.buttonText;
-    // const ButtonIcon = formConfig.buttonIcon === 'FileText' ? FileText : Download;
+
+    const userEligibility = fund.user_eligibility || null;
+    const userCanApply = canUserApply(fund);
+    const budgetAvailable = hasBudgetAvailable(fund);
+    const isAvailable = budgetAvailable && userCanApply;
+
+    const restrictionMessage = (() => {
+      if (!userEligibility) return null;
+      if (userEligibility.is_eligible_flag === false) {
+        return userEligibility.restriction_reason || 'ไม่ได้รับสิทธิ์ในทุนนี้';
+      }
+      if (userEligibility.has_quota === false) {
+        return 'ใช้วงเงินส่วนบุคคลครบแล้ว';
+      }
+      if (userEligibility.has_applications === false) {
+        return 'ใช้จำนวนสิทธิ์ครบแล้ว';
+      }
+      return userEligibility.restriction_reason || null;
+    })();
+
     const buttonText = 'ยื่นขอทุน';
     const ButtonIcon = FileText;
 
@@ -289,9 +340,51 @@ export default function ResearchFundContent({ onNavigate }) {
                 สูงสุด/ทุน: {formatAmount(maxAmountPerGrant)}
               </div>
             )}
-            {!isAvailable && (
+            {!budgetAvailable && (
               <div className="text-xs text-red-600 mt-1">
                 งบประมาณหมด
+              </div>
+            )}
+            {budgetAvailable && !userCanApply && (
+              <div className="text-xs text-red-600 mt-1">
+                สิทธิ์ของคุณไม่เพียงพอ
+              </div>
+            )}
+            {userEligibility && (
+              <div className="mt-3 pt-3 border-t border-gray-100 space-y-1">
+                <div className={`text-xs font-medium ${userCanApply ? 'text-indigo-600' : 'text-red-600'}`}>
+                  สิทธิ์ของฉัน: {userCanApply ? 'สามารถยื่นขอได้' : 'ไม่สามารถยื่นขอได้'}
+                </div>
+                {userEligibility.remaining_quota !== undefined && userEligibility.remaining_quota !== null && (
+                  <div className="text-xs text-gray-600">
+                    วงเงินส่วนบุคคลคงเหลือ: {formatPersonalQuota(userEligibility.remaining_quota)}
+                  </div>
+                )}
+                {userEligibility.remaining_quota === null && (
+                  <div className="text-xs text-gray-600">
+                    วงเงินส่วนบุคคลคงเหลือ: ไม่จำกัด
+                  </div>
+                )}
+                {userEligibility.remaining_applications !== undefined && userEligibility.remaining_applications !== null && (
+                  <div className="text-xs text-gray-600">
+                    สิทธิ์ยื่นขอคงเหลือ: {formatApplications(userEligibility.remaining_applications)}
+                  </div>
+                )}
+                {userEligibility.remaining_applications === null && (
+                  <div className="text-xs text-gray-600">
+                    สิทธิ์ยื่นขอคงเหลือ: ไม่จำกัดครั้ง
+                  </div>
+                )}
+                {userEligibility.max_allowed_amount !== undefined && userEligibility.max_allowed_amount !== null && (
+                  <div className="text-xs text-gray-500">
+                    จำกัดไม่เกิน: {formatAmount(userEligibility.max_allowed_amount)}
+                  </div>
+                )}
+                {!userCanApply && restrictionMessage && (
+                  <div className="text-xs text-red-600">
+                    {restrictionMessage}
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -443,9 +536,7 @@ export default function ResearchFundContent({ onNavigate }) {
                   // ถ้ามี subcategories ให้แสดงแต่ละรายการ
                   if (category.subcategories && category.subcategories.length > 0) {
                     return category.subcategories.map((fund) => {
-                      const isAvailable = fund.remaining_budget > 0 && 
-                                        (fund.remaining_grant === null || fund.remaining_grant === undefined || fund.remaining_grant > 0);
-                      return renderFundRow(fund, category, isAvailable);
+                      return renderFundRow(fund, category);
                     });
                   } else {
                     // ถ้าไม่มี subcategories แสดงแถวว่างพร้อมข้อความ

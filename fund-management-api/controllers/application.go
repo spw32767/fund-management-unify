@@ -3,14 +3,17 @@ package controllers
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"fund-management-api/config"
 	"fund-management-api/models"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 // Helper function to generate application number
@@ -166,13 +169,36 @@ func CreateApplication(c *gin.Context) {
 		return
 	}
 
+	userIDInt, ok := userID.(int)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Invalid user context"})
+		return
+	}
+
+	categoryID := subcategory.CategoryID
+	subcategoryID := req.SubcategoryID
+	eligibility, err := findUserFundEligibility(nil, userIDInt, req.YearID, &categoryID, &subcategoryID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(http.StatusForbidden, gin.H{"error": "No eligibility record found for this fund"})
+		} else {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to verify eligibility"})
+		}
+		return
+	}
+
+	if err := ensureEligibilityAllowsStart(eligibility, &req.RequestedAmount); err != nil {
+		c.JSON(http.StatusForbidden, gin.H{"error": err.Error(), "eligibility": eligibility})
+		return
+	}
+
 	// Generate application number
 	applicationNumber := generateApplicationNumber()
 
 	// Create application
 	now := time.Now()
 	application := models.FundApplication{
-		UserID:              userID.(int),
+		UserID:              userIDInt,
 		YearID:              req.YearID,
 		SubcategoryID:       req.SubcategoryID,
 		ApplicationStatusID: 1, // 1 = รอพิจารณา
@@ -354,6 +380,22 @@ func ApproveApplication(c *gin.Context) {
 		return
 	}
 
+	if catID, err := resolveCategoryIDFromSubcategory(nil, application.SubcategoryID); err == nil {
+		subID := application.SubcategoryID
+		eligibility, err := findUserFundEligibility(nil, application.UserID, application.YearID, &catID, &subID)
+		if err != nil {
+			if !errors.Is(err, gorm.ErrRecordNotFound) {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to load eligibility record", "debug": err.Error()})
+				return
+			}
+		} else {
+			if err := consumeEligibilityOnApproval(nil, eligibility, req.ApprovedAmount, true); err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update eligibility limits", "debug": err.Error()})
+				return
+			}
+		}
+	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"message":     "Application approved successfully",
 		"application": application,
@@ -502,48 +544,90 @@ func GetYears(c *gin.Context) {
 // GetTeacherSubcategories - Fixed SQL syntax for production server
 func GetTeacherSubcategories(c *gin.Context) {
 	categoryID := c.Query("category_id")
-	userID, _ := c.Get("userID")
-	roleID, _ := c.Get("roleID")
+	yearParam := c.Query("year_id")
+	userIDValue, _ := c.Get("userID")
+	roleIDValue, _ := c.Get("roleID")
+
+	userIDInt := 0
+	if uid, ok := userIDValue.(int); ok {
+		userIDInt = uid
+	}
+
+	roleID := 0
+	if rid, ok := roleIDValue.(int); ok {
+		roleID = rid
+	}
+
+	var yearFilter *int
+	if yearParam != "" {
+		if parsed, err := strconv.Atoi(yearParam); err == nil {
+			yearFilter = &parsed
+		}
+	}
 
 	// Debug log
 	fmt.Printf("\n=== GetTeacherSubcategories Debug ===\n")
 	fmt.Printf("categoryID: %s\n", categoryID)
-	fmt.Printf("userID: %v\n", userID)
+	fmt.Printf("userID: %v\n", userIDInt)
 	fmt.Printf("roleID: %v\n", roleID)
+	if yearFilter != nil {
+		fmt.Printf("yearID: %d\n", *yearFilter)
+	}
 
 	var results []map[string]interface{}
 
 	// Build base query - เพิ่ม form_type, form_url ใน SELECT
 	baseQuery := `
-		SELECT DISTINCT
-			fs.subcategory_id,
-			fs.subcategory_name,
-			fs.category_id,
-			fs.status,
-			fs.fund_condition,
-			fs.target_roles,
-			fs.form_type,              -- เพิ่มฟิลด์ใหม่
-			fs.form_url,               -- เพิ่มฟิลด์ใหม่
-			fs.comment as sub_comment,
-			sb.subcategory_budget_id,
-			sb.allocated_amount,
-			sb.used_amount,
-			sb.remaining_budget,
-			sb.max_grants,
-			sb.max_amount_per_grant,
-			sb.remaining_grant,
-			sb.level,
-			sb.fund_description,
-			sb.comment as budget_comment
-		FROM fund_subcategories fs
-		LEFT JOIN subcategory_budgets sb ON fs.subcategory_id = sb.subcategory_id
-			AND sb.delete_at IS NULL
-			AND sb.status = 'active'
-		WHERE fs.delete_at IS NULL 
-			AND fs.status = 'active'`
+                SELECT DISTINCT
+                        fs.subcategory_id,
+                        fs.subcategory_name,
+                        fs.category_id,
+                        fs.status,
+                        fs.fund_condition,
+                        fs.target_roles,
+                        fs.form_type,              -- เพิ่มฟิลด์ใหม่
+                        fs.form_url,               -- เพิ่มฟิลด์ใหม่
+                        fs.comment as sub_comment,
+                        sb.subcategory_budget_id,
+                        sb.allocated_amount,
+                        sb.used_amount,
+                        sb.remaining_budget,
+                        sb.max_grants,
+                        sb.max_amount_per_grant,
+                        sb.remaining_grant,
+                        sb.level,
+                        sb.fund_description,
+                        sb.comment as budget_comment,
+                        ufe.user_fund_eligibility_id,
+                        ufe.remaining_quota,
+                        ufe.max_allowed_amount,
+                        ufe.remaining_applications,
+                        ufe.is_eligible,
+                        ufe.restriction_reason,
+                        ufe.calculated_at,
+                        ufe.update_at
+                FROM fund_subcategories fs
+                LEFT JOIN subcategory_budgets sb ON fs.subcategory_id = sb.subcategory_id
+                        AND sb.delete_at IS NULL
+                        AND sb.status = 'active'
+                LEFT JOIN user_fund_eligibilities ufe ON fs.category_id = ufe.category_id
+                        AND ufe.user_id = ?
+                        AND ufe.delete_at IS NULL
+                        AND (ufe.subcategory_id IS NULL OR ufe.subcategory_id = fs.subcategory_id)`
+
+	if yearFilter != nil {
+		baseQuery += "\n                        AND ufe.year_id = ?"
+	}
+
+	baseQuery += `
+                WHERE fs.delete_at IS NULL
+                        AND fs.status = 'active'`
 
 	var conditions []string
-	var args []interface{}
+	args := []interface{}{userIDInt}
+	if yearFilter != nil {
+		args = append(args, *yearFilter)
+	}
 
 	// Add filters
 	if categoryID != "" {
@@ -552,8 +636,8 @@ func GetTeacherSubcategories(c *gin.Context) {
 	}
 
 	// Role-based filtering
-	roleIDStr := fmt.Sprintf("%d", roleID.(int))
-	if roleID.(int) != 3 { // Not admin
+	roleIDStr := fmt.Sprintf("%d", roleID)
+	if roleID != 3 { // Not admin
 		conditions = append(conditions, "(fs.target_roles IS NULL OR fs.target_roles = '' OR JSON_CONTAINS(fs.target_roles, ?))")
 		args = append(args, fmt.Sprintf(`"%s"`, roleIDStr))
 		fmt.Printf("Applied role filtering for role: %s\n", roleIDStr)
@@ -609,6 +693,14 @@ func GetTeacherSubcategories(c *gin.Context) {
 			level                *string
 			fundDescription      *string
 			budgetComment        *string
+			eligibilityID        *int
+			userQuota            *float64
+			userMaxAmount        *float64
+			userApplications     *int
+			userEligible         *string
+			userRestriction      *string
+			userCalculated       *time.Time
+			userUpdated          *time.Time
 		)
 
 		err := rows.Scan(
@@ -631,6 +723,14 @@ func GetTeacherSubcategories(c *gin.Context) {
 			&level,
 			&fundDescription,
 			&budgetComment,
+			&eligibilityID,
+			&userQuota,
+			&userMaxAmount,
+			&userApplications,
+			&userEligible,
+			&userRestriction,
+			&userCalculated,
+			&userUpdated,
 		)
 		if err != nil {
 			fmt.Printf("Scan error: %v\n", err)
@@ -657,6 +757,30 @@ func GetTeacherSubcategories(c *gin.Context) {
 			continue
 		}
 		processedIDs[uniqueID] = true
+
+		eligibilityExists := eligibilityID != nil
+		eligibleFlag := true
+		if eligibilityExists && userEligible != nil {
+			normalized := strings.TrimSpace(strings.ToLower(*userEligible))
+			if normalized == "no" || normalized == "false" || normalized == "0" {
+				eligibleFlag = false
+			}
+		}
+
+		hasQuota := true
+		if eligibilityExists && userQuota != nil {
+			hasQuota = *userQuota > 0
+		}
+
+		hasApplications := true
+		if eligibilityExists && userApplications != nil {
+			hasApplications = *userApplications > 0
+		}
+
+		userCanApply := true
+		if eligibilityExists {
+			userCanApply = eligibleFlag && hasQuota && hasApplications
+		}
 
 		// Create result object - เพิ่มฟิลด์ใหม่
 		result := map[string]interface{}{
@@ -721,6 +845,55 @@ func GetTeacherSubcategories(c *gin.Context) {
 			result["is_unlimited_grants"] = false
 		}
 
+		result["user_can_apply"] = userCanApply
+
+		if eligibilityExists {
+			var eligibilityIDVal interface{}
+			if eligibilityID != nil {
+				eligibilityIDVal = *eligibilityID
+			}
+
+			var remainingQuotaVal interface{}
+			if userQuota != nil {
+				remainingQuotaVal = *userQuota
+			}
+
+			var maxAllowedVal interface{}
+			if userMaxAmount != nil {
+				maxAllowedVal = *userMaxAmount
+			}
+
+			var remainingAppsVal interface{}
+			if userApplications != nil {
+				remainingAppsVal = *userApplications
+			}
+
+			var eligibleValue interface{}
+			if userEligible != nil {
+				eligibleValue = *userEligible
+			}
+
+			var restrictionVal interface{}
+			if userRestriction != nil {
+				restrictionVal = *userRestriction
+			}
+
+			result["user_eligibility"] = map[string]interface{}{
+				"user_fund_eligibility_id": eligibilityIDVal,
+				"remaining_quota":          remainingQuotaVal,
+				"max_allowed_amount":       maxAllowedVal,
+				"remaining_applications":   remainingAppsVal,
+				"is_eligible":              eligibleValue,
+				"restriction_reason":       restrictionVal,
+				"calculated_at":            userCalculated,
+				"updated_at":               userUpdated,
+				"has_quota":                hasQuota,
+				"has_applications":         hasApplications,
+				"is_eligible_flag":         eligibleFlag,
+				"can_apply":                userCanApply,
+			}
+		}
+
 		results = append(results, result)
 		fmt.Printf("Added fund: %s (ID: %s)\n", displayName, uniqueID)
 	}
@@ -742,7 +915,7 @@ func GetTeacherSubcategories(c *gin.Context) {
 		"success":       true,
 		"subcategories": results,
 		"role_id":       roleID,
-		"user_id":       userID,
+		"user_id":       userIDInt,
 		"total":         len(results),
 	})
 }

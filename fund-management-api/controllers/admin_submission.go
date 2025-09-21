@@ -2,6 +2,7 @@
 package controllers
 
 import (
+	"errors"
 	"fund-management-api/config"
 	"fund-management-api/models"
 	"net/http"
@@ -10,6 +11,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 // ==============================
@@ -298,6 +300,8 @@ func ApproveSubmission(c *gin.Context) {
 		return
 	}
 
+	approvedAmount := 0.0
+
 	// Update detail for publication_reward
 	if submission.SubmissionType == "publication_reward" {
 		var detail models.PublicationRewardDetail
@@ -346,6 +350,52 @@ func ApproveSubmission(c *gin.Context) {
 				tx.Rollback()
 				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update detail"})
 				return
+			}
+		}
+
+		approvedAmount = detail.TotalApproveAmount
+	} else if submission.SubmissionType == "fund_application" {
+		var detail models.FundApplicationDetail
+		if submission.FundApplicationDetail != nil {
+			detail = *submission.FundApplicationDetail
+		} else {
+			if err := tx.Where("submission_id = ?", submissionID).First(&detail).Error; err != nil {
+				if !errors.Is(err, gorm.ErrRecordNotFound) {
+					tx.Rollback()
+					c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to load application detail"})
+					return
+				}
+			}
+		}
+
+		if detail.DetailID != 0 {
+			approvedAmount = detail.ApprovedAmount
+		}
+	}
+
+	// Deduct eligibility counters when applicable
+	if submission.UserID != 0 {
+		categoryIDPtr := submission.CategoryID
+		if categoryIDPtr == nil && submission.SubcategoryID != nil {
+			if catID, err := resolveCategoryIDFromSubcategory(tx, *submission.SubcategoryID); err == nil {
+				categoryIDPtr = &catID
+			}
+		}
+
+		if categoryIDPtr != nil {
+			eligibility, err := findUserFundEligibility(tx, submission.UserID, submission.YearID, categoryIDPtr, submission.SubcategoryID)
+			if err != nil {
+				if !errors.Is(err, gorm.ErrRecordNotFound) {
+					tx.Rollback()
+					c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to load eligibility record", "debug": err.Error()})
+					return
+				}
+			} else {
+				if err := consumeEligibilityOnApproval(tx, eligibility, approvedAmount, true); err != nil {
+					tx.Rollback()
+					c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update eligibility limits", "debug": err.Error()})
+					return
+				}
 			}
 		}
 	}
