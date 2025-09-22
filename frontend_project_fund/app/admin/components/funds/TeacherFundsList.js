@@ -2,7 +2,8 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { teacherAPI, targetRolesUtils } from '@/lib/teacher_api';
+import { teacherAPI } from '../../../lib/member_api';
+import { targetRolesUtils } from '../../../lib/target_roles_utils';
 
 const TeacherFundsList = () => {
   const [fundsData, setFundsData] = useState({ categories: [] });
