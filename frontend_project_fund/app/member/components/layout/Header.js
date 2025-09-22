@@ -1,219 +1,235 @@
 "use client";
 
-import {
-  LayoutDashboard,
-  ChevronDown,
-  FileText,
-  DollarSign,
-  LogOut,
-  HandHelping,
-  ClipboardList,
-  User,
-  Gift,
-  Bell,
-  ShieldCheck,
-} from "lucide-react";
+import { useMemo, useState } from "react";
+import { ChevronDown, LogOut } from "lucide-react";
+import { HiMenu } from "react-icons/hi";
+import { RxCross2 } from "react-icons/rx";
+import { useRouter } from "next/navigation";
 import { useAuth } from "../../../contexts/AuthContext";
-import { useRouter, usePathname } from "next/navigation";
 
-export default function Navigation({ 
-  currentPage, 
-  setCurrentPage,
-  handleNavigate, 
-  submenuOpen, 
-  setSubmenuOpen 
+const roleLabels = {
+  teacher: "อาจารย์",
+  staff: "เจ้าหน้าที่",
+  admin: "ผู้ดูแลระบบ",
+  dept_head: "หัวหน้าสาขา",
+};
+
+function resolveRoleLabel(user) {
+  if (!user) return null;
+
+  if (user.role && roleLabels[user.role]) {
+    return roleLabels[user.role];
+  }
+
+  if (typeof user.role_id === "number") {
+    switch (user.role_id) {
+      case 1:
+        return roleLabels.teacher;
+      case 2:
+        return roleLabels.staff;
+      case 3:
+        return roleLabels.admin;
+      case 4:
+        return roleLabels.dept_head;
+      default:
+        return null;
+    }
+  }
+
+  return null;
+}
+
+function getDisplayName(user) {
+  if (!user) return "Loading...";
+
+  const firstName =
+    user.user_fname || user.first_name || user.firstname || user.name || "";
+  const lastName = user.user_lname || user.last_name || user.lastname || "";
+
+  const fullName = `${firstName} ${lastName}`.trim();
+  if (fullName) {
+    return fullName;
+  }
+
+  if (user.email) {
+    return user.email;
+  }
+
+  return "ผู้ใช้งาน";
+}
+
+function getInitials(displayName) {
+  if (!displayName) return "MB";
+
+  const parts = displayName
+    .split(" ")
+    .map((part) => part.trim())
+    .filter(Boolean);
+
+  if (parts.length === 0) return "MB";
+
+  if (parts.length === 1) {
+    return parts[0].slice(0, 2).toUpperCase() || "MB";
+  }
+
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
+
+export default function Header({
+  isOpen,
+  setIsOpen,
+  Navigation,
+  currentPageTitle = "แดชบอร์ดบุคลากร",
 }) {
-  const { logout, user } = useAuth();
+  const { user, logout } = useAuth();
   const router = useRouter();
-  const pathname = usePathname();
+  const [showUserMenu, setShowUserMenu] = useState(false);
 
-  const roleName = user?.role || (user?.role_id != null ? (
-    user.role_id === 1 ? 'teacher' :
-    user.role_id === 2 ? 'staff' :
-    user.role_id === 3 ? 'admin' :
-    user.role_id === 4 ? 'dept_head' : null
-  ) : null);
-
-  const baseMenu = [
-    {
-      id: 'funds',
-      label: 'ทุนที่สมัครได้',
-      icon: DollarSign,
-      href: '/member/funds',
-      pageId: 'research-fund',
-    },
-    {
-      id: 'applications',
-      label: 'คำร้องของฉัน',
-      icon: ClipboardList,
-      href: '/member/applications',
-      pageId: 'applications',
-    },
-    {
-      id: 'notifications',
-      label: 'การแจ้งเตือน',
-      icon: Bell,
-      href: '/member/notifications',
-      pageId: 'notifications',
-    },
-  ];
-
-  const featureMenu = [
-    {
-      id: 'dashboard',
-      label: 'แดชบอร์ด',
-      icon: LayoutDashboard,
-    },
-    {
-      id: 'profile',
-      label: 'ข้อมูลส่วนตัว',
-      icon: User,
-    },
-    {
-      id: 'promotion-fund',
-      label: 'ทุนอุดหนุนกิจกรรม',
-      icon: HandHelping,
-    },
-    {
-      id: 'received-funds',
-      label: 'ทุนที่เคยได้รับ',
-      icon: Gift,
-    },
-    {
-      id: 'announcements',
-      label: 'ประกาศกองทุนวิจัยและนวัตกรรม',
-      icon: FileText,
-    },
-    {
-      id: 'generic-fund-application',
-      label: 'ทดสอบหน้า',
-      icon: FileText,
-    },
-  ];
-
-  const deptHeadMenu = roleName === 'dept_head'
-    ? [{
-        id: 'dept-review',
-        label: 'พิจารณาคำร้อง (สาขา)',
-        icon: ShieldCheck,
-        href: '/member/dept-review',
-      }]
-    : [];
-
-  const menuItems = [...baseMenu, ...featureMenu, ...deptHeadMenu];
-
-  const closeMobileMenu = () => {
-    const mobileMenuButton = document.querySelector('[aria-label="close-mobile-menu"]');
-    if (mobileMenuButton) mobileMenuButton.click();
-  };
-
-  const handleMenuClick = (item) => {
-    if (item.hasSubmenu) {
-      setSubmenuOpen(!submenuOpen);
-      return;
-    }
-
-    if (item.href) {
-      router.push(item.href);
-    } else if (item.pageId && handleNavigate) {
-      handleNavigate(item.pageId);
-    } else if (handleNavigate) {
-      handleNavigate(item.id);
-    } else if (item.pageId) {
-      setCurrentPage(item.pageId);
-    } else {
-      setCurrentPage(item.id);
-    }
-
-    closeMobileMenu();
-  };
-
-  const handleSubmenuClick = (parentId, submenuItem) => {
-    // ใช้ handleNavigate ถ้ามี ไม่งั้นใช้ setCurrentPage
-    if (handleNavigate) {
-      handleNavigate(submenuItem.id);
-    } else {
-      setCurrentPage(submenuItem.id);
-    }
-    closeMobileMenu();
-  };
+  const displayName = useMemo(() => getDisplayName(user), [user]);
+  const roleLabel = useMemo(() => resolveRoleLabel(user), [user]);
+  const initials = useMemo(() => getInitials(displayName), [displayName]);
 
   const handleLogout = async () => {
     try {
-      console.log("Logout from navigation");
       await logout();
-      router.replace('/login');
+      router.replace("/login");
     } catch (error) {
-      console.error('Logout error:', error);
-      // Even if logout API fails, still redirect to login
-      router.replace('/login');
+      console.error("Logout error:", error);
+      router.replace("/login");
     }
   };
 
-  const isActive = (item) => {
-    if (item.href && pathname?.startsWith(item.href)) {
-      return true;
-    }
+  const handleToggleMenu = () => {
+    setIsOpen?.((prev) => !prev);
+  };
 
-    const targetId = item.pageId || item.id;
-    return (
-      currentPage === targetId ||
-      (targetId === 'submit-request' && ['application-form', 'draft'].includes(currentPage))
-    );
+  const handleCloseMenu = () => {
+    setIsOpen?.(false);
+  };
+
+  const renderNavigation = () => {
+    if (!Navigation) return null;
+    if (typeof Navigation === "function") {
+      return Navigation({ closeMenu: handleCloseMenu });
+    }
+    return Navigation;
   };
 
   return (
-    <nav className="pb-40 md:ms-4">
-      {menuItems.map((item) => (
-        <div key={item.id}>
+    <header className="fixed top-0 z-40 w-full border-b border-gray-200 bg-white/95 backdrop-blur">
+      <div className="px-6 py-4 flex justify-between items-center">
+        {/* Logo Section */}
+        <div className="flex items-center gap-3">
           <button
-            onClick={() => handleMenuClick(item)}
-            className={`flex items-center gap-2 mb-2.5 w-full hover:text-blue-500 transition-colors ${
-              isActive(item) ? 'text-blue-500 font-semibold' : 'text-gray-700'
-            }`}
+            className={`${
+              isOpen ? "hidden" : "block"
+            } inline-flex items-center justify-center me-4 ms-3 p-2 w-10 h-10 text-sm text-gray-500 rounded-lg md:hidden hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-gray-200`}
+            onClick={handleToggleMenu}
+            aria-label="open-mobile-menu"
           >
-            <item.icon size={20} />
-            <span className="flex-1 text-left">{item.label}</span>
-            {item.hasSubmenu && (
-              <ChevronDown
-                size={16}
-                className={`transition-transform duration-300 ${
-                  submenuOpen && item.id === 'submit-request' ? 'rotate-180' : ''
-                }`}
-              />
-            )}
+            <HiMenu className="w-5 h-5 text-gray-700" />
           </button>
 
-          {/* Submenu */}
-          {item.hasSubmenu && submenuOpen && item.id === 'submit-request' && (
-            <div className="ml-6 mt-2 space-y-1 animate-in slide-in-from-top-2">
-              {item.submenu.map((subItem) => (
-                <button
-                  key={subItem.id}
-                  onClick={() => handleSubmenuClick(item.id, subItem)}
-                  className={`flex items-center gap-2 mb-2.5 w-full transition-colors ${
-                    currentPage === subItem.id ? 'text-blue-500 font-semibold' : 'text-gray-700 hover:text-blue-500'
-                  }`}
-                >
-                  <subItem.icon size={16} />
-                  <span>{subItem.label}</span>
-                </button>
-              ))}
-            </div>
-          )}
+          <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center">
+            <span className="text-white font-bold text-xl">F</span>
+          </div>
+          <div>
+            <h1 className="text-xl font-bold text-gray-800">Fund Management</h1>
+            <p className="text-xs text-gray-600">ระบบบริหารจัดการทุน - Member</p>
+            <p className="text-xs text-gray-500 mt-1">{currentPageTitle}</p>
+          </div>
         </div>
-      ))}
 
-      {/* Logout Button */}
-      <div className="border-t border-gray-200 mt-6 pt-4">
-        <button
-          onClick={handleLogout}
-          className="flex items-center gap-2 text-gray-700 hover:text-red-600 transition-colors w-full"
-        >
-          <LogOut size={20} />
-          <span>ออกจากระบบ</span>
-        </button>
+        {/* Desktop User Menu */}
+        <div className="hidden md:flex items-center gap-4">
+          <div className="text-right">
+            <p className="text-sm font-medium text-gray-800">{displayName}</p>
+            {roleLabel ? (
+              <p className="text-xs text-gray-600">{roleLabel}</p>
+            ) : null}
+          </div>
+
+          {/* User Avatar with Dropdown */}
+          <div className="relative">
+            <button
+              onClick={() => setShowUserMenu(!showUserMenu)}
+              className="flex items-center gap-2 p-2 rounded-lg hover:bg-gray-100 transition-colors"
+            >
+              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center text-white font-semibold">
+                {initials}
+              </div>
+              <ChevronDown size={16} className="text-gray-600" />
+            </button>
+
+            {/* Dropdown Menu */}
+            {showUserMenu && (
+              <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-2 z-10">
+                <button
+                  onClick={() => {
+                    setShowUserMenu(false);
+                    handleLogout();
+                  }}
+                  className="flex items-center gap-2 w-full px-4 py-2 text-left text-red-600 hover:bg-red-50"
+                >
+                  <LogOut size={16} />
+                  <span>ออกจากระบบ</span>
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Mobile Menu Close Button */}
+        {isOpen && (
+          <button
+            className="md:hidden inline-flex items-center justify-center me-4 ms-3 p-2 w-10 h-10 text-sm text-gray-500 rounded-lg hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-gray-200"
+            onClick={handleCloseMenu}
+            aria-label="close-mobile-menu"
+          >
+            <RxCross2 className="w-5 h-5 text-gray-700" />
+          </button>
+        )}
       </div>
-    </nav>
+
+      {/* Mobile Menu Overlay */}
+      {isOpen && (
+        <div className="fixed inset-0 bg-gray-200/50 z-40" onClick={handleCloseMenu}>
+          <div
+            className="absolute top-0 pt-5 right-0 h-screen z-50 w-64 bg-white shadow p-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex justify-end mb-3">
+              <button onClick={handleCloseMenu} aria-label="close-mobile-menu">
+                <RxCross2 className="w-7 h-7 text-gray-600 hover:text-red-500" />
+              </button>
+            </div>
+
+            {/* Mobile User Info */}
+            <div className="mb-6 p-4 bg-gray-50 rounded-lg md:hidden">
+              <div className="flex items-center gap-3 mb-3">
+                <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center text-white font-semibold">
+                  {initials}
+                </div>
+                <div>
+                  <div className="font-medium text-gray-800">{displayName}</div>
+                  {roleLabel ? (
+                    <div className="text-xs text-gray-600">{roleLabel}</div>
+                  ) : null}
+                </div>
+              </div>
+              <button
+                onClick={handleLogout}
+                className="w-full text-left text-sm text-red-600 hover:text-red-700 flex items-center gap-2"
+              >
+                <LogOut size={14} />
+                ออกจากระบบ
+              </button>
+            </div>
+
+            {renderNavigation()}
+          </div>
+        </div>
+      )}
+    </header>
   );
 }
