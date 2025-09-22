@@ -2,7 +2,7 @@
 
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import AuthGuard from "../components/AuthGuard";
 import Header from "./components/layout/Header";
 import Navigation from "./components/layout/Navigation";
@@ -20,6 +20,8 @@ import AnnouncementPage from "./components/announcements/AnnouncementPage";
 import GenericFundApplicationForm from "./components/applications/GenericFundApplicationForm";
 import ReceivedFundsList from "./components/funds/ReceivedFundsList";
 import NotificationCenter from "./components/notifications/NotificationCenter";
+import DeptHeadReview from "./components/dept/DeptHeadReview";
+import { useAuth } from "../contexts/AuthContext";
 
 
 export function MemberPageContent({ initialPage = 'profile' }) {
@@ -27,11 +29,27 @@ export function MemberPageContent({ initialPage = 'profile' }) {
   const [submenuOpen, setSubmenuOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState(initialPage);
   const [selectedFundData, setSelectedFundData] = useState(null);
+  const { user } = useAuth();
+
+  const isDeptHead = useMemo(() => {
+    if (!user) return false;
+    return (
+      user.role === 'dept_head' ||
+      user.user_role === 'dept_head' ||
+      user.role_id === 4
+    );
+  }, [user]);
 
   useEffect(() => {
     setCurrentPage(initialPage);
     setSelectedFundData(null);
   }, [initialPage]);
+
+  useEffect(() => {
+    if (isDeptHead && initialPage === 'profile') {
+      setCurrentPage('dept-review');
+    }
+  }, [isDeptHead, initialPage]);
 
   const handleNavigate = (page, data) => {
     // ถ้าออกจากหน้าฟอร์มใดๆ ให้ล้างข้อมูลทุนที่เลือก
@@ -87,6 +105,8 @@ export function MemberPageContent({ initialPage = 'profile' }) {
         return <AnnouncementPage />;
       case 'notifications':
         return <NotificationCenter />;
+      case 'dept-review':
+        return <DeptHeadReview />;
       default:
         return <UnderDevelopmentContent currentPage={currentPage} />;
     }
@@ -105,7 +125,8 @@ export function MemberPageContent({ initialPage = 'profile' }) {
       'generic-fund-application': 'ยื่นขอทุน',
       'fund-application-detail': 'รายละเอียดคำร้องขอทุน',
       'announcements': 'ประกาศกองทุนวิจัยและนวัตกรรม',
-      'notifications': 'การแจ้งเตือน'
+      'notifications': 'การแจ้งเตือน',
+      'dept-review': 'ตรวจคำขอระดับภาควิชา'
     };
     return titles[currentPage] || currentPage;
   };
