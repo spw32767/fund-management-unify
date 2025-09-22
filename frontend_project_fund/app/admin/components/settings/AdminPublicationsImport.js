@@ -167,6 +167,10 @@ export default function AdminPublicationsImport() {
   const lastImportDisplay = lastFinishedRun?.finished_at ? formatDateTime(lastFinishedRun.finished_at) : "-";
   const nextImportDisplay = scheduleInfo?.next_run_at ? formatDateTime(scheduleInfo.next_run_at) : "-";
 
+  const selectedUser =
+    userHits.find((hit) => String(hit.user_id) === String(userId)) || null;
+  const disableManualImport = loading || !userId || !authorId.trim();
+
   const lastRunSummary = lastRun
     ? [
         `fetched ${formatNumberOrZero(lastRun.publications_fetched ?? lastRun.fetched ?? lastRun.fetched_count)}`,
@@ -192,72 +196,128 @@ export default function AdminPublicationsImport() {
     <div className="space-y-6">
       <h2 className="text-xl font-semibold">นำเข้าผลงานวิชาการ (Google Scholar)</h2>
 
-      {/* A) เลือกอาจารย์จากฐานข้อมูล (ค้นหาจาก DB) */}
-      <div className="p-4 rounded-xl border space-y-3 bg-white">
-        <div className="font-medium">เลือกอาจารย์จากฐานข้อมูล</div>
-        <div className="flex gap-2">
-          <input
-            className="flex-1 border rounded-md px-3 py-2"
-            placeholder="พิมพ์ชื่อ/อีเมล แล้วกดค้นหา (เช่น: Somchai)"
-            value={userQuery}
-            onChange={(e) => setUserQuery(e.target.value)}
-          />
-          <button
-            onClick={searchUsers}
-            disabled={loading}
-            className="px-4 py-2 rounded-md bg-slate-700 text-white disabled:opacity-50"
-          >
-            {loading ? "กำลังค้นหา..." : "ค้นหา"}
-          </button>
+      {/* Manual import */}
+      <div className="p-5 rounded-xl border space-y-6 bg-white">
+        <div>
+          <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Manual Import</div>
+          <div className="text-lg font-semibold text-slate-900">เลือกอาจารย์และกรอก Google Scholar ID</div>
+          <p className="mt-1 text-sm text-slate-600">
+            เลือกอาจารย์จากฐานข้อมูล จากนั้นกรอก Google Scholar Author ID เพื่อดึงผลงานเฉพาะบุคคล
+          </p>
         </div>
-        {userHits.length > 0 && (
-          <ul className="space-y-2 mt-3">
-            {userHits.map((u) => (
-              <li key={u.user_id} className="flex items-center justify-between border rounded-md p-2">
-                <div className="text-sm">
-                  <div className="font-medium">{u.name || `(ID: ${u.user_id})`}</div>
-                  <div className="text-gray-600">{u.email}</div>
-                </div>
-                <button
-                  onClick={() => setUserId(String(u.user_id))}
-                  className="px-3 py-1 rounded bg-gray-900 text-white text-sm"
-                >
-                  ใช้ User ID {u.user_id}
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
-        <div className="text-xs text-gray-600 mt-2">หรือกรอก User ID ตรงๆ:</div>
-        <input
-          className="border rounded-md px-3 py-2 w-60"
-          placeholder="User ID"
-          value={userId}
-          onChange={(e) => setUserId(e.target.value)}
-        />
-      </div>
 
-      {/* B) กรอก Author ID เท่านั้น (ไม่มีการค้นหาด้วยชื่อ) */}
-      <div className="p-4 rounded-xl border space-y-3 bg-white">
-        <div className="font-medium">กรอก Google Scholar Author ID</div>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-2 items-start">
-          <input
-            className="border rounded-md px-3 py-2 md:col-span-2"
-            placeholder="เช่น: _lza5VIAAAAJ (ถ้าไม่มี _ ระบบจะเติมให้)"
-            value={authorId}
-            onChange={(e) => setAuthorId(e.target.value)}
-          />
-          <button
-            onClick={importOne}
-            disabled={loading}
-            className="px-4 py-2 rounded-md bg-green-600 text-white disabled:opacity-50"
-          >
-            {loading ? "กำลังนำเข้า..." : "นำเข้า"}
-          </button>
-        </div>
-        <div className="text-xs text-gray-600">
-          หา Author ID ได้จาก URL โปรไฟล์ Scholar:{" "}
-          <code>https://scholar.google.com/citations?user=<b>_XXXXXXXXXXX</b></code>
+        <div className="grid gap-6 lg:grid-cols-2">
+          <div className="space-y-4">
+            <div className="space-y-1">
+              <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">ขั้นตอนที่ 1</div>
+              <div className="font-medium text-slate-900">เลือกอาจารย์จากฐานข้อมูล</div>
+              <p className="text-xs text-slate-500">ค้นหาด้วยชื่อหรืออีเมล แล้วกดเลือก หรือกรอก User ID เอง</p>
+            </div>
+
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <input
+                className="flex-1 border rounded-md px-3 py-2"
+                placeholder="พิมพ์ชื่อ/อีเมล แล้วกดค้นหา (เช่น: Somchai)"
+                value={userQuery}
+                onChange={(e) => setUserQuery(e.target.value)}
+              />
+              <button
+                type="button"
+                onClick={searchUsers}
+                disabled={loading || !userQuery.trim()}
+                className="sm:w-auto w-full px-4 py-2 rounded-md bg-slate-700 text-white disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {loading ? "กำลังค้นหา..." : "ค้นหา"}
+              </button>
+            </div>
+
+            {userHits.length > 0 && (
+              <ul className="space-y-2 max-h-64 overflow-y-auto pr-1">
+                {userHits.map((u) => {
+                  const isSelected = String(u.user_id) === String(userId);
+                  return (
+                    <li
+                      key={u.user_id}
+                      className={`flex items-center justify-between rounded-md border px-3 py-2 text-sm transition ${
+                        isSelected ? "border-slate-700 bg-slate-50" : "border-slate-200 bg-white"
+                      }`}
+                    >
+                      <div>
+                        <div className="font-medium">{u.name || `(ID: ${u.user_id})`}</div>
+                        <div className="text-xs text-slate-500">{u.email}</div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setUserId(String(u.user_id))}
+                        className={`px-3 py-1.5 rounded-md text-xs font-medium transition ${
+                          isSelected
+                            ? "border border-slate-700 bg-slate-700 text-white"
+                            : "border border-slate-300 text-slate-600 hover:bg-slate-700 hover:text-white"
+                        }`}
+                      >
+                        ใช้ User ID {u.user_id}
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+
+            <div className="space-y-2">
+              <div className="text-xs font-semibold text-slate-600">หรือกรอก User ID ตรงๆ</div>
+              <input
+                className="border rounded-md px-3 py-2 w-full sm:w-60"
+                placeholder="User ID"
+                value={userId}
+                onChange={(e) => setUserId(e.target.value)}
+              />
+            </div>
+
+            <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50/70 px-3 py-2 text-xs text-slate-600">
+              <div className="font-medium text-slate-700 text-sm">ผู้ใช้ที่เลือก</div>
+              {userId ? (
+                <div className="mt-1 space-y-0.5">
+                  <div>{selectedUser?.name ? selectedUser.name : `User ID ${userId}`}</div>
+                  {selectedUser?.email && <div className="text-xs text-slate-500">{selectedUser.email}</div>}
+                </div>
+              ) : (
+                <div className="mt-1">ยังไม่ได้เลือกผู้ใช้</div>
+              )}
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            <div className="space-y-1">
+              <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">ขั้นตอนที่ 2</div>
+              <div className="font-medium text-slate-900">กรอก Google Scholar Author ID</div>
+              <p className="text-xs text-slate-500">วาง Author ID จาก URL โปรไฟล์ Google Scholar แล้วกด “นำเข้า”</p>
+            </div>
+
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <input
+                className="flex-1 border rounded-md px-3 py-2"
+                placeholder="เช่น: _lza5VIAAAAJ (ถ้าไม่มี _ ระบบจะเติมให้)"
+                value={authorId}
+                onChange={(e) => setAuthorId(e.target.value)}
+              />
+              <button
+                type="button"
+                onClick={importOne}
+                disabled={disableManualImport}
+                className="sm:w-auto w-full px-4 py-2 rounded-md bg-green-600 text-white disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                {loading ? "กำลังนำเข้า..." : "นำเข้า"}
+              </button>
+            </div>
+
+            <div className="text-xs text-slate-500 leading-relaxed space-y-1">
+              <p>
+                หา Author ID ได้จาก URL โปรไฟล์ Scholar:{" "}
+                <code>https://scholar.google.com/citations?user=<b>_XXXXXXXXXXX</b></code>
+              </p>
+              <p>ต้องเลือก User ID และกรอก Author ID ให้ครบก่อนจึงจะกดนำเข้าได้</p>
+            </div>
+          </div>
         </div>
       </div>
 
