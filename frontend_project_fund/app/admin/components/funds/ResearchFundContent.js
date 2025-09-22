@@ -5,7 +5,7 @@ import { useState, useEffect } from "react";
 import { DollarSign, ExternalLink, FileText, Search, Filter, ChevronDown, Eye, Download, X, Info } from "lucide-react";
 import PageLayout from "../common/PageLayout";
 import Card from "../common/Card";
-import { teacherAPI } from '../../../lib/teacher_api';
+import { teacherAPI } from '../../../lib/member_api';
 import { targetRolesUtils } from '../../../lib/target_roles_utils';
 
 export default function ResearchFundContent({ onNavigate }) {
@@ -300,7 +300,7 @@ export default function ResearchFundContent({ onNavigate }) {
       subtitle="รายการทุนส่งเสริมงานวิจัยที่เปิดรับสมัคร"
       icon={DollarSign}
       breadcrumbs={[
-        { label: "หน้าแรก", href: "/teacher" },
+        { label: "หน้าแรก", href: "/member" },
         { label: "ทุนส่งเสริมงานวิจัย" }
       ]}
     >

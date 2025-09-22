@@ -2,18 +2,71 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import { useAuth } from "../contexts/AuthContext";
 import UnauthorizedPage from "./UnauthorizedPage";
 
-export default function AuthGuard({ 
-  children, 
+const ROLE_NAME_BY_ID = {
+  1: 'teacher',
+  2: 'staff',
+  3: 'admin',
+  4: 'dept_head',
+};
+
+const normalizeRoleName = (role) => {
+  if (role == null) {
+    return null;
+  }
+
+  if (typeof role === 'object') {
+    if (role.role != null) {
+      return normalizeRoleName(role.role);
+    }
+    if (role.role_id != null) {
+      return normalizeRoleName(role.role_id);
+    }
+  }
+
+  if (typeof role === 'string') {
+    return role;
+  }
+
+  if (typeof role === 'number') {
+    return ROLE_NAME_BY_ID[role] || null;
+  }
+
+  return null;
+};
+
+const MEMBER_ALLOWED_ROLES = ['teacher', 'staff', 'dept_head'];
+
+export const canAccess = (pathname, role) => {
+  if (!pathname) {
+    return true;
+  }
+
+  const normalizedRole = normalizeRoleName(role);
+
+  if (pathname.startsWith('/admin')) {
+    return normalizedRole === 'admin';
+  }
+
+  if (pathname.startsWith('/member')) {
+    return normalizedRole ? MEMBER_ALLOWED_ROLES.includes(normalizedRole) : false;
+  }
+
+  return true;
+};
+
+export default function AuthGuard({
+  children,
   allowedRoles = [], // [1, 2, 3] หรือ ['teacher', 'staff', 'admin']
   requireAuth = true,
-  fallback = null 
+  fallback = null
 }) {
   const { isAuthenticated, user, isLoading, hasAnyRole } = useAuth();
   const router = useRouter();
+  const pathname = usePathname();
   const [showUnauthorized, setShowUnauthorized] = useState(false);
   const [initialCheck, setInitialCheck] = useState(false);
 
@@ -43,9 +96,21 @@ export default function AuthGuard({
     // ถ้า login แล้วแต่ไม่มีสิทธิ์ตาม role ที่กำหนด
     if (isAuthenticated && allowedRoles.length > 0) {
       if (!hasAnyRole(allowedRoles)) {
-        console.log('User does not have required role:', { 
-          userRole: user?.role_id || user?.role, 
-          allowedRoles 
+        console.log('User does not have required role:', {
+          userRole: user?.role_id || user?.role,
+          allowedRoles
+        });
+        setShowUnauthorized(true);
+        return;
+      }
+    }
+
+    if (isAuthenticated) {
+      const roleValue = user?.role ?? user?.role_id;
+      if (!canAccess(pathname, roleValue)) {
+        console.log('Access denied for role on path:', {
+          pathname,
+          role: roleValue,
         });
         setShowUnauthorized(true);
         return;
@@ -54,7 +119,17 @@ export default function AuthGuard({
 
     // ถ้าผ่านการตรวจสอบทั้งหมด
     setShowUnauthorized(false);
-  }, [isAuthenticated, user, isLoading, requireAuth, allowedRoles, hasAnyRole, router, initialCheck]);
+  }, [
+    isAuthenticated,
+    user,
+    isLoading,
+    requireAuth,
+    allowedRoles,
+    hasAnyRole,
+    router,
+    initialCheck,
+    pathname,
+  ]);
 
   // แสดง loading ขณะตรวจสอบ auth
   if (isLoading) {

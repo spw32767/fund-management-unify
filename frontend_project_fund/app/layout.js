@@ -1,9 +1,6 @@
 // app/layout.js - Root Layout with AuthProvider
-import { Inter } from 'next/font/google';
 import { AuthProvider } from './contexts/AuthContext';
 import './globals.css';
-
-const inter = Inter({ subsets: ['latin'] });
 
 export const metadata = {
   title: 'ระบบบริหารจัดการทุนวิจัย - วิทยาลัยการคอมพิวเตอร์ มข.',
@@ -21,7 +18,7 @@ export default function RootLayout({ children }) {
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <link rel="icon" href="/favicon.ico" />
       </head>
-      <body className={inter.className}>
+      <body className="font-sans">
         <AuthProvider>
           <div id="root">
             {children}

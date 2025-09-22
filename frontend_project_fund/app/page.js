@@ -38,12 +38,17 @@ export default function HomePage() {
     
     // ใช้ setTimeout เพื่อให้มั่นใจว่า state update เสร็จแล้ว
     setTimeout(() => {
-      if (userRole === 1 || userRole === 'teacher') {
-        router.replace('/teacher');
+      if (
+        userRole === 1 ||
+        userRole === 2 ||
+        userRole === 4 ||
+        userRole === 'teacher' ||
+        userRole === 'staff' ||
+        userRole === 'dept_head'
+      ) {
+        router.replace('/member');
       } else if (userRole === 3 || userRole === 'admin') {
         router.replace('/admin');
-      } else if (userRole === 2 || userRole === 'staff') {
-        router.replace('/staff');
       } else {
         router.replace('/dashboard');
       }
