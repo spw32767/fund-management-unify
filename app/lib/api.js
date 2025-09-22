@@ -981,6 +981,11 @@ export const usersAPI = {
   async search(q) {
     return apiClient.get('/admin/users/search', { q });
   },
+  async setScholarAuthorId(userId, authorId) {
+    return apiClient.post(`/admin/users/${encodeURIComponent(userId)}/scholar-author`, {
+      author_id: authorId,
+    });
+  },
 };
 
 export { apiClient };
