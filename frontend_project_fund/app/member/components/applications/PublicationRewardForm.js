@@ -21,6 +21,7 @@ import Swal from 'sweetalert2';
 import { PDFDocument } from 'pdf-lib';
 import { notificationsAPI } from '../../../lib/notifications_api';
 import { systemConfigAPI } from '../../../lib/system_config_api';
+import { shouldDisableSubmitButton, getAuthorSubmissionFields } from './PublicationRewardForm.helpers.mjs';
 
 // =================================================================
 // CONFIGURATION & CONSTANTS
@@ -649,6 +650,7 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
     article_online_db: '',
     journal_tier: '',
     journal_quartile: '',
+    author_name_list: '',
     in_isi: false,
     in_scopus: false,
     in_web_of_science: false,
@@ -668,6 +670,7 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
     bank_account: '',
     bank_name: '',
     phone_number: '',
+    signature: '',
     
     // Other info
     university_ranking: '',
@@ -680,6 +683,11 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
   const [uploadedFiles, setUploadedFiles] = useState({});
   const [otherDocuments, setOtherDocuments] = useState([]); // เก็บเฉพาะ Other Documents
   const [externalFundingFiles, setExternalFundingFiles] = useState([]); // เพิ่ม state ใหม่สำหรับ External Funding Files
+
+  const [declarations, setDeclarations] = useState({
+    confirmNoPreviousFunding: false,
+    agreeToRegulations: false
+  });
 
   // External funding sources
   const [externalFundings, setExternalFundings] = useState([])
@@ -2181,6 +2189,14 @@ const showSubmissionConfirmation = async () => {
   };
   // Submit application
   const submitApplication = async () => {
+    if (!declarations.confirmNoPreviousFunding || !declarations.agreeToRegulations) {
+      Toast.fire({
+        icon: 'warning',
+        title: 'กรุณายืนยันข้อตกลงทั้งสองข้อก่อนส่งคำร้อง'
+      });
+      return;
+    }
+
     // Validate form first
     const isValid = await validateForm();
 
@@ -2423,6 +2439,8 @@ const showSubmissionConfirmation = async () => {
         amount: parseFloat(funding.amount) || 0
       }));
 
+      const authorSubmissionFields = getAuthorSubmissionFields(formData);
+
       const publicationData = {
         // Basic article info
         article_title: formData.article_title || '',
@@ -2461,7 +2479,8 @@ const showSubmissionConfirmation = async () => {
         is_corresponding_author: formData.author_status === 'corresponding_author',
         author_status: formData.author_status || '',
         author_type: formData.author_status || '', // เพิ่ม field นี้ด้วย
-        
+        ...authorSubmissionFields,
+
         // Bank info
         bank_account: formData.bank_account || '',
         bank_name: formData.bank_name || '',
@@ -2841,6 +2860,20 @@ const showSubmissionConfirmation = async () => {
               {errors.article_title && (
                 <p className="text-red-500 text-sm mt-1">{errors.article_title}</p>
               )}
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                รายชื่อผู้แต่ง (Author Name List)
+              </label>
+              <textarea
+                name="author_name_list"
+                value={formData.author_name_list}
+                onChange={handleInputChange}
+                rows={3}
+                placeholder="กรอกรายชื่อผู้แต่งตามลำดับ (Enter author names in order)"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
+              />
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -3736,6 +3769,62 @@ const showSubmissionConfirmation = async () => {
           </div>
         </SimpleCard>
 
+        <div className="border border-gray-200 rounded-lg p-4 space-y-4">
+          <h3 className="text-sm font-semibold text-gray-700">
+            คำรับรอง (Declarations)
+          </h3>
+
+          <div className="space-y-3 text-sm text-gray-700">
+            <label className="flex items-start gap-3">
+              <input
+                type="checkbox"
+                className="mt-1 h-4 w-4 text-blue-600 focus:ring-blue-500"
+                checked={declarations.confirmNoPreviousFunding}
+                onChange={(e) =>
+                  setDeclarations(prev => ({
+                    ...prev,
+                    confirmNoPreviousFunding: e.target.checked
+                  }))
+                }
+              />
+              <span>
+                ผลงานตีพิมพ์ที่ขอรับการสนับสนุนไม่เคยได้รับการจัดสรรทุนของมหาวิทยาลัย และทุนส่งเสริมการวิจัยจากกองทุนวิจัย นวัตกรรม และบริการวิชาการ วิทยาลัยการคอมพิวเตอร์
+              </span>
+            </label>
+
+            <label className="flex items-start gap-3">
+              <input
+                type="checkbox"
+                className="mt-1 h-4 w-4 text-blue-600 focus:ring-blue-500"
+                checked={declarations.agreeToRegulations}
+                onChange={(e) =>
+                  setDeclarations(prev => ({
+                    ...prev,
+                    agreeToRegulations: e.target.checked
+                  }))
+                }
+              />
+              <span>
+                จะปฏิบัติตามระเบียบมหาวิทยาลัยขอนแก่น ว่าด้วยกองทุนวิจัยในระดับคณะ พ.ศ. 2561 รวมถึงหลักเกณฑ์และประกาศอื่นใดที่เกี่ยวข้องทุกประการ
+              </span>
+            </label>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              ลายเซ็น (พิมพ์ชื่อเต็ม)
+            </label>
+            <input
+              type="text"
+              name="signature"
+              value={formData.signature}
+              onChange={handleInputChange}
+              placeholder="กรอกชื่อ-นามสกุล"
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
+            />
+          </div>
+        </div>
+
         {/* =================================================================
         // ACTION BUTTONS
         // ================================================================= */}
@@ -3766,7 +3855,13 @@ const showSubmissionConfirmation = async () => {
           <button
             type="button"
             onClick={submitApplication}
-            disabled={loading || saving || !formData.subcategory_id || !formData.subcategory_budget_id}
+            disabled={shouldDisableSubmitButton({
+              loading,
+              saving,
+              subcategoryId: formData.subcategory_id,
+              subcategoryBudgetId: formData.subcategory_budget_id,
+              declarations
+            })}
             className="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             {loading ? (
