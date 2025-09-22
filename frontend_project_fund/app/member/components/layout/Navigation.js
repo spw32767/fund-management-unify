@@ -16,12 +16,13 @@ import {
 import { useAuth } from "../../../contexts/AuthContext";
 import { useRouter } from "next/navigation";
 
-export default function Navigation({ 
-  currentPage, 
+export default function Navigation({
+  currentPage,
   setCurrentPage,
-  handleNavigate, 
-  submenuOpen, 
-  setSubmenuOpen 
+  handleNavigate,
+  submenuOpen,
+  setSubmenuOpen,
+  closeMenu,
 }) {
   const { logout } = useAuth();
   const router = useRouter();
@@ -77,6 +78,16 @@ export default function Navigation({
     }
   ];
 
+  const closeMobileMenu = () => {
+    if (typeof closeMenu === "function") {
+      closeMenu();
+      return;
+    }
+
+    const mobileMenuButton = document.querySelector('[aria-label="close-mobile-menu"]');
+    if (mobileMenuButton) mobileMenuButton.click();
+  };
+
   const handleMenuClick = (item) => {
     if (item.hasSubmenu) {
       setSubmenuOpen(!submenuOpen);
@@ -88,8 +99,7 @@ export default function Navigation({
         setCurrentPage(item.id);
       }
       // Close mobile menu if open
-      const mobileMenuButton = document.querySelector('[aria-label="close-mobile-menu"]');
-      if (mobileMenuButton) mobileMenuButton.click();
+      closeMobileMenu();
     }
   };
 
@@ -101,8 +111,7 @@ export default function Navigation({
       setCurrentPage(submenuItem.id);
     }
     // Close mobile menu if open
-    const mobileMenuButton = document.querySelector('[aria-label="close-mobile-menu"]');
-    if (mobileMenuButton) mobileMenuButton.click();
+    closeMobileMenu();
   };
 
   const handleLogout = async () => {

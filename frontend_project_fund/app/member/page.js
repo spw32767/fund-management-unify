@@ -112,16 +112,18 @@ export function MemberPageContent({ initialPage = 'profile' }) {
 
   return (
     <div className="min-h-screen bg-gray-100">
-      <Header 
-        isOpen={isOpen} 
-        setIsOpen={setIsOpen} 
-        Navigation={() => (
+      <Header
+        isOpen={isOpen}
+        setIsOpen={setIsOpen}
+        currentPageTitle={getPageTitle()}
+        Navigation={({ closeMenu }) => (
           <Navigation
             currentPage={currentPage}
             setCurrentPage={setCurrentPage}
             handleNavigate={handleNavigate}
             submenuOpen={submenuOpen}
             setSubmenuOpen={setSubmenuOpen}
+            closeMenu={closeMenu}
           />
         )}
       />
