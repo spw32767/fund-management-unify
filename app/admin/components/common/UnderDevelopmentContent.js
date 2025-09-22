@@ -18,7 +18,7 @@ export default function UnderDevelopmentContent({
       subtitle={pageDescription}
       icon={Construction}
       breadcrumbs={[
-        { label: "หน้าแรก", href: "/teacher" },
+        { label: "หน้าแรก", href: "/admin" },
         { label: pageTitle }
       ]}
     >

@@ -367,9 +367,11 @@ export function AuthProvider({ children }) {
       1: 'อาจารย์',
       2: 'เจ้าหน้าที่',
       3: 'ผู้ดูแลระบบ',
+      4: 'หัวหน้าสาขา',
       teacher: 'อาจารย์',
-      staff: 'เจ้าหน้าที่', 
+      staff: 'เจ้าหน้าที่',
       admin: 'ผู้ดูแลระบบ',
+      dept_head: 'หัวหน้าสาขา',
     };
 
     const userRole = state.user.role_id || state.user.role;

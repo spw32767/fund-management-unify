@@ -2,7 +2,8 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { adminFundAPI, targetRolesUtils } from '@/lib/teacher_api';
+import { adminFundAPI } from '../../../lib/admin_api';
+import { targetRolesUtils } from '../../../lib/target_roles_utils';
 
 const TargetRolesManager = () => {
   const [subcategories, setSubcategories] = useState([]);

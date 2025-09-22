@@ -63,15 +63,19 @@ export default function LoginPage() {
     
     // หน่วงเวลาเล็กน้อยเพื่อให้ state update เสร็จ
     setTimeout(() => {
-      if (userRole === 1 || userRole === 'teacher') {
-        console.log('Redirecting to teacher dashboard');
-        router.replace('/teacher');
+      if (
+        userRole === 1 ||
+        userRole === 2 ||
+        userRole === 4 ||
+        userRole === 'teacher' ||
+        userRole === 'staff' ||
+        userRole === 'dept_head'
+      ) {
+        console.log('Redirecting to member area');
+        router.replace('/member');
       } else if (userRole === 3 || userRole === 'admin') {
         console.log('Redirecting to admin dashboard');
         router.replace('/admin');
-      } else if (userRole === 2 || userRole === 'staff') {
-        console.log('Redirecting to staff dashboard');
-        router.replace('/staff');
       } else {
         console.log('Redirecting to default dashboard');
         router.replace('/dashboard');
