@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "NEXT_DISABLE_FONT_DOWNLOAD=1 next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "test": "node --test"
   },
   "dependencies": {
     "@ckeditor/ckeditor5-list": "^45.0.0",

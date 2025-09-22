@@ -204,7 +204,9 @@ export const publicationDetailsAPI = {
         author_count: details.author_count,
         is_corresponding_author: details.is_corresponding_author,
         author_status: details.author_status,
-        author_type: details.author_status, // เพิ่ม author_type (ใช้ค่าเดียวกับ author_status)
+        author_type: details.author_status, // เพิ่ม author_type (ใช้ค่าเดียวกับ author_status)\
+        author_name_list: details.author_name_list,
+        signature: details.signature,
         
         // ข้อมูลธนาคาร
         bank_account: details.bank_account,
