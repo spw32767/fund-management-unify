@@ -220,6 +220,7 @@ const scrollToFirstError = (errors) => {
     'phone_number',
     // ข้อมูลบทความ
     'article_title',
+    'author_name_list',
     'journal_name',
     'journal_quartile',
     'journal_month',
@@ -227,6 +228,8 @@ const scrollToFirstError = (errors) => {
     // ข้อมูลธนาคาร
     'bank_account',
     'bank_name',
+    // การยืนยัน
+    'signature',
     // ค่าใช้จ่าย
     'fees_limit',
     // เอกสารแนบ
@@ -1568,14 +1571,17 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
   // Validate form data
   const validateForm = async () => {
     const newErrors = {};
-    
+    const trimmedAuthorList = (formData.author_name_list || '').trim();
+    const trimmedSignature = (formData.signature || '').trim();
+
     // ข้อมูลพื้นฐาน
     if (!formData.year_id) newErrors.year_id = 'กรุณาเลือกปีงบประมาณ';
     if (!formData.author_status) newErrors.author_status = 'กรุณาเลือกสถานะผู้แต่ง';
     if (!formData.phone_number) newErrors.phone_number = 'กรุณากรอกเบอร์โทรศัพท์';
-    
+
     // ข้อมูลบทความ
     if (!formData.article_title) newErrors.article_title = 'กรุณากรอกชื่อบทความ';
+    if (!trimmedAuthorList) newErrors.author_name_list = 'กรุณากรอกรายชื่อผู้แต่ง';
     if (!formData.journal_name) newErrors.journal_name = 'กรุณากรอกชื่อวารสาร';
     if (!formData.journal_quartile) newErrors.journal_quartile = 'กรุณาเลือก Journal Quartile';
     if (!formData.subcategory_id || !formData.subcategory_budget_id) {
@@ -1600,6 +1606,10 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
 
     if (formData.journal_year && !validateYear(formData.journal_year)) {
       newErrors.journal_year = `กรุณากรอกปีระหว่าง 2000-${new Date().getFullYear() + 1}`;
+    }
+
+    if (!trimmedSignature) {
+      newErrors.signature = 'กรุณากรอกลายเซ็น (พิมพ์ชื่อเต็ม)';
     }
 
     // Dynamic validation for fund availability
@@ -1666,7 +1676,7 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
       }
       
       // ข้อมูลบทความ
-      const articleErrors = ['article_title', 'journal_name', 'journal_quartile', 'journal_month', 'journal_year']
+      const articleErrors = ['article_title', 'author_name_list', 'journal_name', 'journal_quartile', 'journal_month', 'journal_year']
         .filter(field => newErrors[field])
         .map(field => `• ${newErrors[field]}`);
       
@@ -1681,6 +1691,14 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
       
       if (bankErrors.length > 0) {
         errorHTML += '<div><strong>ข้อมูลธนาคาร:</strong><br>' + bankErrors.join('<br>') + '</div>';
+      }
+
+      const declarationErrors = ['signature']
+        .filter(field => newErrors[field])
+        .map(field => `• ${newErrors[field]}`);
+
+      if (declarationErrors.length > 0) {
+        errorHTML += '<div><strong>การยืนยัน:</strong><br>' + declarationErrors.join('<br>') + '</div>';
       }
       
       // ค่าใช้จ่าย (เพิ่มใหม่)
@@ -1815,6 +1833,7 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
       year_id: years.find(y => y.year === '2568')?.year_id || null,
       author_status: '',
       article_title: '',
+      author_name_list: '',
       journal_name: '',
       journal_issue: '',
       journal_pages: '',
@@ -1836,6 +1855,7 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
       bank_account: '',
       bank_name: '',
       phone_number: '',
+      signature: '',
       university_ranking: '',
       has_university_fund: '',
       university_fund_ref: ''
@@ -2862,18 +2882,26 @@ const showSubmissionConfirmation = async () => {
               )}
             </div>
 
-            <div>
+            <div id="field-author_name_list">
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                รายชื่อผู้แต่ง (Author Name List)
+                รายชื่อผู้แต่ง (Author Name List) <span className="text-red-500">*</span>
               </label>
               <textarea
                 name="author_name_list"
                 value={formData.author_name_list}
                 onChange={handleInputChange}
                 rows={3}
+                required
+                aria-required="true"
+                aria-invalid={Boolean(errors.author_name_list)}
                 placeholder="กรอกรายชื่อผู้แต่งตามลำดับ (Enter author names in order)"
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
+                className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:border-blue-500 ${
+                  errors.author_name_list ? 'border-red-500' : 'border-gray-300'
+                }`}
               />
+              {errors.author_name_list && (
+                <p className="text-red-500 text-sm mt-1">{errors.author_name_list}</p>
+              )}
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -3810,9 +3838,9 @@ const showSubmissionConfirmation = async () => {
             </label>
           </div>
 
-          <div>
+          <div id="field-signature">
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              ลายเซ็น (พิมพ์ชื่อเต็ม)
+              ลายเซ็น (พิมพ์ชื่อเต็ม) <span className="text-red-500">*</span>
             </label>
             <input
               type="text"
@@ -3820,8 +3848,17 @@ const showSubmissionConfirmation = async () => {
               value={formData.signature}
               onChange={handleInputChange}
               placeholder="กรอกชื่อ-นามสกุล"
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
+              required
+              autoComplete="off"
+              aria-required="true"
+              aria-invalid={Boolean(errors.signature)}
+              className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:border-blue-500 ${
+                errors.signature ? 'border-red-500' : 'border-gray-300'
+              }`}
             />
+            {errors.signature && (
+              <p className="text-red-500 text-sm mt-1">{errors.signature}</p>
+            )}
           </div>
         </div>
 
@@ -3860,7 +3897,9 @@ const showSubmissionConfirmation = async () => {
               saving,
               subcategoryId: formData.subcategory_id,
               subcategoryBudgetId: formData.subcategory_budget_id,
-              declarations
+              declarations,
+              authorNameList: formData.author_name_list,
+              signature: formData.signature
             })}
             className="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >

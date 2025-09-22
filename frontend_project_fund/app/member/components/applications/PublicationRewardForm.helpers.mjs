@@ -4,14 +4,21 @@ export const shouldDisableSubmitButton = ({
   subcategoryId,
   subcategoryBudgetId,
   declarations,
+  authorNameList,
+  signature,
 }) => {
+  const hasAuthorNames = (authorNameList || '').trim().length > 0;
+  const hasSignature = (signature || '').trim().length > 0;
+
   return (
     loading ||
     saving ||
     !subcategoryId ||
     !subcategoryBudgetId ||
     !declarations?.confirmNoPreviousFunding ||
-    !declarations?.agreeToRegulations
+    !declarations?.agreeToRegulations ||
+    !hasAuthorNames ||
+    !hasSignature
   );
 };
 
