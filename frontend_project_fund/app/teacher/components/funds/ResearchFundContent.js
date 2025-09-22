@@ -314,12 +314,12 @@ export default function ResearchFundContent({ onNavigate }) {
 
   return (
     <PageLayout
-      title="ทุนส่งเสริมงานวิจัยและนวัตกรรม"
-      subtitle="รายการทุนส่งเสริมงานวิจัยที่เปิดรับสมัคร"
+      title="ทุนส่งเสริมการวิจัยและนวัตกรรม"
+      subtitle="รายการทุนส่งเสริมการวิจัยที่เปิดรับสมัคร"
       icon={DollarSign}
       breadcrumbs={[
         { label: "หน้าแรก", href: "/teacher" },
-        { label: "ทุนส่งเสริมงานวิจัย" }
+        { label: "ทุนส่งเสริมการวิจัย" }
       ]}
     >
       {/* Control Bar */}
