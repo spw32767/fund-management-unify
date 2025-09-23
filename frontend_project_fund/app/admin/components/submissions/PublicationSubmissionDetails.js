@@ -32,6 +32,7 @@ import StatusBadge from '@/app/admin/components/common/StatusBadge';
 import apiClient from "@/app/lib/api";
 import { adminAnnouncementAPI } from "@/app/lib/admin_announcement_api";
 import { adminSubmissionAPI } from '@/app/lib/admin_submission_api';
+import { requireStatusIds } from '@/app/lib/statusLookup';
 import { rewardConfigAPI } from '@/app/lib/publication_api';
 import adminAPI from '@/app/lib/admin_api';
 import { notificationsAPI } from '@/app/lib/notifications_api';
@@ -40,6 +41,13 @@ import Swal from 'sweetalert2';
 import 'sweetalert2/dist/sweetalert2.min.css';
 
 import { PDFDocument } from 'pdf-lib';
+
+const STATUS_LABELS = [
+  'อยู่ระหว่างการพิจารณา',
+  'ต้องการข้อมูลเพิ่มเติม',
+  'อยู่ระหว่างการพิจารณาจากหัวหน้าสาขา',
+  'เห็นควรพิจารณาจากหัวหน้าสาขา',
+];
 
 /* =========================
  * Helpers
@@ -315,9 +323,36 @@ function ReadonlyMoney({ value, aria }) {
 /* =========================
  * Approval Panel (admin-only)
  * ========================= */
-function ApprovalPanel({ submission, pubDetail, onApprove, onReject }) {
-  const approvable = submission?.status_id === 1; // อยู่ระหว่างการพิจารณา
-  if (!approvable) return null;
+function ApprovalPanel({ submission, pubDetail, onApprove, onReject, statusGuard }) {
+  const statusId = Number(submission?.status_id);
+  const pendingId = statusGuard?.pending ?? null;
+  const revisionId = statusGuard?.revision ?? null;
+  const deptPendingId = statusGuard?.deptPending ?? null;
+  const deptRecommendedId = statusGuard?.deptRecommended ?? null;
+
+  const canInteract = statusGuard
+    ? [pendingId, revisionId, deptRecommendedId].filter((id) => id != null).includes(statusId)
+    : false;
+  const awaitingDept = Boolean(statusGuard) && deptPendingId != null && statusId === deptPendingId;
+  const isDeptRecommended = Boolean(statusGuard) && deptRecommendedId != null && statusId === deptRecommendedId;
+
+  if (!statusGuard) {
+    return (
+      <Card title="ผลการพิจารณา (Approval Result)" icon={FileText} collapsible={false}>
+        <div className="text-sm text-gray-500">กำลังโหลดข้อมูลสถานะจากระบบ...</div>
+      </Card>
+    );
+  }
+
+  if (awaitingDept) {
+    return (
+      <Card title="ผลการพิจารณา (Approval Result)" icon={FileText} collapsible={false}>
+        <div className="rounded-md border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-700">
+          รอการพิจารณาจากหัวหน้าสาขา
+        </div>
+      </Card>
+    );
+  }
 
   // Defaults from "ข้อมูลการเงิน"
   const requestedReward = Number(pubDetail?.reward_amount || 0);
@@ -704,9 +739,96 @@ function ApprovalPanel({ submission, pubDetail, onApprove, onReject }) {
     }
   };
 
+  if (!canInteract) {
+    const approvedReward = Number(
+      pubDetail?.reward_approve_amount ??
+      pubDetail?.approved_reward_amount ??
+      pubDetail?.reward_amount ?? 0
+    );
+    const approvedRevision = Number(
+      pubDetail?.revision_fee_approve_amount ??
+      pubDetail?.approve_revision_fee ??
+      pubDetail?.revision_fee ??
+      pubDetail?.editing_fee ?? 0
+    );
+    const approvedPublication = Number(
+      pubDetail?.publication_fee_approve_amount ??
+      pubDetail?.approve_publication_fee ??
+      pubDetail?.publication_fee ??
+      pubDetail?.page_charge ?? 0
+    );
+    const approvedTotal = Number(
+      pubDetail?.total_approve_amount ??
+      pubDetail?.approved_amount ??
+      (Number.isFinite(approvedReward) ? approvedReward : 0) +
+        (Number.isFinite(approvedRevision) ? approvedRevision : 0) +
+        (Number.isFinite(approvedPublication) ? approvedPublication : 0)
+    );
+
+    return (
+      <Card title="ผลการพิจารณา (Approval Result)" icon={FileText} collapsible={false}>
+        <div className="space-y-4 text-sm">
+          <div className="flex items-start justify-between">
+            <span className="text-gray-600">สถานะ</span>
+            <span className="font-medium"><StatusBadge statusId={submission?.status_id} /></span>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div className="flex items-start justify-between">
+              <span className="text-gray-600">เงินรางวัลที่ขอ</span>
+              <span className="font-semibold text-blue-700">฿{formatCurrency(requestedReward)}</span>
+            </div>
+            <div className="flex items-start justify-between">
+              <span className="text-gray-600">เงินรางวัลที่อนุมัติ</span>
+              <span className="font-medium">฿{formatCurrency(approvedReward)}</span>
+            </div>
+
+            {!hideSharedFeeFields && (
+              <>
+                <div className="flex items-start justify-between">
+                  <span className="text-gray-600">ค่าปรับปรุงบทความที่ขอ</span>
+                  <span className="font-semibold text-blue-700">฿{formatCurrency(requestedRevision)}</span>
+                </div>
+                <div className="flex items-start justify-between">
+                  <span className="text-gray-600">ค่าปรับปรุงบทความที่อนุมัติ</span>
+                  <span className="font-medium">฿{formatCurrency(approvedRevision)}</span>
+                </div>
+                <div className="flex items-start justify-between">
+                  <span className="text-gray-600">ค่าธรรมเนียมการตีพิมพ์ที่ขอ</span>
+                  <span className="font-semibold text-blue-700">฿{formatCurrency(requestedPublication)}</span>
+                </div>
+                <div className="flex items-start justify-between">
+                  <span className="text-gray-600">ค่าธรรมเนียมการตีพิมพ์ที่อนุมัติ</span>
+                  <span className="font-medium">฿{formatCurrency(approvedPublication)}</span>
+                </div>
+              </>
+            )}
+
+            <div className="flex items-start justify-between md:col-span-2">
+              <span className="text-gray-600">รวมจำนวนเงินที่อนุมัติ</span>
+              <span className="font-semibold text-blue-700">฿{formatCurrency(approvedTotal)}</span>
+            </div>
+          </div>
+
+          {pubDetail?.announce_reference_number && (
+            <div className="flex items-start justify-between">
+              <span className="text-gray-600">หมายเลขอ้างอิงประกาศผลการพิจารณา</span>
+              <span className="font-medium break-all">{pubDetail.announce_reference_number}</span>
+            </div>
+          )}
+        </div>
+      </Card>
+    );
+  }
+
   return (
     <Card title="ผลการพิจารณา (Approval Result)" icon={DollarSign} collapsible={false}>
       <div className="space-y-4">
+        {isDeptRecommended && (
+          <div className="rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+            หัวหน้าสาขาเห็นควรให้พิจารณาคำร้องนี้แล้ว สามารถดำเนินการได้
+          </div>
+        )}
         {/* Header: only Approved column */}
         <div className="grid grid-cols-2 pb-2 border-b text-sm text-gray-600">
           <div></div>
@@ -907,6 +1029,39 @@ export default function PublicationSubmissionDetails({ submissionId, onBack }) {
 
   const [attachments, setAttachments] = useState([]);
   const [attachmentsLoading, setAttachmentsLoading] = useState(false)
+
+  const [statusRecords, setStatusRecords] = useState(null);
+
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const records = await requireStatusIds(STATUS_LABELS);
+        if (mounted) {
+          setStatusRecords(records);
+        }
+      } catch (error) {
+        if (mounted) {
+          console.error('load publication status lookup failed', error);
+          toast.error(error?.message || 'ไม่สามารถโหลดข้อมูลสถานะได้');
+        }
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const statusGuard = useMemo(() => {
+    if (!statusRecords) return null;
+    const getId = (label) => statusRecords[label]?.id ?? null;
+    return {
+      pending: getId('อยู่ระหว่างการพิจารณา'),
+      revision: getId('ต้องการข้อมูลเพิ่มเติม'),
+      deptPending: getId('อยู่ระหว่างการพิจารณาจากหัวหน้าสาขา'),
+      deptRecommended: getId('เห็นควรพิจารณาจากหัวหน้าสาขา'),
+    };
+  }, [statusRecords]);
 
   // Load data
   useEffect(() => {
@@ -1148,6 +1303,26 @@ export default function PublicationSubmissionDetails({ submissionId, onBack }) {
 
   // shared cap ถือว่ามี ก็ต่อเมื่อดึงมาได้เป็นตัวเลข > 0 เท่านั้น (ถ้า null/0 = ไม่มี)
   const hasSharedCap = typeof feeCap === 'number' && feeCap > 0;
+
+  const ensureActionAllowed = () => {
+    if (!statusGuard) {
+      throw new Error('ไม่สามารถตรวจสอบสถานะจากระบบได้');
+    }
+
+    const currentStatusId = Number(submission?.status_id);
+    const allowed = [
+      statusGuard.pending,
+      statusGuard.revision,
+      statusGuard.deptRecommended,
+    ].filter((id) => id != null);
+
+    if (!allowed.includes(currentStatusId)) {
+      if (statusGuard.deptPending && currentStatusId === statusGuard.deptPending) {
+        throw new Error('คำร้องยังรอการพิจารณาจากหัวหน้าสาขา');
+      }
+      throw new Error('ไม่สามารถดำเนินการในสถานะปัจจุบันได้');
+    }
+  };
 
   // มีตัวเลขฝั่งอนุมัติแล้วหรือยัง
   const hasRevisionApproved    = pubDetail?.revision_fee_approve_amount != null;
@@ -1395,6 +1570,7 @@ export default function PublicationSubmissionDetails({ submissionId, onBack }) {
 
   // Admin actions → API wiring
   const approve = async (payload) => {
+    ensureActionAllowed();
     // ส่งตัวเลขอนุมัติ + หมายเลขอ้างอิงประกาศ ไปในคำสั่งอนุมัติครั้งเดียว
     await adminSubmissionAPI.approveSubmission(submission.submission_id, payload);
 
@@ -1410,6 +1586,7 @@ export default function PublicationSubmissionDetails({ submissionId, onBack }) {
   };
 
   const reject = async (reason) => {
+    ensureActionAllowed();
     await adminSubmissionAPI.rejectSubmission(submission.submission_id, { rejection_reason: reason });
     // reload
     const res = await adminSubmissionAPI.getSubmissionDetails(submission.submission_id);
@@ -1989,6 +2166,7 @@ export default function PublicationSubmissionDetails({ submissionId, onBack }) {
             pubDetail={pubDetail}
             onApprove={approve}
             onReject={reject}
+            statusGuard={statusGuard}
           />
         </div>
       )}

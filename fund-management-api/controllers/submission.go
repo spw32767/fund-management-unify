@@ -203,13 +203,14 @@ func GetSubmission(c *gin.Context) {
 func CreateSubmission(c *gin.Context) {
 	userID, _ := c.Get("userID")
 
-	type CreateSubmissionRequest struct {
-		SubmissionType      string `json:"submission_type" binding:"required"` // 'fund_application', 'publication_reward', ...
-		YearID              int    `json:"year_id" binding:"required"`
-		CategoryID          *int   `json:"category_id"`           // <-- ใหม่
-		SubcategoryID       *int   `json:"subcategory_id"`        // <-- ใหม่
-		SubcategoryBudgetID *int   `json:"subcategory_budget_id"` // <-- ใหม่
-	}
+        type CreateSubmissionRequest struct {
+                SubmissionType      string `json:"submission_type" binding:"required"` // 'fund_application', 'publication_reward', ...
+                YearID              int    `json:"year_id" binding:"required"`
+                CategoryID          *int   `json:"category_id"`           // <-- ใหม่
+                SubcategoryID       *int   `json:"subcategory_id"`        // <-- ใหม่
+                SubcategoryBudgetID *int   `json:"subcategory_budget_id"` // <-- ใหม่
+                StatusID            *int   `json:"status_id"`
+        }
 
 	var req CreateSubmissionRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -238,17 +239,34 @@ func CreateSubmission(c *gin.Context) {
 		return
 	}
 
-	// Create submission
-	now := time.Now()
-	submission := models.Submission{
-		SubmissionType:   req.SubmissionType,
-		SubmissionNumber: generateSubmissionNumber(req.SubmissionType),
-		UserID:           userID.(int),
-		YearID:           req.YearID,
-		StatusID:         1,
-		CreatedAt:        now,
-		UpdatedAt:        now,
-	}
+        var statusID int
+        if req.StatusID != nil {
+                var status models.ApplicationStatus
+                if err := config.DB.Where("application_status_id = ?", *req.StatusID).First(&status).Error; err != nil {
+                        c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid status_id"})
+                        return
+                }
+                statusID = status.ApplicationStatusID
+        } else {
+                resolvedID, err := utils.ResolveStatusIDByLabel("อยู่ระหว่างการพิจารณา")
+                if err != nil {
+                        c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to resolve default status: %v", err)})
+                        return
+                }
+                statusID = resolvedID
+        }
+
+        // Create submission
+        now := time.Now()
+        submission := models.Submission{
+                SubmissionType:   req.SubmissionType,
+                SubmissionNumber: generateSubmissionNumber(req.SubmissionType),
+                UserID:           userID.(int),
+                YearID:           req.YearID,
+                StatusID:         statusID,
+                CreatedAt:        now,
+                UpdatedAt:        now,
+        }
 
 	// เซ็ตฟิลด์หมวดหมู่ถ้ามีส่งมา
 	if req.CategoryID != nil {

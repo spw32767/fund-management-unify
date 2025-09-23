@@ -21,6 +21,7 @@ import Swal from 'sweetalert2';
 import { PDFDocument } from 'pdf-lib';
 import { notificationsAPI } from '../../../lib/notifications_api';
 import { systemConfigAPI } from '../../../lib/system_config_api';
+import { requireStatusIds } from '../../../lib/statusLookup';
 
 // =================================================================
 // CONFIGURATION & CONSTANTS
@@ -2259,6 +2260,14 @@ const showSubmissionConfirmation = async () => {
 
       console.log(`Total files to upload: ${allFiles.length}`);
 
+      const statusRecords = await requireStatusIds([
+        'อยู่ระหว่างการพิจารณาจากหัวหน้าสาขา',
+      ]);
+      const deptPendingStatusId = statusRecords['อยู่ระหว่างการพิจารณาจากหัวหน้าสาขา']?.id;
+      if (!deptPendingStatusId) {
+        throw new Error('ไม่พบรหัสสถานะสำหรับการพิจารณาของหัวหน้าสาขา');
+      }
+
       // Create submission if not exists
       if (!submissionId) {
         Swal.update({
@@ -2277,6 +2286,7 @@ const showSubmissionConfirmation = async () => {
           category_id: formData.category_id || categoryId,
           subcategory_id: formData.subcategory_id,        // Dynamic resolved
           subcategory_budget_id: formData.subcategory_budget_id,  // Dynamic resolved
+          status_id: deptPendingStatusId,
         });
         
         submissionId = submissionResponse.submission.submission_id;

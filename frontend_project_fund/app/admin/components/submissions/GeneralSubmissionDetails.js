@@ -14,6 +14,7 @@ import StatusBadge from '../common/StatusBadge';
 import { formatCurrency } from '@/app/utils/format';
 import { adminSubmissionAPI } from '@/app/lib/admin_submission_api';
 import apiClient from '@/app/lib/api';
+import { requireStatusIds } from '@/app/lib/statusLookup';
 import { toast } from 'react-hot-toast';
 import Swal from 'sweetalert2';
 import 'sweetalert2/dist/sweetalert2.min.css';
@@ -76,16 +77,22 @@ const getUserFullName = (u) => {
   return name || (u.email || '-');
 };
 
+const STATUS_LABELS = [
+  'อยู่ระหว่างการพิจารณา',
+  'ต้องการข้อมูลเพิ่มเติม',
+  'อยู่ระหว่างการพิจารณาจากหัวหน้าสาขา',
+  'เห็นควรพิจารณาจากหัวหน้าสาขา',
+];
+
 /* =========================
  * Approval Panel
  *  - โหมด Pending (status_id=1): ฟอร์มอนุมัติ/ไม่อนุมัติ
  *  - โหมดอื่น: แสดงผลแบบ read-only เพื่อเทียบกับฝั่งซ้าย
  * ========================= */
-function FundApprovalPanel({ submission, fundDetail, onApprove, onReject }) {
+function FundApprovalPanel({ submission, fundDetail, onApprove, onReject, statusGuard }) {
   const statusId = Number(submission?.status_id);
   const requested = Number(fundDetail?.requested_amount || 0);
 
-  // ✅ เรียก Hooks เสมอเพื่อไม่ให้ผิดลำดับเมื่อสถานะเปลี่ยน
   const [approved, setApproved] = React.useState(
     Number.isFinite(Number(fundDetail?.approved_amount))
       ? Number(fundDetail?.approved_amount)
@@ -94,6 +101,18 @@ function FundApprovalPanel({ submission, fundDetail, onApprove, onReject }) {
   const [announceRef, setAnnounceRef] = React.useState(fundDetail?.announce_reference_number || '');
   const [comment, setComment] = React.useState(fundDetail?.comment || '');
   const [errors, setErrors] = React.useState({});
+
+  const pendingId = statusGuard?.pending ?? null;
+  const revisionId = statusGuard?.revision ?? null;
+  const deptPendingId = statusGuard?.deptPending ?? null;
+  const deptRecommendedId = statusGuard?.deptRecommended ?? null;
+
+  const interactiveStatuses = statusGuard
+    ? [pendingId, revisionId, deptRecommendedId].filter((id) => id != null)
+    : [];
+  const canInteract = interactiveStatuses.includes(statusId);
+  const awaitingDept = Boolean(statusGuard) && deptPendingId != null && statusId === deptPendingId;
+  const isDeptRecommended = Boolean(statusGuard) && deptRecommendedId != null && statusId === deptRecommendedId;
 
   const validate = () => {
     const e = {};
@@ -191,8 +210,25 @@ function FundApprovalPanel({ submission, fundDetail, onApprove, onReject }) {
     }
   };
 
-  // ====== READ-ONLY MODE (status_id !== 1) ======
-  if (statusId !== 1) {
+  if (!statusGuard) {
+    return (
+      <Card title="ผลการพิจารณา (Approval Result)" icon={FileText} collapsible={false}>
+        <div className="text-sm text-gray-500">กำลังโหลดข้อมูลสถานะจากระบบ...</div>
+      </Card>
+    );
+  }
+
+  if (awaitingDept) {
+    return (
+      <Card title="ผลการพิจารณา (Approval Result)" icon={FileText} collapsible={false}>
+        <div className="rounded-md border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-700">
+          รอการพิจารณาจากหัวหน้าสาขา
+        </div>
+      </Card>
+    );
+  }
+
+  if (!canInteract) {
     const approvedAmount =
       statusId === 2
         ? Number(
@@ -246,7 +282,6 @@ function FundApprovalPanel({ submission, fundDetail, onApprove, onReject }) {
     );
   }
 
-  // ====== PENDING MODE (status_id === 1) ======
   const headerTitle = (
     <div className="flex items-center justify-between w-full">
       <span>ผลการพิจารณา (Approval Result)</span>
@@ -259,7 +294,12 @@ function FundApprovalPanel({ submission, fundDetail, onApprove, onReject }) {
   return (
     <Card title={headerTitle} icon={FileText} collapsible={false}>
       <div className="space-y-5">
-        {/* Requested */}
+        {isDeptRecommended && (
+          <div className="rounded-md border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
+            หัวหน้าสาขาเห็นควรให้พิจารณาแล้ว
+          </div>
+        )}
+
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-center">
           <label className="block text-sm font-medium text-gray-700 leading-tight">
             จำนวนเงินที่ขอ
@@ -270,7 +310,6 @@ function FundApprovalPanel({ submission, fundDetail, onApprove, onReject }) {
           </div>
         </div>
 
-        {/* Approved input - Fixed grid layout */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
           <label className="block text-sm font-medium text-gray-700 leading-tight">
             จำนวนเงินที่จะอนุมัติ
@@ -300,7 +339,6 @@ function FundApprovalPanel({ submission, fundDetail, onApprove, onReject }) {
           </div>
         </div>
 
-        {/* Announcement ref - Fixed grid layout */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-center">
           <label className="block text-sm font-medium text-gray-700 leading-tight">
             หมายเลขอ้างอิงประกาศผลการพิจารณา (ถ้ามี)
@@ -317,7 +355,6 @@ function FundApprovalPanel({ submission, fundDetail, onApprove, onReject }) {
           </div>
         </div>
 
-        {/* Comment - Fixed grid layout */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
           <label className="block text-sm font-medium text-gray-700 leading-tight pt-2">
             หมายเหตุ / คำอธิบายเพิ่มเติม
@@ -333,7 +370,6 @@ function FundApprovalPanel({ submission, fundDetail, onApprove, onReject }) {
           </div>
         </div>
 
-        {/* Actions */}
         <div className="flex items-center gap-3 pt-4 border-t border-gray-200">
           <button className="btn btn-success" onClick={handleApprove}>อนุมัติ</button>
           <button className="btn btn-danger" onClick={handleReject}>ไม่อนุมัติ</button>
@@ -417,10 +453,32 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
   const [attachments, setAttachments] = useState([]);
   const [attachmentsLoading, setAttachmentsLoading] = useState(false);
 
+  const [statusRecords, setStatusRecords] = useState(null);
+
   // รวมไฟล์ PDF
   const [merging, setMerging] = useState(false);
   const mergedUrlRef = useRef(null);
   const [creatingMerged, setCreatingMerged] = useState(false);
+
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const records = await requireStatusIds(STATUS_LABELS);
+        if (mounted) {
+          setStatusRecords(records);
+        }
+      } catch (error) {
+        if (mounted) {
+          console.error('load status lookup failed', error);
+          toast.error(error?.message || 'ไม่สามารถโหลดข้อมูลสถานะได้');
+        }
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   const cleanupMergedUrl = () => {
     if (mergedUrlRef.current) {
@@ -429,6 +487,17 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
     }
   };
   useEffect(() => () => cleanupMergedUrl(), []);
+
+  const statusGuard = useMemo(() => {
+    if (!statusRecords) return null;
+    const getId = (label) => statusRecords[label]?.id ?? null;
+    return {
+      pending: getId('อยู่ระหว่างการพิจารณา'),
+      revision: getId('ต้องการข้อมูลเพิ่มเติม'),
+      deptPending: getId('อยู่ระหว่างการพิจารณาจากหัวหน้าสาขา'),
+      deptRecommended: getId('เห็นควรพิจารณาจากหัวหน้าสาขา'),
+    };
+  }, [statusRecords]);
 
   // โหลดรายละเอียดคำร้อง
   useEffect(() => {
@@ -593,8 +662,28 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
   const submittedAt =
     submission?.submitted_at || submission?.created_at || submission?.create_at;
 
+  const ensureActionAllowed = () => {
+    if (!statusGuard) {
+      throw new Error('ไม่สามารถตรวจสอบสถานะจากระบบได้');
+    }
+    const currentStatusId = Number(submission?.status_id);
+    const allowed = [
+      statusGuard.pending,
+      statusGuard.revision,
+      statusGuard.deptRecommended,
+    ].filter((id) => id != null);
+
+    if (!allowed.includes(currentStatusId)) {
+      if (statusGuard.deptPending && currentStatusId === statusGuard.deptPending) {
+        throw new Error('คำร้องยังรอการพิจารณาจากหัวหน้าสาขา');
+      }
+      throw new Error('ไม่สามารถดำเนินการในสถานะปัจจุบันได้');
+    }
+  };
+
   // === API wiring สำหรับอนุมัติ/ไม่อนุมัติแบบ "ทั่วไป" ===
   const approve = async (payload) => {
+    ensureActionAllowed();
     await adminSubmissionAPI.approveSubmission(submission.submission_id, { ...payload });
     const res = await adminSubmissionAPI.getSubmissionDetails(submission.submission_id);
     let data = res?.submission || res;
@@ -607,6 +696,7 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
   };
 
   const reject = async (reason) => {
+    ensureActionAllowed();
     await adminSubmissionAPI.rejectSubmission(submission.submission_id, { rejection_reason: reason });
     const res = await adminSubmissionAPI.getSubmissionDetails(submission.submission_id);
     let data = res?.submission || res;
@@ -806,6 +896,7 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
           fundDetail={detail}
           onApprove={approve}
           onReject={reject}
+          statusGuard={statusGuard}
         />
       </div>
 

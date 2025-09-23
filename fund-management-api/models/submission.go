@@ -18,14 +18,18 @@ type Submission struct {
 	SubcategoryID           *int       `gorm:"column:subcategory_id" json:"subcategory_id"`               // ✅ เพิ่มใหม่
 	SubcategoryName         *string    `gorm:"column:subcategory_name;->" json:"subcategory_name"`        // ✅ เพิ่มใหม่ (read-only, มาจาก join)
 	SubcategoryBudgetID     *int       `gorm:"column:subcategory_budget_id" json:"subcategory_budget_id"` // ✅ เพิ่มใหม่
-	StatusID                int        `gorm:"column:status_id" json:"status_id"`
-	ApprovedBy              *int       `gorm:"column:approved_by" json:"approved_by"`
-	ApprovedAt              *time.Time `gorm:"column:approved_at" json:"approved_at"`
-	SubmittedAt             *time.Time `gorm:"column:submitted_at" json:"submitted_at"`
-	CreatedAt               time.Time  `gorm:"column:created_at" json:"created_at"`
-	UpdatedAt               time.Time  `gorm:"column:updated_at" json:"updated_at"`
-	DeletedAt               *time.Time `gorm:"column:deleted_at" json:"deleted_at"`
-	AnnounceReferenceNumber string     `gorm:"-" json:"announce_reference_number,omitempty"`
+        StatusID                int        `gorm:"column:status_id" json:"status_id"`
+        ApprovedBy              *int       `gorm:"column:approved_by" json:"approved_by"`
+        ApprovedAt              *time.Time `gorm:"column:approved_at" json:"approved_at"`
+        SubmittedAt             *time.Time `gorm:"column:submitted_at" json:"submitted_at"`
+        ReviewedAt              *time.Time `gorm:"column:reviewed_at" json:"reviewed_at,omitempty"`
+        HeadApprovedAt          *time.Time `gorm:"column:head_approved_at" json:"head_approved_at,omitempty"`
+        HeadApprovedBy          *int       `gorm:"column:head_approved_by" json:"head_approved_by,omitempty"`
+        CreatedAt               time.Time  `gorm:"column:created_at" json:"created_at"`
+        UpdatedAt               time.Time  `gorm:"column:updated_at" json:"updated_at"`
+        DeletedAt               *time.Time `gorm:"column:deleted_at" json:"deleted_at"`
+        Comment                 *string    `gorm:"column:comment" json:"comment,omitempty"`
+        AnnounceReferenceNumber string     `gorm:"-" json:"announce_reference_number,omitempty"`
 
 	// Relations
 	User                    *User                    `gorm:"foreignKey:UserID" json:"user,omitempty"`
@@ -129,10 +133,10 @@ type PublicationRewardDetail struct {
 
 // SubmissionDocument represents the submission_documents table (junction table)
 type SubmissionDocument struct {
-	DocumentID       int        `gorm:"primaryKey;column:document_id" json:"document_id"`
-	SubmissionID     int        `gorm:"column:submission_id" json:"submission_id"`
-	FileID           int        `gorm:"column:file_id" json:"file_id"`
-	DocumentTypeID   int        `gorm:"column:document_type_id" json:"document_type_id"`
+        DocumentID       int        `gorm:"primaryKey;column:document_id" json:"document_id"`
+        SubmissionID     int        `gorm:"column:submission_id" json:"submission_id"`
+        FileID           int        `gorm:"column:file_id" json:"file_id"`
+        DocumentTypeID   int        `gorm:"column:document_type_id" json:"document_type_id"`
 	DocumentTypeName string     `gorm:"->;column:document_type_name" json:"document_type_name"`
 	Description      string     `gorm:"column:description" json:"description"`
 	DisplayOrder     int        `gorm:"column:display_order" json:"display_order"`
@@ -145,8 +149,23 @@ type SubmissionDocument struct {
 	// Relations
 	Submission   Submission   `gorm:"foreignKey:SubmissionID" json:"submission,omitempty"`
 	File         FileUpload   `gorm:"foreignKey:FileID" json:"file,omitempty"`
-	DocumentType DocumentType `gorm:"foreignKey:DocumentTypeID" json:"document_type,omitempty"`
-	Verifier     *User        `gorm:"foreignKey:VerifiedBy" json:"verifier,omitempty"`
+        DocumentType DocumentType `gorm:"foreignKey:DocumentTypeID" json:"document_type,omitempty"`
+        Verifier     *User        `gorm:"foreignKey:VerifiedBy" json:"verifier,omitempty"`
+}
+
+type SubmissionStatusHistory struct {
+        HistoryID    int        `gorm:"primaryKey;column:history_id" json:"history_id"`
+        SubmissionID int        `gorm:"column:submission_id" json:"submission_id"`
+        OldStatusID  *int       `gorm:"column:old_status_id" json:"old_status_id,omitempty"`
+        NewStatusID  int        `gorm:"column:new_status_id" json:"new_status_id"`
+        ChangedBy    int        `gorm:"column:changed_by" json:"changed_by"`
+        Reason       *string    `gorm:"column:reason" json:"reason,omitempty"`
+        Notes        *string    `gorm:"column:notes" json:"notes,omitempty"`
+        CreatedAt    time.Time  `gorm:"column:created_at" json:"created_at"`
+}
+
+func (SubmissionStatusHistory) TableName() string {
+        return "submission_status_history"
 }
 
 // SubmissionUser represents co-authors and collaborators in submissions
@@ -193,7 +212,7 @@ func (s *Submission) IsEditable() bool {
 }
 
 func (s *Submission) CanBeSubmitted() bool {
-	return s.StatusID == 1 && s.SubmittedAt == nil
+        return s.SubmittedAt == nil
 }
 
 func (s *Submission) IsSubmitted() bool {

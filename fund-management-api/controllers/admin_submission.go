@@ -2,14 +2,22 @@
 package controllers
 
 import (
-	"fund-management-api/config"
-	"fund-management-api/models"
-	"net/http"
-	"strconv"
-	"strings"
-	"time"
+        "fund-management-api/config"
+        "fund-management-api/models"
+        "fund-management-api/utils"
+        "net/http"
+        "strconv"
+        "strings"
+        "time"
 
-	"github.com/gin-gonic/gin"
+        "github.com/gin-gonic/gin"
+)
+
+const (
+        statusLabelPendingGeneral     = "อยู่ระหว่างการพิจารณา"
+        statusLabelRevisionRequested  = "ต้องการข้อมูลเพิ่มเติม"
+        statusLabelDeptPending        = "อยู่ระหว่างการพิจารณาจากหัวหน้าสาขา"
+        statusLabelDeptRecommended    = "เห็นควรพิจารณาจากหัวหน้าสาขา"
 )
 
 // ==============================
@@ -277,12 +285,40 @@ func ApproveSubmission(c *gin.Context) {
 		return
 	}
 
-	// Validate status (1=pending, 4=revision requested)
-	if submission.StatusID != 1 && submission.StatusID != 4 {
-		tx.Rollback()
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Only pending or revision-requested submissions can be approved"})
-		return
-	}
+        statusMap, err := utils.ResolveStatusesByLabels([]string{
+                statusLabelPendingGeneral,
+                statusLabelRevisionRequested,
+                statusLabelDeptPending,
+                statusLabelDeptRecommended,
+        })
+        if err != nil {
+                tx.Rollback()
+                c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+                return
+        }
+
+        allowedStatuses := map[int]bool{}
+        if s, ok := statusMap[statusLabelPendingGeneral]; ok {
+                allowedStatuses[s.ApplicationStatusID] = true
+        }
+        if s, ok := statusMap[statusLabelRevisionRequested]; ok {
+                allowedStatuses[s.ApplicationStatusID] = true
+        }
+        if s, ok := statusMap[statusLabelDeptRecommended]; ok {
+                allowedStatuses[s.ApplicationStatusID] = true
+        }
+
+        deptPendingID := statusMap[statusLabelDeptPending].ApplicationStatusID
+
+        if !allowedStatuses[submission.StatusID] {
+                tx.Rollback()
+                if submission.StatusID == deptPendingID {
+                        c.JSON(http.StatusBadRequest, gin.H{"error": "Submission is awaiting department head review"})
+                } else {
+                        c.JSON(http.StatusBadRequest, gin.H{"error": "Only pending, revision-requested, or department-recommended submissions can be approved"})
+                }
+                return
+        }
 
 	// Update submission status → approved
 	now := time.Now()
@@ -406,12 +442,40 @@ func RejectSubmission(c *gin.Context) {
 		return
 	}
 
-	// Only pending (1) or revision-requested (4) can be rejected
-	if submission.StatusID != 1 && submission.StatusID != 4 {
-		tx.Rollback()
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Only pending or revision-requested submissions can be rejected"})
-		return
-	}
+        statusMap, err := utils.ResolveStatusesByLabels([]string{
+                statusLabelPendingGeneral,
+                statusLabelRevisionRequested,
+                statusLabelDeptPending,
+                statusLabelDeptRecommended,
+        })
+        if err != nil {
+                tx.Rollback()
+                c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+                return
+        }
+
+        allowedStatuses := map[int]bool{}
+        if s, ok := statusMap[statusLabelPendingGeneral]; ok {
+                allowedStatuses[s.ApplicationStatusID] = true
+        }
+        if s, ok := statusMap[statusLabelRevisionRequested]; ok {
+                allowedStatuses[s.ApplicationStatusID] = true
+        }
+        if s, ok := statusMap[statusLabelDeptRecommended]; ok {
+                allowedStatuses[s.ApplicationStatusID] = true
+        }
+
+        deptPendingID := statusMap[statusLabelDeptPending].ApplicationStatusID
+
+        if !allowedStatuses[submission.StatusID] {
+                tx.Rollback()
+                if submission.StatusID == deptPendingID {
+                        c.JSON(http.StatusBadRequest, gin.H{"error": "Submission is awaiting department head review"})
+                } else {
+                        c.JSON(http.StatusBadRequest, gin.H{"error": "Only pending, revision-requested, or department-recommended submissions can be rejected"})
+                }
+                return
+        }
 
 	now := time.Now()
 	submission.StatusID = 3
