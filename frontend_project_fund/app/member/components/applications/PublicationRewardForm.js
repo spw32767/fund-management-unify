@@ -2292,6 +2292,33 @@ const showSubmissionConfirmation = async () => {
           subcategory_budget_id: formData.subcategory_budget_id
         });
 
+        // Re-resolve the budget/subcategory pairing to ensure we submit the latest mapping
+        const freshResolution = await resolveBudgetAndSubcategory({
+          category_id: formData.category_id || categoryId,
+          year_id: formData.year_id,
+          author_status: formData.author_status,
+          journal_quartile: formData.journal_quartile
+        });
+
+        if (!freshResolution || !freshResolution.subcategory_id || !freshResolution.subcategory_budget_id) {
+          throw new Error('ไม่สามารถระบุหมวดทุนที่สอดคล้องได้');
+        }
+
+        const resolvedSubcategoryId = Number(freshResolution.subcategory_id);
+        const resolvedBudgetId = Number(freshResolution.subcategory_budget_id);
+
+        // Sync state to the latest resolved values for downstream logic/debugging
+        setFormData(prev => ({
+          ...prev,
+          subcategory_id: resolvedSubcategoryId,
+          subcategory_budget_id: resolvedBudgetId
+        }));
+
+        console.log('Resolved mapping before submission:', {
+          resolvedSubcategoryId,
+          resolvedBudgetId
+        });
+
         // ใน submitApplication function - เพิ่ม validation และ submission data
         const deptPendingStatusId = await getStatusIdByName('อยู่ระหว่างการพิจารณาจากหัวหน้าสาขา');
         if (!deptPendingStatusId) {
@@ -2302,8 +2329,8 @@ const showSubmissionConfirmation = async () => {
           submission_type: 'publication_reward',
           year_id: formData.year_id,
           category_id: formData.category_id || categoryId,
-          subcategory_id: formData.subcategory_id,        // Dynamic resolved
-          subcategory_budget_id: formData.subcategory_budget_id,  // Dynamic resolved
+          subcategory_id: resolvedSubcategoryId,        // Dynamic resolved
+          subcategory_budget_id: resolvedBudgetId,  // Dynamic resolved
           status_id: deptPendingStatusId,
         });
         
