@@ -2,7 +2,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Award, Upload, Users, FileText, Plus, X, Save, Send, AlertCircle, Search, Eye, Calculator } from "lucide-react";
+import { Award, Upload, Users, FileText, Plus, X, Save, Send, AlertCircle, Search, Eye, Calculator, Signature } from "lucide-react";
 import PageLayout from "../common/PageLayout";
 import SimpleCard from "../common/SimpleCard";
 import { systemAPI, authAPI } from '../../../lib/api';
@@ -3769,61 +3769,78 @@ const showSubmissionConfirmation = async () => {
           </div>
         </SimpleCard>
 
-        <div className="border border-gray-200 rounded-lg p-4 space-y-4">
-          <h3 className="text-sm font-semibold text-gray-700">
-            คำรับรอง (Declarations)
-          </h3>
+        <SimpleCard title="การยืนยันและลายเซ็น" icon={Signature}>
+          <div className="space-y-6">
+            <div>
+              <p className="text-sm font-medium text-gray-700 mb-4">
+                ข้าพเจ้าขอรับรองว่า
+              </p>
+              <div className="space-y-4">
+                <div className="flex items-start gap-3">
+                  <input
+                    id="confirmNoPreviousFunding"
+                    type="checkbox"
+                    className="mt-1 h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 focus:border-blue-500"
+                    checked={declarations.confirmNoPreviousFunding}
+                    onChange={(e) =>
+                      setDeclarations(prev => ({
+                        ...prev,
+                        confirmNoPreviousFunding: e.target.checked
+                      }))
+                    }
+                    aria-required="true"
+                  />
+                  <label htmlFor="confirmNoPreviousFunding" className="text-sm text-gray-700 leading-relaxed">
+                    ผลงานตีพิมพ์ที่ขอรับการสนับสนุน 
+                    <span className="font-bold underline">ไม่เคย</span>
+                    ได้รับการจัดสรรทุนของมหาวิทยาลัย และทุนส่งเสริมการวิจัยจากกองทุนวิจัย นวัตกรรม และบริการวิชาการ วิทยาลัยการคอมพิวเตอร์
+                  </label>
+                </div>
 
-          <div className="space-y-3 text-sm text-gray-700">
-            <label className="flex items-start gap-3">
+                <div className="flex items-start gap-3">
+                  <input
+                    id="agreeToRegulations"
+                    type="checkbox"
+                    className="mt-1 h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 focus:border-blue-500"
+                    checked={declarations.agreeToRegulations}
+                    onChange={(e) =>
+                      setDeclarations(prev => ({
+                        ...prev,
+                        agreeToRegulations: e.target.checked
+                      }))
+                    }
+                    aria-required="true"
+                  />
+                  <label htmlFor="agreeToRegulations" className="text-sm text-gray-700 leading-relaxed">
+                    จะปฏิบัติตามระเบียบมหาวิทยาลัยขอนแก่น ว่าด้วยกองทุนวิจัยในระดับคณะ พ.ศ. 2561 รวมถึงหลักเกณฑ์และประกาศอื่นใดที่เกี่ยวข้องทุกประการ
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <label htmlFor="signature" className="block text-sm font-medium text-gray-700 mb-2">
+                ลงลายมือชื่อ (กรุณาพิมพ์ชื่อเต็ม) <span className="text-red-500">*</span>
+              </label>
               <input
-                type="checkbox"
-                className="mt-1 h-4 w-4 text-blue-600 focus:ring-blue-500"
-                checked={declarations.confirmNoPreviousFunding}
-                onChange={(e) =>
-                  setDeclarations(prev => ({
-                    ...prev,
-                    confirmNoPreviousFunding: e.target.checked
-                  }))
-                }
+                id="signature"
+                type="text"
+                name="signature"
+                value={formData.signature}
+                onChange={handleInputChange}
+                placeholder="กรอกชื่อ-นามสกุล"
+                className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:border-blue-500 ${
+                  errors.signature ? 'border-red-500' : 'border-gray-300'
+                }`}
+                aria-invalid={errors.signature ? 'true' : 'false'}
+                aria-required="true"
               />
-              <span>
-                ผลงานตีพิมพ์ที่ขอรับการสนับสนุนไม่เคยได้รับการจัดสรรทุนของมหาวิทยาลัย และทุนส่งเสริมการวิจัยจากกองทุนวิจัย นวัตกรรม และบริการวิชาการ วิทยาลัยการคอมพิวเตอร์
-              </span>
-            </label>
-
-            <label className="flex items-start gap-3">
-              <input
-                type="checkbox"
-                className="mt-1 h-4 w-4 text-blue-600 focus:ring-blue-500"
-                checked={declarations.agreeToRegulations}
-                onChange={(e) =>
-                  setDeclarations(prev => ({
-                    ...prev,
-                    agreeToRegulations: e.target.checked
-                  }))
-                }
-              />
-              <span>
-                จะปฏิบัติตามระเบียบมหาวิทยาลัยขอนแก่น ว่าด้วยกองทุนวิจัยในระดับคณะ พ.ศ. 2561 รวมถึงหลักเกณฑ์และประกาศอื่นใดที่เกี่ยวข้องทุกประการ
-              </span>
-            </label>
+              {errors.signature && (
+                <p className="mt-1 text-sm text-red-500">{errors.signature}</p>
+              )}
+            </div>
           </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              ลายเซ็น (พิมพ์ชื่อเต็ม)
-            </label>
-            <input
-              type="text"
-              name="signature"
-              value={formData.signature}
-              onChange={handleInputChange}
-              placeholder="กรอกชื่อ-นามสกุล"
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
-            />
-          </div>
-        </div>
+        </SimpleCard>
 
         {/* =================================================================
         // ACTION BUTTONS

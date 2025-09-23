@@ -5,7 +5,7 @@ import {
   getAuthorSubmissionFields,
 } from '../PublicationRewardForm.helpers.mjs';
 
-test('shouldDisableSubmitButton enforces declaration requirements before enabling submit', () => {
+test('shouldDisableSubmitButton enforces declarations and required author fields before enabling submit', () => {
   const baseState = {
     loading: false,
     saving: false,
@@ -15,12 +15,33 @@ test('shouldDisableSubmitButton enforces declaration requirements before enablin
       confirmNoPreviousFunding: false,
       agreeToRegulations: false,
     },
+    authorNameList: '',
+    signature: '',
   };
 
   assert.equal(shouldDisableSubmitButton(baseState), true);
 
+  const withAuthors = {
+    ...baseState,
+    authorNameList: 'Alice, Bob',
+  };
+  assert.equal(shouldDisableSubmitButton(withAuthors), true);
+
+  const withSignature = {
+    ...baseState,
+    authorNameList: 'Alice, Bob',
+    signature: '  ',
+    declarations: {
+      confirmNoPreviousFunding: true,
+      agreeToRegulations: false,
+    },
+  };
+  assert.equal(shouldDisableSubmitButton(withSignature), true);
+
   const oneChecked = {
     ...baseState,
+    authorNameList: 'Alice, Bob',
+    signature: 'Professor Example',
     declarations: {
       confirmNoPreviousFunding: true,
       agreeToRegulations: false,
@@ -30,6 +51,8 @@ test('shouldDisableSubmitButton enforces declaration requirements before enablin
 
   const bothChecked = {
     ...baseState,
+    authorNameList: 'Alice, Bob',
+    signature: 'Professor Example',
     declarations: {
       confirmNoPreviousFunding: true,
       agreeToRegulations: true,
