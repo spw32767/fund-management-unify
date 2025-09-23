@@ -18,7 +18,8 @@ export default function ApplicationList({ onNavigate }) {
   const [statusFilter, setStatusFilter] = useState("all");
   const [yearFilter, setYearFilter] = useState("all");
   const [loading, setLoading] = useState(false);
-
+  const { statuses: statusOptions, getLabelById, isLoading: statusLoading } = useStatusMap();
+  
   // Map display year to year_id used by API
   const YEAR_ID_MAP = { "2566": 1, "2567": 2, "2568": 3 };
 
@@ -431,4 +432,3 @@ export default function ApplicationList({ onNavigate }) {
     </PageLayout>
   );
 }
-  const { statuses: statusOptions, getLabelById, isLoading: statusLoading } = useStatusMap();
