@@ -2312,7 +2312,7 @@ const showSubmissionConfirmation = async () => {
       const resolvedBudgetId = Number(freshResolution.subcategory_budget_id);
       const rewardAmountSource = freshResolution.reward_amount ?? freshResolution.amount ?? 0;
       const parsedRewardAmount = Number(rewardAmountSource);
-      const resolvedRewardAmount = Number.isFinite(parsedRewardAmount) ? parsedRewardAmount : 0;
+      const resolvedRewardValue = Number.isFinite(parsedRewardAmount) ? parsedRewardAmount : 0;
 
       if (!Number.isInteger(resolvedSubcategoryId) || !Number.isInteger(resolvedBudgetId)) {
         throw new Error('ข้อมูลหมวดทุนไม่ถูกต้อง');
@@ -2321,7 +2321,7 @@ const showSubmissionConfirmation = async () => {
       resolvedRewardContext = {
         subcategoryId: resolvedSubcategoryId,
         budgetId: resolvedBudgetId,
-        rewardAmount: resolvedRewardAmount
+        rewardAmount: resolvedRewardValue
       };
 
       // Sync state to the latest resolved values for downstream logic/debugging
@@ -2329,14 +2329,14 @@ const showSubmissionConfirmation = async () => {
         ...prev,
         subcategory_id: resolvedSubcategoryId,
         subcategory_budget_id: resolvedBudgetId,
-        publication_reward: resolvedRewardAmount,
-        reward_amount: resolvedRewardAmount
+        publication_reward: resolvedRewardValue,
+        reward_amount: resolvedRewardValue
       }));
 
       console.log('Resolved mapping before submission:', {
         resolvedSubcategoryId,
         resolvedBudgetId,
-        resolvedRewardAmount
+        resolvedRewardValue
       });
 
       if (!submissionId) {
@@ -2530,7 +2530,10 @@ const showSubmissionConfirmation = async () => {
 
       const authorSubmissionFields = getAuthorSubmissionFields(formData);
 
-      const resolvedRewardAmount = resolvedRewardContext?.rewardAmount;
+      const finalResolvedRewardAmount =
+        resolvedRewardContext?.rewardAmount ??
+        resolvedRewardValue ??
+        (parseFloat(formData.publication_reward) || 0);
 
       const publicationData = {
         // Basic article info
@@ -2556,7 +2559,7 @@ const showSubmissionConfirmation = async () => {
         ].filter(Boolean).join(', ') || '',
         
         // Financial fields
-        reward_amount: resolvedRewardAmount ?? (parseFloat(formData.publication_reward) || 0),
+        reward_amount: finalResolvedRewardAmount,
         revision_fee: parseFloat(formData.revision_fee) || 0,
         publication_fee: parseFloat(formData.publication_fee) || 0,
         external_funding_amount: parseFloat(formData.external_funding_amount) || 0,
