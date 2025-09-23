@@ -800,12 +800,21 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
             journal_quartile: formData.journal_quartile
           });
           if (result) {
+            const resolvedSubcategoryId =
+              result.subcategory_id !== undefined && result.subcategory_id !== null
+                ? Number(result.subcategory_id)
+                : null;
+            const resolvedBudgetId =
+              result.subcategory_budget_id !== undefined && result.subcategory_budget_id !== null
+                ? Number(result.subcategory_budget_id)
+                : null;
+
             setFormData(prev => ({
               ...prev,
-              subcategory_id: result.subcategory_id,
-              subcategory_budget_id: result.subcategory_budget_id,
-              publication_reward: result.reward_amount,
-              reward_amount: result.reward_amount,
+              subcategory_id: resolvedSubcategoryId,
+              subcategory_budget_id: resolvedBudgetId,
+              publication_reward: result.reward_amount ?? prev.publication_reward,
+              reward_amount: result.reward_amount ?? prev.reward_amount,
             }));
             setResolutionError(result.remaining_budget > 0 ? '' : 'งบประมาณสำหรับทุนนี้หมดแล้ว');
           } else {
@@ -2232,6 +2241,58 @@ const showSubmissionConfirmation = async () => {
         }
       });
 
+      const categoryContextId = formData.category_id ?? categoryId;
+      let resolvedSubcategoryId =
+        formData.subcategory_id !== undefined && formData.subcategory_id !== null
+          ? Number(formData.subcategory_id)
+          : null;
+      let resolvedSubcategoryBudgetId =
+        formData.subcategory_budget_id !== undefined && formData.subcategory_budget_id !== null
+          ? Number(formData.subcategory_budget_id)
+          : null;
+
+      if (formData.author_status && formData.journal_quartile && formData.year_id && categoryContextId) {
+        try {
+          const finalResolution = await resolveBudgetAndSubcategory({
+            category_id: categoryContextId,
+            year_id: formData.year_id,
+            author_status: formData.author_status,
+            journal_quartile: formData.journal_quartile
+          });
+
+          if (!finalResolution?.subcategory_id || !finalResolution?.subcategory_budget_id) {
+            throw new Error('Resolution missing identifiers');
+          }
+
+          const resolvedIdFromAPI = Number(finalResolution.subcategory_id);
+          const resolvedBudgetFromAPI = Number(finalResolution.subcategory_budget_id);
+
+          if (!Number.isFinite(resolvedIdFromAPI) || !Number.isFinite(resolvedBudgetFromAPI)) {
+            throw new Error('Resolution returned invalid identifiers');
+          }
+
+          const shouldUpdateState =
+            formData.subcategory_id !== resolvedIdFromAPI ||
+            formData.subcategory_budget_id !== resolvedBudgetFromAPI;
+
+          resolvedSubcategoryId = resolvedIdFromAPI;
+          resolvedSubcategoryBudgetId = resolvedBudgetFromAPI;
+
+          if (shouldUpdateState) {
+            setFormData(prev => ({
+              ...prev,
+              subcategory_id: resolvedIdFromAPI,
+              subcategory_budget_id: resolvedBudgetFromAPI,
+              publication_reward: finalResolution.reward_amount ?? prev.publication_reward,
+              reward_amount: finalResolution.reward_amount ?? prev.reward_amount,
+            }));
+          }
+        } catch (resolutionError) {
+          console.error('resolveBudgetAndSubcategory final check failed:', resolutionError);
+          throw new Error('ไม่สามารถยืนยันข้อมูลทุนที่เลือกได้ กรุณาลองอีกครั้ง');
+        }
+      }
+
       let submissionId = currentSubmissionId;
       const allFiles = [];
       const processedFiles = new Set(); // ป้องกันไฟล์ซ้ำ
@@ -2288,8 +2349,8 @@ const showSubmissionConfirmation = async () => {
         });
 
         console.log('Before POST:', {
-          subcategory_id: formData.subcategory_id,
-          subcategory_budget_id: formData.subcategory_budget_id
+          subcategory_id: resolvedSubcategoryId,
+          subcategory_budget_id: resolvedSubcategoryBudgetId
         });
 
         // ใน submitApplication function - เพิ่ม validation และ submission data
@@ -2302,8 +2363,8 @@ const showSubmissionConfirmation = async () => {
           submission_type: 'publication_reward',
           year_id: formData.year_id,
           category_id: formData.category_id || categoryId,
-          subcategory_id: formData.subcategory_id,        // Dynamic resolved
-          subcategory_budget_id: formData.subcategory_budget_id,  // Dynamic resolved
+          subcategory_id: resolvedSubcategoryId,        // Dynamic resolved
+          subcategory_budget_id: resolvedSubcategoryBudgetId,  // Dynamic resolved
           status_id: deptPendingStatusId,
         });
         
