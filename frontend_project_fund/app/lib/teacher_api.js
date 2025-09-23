@@ -200,7 +200,11 @@ export const submissionAPI = {
 
   async createSubmission(submissionData) {
     try {
-      const response = await apiClient.post('/submissions', submissionData);
+      const payload = { ...submissionData };
+      if (payload.status_id == null) {
+        delete payload.status_id;
+      }
+      const response = await apiClient.post('/submissions', payload);
       return response;
     } catch (error) {
       console.error('Error creating submission:', error);

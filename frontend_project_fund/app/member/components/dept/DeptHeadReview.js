@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ClipboardList, Loader2 } from "lucide-react";
 import PageLayout from "../common/PageLayout";
 import Card from "../common/Card";
 import DataTable from "../common/DataTable";
 import StatusBadge from "../common/StatusBadge";
 import { deptHeadAPI } from "../../../lib/member_api";
+import { statusService } from "../../../lib/status_service";
 
 const formatDate = (value) => {
   if (!value) {
@@ -22,6 +23,12 @@ const formatDate = (value) => {
   }
 };
 
+const STATUS_LABELS = {
+  pending: "อยู่ระหว่างการพิจารณาจากหัวหน้าสาขา",
+  recommended: "เห็นควรพิจารณาจากหัวหน้าสาขา",
+  rejected: "ไม่เห็นควรพิจารณา",
+};
+
 export default function DeptHeadReview() {
   const [submissions, setSubmissions] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -30,20 +37,81 @@ export default function DeptHeadReview() {
   const [actionComment, setActionComment] = useState("");
   const [actionLoading, setActionLoading] = useState(false);
   const [actionError, setActionError] = useState(null);
+  const statusCacheRef = useRef(null);
+
+  const resolveDeptStatuses = async () => {
+    if (statusCacheRef.current) {
+      return statusCacheRef.current;
+    }
+
+    const statuses = await statusService.fetchAll();
+    const findByName = (label) =>
+      statuses.find((status) => status?.status_name === label);
+
+    const pending = findByName(STATUS_LABELS.pending);
+    const recommended = findByName(STATUS_LABELS.recommended);
+    const rejected = findByName(STATUS_LABELS.rejected);
+
+    if (!pending) {
+      throw new Error(`ไม่พบสถานะ "${STATUS_LABELS.pending}"`);
+    }
+    if (!recommended) {
+      throw new Error(`ไม่พบสถานะ "${STATUS_LABELS.recommended}"`);
+    }
+    if (!rejected) {
+      throw new Error(`ไม่พบสถานะ "${STATUS_LABELS.rejected}"`);
+    }
+
+    const toId = (status) => {
+      if (!status) return undefined;
+      const rawId = status.application_status_id ?? status.status_id ?? status.id;
+      const numericId = Number(rawId);
+      return Number.isFinite(numericId) ? numericId : undefined;
+    };
+
+    const info = {
+      pending,
+      recommended,
+      rejected,
+      pendingId: toId(pending),
+      recommendedId: toId(recommended),
+      rejectedId: toId(rejected),
+    };
+
+    if (!info.pendingId || !info.recommendedId || !info.rejectedId) {
+      throw new Error("ไม่สามารถระบุรหัสสถานะหัวหน้าสาขาได้");
+    }
+
+    statusCacheRef.current = info;
+    return info;
+  };
 
   const loadSubmissions = async () => {
     try {
       setLoading(true);
       setError(null);
-      const response = await deptHeadAPI.getPendingReviews({ status: "pending_department" });
+      const statusInfo = await resolveDeptStatuses();
+      const response = await deptHeadAPI.getPendingReviews({ status_id: statusInfo.pendingId });
       const rows = response?.submissions || response?.data || [];
 
-      const normalized = rows.map((item) => ({
-        id: item.submission_id || item.id,
-        submission_number: item.submission_number || item.request_number || "-",
-        category: item.category_name || item.category?.category_name || "-",
-        subcategory: item.subcategory_name || item.subcategory?.subcategory_name || "-",
-        applicant:
+      const normalized = rows
+        .filter((item) => {
+          const itemStatusId = Number(
+            item.status_id ??
+            item.status?.application_status_id ??
+            item.status?.status_id ??
+            item.status?.id
+          );
+          return Number.isFinite(itemStatusId)
+            ? itemStatusId === statusInfo.pendingId
+            : true;
+        })
+        .map((item) => ({
+          id: item.submission_id || item.id,
+          submission_number: item.submission_number || item.request_number || "-",
+          category: item.category_name || item.category?.category_name || "-",
+          subcategory: item.subcategory_name || item.subcategory?.subcategory_name || "-",
+          applicant:
           item.applicant_name ||
           item.user?.full_name ||
           `${item.user?.user_fname || ""} ${item.user?.user_lname || ""}`.trim() ||
@@ -140,13 +208,21 @@ export default function DeptHeadReview() {
     setActionLoading(true);
     setActionError(null);
     try {
+      const statusInfo = await resolveDeptStatuses();
+      const basePayload = {
+        comment: actionComment?.trim() ? actionComment.trim() : undefined,
+        reviewed_at: new Date().toISOString(),
+      };
+
       if (actionTarget.action === "recommend") {
         await deptHeadAPI.recommendSubmission(actionTarget.id, {
-          comment: actionComment || undefined,
+          ...basePayload,
+          status_id: statusInfo.recommendedId,
         });
       } else {
         await deptHeadAPI.rejectSubmission(actionTarget.id, {
-          comment: actionComment || undefined,
+          ...basePayload,
+          status_id: statusInfo.rejectedId,
         });
       }
       closeAction();

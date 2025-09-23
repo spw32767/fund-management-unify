@@ -22,6 +22,7 @@ export const submissionAPI = {
       if (data.category_id) payload.category_id = data.category_id;
       if (data.subcategory_id) payload.subcategory_id = data.subcategory_id;
       if (data.subcategory_budget_id) payload.subcategory_budget_id = data.subcategory_budget_id;
+      if (data.status_id != null) payload.status_id = data.status_id;
 
       const response = await apiClient.post('/submissions', payload);
       return response;
