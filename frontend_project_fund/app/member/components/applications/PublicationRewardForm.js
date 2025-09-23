@@ -2235,6 +2235,7 @@ const showSubmissionConfirmation = async () => {
       let submissionId = currentSubmissionId;
       const allFiles = [];
       const processedFiles = new Set(); // ป้องกันไฟล์ซ้ำ
+      let resolvedRewardContext = null;
 
       // 1. Add main document files (document_type_id 1-10)
       Object.entries(uploadedFiles).forEach(([docTypeId, file]) => {
@@ -2306,17 +2307,29 @@ const showSubmissionConfirmation = async () => {
 
         const resolvedSubcategoryId = Number(freshResolution.subcategory_id);
         const resolvedBudgetId = Number(freshResolution.subcategory_budget_id);
+        const resolvedRewardAmount = Number(
+          freshResolution.reward_amount ?? freshResolution.amount ?? 0
+        );
+
+        resolvedRewardContext = {
+          subcategoryId: resolvedSubcategoryId,
+          budgetId: resolvedBudgetId,
+          rewardAmount: resolvedRewardAmount
+        };
 
         // Sync state to the latest resolved values for downstream logic/debugging
         setFormData(prev => ({
           ...prev,
           subcategory_id: resolvedSubcategoryId,
-          subcategory_budget_id: resolvedBudgetId
+          subcategory_budget_id: resolvedBudgetId,
+          publication_reward: resolvedRewardAmount,
+          reward_amount: resolvedRewardAmount
         }));
 
         console.log('Resolved mapping before submission:', {
           resolvedSubcategoryId,
-          resolvedBudgetId
+          resolvedBudgetId,
+          resolvedRewardAmount
         });
 
         // ใน submitApplication function - เพิ่ม validation และ submission data
@@ -2333,7 +2346,7 @@ const showSubmissionConfirmation = async () => {
           subcategory_budget_id: resolvedBudgetId,  // Dynamic resolved
           status_id: deptPendingStatusId,
         });
-        
+
         submissionId = submissionResponse.submission.submission_id;
         setCurrentSubmissionId(submissionId);
         console.log('Created submission:', submissionId);
@@ -2480,6 +2493,8 @@ const showSubmissionConfirmation = async () => {
 
       const authorSubmissionFields = getAuthorSubmissionFields(formData);
 
+      const resolvedRewardAmount = resolvedRewardContext?.rewardAmount;
+
       const publicationData = {
         // Basic article info
         article_title: formData.article_title || '',
@@ -2504,7 +2519,7 @@ const showSubmissionConfirmation = async () => {
         ].filter(Boolean).join(', ') || '',
         
         // Financial fields
-        reward_amount: parseFloat(formData.publication_reward) || 0,
+        reward_amount: resolvedRewardAmount ?? (parseFloat(formData.publication_reward) || 0),
         revision_fee: parseFloat(formData.revision_fee) || 0,
         publication_fee: parseFloat(formData.publication_fee) || 0,
         external_funding_amount: parseFloat(formData.external_funding_amount) || 0,
