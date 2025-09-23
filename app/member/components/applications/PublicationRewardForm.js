@@ -1,7 +1,7 @@
 // app/teacher/components/applications/PublicationRewardForm.js
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Award, Upload, Users, FileText, Plus, X, Save, Send, AlertCircle, Search, Eye, Calculator, Signature } from "lucide-react";
 import PageLayout from "../common/PageLayout";
 import SimpleCard from "../common/SimpleCard";
@@ -21,7 +21,7 @@ import Swal from 'sweetalert2';
 import { PDFDocument } from 'pdf-lib';
 import { notificationsAPI } from '../../../lib/notifications_api';
 import { systemConfigAPI } from '../../../lib/system_config_api';
-import { shouldDisableSubmitButton, getAuthorSubmissionFields } from './PublicationRewardForm.helpers.mjs';
+import { getAuthorSubmissionFields } from './PublicationRewardForm.helpers.mjs';
 import { getStatusIdByName } from '../../../lib/status_service';
 
 // =================================================================
@@ -201,89 +201,6 @@ const checkFeesLimit = async (revisionFee, publicationFee, quartile) => {
       maxLimit: 0,
       remaining: 0
     };
-  }
-};
-
-// Year validation
-const validateYear = (value) => {
-  const year = parseInt(value);
-  const currentYear = new Date().getFullYear();
-  return year >= 2000 && year <= currentYear + 1;
-};
-
-// Scroll to first error field
-const scrollToFirstError = (errors) => {
-  // Define field order priority
-  const fieldOrder = [
-    // ข้อมูลพื้นฐาน
-    'year_id',
-    'author_status', 
-    'phone_number',
-    // ข้อมูลบทความ
-    'article_title',
-    'journal_name',
-    'journal_quartile',
-    'journal_month',
-    'journal_year',
-    // ข้อมูลธนาคาร
-    'bank_account',
-    'bank_name',
-    // ค่าใช้จ่าย
-    'fees_limit',
-    // เอกสารแนบ
-    'file_2',
-    'file_3'
-  ];
-  
-  // Find first error field
-  const firstErrorField = fieldOrder.find(field => errors[field]);
-  
-  if (firstErrorField) {
-    // Wait for dialog to fully close
-    setTimeout(() => {
-      // Special handling for file errors
-      if (firstErrorField.startsWith('file_')) {
-        const element = document.getElementById('file-attachments-section');
-        if (element) {
-          element.scrollIntoView({ 
-            behavior: 'smooth', 
-            block: 'center',
-            inline: 'nearest'
-          });
-          
-          // Optional: Add border highlight
-          setTimeout(() => {
-            const fileId = firstErrorField.replace('file_', '');
-            const fileElement = document.getElementById(`file-upload-${fileId}`);
-            if (fileElement) {
-              const originalBorder = fileElement.style.border;
-              fileElement.style.border = '2px solid #ef4444';
-              setTimeout(() => {
-                fileElement.style.border = originalBorder;
-              }, 3000);
-            }
-          }, 800);
-        }
-      } else {
-        // Regular form fields
-        const element = document.getElementById(`field-${firstErrorField}`);
-        if (element) {
-          element.scrollIntoView({ 
-            behavior: 'smooth', 
-            block: 'center',
-            inline: 'nearest'
-          });
-          
-          // Focus on input after scroll
-          setTimeout(() => {
-            const input = element.querySelector('input, select, textarea');
-            if (input) {
-              input.focus();
-            }
-          }, 800);
-        }
-      }
-    }, 300); // Wait 300ms for dialog animation to complete
   }
 };
 
@@ -610,8 +527,10 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
   // =================================================================
   // STATE DECLARATIONS
   // =================================================================
+  const formRef = useRef(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState({});
   const [users, setUsers] = useState([]);
   const [documentTypes, setDocumentTypes] = useState([]);
@@ -1566,79 +1485,214 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
   // FORM VALIDATION
   // =================================================================
 
-  // Validate form data
-  const validateForm = async () => {
-    const newErrors = {};
-    
-    // ข้อมูลพื้นฐาน
-    if (!formData.year_id) newErrors.year_id = 'กรุณาเลือกปีงบประมาณ';
-    if (!formData.author_status) newErrors.author_status = 'กรุณาเลือกสถานะผู้แต่ง';
-    if (!formData.phone_number) newErrors.phone_number = 'กรุณากรอกเบอร์โทรศัพท์';
-    
-    // ข้อมูลบทความ
-    if (!formData.article_title) newErrors.article_title = 'กรุณากรอกชื่อบทความ';
-    if (!formData.journal_name) newErrors.journal_name = 'กรุณากรอกชื่อวารสาร';
-    if (!formData.journal_quartile) newErrors.journal_quartile = 'กรุณาเลือก Journal Quartile';
-    if (!formData.subcategory_id || !formData.subcategory_budget_id) {
-      newErrors.journal_quartile = newErrors.journal_quartile || 'กรุณาเลือก Journal Quartile';
-      newErrors.fund_resolution = 'ไม่พบทุนสำหรับปี/สถานะ/ควอร์ไทล์ที่เลือก';
-    }
-    if (!formData.journal_month) newErrors.journal_month = 'กรุณาเลือกเดือนที่ตีพิมพ์';
-    if (!formData.journal_year) newErrors.journal_year = 'กรุณากรอกปีที่ตีพิมพ์';
-    
-    // ข้อมูลธนาคาร
-    if (!formData.bank_account) newErrors.bank_account = 'กรุณากรอกเลขบัญชีธนาคาร';
-    if (!formData.bank_name) newErrors.bank_name = 'กรุณากรอกชื่อธนาคาร';
-    
-    // ตรวจสอบรูปแบบ
-    if (formData.phone_number && !/^\d{3}-\d{3}-\d{4}$/.test(formData.phone_number)) {
-      newErrors.phone_number = 'กรุณากรอกเบอร์โทรศัพท์ให้ถูกรูปแบบ (XXX-XXX-XXXX)';
-    }
+  const cleanLabelText = (text = '') => {
+    if (!text) return '';
+    return text.replace(/\*/g, '').replace(/\s+/g, ' ').trim();
+  };
 
-    if (formData.bank_account && (formData.bank_account.length < 10 || formData.bank_account.length > 15)) {
-      newErrors.bank_account = 'เลขบัญชีธนาคารต้องมี 10-15 หลัก';
+  const buildDefaultMessage = (rawLabel) => {
+    const label = cleanLabelText(rawLabel);
+    if (!label) {
+      return 'กรุณากรอกข้อมูลให้ครบถ้วน';
     }
+    return /เลือก|select/i.test(label) ? `กรุณาเลือก${label}` : `กรุณากรอก${label}`;
+  };
 
-    if (formData.journal_year && !validateYear(formData.journal_year)) {
-      newErrors.journal_year = `กรุณากรอกปีระหว่าง 2000-${new Date().getFullYear() + 1}`;
-    }
-
-    // Dynamic validation for fund availability
-    if (formData.author_status && formData.journal_quartile) {
-      const resolved = await resolveBudgetAndSubcategory({
-        category_id: categoryId,
-        year_id: formData.year_id,
-        author_status: formData.author_status,
-        journal_quartile: formData.journal_quartile
-      });
-      
-      if (!resolved) {
-        newErrors.fund_resolution = 'ไม่มีทุนสำหรับสถานะผู้แต่งและควอร์ไทล์ที่เลือก';
-      } else {
-        // Validate budget availability
-        if (resolved.remaining_budget <= 0) {
-          newErrors.budget_availability = 'งบประมาดสำหรับทุนนี้หมดแล้ว';
+  const getFieldLabel = (fieldKey) => {
+    const formElement = formRef.current;
+    if (formElement) {
+      const field = formElement.elements.namedItem(fieldKey);
+      if (field) {
+        if (field.labels && field.labels.length > 0) {
+          return cleanLabelText(field.labels[0].textContent || '');
+        }
+        if (field.id) {
+          const labelElement = formElement.querySelector(`label[for="${field.id}"]`);
+          if (labelElement) {
+            return cleanLabelText(labelElement.textContent || '');
+          }
         }
       }
     }
 
-    // ตรวจสอบเอกสารแนบที่จำเป็น
-    // Document type 2: Full reprint (บทความตีพิมพ์)
-    if (!uploadedFiles[2]) {
-      newErrors.file_2 = 'กรุณาแนบไฟล์บทความตีพิมพ์';
+    const fallbackContainer = document.getElementById(`field-${fieldKey}`);
+    if (fallbackContainer) {
+      const labelElement = fallbackContainer.querySelector('label');
+      if (labelElement) {
+        return cleanLabelText(labelElement.textContent || '');
+      }
     }
-    
-    // Document type 3: Scopus-ISI (หลักฐานการจัดอันดับ)
-    if (!uploadedFiles[3]) {
-      newErrors.file_3 = 'กรุณาแนบไฟล์หลักฐานการจัดอันดับ Scopus-ISI';
+
+    return cleanLabelText(fieldKey);
+  };
+
+  const handleValidationErrors = (errorList = []) => {
+    if (!errorList.length) {
+      return;
     }
-    
-    // ตรวจสอบวงเงินค่าปรับปรุงและค่าตีพิมพ์
+
+    const errorMap = {};
+    const labelList = [];
+
+    errorList.forEach(({ fieldKey, label, message }) => {
+      const resolvedLabel = cleanLabelText(label || getFieldLabel(fieldKey));
+      const resolvedMessage = message || buildDefaultMessage(resolvedLabel);
+      errorMap[fieldKey] = resolvedMessage;
+      if (resolvedLabel && !labelList.includes(resolvedLabel)) {
+        labelList.push(resolvedLabel);
+      }
+    });
+
+    setErrors(errorMap);
+
+    Toast.fire({
+      icon: 'warning',
+      title: labelList.length
+        ? `กรุณากรอกข้อมูลให้ครบถ้วน: ${labelList.join(', ')}`
+        : 'กรุณากรอกข้อมูลให้ครบถ้วน'
+    });
+
+    const firstError = errorList[0];
+    if (firstError?.refOrId) {
+      const target = document.getElementById(firstError.refOrId);
+      if (target) {
+        target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        setTimeout(() => {
+          const focusTarget = target.matches('input, select, textarea, button')
+            ? target
+            : target.querySelector('input, select, textarea, button, [tabindex]');
+          if (focusTarget) {
+            focusTarget.focus({ preventScroll: true });
+          }
+        }, 300);
+      }
+    }
+  };
+
+  const validateRequiredFields = () => {
+    const errorList = [];
+    const formElement = formRef.current;
+
+    if (formElement) {
+      const controls = Array.from(formElement.elements || []);
+      controls.forEach((element) => {
+        if (!element) return;
+        const fieldKey = element.name || element.id;
+        if (!fieldKey || element.disabled || element.type === 'hidden') {
+          return;
+        }
+
+        const isRequired = element.required || element.getAttribute('aria-required') === 'true';
+        if (!isRequired) {
+          return;
+        }
+
+        let isValid = true;
+        if (typeof element.checkValidity === 'function') {
+          isValid = element.checkValidity();
+        } else {
+          const value = typeof element.value === 'string' ? element.value.trim() : element.value;
+          isValid = value !== '' && value != null;
+        }
+
+        if (!isValid) {
+          const label = getFieldLabel(fieldKey);
+          const validity = element.validity;
+          let message = '';
+
+          if (validity) {
+            if (validity.valueMissing) {
+              message = buildDefaultMessage(label);
+            } else if (validity.patternMismatch) {
+              message = element.dataset.patternMessage || buildDefaultMessage(label);
+            } else if (validity.rangeOverflow || validity.rangeUnderflow) {
+              message = element.dataset.rangeMessage || buildDefaultMessage(label);
+            } else if (validity.tooLong || validity.tooShort) {
+              message = element.dataset.lengthMessage || buildDefaultMessage(label);
+            } else {
+              message = element.validationMessage || buildDefaultMessage(label);
+            }
+          } else {
+            message = buildDefaultMessage(label);
+          }
+
+          errorList.push({
+            fieldKey,
+            label,
+            refOrId: element.id || `field-${fieldKey}`,
+            message
+          });
+        }
+      });
+    }
+
+    if (documentTypes && documentTypes.length > 0) {
+      const normalize = (value = '') => value.toLowerCase();
+      const hasExternalAttachments = Array.isArray(externalFundingFiles) && externalFundingFiles.some(file => !!file?.file);
+      const hasOtherAttachments = Array.isArray(otherDocuments) && otherDocuments.length > 0;
+
+      documentTypes
+        .filter(doc => doc?.required)
+        .forEach(doc => {
+          const docId = doc.id ?? doc.document_type_id;
+          if (!docId) {
+            return;
+          }
+
+          const hasUploadedFile = Boolean(uploadedFiles?.[docId]);
+          let hasAttachment = hasUploadedFile;
+          if (!hasAttachment) {
+            const labelText = normalize(doc.name || '');
+            if (labelText.includes('อื่น') || labelText.includes('other')) {
+              hasAttachment = hasOtherAttachments;
+            } else if (labelText.includes('ภายนอก') || labelText.includes('external')) {
+              hasAttachment = hasExternalAttachments;
+            }
+          }
+
+          if (!hasAttachment) {
+            const label = doc.name || getDocumentTypeName(docId);
+            errorList.push({
+              fieldKey: `file_${docId}`,
+              label,
+              refOrId: `file-upload-${docId}`,
+              message: `กรุณาแนบ${label}`
+            });
+          }
+        });
+    }
+
+    return {
+      isValid: errorList.length === 0,
+      errors: errorList
+    };
+  };
+
+  const validateAdditionalRules = async () => {
+    const errorList = [];
+    let resolutionMessage = '';
+
+    if (formData.author_status && formData.journal_quartile) {
+      if (!formData.subcategory_id || !formData.subcategory_budget_id) {
+        resolutionMessage = resolutionError || 'ไม่พบทุนสำหรับปี/สถานะ/ควอร์ไทล์ที่เลือก';
+      } else if (resolutionError && resolutionError.length > 0) {
+        resolutionMessage = resolutionError;
+      }
+    }
+
+    if (resolutionMessage) {
+      errorList.push({
+        fieldKey: 'journal_quartile',
+        label: getFieldLabel('journal_quartile'),
+        refOrId: 'journal_quartile',
+        message: resolutionMessage
+      });
+    }
+
+    let feesMessage = '';
     if (formData.journal_quartile) {
-      // หา year (พ.ศ.) จาก year_id
       const yearObj = years.find(y => y.year_id === formData.year_id);
       const targetYear = yearObj?.year || (new Date().getFullYear() + 543).toString();
-      
       const feeErrors = await validateFees(
         formData.journal_quartile,
         formData.revision_fee,
@@ -1646,88 +1700,23 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
         targetYear
       );
       if (feeErrors.length > 0) {
-        newErrors.fees_limit = feeErrors.join(', ');
+        feesMessage = feeErrors.join(', ');
+        errorList.push({
+          fieldKey: 'fees',
+          label: 'ค่าปรับปรุงและค่าธรรมเนียมการตีพิมพ์',
+          refOrId: 'field-fees_limit',
+          message: feesMessage
+        });
       }
     }
 
-    setErrors(newErrors);
-    
-    // Show error dialog if validation fails
-    if (Object.keys(newErrors).length > 0) {
-      // จัดกลุ่มข้อผิดพลาดตามหมวดหมู่
-      let errorHTML = '<div class="text-left space-y-3">';
-      
-      // ข้อมูลพื้นฐาน
-      const basicErrors = ['year_id', 'author_status', 'phone_number']
-        .filter(field => newErrors[field])
-        .map(field => `• ${newErrors[field]}`);
-      
-      if (basicErrors.length > 0) {
-        errorHTML += '<div><strong>ข้อมูลพื้นฐาน:</strong><br>' + basicErrors.join('<br>') + '</div>';
-      }
-      
-      // ข้อมูลบทความ
-      const articleErrors = ['article_title', 'journal_name', 'journal_quartile', 'journal_month', 'journal_year']
-        .filter(field => newErrors[field])
-        .map(field => `• ${newErrors[field]}`);
-      
-      if (articleErrors.length > 0) {
-        errorHTML += '<div><strong>ข้อมูลบทความ:</strong><br>' + articleErrors.join('<br>') + '</div>';
-      }
-      
-      // ข้อมูลธนาคาร
-      const bankErrors = ['bank_account', 'bank_name']
-        .filter(field => newErrors[field])
-        .map(field => `• ${newErrors[field]}`);
-      
-      if (bankErrors.length > 0) {
-        errorHTML += '<div><strong>ข้อมูลธนาคาร:</strong><br>' + bankErrors.join('<br>') + '</div>';
-      }
-      
-      // ค่าใช้จ่าย (เพิ่มใหม่)
-      const feeErrors = ['fees_limit']
-        .filter(field => newErrors[field])
-        .map(field => `• ${newErrors[field]}`);
-      
-      if (feeErrors.length > 0) {
-        errorHTML += '<div><strong>ค่าใช้จ่าย:</strong><br>' + feeErrors.join('<br>') + '</div>';
-      }
-      
-      // เอกสารแนบ
-      const fileErrors = ['file_2', 'file_3']
-        .filter(field => newErrors[field])
-        .map(field => `• ${newErrors[field]}`);
-      
-      if (fileErrors.length > 0) {
-        errorHTML += '<div><strong>เอกสารแนบ:</strong><br>' + fileErrors.join('<br>') + '</div>';
-      }
-      
-      errorHTML += '</div>';
-      
-      Swal.fire({
-        icon: 'warning',
-        title: 'ข้อมูลไม่ครบถ้วน',
-        html: errorHTML,
-        confirmButtonColor: '#3085d6',
-        confirmButtonText: 'ตกลง',
-        width: '600px',
-        showClass: {
-          popup: 'swal2-show',
-          backdrop: 'swal2-backdrop-show'
-        },
-        hideClass: {
-          popup: 'swal2-hide',
-          backdrop: 'swal2-backdrop-hide'
-        }
-      }).then(() => {
-        // Scroll to first error after dialog closes
-        scrollToFirstError(newErrors);
-      });
-      
-      return false;
-    }
-    
-    return true;
+    setResolutionError(resolutionMessage);
+    setFeeError(feesMessage);
+
+    return {
+      isValid: errorList.length === 0,
+      errors: errorList
+    };
   };
 
   // =================================================================
@@ -2189,7 +2178,15 @@ const showSubmissionConfirmation = async () => {
     return errors;
   };
   // Submit application
-  const submitApplication = async () => {
+  const submitApplication = async (event) => {
+    if (event?.preventDefault) {
+      event.preventDefault();
+    }
+
+    if (isSubmitting) {
+      return;
+    }
+
     if (!declarations.confirmNoPreviousFunding || !declarations.agreeToRegulations) {
       Toast.fire({
         icon: 'warning',
@@ -2198,12 +2195,19 @@ const showSubmissionConfirmation = async () => {
       return;
     }
 
-    // Validate form first
-    const isValid = await validateForm();
-
-    if (!isValid) {
+    const requiredValidation = validateRequiredFields();
+    if (!requiredValidation.isValid) {
+      handleValidationErrors(requiredValidation.errors);
       return;
     }
+
+    const additionalValidation = await validateAdditionalRules();
+    if (!additionalValidation.isValid) {
+      handleValidationErrors(additionalValidation.errors);
+      return;
+    }
+
+    setErrors({});
 
     // Show confirmation dialog
     const confirmed = await showSubmissionConfirmation();
@@ -2212,6 +2216,7 @@ const showSubmissionConfirmation = async () => {
     }
 
     try {
+      setIsSubmitting(true);
       setLoading(true);
 
       debugFileStates();
@@ -2700,6 +2705,7 @@ const showSubmissionConfirmation = async () => {
       });
     } finally {
       setLoading(false);
+      setIsSubmitting(false);
     }
   };
 
@@ -2735,7 +2741,7 @@ const showSubmissionConfirmation = async () => {
         { label: "ขอเบิกเงินรางวัลการตีพิมพ์" }
       ]}
     >
-      <form className="space-y-6">
+      <form ref={formRef} className="space-y-6" noValidate>
       {isReadOnly && (
         <div className="rounded-lg border border-yellow-300 bg-yellow-50 p-4 text-sm text-yellow-800">
           ขณะนี้เป็นโหมด <strong>อ่านอย่างเดียว</strong> — ไม่สามารถแก้ไขหรือส่งคำร้องได้
@@ -2759,13 +2765,18 @@ const showSubmissionConfirmation = async () => {
 
             {/* Budget Year */}
             <div id="field-year_id">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label htmlFor="year_id" className="block text-sm font-medium text-gray-700 mb-2">
                 ปีงบประมาณ (Budget Year) <span className="text-red-500">*</span>
               </label>
               <select
+                id="year_id"
                 name="year_id"
                 value={formData.year_id || ''}
                 onChange={handleInputChange}
+                required
+                aria-required="true"
+                aria-invalid={errors.year_id ? 'true' : 'false'}
+                aria-describedby={errors.year_id ? 'error-year_id' : undefined}
                 className={`w-full text-gray-600 px-4 py-2 border rounded-lg focus:outline-none focus:border-blue-500 ${
                   errors.year_id ? 'border-red-500' : 'border-gray-300'
                 }`}
@@ -2784,20 +2795,25 @@ const showSubmissionConfirmation = async () => {
                 ))}
               </select>
               {errors.year_id && (
-                <p className="text-red-500 text-sm mt-1">{errors.year_id}</p>
+                <p id="error-year_id" className="text-red-500 text-sm mt-1">{errors.year_id}</p>
               )}
             </div>
 
             {/* Author Status */}
             <div id="field-author_status">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label htmlFor="author_status" className="block text-sm font-medium text-gray-700 mb-2">
                 สถานะผู้ยื่น (Author Status) <span className="text-red-500">*</span>
               </label>
               <select
+                id="author_status"
                 name="author_status"
                 value={formData.author_status}
                 onChange={handleInputChange}
                 disabled={availableAuthorStatuses.length === 0}
+                required
+                aria-required="true"
+                aria-invalid={errors.author_status ? 'true' : 'false'}
+                aria-describedby={errors.author_status ? 'error-author_status' : undefined}
                 className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:border-blue-500 ${
                   errors.author_status ? 'border-red-500' : 'border-gray-300'
                 } ${availableAuthorStatuses.length === 0 ? 'bg-gray-100 cursor-not-allowed' : ''}`}
@@ -2815,16 +2831,17 @@ const showSubmissionConfirmation = async () => {
                   ))}
               </select>
               {errors.author_status && (
-                <p className="text-red-500 text-sm mt-1">{errors.author_status}</p>
+                <p id="error-author_status" className="text-red-500 text-sm mt-1">{errors.author_status}</p>
               )}
             </div>
 
             {/* Phone Number */}
             <div id="field-phone_number">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label htmlFor="phone_number" className="block text-sm font-medium text-gray-700 mb-2">
                 เบอร์โทรศัพท์ (Phone Number) <span className="text-red-500">*</span>
               </label>
               <input
+                id="phone_number"
                 type="tel"
                 name="phone_number"
                 value={formData.phone_number}
@@ -2832,13 +2849,20 @@ const showSubmissionConfirmation = async () => {
                 onKeyDown={handlePhoneKeyDown}
                 placeholder="081-234-5678"
                 maxLength="12"
+                required
+                aria-required="true"
+                aria-invalid={errors.phone_number ? 'true' : 'false'}
+                aria-describedby={errors.phone_number ? 'error-phone_number' : undefined}
+                pattern="\d{3}-\d{3}-\d{4}"
+                data-pattern-message="กรุณากรอกเบอร์โทรศัพท์ให้เป็นรูปแบบ XXX-XXX-XXXX"
+                inputMode="tel"
                 className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:border-blue-500 ${
                   errors.phone_number ? 'border-red-500' : 'border-gray-300'
                 }`}
               />
               <p className="text-xs text-gray-500 mt-1">รูปแบบ (Format): XXX-XXX-XXXX</p>
               {errors.phone_number && (
-                <p className="text-red-500 text-sm mt-1">{errors.phone_number}</p>
+                <p id="error-phone_number" className="text-red-500 text-sm mt-1">{errors.phone_number}</p>
               )}
             </div>
           </div>
@@ -2851,21 +2875,26 @@ const showSubmissionConfirmation = async () => {
           <div className="space-y-4">
             {/* Article Title */}
             <div id="field-article_title">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label htmlFor="article_title" className="block text-sm font-medium text-gray-700 mb-2">
                 ชื่อบทความ (Article Title) <span className="text-red-500">*</span>
               </label>
               <input
+                id="article_title"
                 type="text"
                 name="article_title"
                 value={formData.article_title}
                 onChange={handleInputChange}
                 placeholder="กรอกชื่อบทความภาษาอังกฤษ (Enter article title in English)"
+                required
+                aria-required="true"
+                aria-invalid={errors.article_title ? 'true' : 'false'}
+                aria-describedby={errors.article_title ? 'error-article_title' : undefined}
                 className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:border-blue-500 ${
                   errors.article_title ? 'border-red-500' : 'border-gray-300'
                 }`}
               />
               {errors.article_title && (
-                <p className="text-red-500 text-sm mt-1">{errors.article_title}</p>
+                <p id="error-article_title" className="text-red-500 text-sm mt-1">{errors.article_title}</p>
               )}
             </div>
 
@@ -2886,34 +2915,47 @@ const showSubmissionConfirmation = async () => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {/* Journal Name */}
               <div id="field-journal_name">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label htmlFor="journal_name" className="block text-sm font-medium text-gray-700 mb-2">
                   ชื่อวารสาร (Journal Name) <span className="text-red-500">*</span>
                 </label>
                 <input
+                  id="journal_name"
                   type="text"
                   name="journal_name"
                   value={formData.journal_name}
                   onChange={handleInputChange}
                   disabled={availableQuartiles.length === 0}
                   placeholder="ชื่อวารสารที่ตีพิมพ์ (Journal name)"
+                  required
+                  aria-required="true"
+                  aria-invalid={errors.journal_name ? 'true' : 'false'}
+                  aria-describedby={errors.journal_name ? 'error-journal_name' : undefined}
                   className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:border-blue-500 ${
                     errors.journal_name ? 'border-red-500' : 'border-gray-300'
                   } ${availableQuartiles.length === 0 ? 'bg-gray-100 cursor-not-allowed' : ''}`}
                 />
                 {errors.journal_name && (
-                  <p className="text-red-500 text-sm mt-1">{errors.journal_name}</p>
+                  <p id="error-journal_name" className="text-red-500 text-sm mt-1">{errors.journal_name}</p>
                 )}
               </div>
 
               {/* Quartile */}
               <div id="field-journal_quartile">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label htmlFor="journal_quartile" className="block text-sm font-medium text-gray-700 mb-2">
                   ควอร์ไทล์ (Quartile) <span className="text-red-500">*</span>
                 </label>
                 <select
+                  id="journal_quartile"
                   name="journal_quartile"
                   value={formData.journal_quartile}
                   onChange={handleInputChange}
+                  required
+                  aria-required="true"
+                  aria-invalid={errors.journal_quartile ? 'true' : 'false'}
+                  aria-describedby={[
+                    errors.journal_quartile ? 'error-journal_quartile' : null,
+                    resolutionError ? 'resolution-journal_quartile' : null
+                  ].filter(Boolean).join(' ') || undefined}
                   className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:border-blue-500 ${
                     errors.journal_quartile ? 'border-red-500' : 'border-gray-300'
                   }`}
@@ -2941,10 +2983,10 @@ const showSubmissionConfirmation = async () => {
                   })}
                 </select>
                 {errors.journal_quartile && (
-                  <p className="text-red-500 text-sm mt-1">{errors.journal_quartile}</p>
+                  <p id="error-journal_quartile" className="text-red-500 text-sm mt-1">{errors.journal_quartile}</p>
                 )}
                 {resolutionError && (
-                  <p className="text-red-500 text-sm mt-1">{resolutionError}</p>
+                  <p id="resolution-journal_quartile" className="text-red-500 text-sm mt-1">{resolutionError}</p>
                 )}
               </div>
 
@@ -2980,13 +3022,18 @@ const showSubmissionConfirmation = async () => {
 
               {/* Publication Month */}
               <div id="field-journal_month">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label htmlFor="journal_month" className="block text-sm font-medium text-gray-700 mb-2">
                   เดือนที่ตีพิมพ์ (Publication Month) <span className="text-red-500">*</span>
                 </label>
                 <select
+                  id="journal_month"
                   name="journal_month"
                   value={formData.journal_month}
                   onChange={handleInputChange}
+                  required
+                  aria-required="true"
+                  aria-invalid={errors.journal_month ? 'true' : 'false'}
+                  aria-describedby={errors.journal_month ? 'error-journal_month' : undefined}
                   className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:border-blue-500 ${
                     errors.journal_month ? 'border-red-500' : 'border-gray-300'
                   }`}
@@ -3008,30 +3055,36 @@ const showSubmissionConfirmation = async () => {
                   <option value="12">ธันวาคม (December)</option>
                 </select>
                 {errors.journal_month && (
-                  <p className="text-red-500 text-sm mt-1">{errors.journal_month}</p>
+                  <p id="error-journal_month" className="text-red-500 text-sm mt-1">{errors.journal_month}</p>
                 )}
               </div>
 
               {/* Publication Year */}
               <div id="field-journal_year">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label htmlFor="journal_year" className="block text-sm font-medium text-gray-700 mb-2">
                   ปีที่ตีพิมพ์ (Publication Year) <span className="text-red-500">*</span>
                 </label>
                 <input
-                  type="text"
+                  id="journal_year"
+                  type="number"
                   name="journal_year"
                   value={formData.journal_year}
                   onChange={handleInputChange}
                   placeholder={new Date().getFullYear().toString()}
-                  maxLength="4"
-                  inputMode="numeric"
+                  min="2000"
+                  max={new Date().getFullYear() + 1}
+                  required
+                  aria-required="true"
+                  aria-invalid={errors.journal_year ? 'true' : 'false'}
+                  aria-describedby={errors.journal_year ? 'error-journal_year' : undefined}
+                  data-range-message={`กรุณากรอกปีระหว่าง 2000-${new Date().getFullYear() + 1}`}
                   className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:border-blue-500 ${
                     errors.journal_year ? 'border-red-500' : 'border-gray-300'
                   }`}
                 />
                 <p className="text-xs text-gray-500 mt-1">ปี ค.ศ. (A.D.) (2000-{new Date().getFullYear() + 1})</p>
                 {errors.journal_year && (
-                  <p className="text-red-500 text-sm mt-1">{errors.journal_year}</p>
+                  <p id="error-journal_year" className="text-red-500 text-sm mt-1">{errors.journal_year}</p>
                 )}
               </div>
             </div>
@@ -3527,10 +3580,11 @@ const showSubmissionConfirmation = async () => {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {/* Bank Account Number */}
             <div id="field-bank_account">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label htmlFor="bank_account" className="block text-sm font-medium text-gray-700 mb-2">
                 เลขบัญชีธนาคาร (Bank Account Number) <span className="text-red-500">*</span>
               </label>
               <input
+                id="bank_account"
                 type="text"
                 name="bank_account"
                 value={formData.bank_account}
@@ -3538,33 +3592,44 @@ const showSubmissionConfirmation = async () => {
                 placeholder="กรอกเลขบัญชี (Enter account number)"
                 maxLength="15"
                 inputMode="numeric"
+                pattern="\d{10,15}"
+                required
+                aria-required="true"
+                aria-invalid={errors.bank_account ? 'true' : 'false'}
+                aria-describedby={errors.bank_account ? 'error-bank_account' : undefined}
+                data-pattern-message="เลขบัญชีธนาคารต้องเป็นตัวเลข 10-15 หลัก"
                 className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:border-blue-500 ${
                   errors.bank_account ? 'border-red-500' : 'border-gray-300'
                 }`}
               />
               <p className="text-xs text-gray-500 mt-1">กรอกเฉพาะตัวเลข 10-15 หลัก (Enter 10-15 digits only)</p>
               {errors.bank_account && (
-                <p className="text-red-500 text-sm mt-1">{errors.bank_account}</p>
+                <p id="error-bank_account" className="text-red-500 text-sm mt-1">{errors.bank_account}</p>
               )}
             </div>
 
             {/* Bank Name */}
             <div id="field-bank_name">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label htmlFor="bank_name" className="block text-sm font-medium text-gray-700 mb-2">
                 ชื่อธนาคาร (Bank Name) <span className="text-red-500">*</span>
               </label>
               <input
+                id="bank_name"
                 type="text"
                 name="bank_name"
                 value={formData.bank_name}
                 onChange={handleInputChange}
                 placeholder="เช่น ธนาคารกรุงเทพ (e.g. Bangkok Bank)"
+                required
+                aria-required="true"
+                aria-invalid={errors.bank_name ? 'true' : 'false'}
+                aria-describedby={errors.bank_name ? 'error-bank_name' : undefined}
                 className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:border-blue-500 ${
                   errors.bank_name ? 'border-red-500' : 'border-gray-300'
                 }`}
               />
               {errors.bank_name && (
-                <p className="text-red-500 text-sm mt-1">{errors.bank_name}</p>
+                <p id="error-bank_name" className="text-red-500 text-sm mt-1">{errors.bank_name}</p>
               )}
             </div>
           </div>
@@ -3839,11 +3904,13 @@ const showSubmissionConfirmation = async () => {
                 className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:border-blue-500 ${
                   errors.signature ? 'border-red-500' : 'border-gray-300'
                 }`}
+                required
                 aria-invalid={errors.signature ? 'true' : 'false'}
                 aria-required="true"
+                aria-describedby={errors.signature ? 'error-signature' : undefined}
               />
               {errors.signature && (
-                <p className="mt-1 text-sm text-red-500">{errors.signature}</p>
+                <p id="error-signature" className="mt-1 text-sm text-red-500">{errors.signature}</p>
               )}
             </div>
           </div>
@@ -3879,21 +3946,15 @@ const showSubmissionConfirmation = async () => {
           <button
             type="button"
             onClick={submitApplication}
-            disabled={shouldDisableSubmitButton({
-              loading,
-              saving,
-              subcategoryId: formData.subcategory_id,
-              subcategoryBudgetId: formData.subcategory_budget_id,
-              declarations
-            })}
+            disabled={isSubmitting}
             className="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
-            {loading ? (
+            {isSubmitting ? (
               <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
             ) : (
               <Send className="h-4 w-4" />
             )}
-            {loading ? 'กำลังส่ง...' : 'ส่งคำร้อง'}
+            {isSubmitting ? 'กำลังส่ง...' : 'ส่งคำร้อง'}
           </button>
         </div>
 
