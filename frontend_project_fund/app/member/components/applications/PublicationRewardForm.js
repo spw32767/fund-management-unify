@@ -104,10 +104,25 @@ const sortQuartiles = (quartiles) => {
   });
 };
 
+// Normalize numeric identifier values that may come as strings
+const normalizeIdValue = (value) => {
+  if (value === undefined || value === null) {
+    return null;
+  }
+
+  const numericValue = typeof value === 'number' ? value : Number(value);
+
+  if (Number.isNaN(numericValue)) {
+    return null;
+  }
+
+  return Math.trunc(numericValue);
+};
+
 // Get maximum fee limit based on quartile
 const getMaxFeeLimit = async (quartile, year = null) => {
   if (!quartile) return 0;
-  
+
   try {
     // หา year (พ.ศ.) จาก year_id หรือใช้ปีปัจจุบัน + 543
     const currentYear = new Date().getFullYear() + 543;
@@ -801,8 +816,8 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
           if (result) {
             setFormData(prev => ({
               ...prev,
-              subcategory_id: result.subcategory_id,
-              subcategory_budget_id: result.subcategory_budget_id,
+              subcategory_id: normalizeIdValue(result.subcategory_id),
+              subcategory_budget_id: normalizeIdValue(result.subcategory_budget_id),
               publication_reward: result.reward_amount,
               reward_amount: result.reward_amount,
             }));
@@ -2286,19 +2301,48 @@ const showSubmissionConfirmation = async () => {
           html: 'กำลังสร้างคำร้อง...'
         });
 
+        const targetCategoryId = formData.category_id || categoryId;
+        let resolvedSubcategoryId = normalizeIdValue(formData.subcategory_id);
+        let resolvedSubcategoryBudgetId = normalizeIdValue(formData.subcategory_budget_id);
+
+        if (targetCategoryId && formData.author_status && formData.journal_quartile && formData.year_id) {
+          try {
+            const resolution = await resolveBudgetAndSubcategory({
+              category_id: targetCategoryId,
+              year_id: formData.year_id,
+              author_status: formData.author_status,
+              journal_quartile: formData.journal_quartile
+            });
+
+            if (resolution) {
+              const resolutionSubId = normalizeIdValue(resolution.subcategory_id);
+              const resolutionBudgetId = normalizeIdValue(resolution.subcategory_budget_id);
+
+              if (resolutionSubId !== null && resolutionBudgetId !== null) {
+                resolvedSubcategoryId = resolutionSubId;
+                resolvedSubcategoryBudgetId = resolutionBudgetId;
+              } else {
+                console.warn('Resolved budget missing IDs, falling back to form data', resolution);
+              }
+            }
+          } catch (resolveError) {
+            console.error('Failed to resolve subcategory before submission:', resolveError);
+          }
+        }
+
         console.log('Before POST:', {
-          subcategory_id: formData.subcategory_id,
-          subcategory_budget_id: formData.subcategory_budget_id
+          subcategory_id: resolvedSubcategoryId,
+          subcategory_budget_id: resolvedSubcategoryBudgetId
         });
 
         const submissionResponse = await submissionAPI.create({
           submission_type: 'publication_reward',
           year_id: formData.year_id,
-          category_id: formData.category_id || categoryId,
-          subcategory_id: formData.subcategory_id,        // Dynamic resolved
-          subcategory_budget_id: formData.subcategory_budget_id,  // Dynamic resolved
+          category_id: targetCategoryId,
+          subcategory_id: resolvedSubcategoryId,
+          subcategory_budget_id: resolvedSubcategoryBudgetId,
         });
-        
+
         submissionId = submissionResponse.submission.submission_id;
         setCurrentSubmissionId(submissionId);
         console.log('Created submission:', submissionId);

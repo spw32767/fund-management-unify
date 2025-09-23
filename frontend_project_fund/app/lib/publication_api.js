@@ -10,6 +10,23 @@ const getAuthHeaders = () => {
   };
 };
 
+const normalizeNumericField = (value) => {
+  if (value === undefined || value === null) {
+    return null;
+  }
+
+  if (typeof value === 'number') {
+    return Number.isNaN(value) ? null : Math.trunc(value);
+  }
+
+  const parsed = Number(value);
+  if (Number.isNaN(parsed)) {
+    return null;
+  }
+
+  return Math.trunc(parsed);
+};
+
 // Submission Management API (ตาม API docs)
 export const submissionAPI = {
   // Create new submission
@@ -19,9 +36,18 @@ export const submissionAPI = {
         submission_type: data.submission_type,
         year_id: data.year_id,
       };
-      if (data.category_id) payload.category_id = data.category_id;
-      if (data.subcategory_id) payload.subcategory_id = data.subcategory_id;
-      if (data.subcategory_budget_id) payload.subcategory_budget_id = data.subcategory_budget_id;
+      const normalizedCategoryId = normalizeNumericField(data.category_id);
+      if (normalizedCategoryId !== null) {
+        payload.category_id = normalizedCategoryId;
+      }
+      const normalizedSubcategoryId = normalizeNumericField(data.subcategory_id);
+      if (normalizedSubcategoryId !== null) {
+        payload.subcategory_id = normalizedSubcategoryId;
+      }
+      const normalizedBudgetId = normalizeNumericField(data.subcategory_budget_id);
+      if (normalizedBudgetId !== null) {
+        payload.subcategory_budget_id = normalizedBudgetId;
+      }
       if (data.status_id != null) payload.status_id = data.status_id;
 
       const response = await apiClient.post('/submissions', payload);
