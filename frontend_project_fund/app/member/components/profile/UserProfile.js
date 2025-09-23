@@ -16,6 +16,7 @@ import {
 import profileAPI from "@/app/lib/profile_api";
 import memberAPI from "@/app/lib/member_api";
 import BudgetSummary from "@/app/member/components/dashboard/BudgetSummary";
+import { useStatusMap } from "@/app/hooks/useStatusMap";
 
 // Default data structure for the profile
 const defaultTeacherData = {
@@ -225,6 +226,7 @@ export default function ProfileContent() {
   const [innovPage, setInnovPage] = useState(1);
   const [innovRowsPerPage, setInnovRowsPerPage] = useState(10);
   const [activeTab, setActiveTab] = useState("publications");
+  const { getLabelById } = useStatusMap();
 
   useEffect(() => {
     loadProfileData();
@@ -304,7 +306,10 @@ export default function ProfileContent() {
         quickLinks: recentApps.map((app) => ({
           id: app.submission_id || app.id,
           name: app.title || app.submission_number || "ไม่ทราบชื่อโครงการ",
-          status: app.status_name || "ดูรายละเอียด",
+          status:
+            getLabelById(app.status_id) ||
+            app.status_name ||
+            "ดูรายละเอียด",
           destination: "applications",
         })),
       });

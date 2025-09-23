@@ -38,24 +38,35 @@ export default function DeptHeadReview() {
       const response = await deptHeadAPI.getPendingReviews({ status: "pending_department" });
       const rows = response?.submissions || response?.data || [];
 
-      const normalized = rows.map((item) => ({
-        id: item.submission_id || item.id,
-        submission_number: item.submission_number || item.request_number || "-",
-        category: item.category_name || item.category?.category_name || "-",
-        subcategory: item.subcategory_name || item.subcategory?.subcategory_name || "-",
-        applicant:
-          item.applicant_name ||
-          item.user?.full_name ||
-          `${item.user?.user_fname || ""} ${item.user?.user_lname || ""}`.trim() ||
-          "-",
-        submitted_at: item.submitted_at || item.created_at,
-        status:
-          item.status?.status_name ||
-          item.status_name ||
-          item.status ||
-          "รอพิจารณา",
-        raw: item,
-      }));
+      const normalized = rows.map((item) => {
+        const statusId =
+          item.status_id ??
+          item.StatusID ??
+          item.status?.application_status_id ??
+          item.status?.status_id ??
+          item.status?.id ??
+          null;
+
+        return {
+          id: item.submission_id || item.id,
+          submission_number: item.submission_number || item.request_number || "-",
+          category: item.category_name || item.category?.category_name || "-",
+          subcategory: item.subcategory_name || item.subcategory?.subcategory_name || "-",
+          applicant:
+            item.applicant_name ||
+            item.user?.full_name ||
+            `${item.user?.user_fname || ""} ${item.user?.user_lname || ""}`.trim() ||
+            "-",
+          submitted_at: item.submitted_at || item.created_at,
+          status_id: statusId,
+          status_fallback:
+            item.status?.status_name ||
+            item.status_name ||
+            item.status ||
+            undefined,
+          raw: item,
+        };
+      });
 
       setSubmissions(normalized);
     } catch (err) {
@@ -96,8 +107,10 @@ export default function DeptHeadReview() {
       },
       {
         header: "สถานะ",
-        accessor: "status",
-        render: (value) => <StatusBadge status={value} />,
+        accessor: "status_id",
+        render: (_, row) => (
+          <StatusBadge statusId={row.status_id} fallbackLabel={row.status_fallback} />
+        ),
       },
       {
         header: "ดำเนินการ",

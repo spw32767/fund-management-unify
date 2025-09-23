@@ -60,28 +60,6 @@ export const getSubmissionTypeText = (type) => {
   return types[type] || type;
 };
 
-// Get status text in Thai
-export const getStatusText = (statusId) => {
-  const statuses = {
-    1: 'รอพิจารณา',
-    2: 'อนุมัติ',
-    3: 'ไม่อนุมัติ',
-    4: 'ต้องการข้อมูลเพิ่มเติม'
-  };
-  return statuses[statusId] || 'ไม่ทราบสถานะ';
-};
-
-// Get status badge color
-export const getStatusBadgeClass = (statusId) => {
-  const classes = {
-    1: 'bg-yellow-100 text-yellow-800',
-    2: 'bg-green-100 text-green-800',
-    3: 'bg-red-100 text-red-800',
-    4: 'bg-orange-100 text-orange-800'
-  };
-  return classes[statusId] || 'bg-gray-100 text-gray-800';
-};
-
 // Format file size
 export const formatFileSize = (bytes) => {
   if (bytes === 0) return '0 Bytes';

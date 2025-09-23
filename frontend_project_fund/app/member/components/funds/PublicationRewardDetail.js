@@ -29,25 +29,18 @@ import PageLayout from "../common/PageLayout";
 import Card from "../common/Card";
 import StatusBadge from "../common/StatusBadge";
 import { formatCurrency } from "@/app/utils/format";
+import { useStatusMap } from "@/app/hooks/useStatusMap";
 
-const getStatusName = (statusId) => {
-  const statuses = {
-    1: "อยู่ระหว่างการพิจารณา",
-    2: "อนุมัติ",
-    3: "ไม่อนุมัติ",
-    4: "ต้องแก้ไข",
-  };
-  return statuses[statusId] || "ไม่ทราบสถานะ";
-};
-
-const getStatusIcon = (statusId) => {
-  switch (statusId) {
-    case 2:
+const getStatusIcon = (statusCode) => {
+  switch (statusCode) {
+    case "approved":
       return <CheckCircle className="h-5 w-5 text-green-600" />;
-    case 3:
+    case "rejected":
       return <XCircle className="h-5 w-5 text-red-600" />;
-    case 4:
+    case "revision":
       return <AlertCircle className="h-5 w-5 text-orange-600" />;
+    case "draft":
+      return <Clock className="h-5 w-5 text-gray-600" />;
     default:
       return <Clock className="h-5 w-5 text-yellow-600" />;
   }
@@ -57,6 +50,7 @@ export default function PublicationRewardDetail({ submissionId, onNavigate }) {
   const [submission, setSubmission] = useState(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("details");
+  const { getLabelById, getCodeById } = useStatusMap();
 
   const getUserFullName = (user) => {
     if (!user) return "-";
@@ -346,14 +340,14 @@ export default function PublicationRewardDetail({ submissionId, onNavigate }) {
         <div className="flex justify-between items-start">
           <div>
             <div className="flex flex-wrap items-center gap-3 mb-2">
-              {getStatusIcon(submission.status_id)}
+              {getStatusIcon(getCodeById(submission.status_id) || submission.Status?.status_code)}
               <h3 className="text-lg font-semibold">
                 สถานะคำร้อง (Submission Status)
               </h3>
               <div className="flex-shrink-0">
                 <StatusBadge
-                  status={submission.Status?.status_name}
                   statusId={submission.status_id}
+                  fallbackLabel={submission.Status?.status_name}
                 />
               </div>
               <h3 className="text-lg font-semibold w-full">
@@ -928,12 +922,12 @@ export default function PublicationRewardDetail({ submissionId, onNavigate }) {
                               ? 'bg-red-500'
                               : 'bg-orange-500'
                           }`}>
-                            {getStatusIcon(submission.status_id)}
+                            {getStatusIcon(getCodeById(submission.status_id) || submission.Status?.status_code)}
                           </span>
                         </div>
                         <div className="flex-1 min-w-0">
                           <p className="text-sm text-gray-900">
-                            {getStatusName(submission.status_id)}
+                            {getLabelById(submission.status_id) || submission.Status?.status_name || 'ไม่ทราบสถานะ'}
                           </p>
                           <p className="text-xs text-gray-500">
                             {new Date(submission.approved_at || submission.updated_at).toLocaleString('th-TH')}

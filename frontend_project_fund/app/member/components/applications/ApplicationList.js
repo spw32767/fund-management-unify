@@ -3,6 +3,8 @@
 import { useState, useEffect } from "react";
 import { Search, Filter, Eye, Download, FileText, ClipboardList, Plus } from "lucide-react";
 import { submissionAPI, teacherAPI } from "@/app/lib/member_api";
+import { statusService } from "@/app/lib/status_service";
+import { useStatusMap } from "@/app/hooks/useStatusMap";
 import StatusBadge from "../common/StatusBadge";
 import DataTable from "../common/DataTable";
 import PageLayout from "../common/PageLayout";
@@ -42,7 +44,11 @@ export default function ApplicationList({ onNavigate }) {
 
       const [response, subRes] = await Promise.all([
         submissionAPI.getSubmissions(params),
-        teacherAPI.getVisibleSubcategories()
+        teacherAPI.getVisibleSubcategories(),
+        statusService.fetchAll().catch((error) => {
+          console.error('Error fetching statuses:', error);
+          return [];
+        })
       ]);
 
       // Map subcategory_id -> subcategory_name
@@ -66,7 +72,20 @@ export default function ApplicationList({ onNavigate }) {
             sub.fund_application_detail?.subcategory_id ||
             sub.FundApplicationDetail?.subcategory_id;
           const subName = getSubcategoryName(sub);
-          return {
+          const statusId =
+            sub.status_id ??
+            sub.status?.application_status_id ??
+            sub.Status?.application_status_id ??
+            null;
+
+          const fallbackStatusName =
+            sub.status?.status_name ||
+            sub.Status?.status_name ||
+            (statusId != null
+              ? getLabelById(statusId)
+              : undefined);
+
+          const transformed = {
             application_id: sub.submission_id,
             application_number: sub.submission_number,
             project_title: getTitle(sub),
@@ -76,15 +95,16 @@ export default function ApplicationList({ onNavigate }) {
                 ? subName
                 : subMap[subId] || '-',
             requested_amount: getAmount(sub),
-            // API returns lowercase keys; keep PascalCase fallback for backward compatibility
-            status: sub.status?.status_name || sub.Status?.status_name || getStatusName(sub.status_id),
-            status_code: getStatusCode(sub.status_id),
+            status_id: statusId,
+            status_fallback: fallbackStatusName,
             submitted_at: sub.created_at,
             year: sub.year?.year || sub.Year?.year || '2568',
             year_id: sub.year_id || sub.Year?.year_id,
             // Keep original data for reference
             _original: sub
           };
+
+          return transformed;
         });
         
         setApplications(transformedData);
@@ -149,28 +169,6 @@ export default function ApplicationList({ onNavigate }) {
     return submission.subcategory_name ?? '-';
   };
 
-  const getStatusName = (statusId) => {
-    const statusMap = {
-      1: 'รอพิจารณา',
-      2: 'อนุมัติ',
-      3: 'ปฏิเสธ',
-      4: 'ต้องการข้อมูลเพิ่มเติม',
-      5: 'ร่าง'
-    };
-    return statusMap[statusId] || 'ไม่ทราบสถานะ';
-  };
-
-  const getStatusCode = (statusId) => {
-    const codeMap = {
-      1: 'pending',
-      2: 'approved',
-      3: 'rejected',
-      4: 'revision',
-      5: 'draft'
-    };
-    return codeMap[statusId] || 'unknown';
-  };
-
   const filterApplications = () => {
     let filtered = [...applications];
 
@@ -185,7 +183,10 @@ export default function ApplicationList({ onNavigate }) {
 
     // Status filter
     if (statusFilter !== "all") {
-      filtered = filtered.filter(app => app.status_code === statusFilter);
+      filtered = filtered.filter(app => {
+        if (app.status_id == null) return false;
+        return String(app.status_id) === String(statusFilter);
+      });
     }
 
     // Year filter
@@ -237,11 +238,15 @@ export default function ApplicationList({ onNavigate }) {
     },
     {
       header: "สถานะ",
-      accessor: "status",
-      render: (value, row) => {
-        // Get status_id from original data
-        const statusId = row._original?.status_id || 1;
-        return <StatusBadge status={value} statusId={statusId} />;
+      accessor: "status_id",
+      render: (_, row) => {
+        const statusId = row.status_id ?? row._original?.status_id;
+        return (
+          <StatusBadge
+            statusId={statusId}
+            fallbackLabel={row.status_fallback}
+          />
+        );
       }
     },
     {
@@ -343,13 +348,18 @@ export default function ApplicationList({ onNavigate }) {
             className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
+            disabled={statusLoading && !statusOptions}
           >
             <option value="all">สถานะทั้งหมด</option>
-            <option value="pending">รอพิจารณา</option>
-            <option value="approved">อนุมัติ</option>
-            <option value="rejected">ปฏิเสธ</option>
-            <option value="revision">ต้องการข้อมูลเพิ่มเติม</option>
-            <option value="draft">ร่าง</option>
+            {Array.isArray(statusOptions) &&
+              statusOptions.map((status) => (
+                <option
+                  key={status.application_status_id}
+                  value={status.application_status_id}
+                >
+                  {status.status_name}
+                </option>
+              ))}
           </select>
 
           <select
@@ -421,3 +431,4 @@ export default function ApplicationList({ onNavigate }) {
     </PageLayout>
   );
 }
+  const { statuses: statusOptions, getLabelById, isLoading: statusLoading } = useStatusMap();

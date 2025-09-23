@@ -16,6 +16,7 @@ import { adminSubmissionAPI } from '@/app/lib/admin_submission_api';
 import apiClient from '@/app/lib/api';
 import { toast } from 'react-hot-toast';
 import Swal from 'sweetalert2';
+import { useStatusMap } from '@/app/hooks/useStatusMap';
 import 'sweetalert2/dist/sweetalert2.min.css';
 
 import { PDFDocument } from 'pdf-lib';
@@ -25,31 +26,31 @@ import PublicationSubmissionDetails from './PublicationSubmissionDetails';
  * Helpers
  * ========================= */
 
-const statusIconOf = (statusId) => {
-  switch (Number(statusId)) {
-    case 2: return CheckCircle;     // อนุมัติ
-    case 3: return XCircle;         // ไม่อนุมัติ
-    case 4: return AlertTriangle;   // ต้องแก้ไข
-    case 5: return FileText;        // แบบร่าง (ถ้ามี)
-    case 1:
-    default: return Clock;          // ระหว่างพิจารณา
+const statusIconOf = (statusCode) => {
+  switch (statusCode) {
+    case 'approved': return CheckCircle;
+    case 'rejected': return XCircle;
+    case 'revision': return AlertTriangle;
+    case 'draft': return FileText;
+    case 'pending':
+    default: return Clock;
   }
 };
 
-const statusIconColor = (statusId) => {
-  switch (Number(statusId)) {
-    case 2: return 'text-green-600';
-    case 3: return 'text-red-600';
-    case 4: return 'text-orange-600';
-    case 5: return 'text-gray-500';
-    case 1:
+const statusIconColor = (statusCode) => {
+  switch (statusCode) {
+    case 'approved': return 'text-green-600';
+    case 'rejected': return 'text-red-600';
+    case 'revision': return 'text-orange-600';
+    case 'draft': return 'text-gray-500';
+    case 'pending':
     default: return 'text-yellow-600';
   }
 };
 
-const getColoredStatusIcon = (statusId) => {
-  const Icon = statusIconOf(statusId);
-  const color = statusIconColor(statusId);
+const getColoredStatusIcon = (statusCode) => {
+  const Icon = statusIconOf(statusCode);
+  const color = statusIconColor(statusCode);
   return function ColoredStatusIcon(props) {
     return <Icon {...props} className={`${props.className || ''} ${color}`} />;
   };
@@ -215,7 +216,12 @@ function FundApprovalPanel({ submission, fundDetail, onApprove, onReject }) {
         <div className="space-y-4 text-sm">
           <div className="flex items-start justify-between">
             <span className="text-gray-600">สถานะ</span>
-            <span className="font-medium"><StatusBadge statusId={submission?.status_id} /></span>
+            <span className="font-medium">
+              <StatusBadge
+                statusId={submission?.status_id}
+                fallbackLabel={submission?.status?.status_name}
+              />
+            </span>
           </div>
 
           <div className="flex items-start justify-between">
@@ -412,6 +418,7 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
   // ---- States/Refs (คงลำดับ Hooks ให้คงที่) ----
   const [loading, setLoading] = useState(true);
   const [submission, setSubmission] = useState(null);
+  const { getCodeById } = useStatusMap();
 
   // เอกสารแนบ + label ประเภทไฟล์
   const [attachments, setAttachments] = useState([]);
@@ -740,13 +747,16 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
     >
       {/* Submission Status */}
       <Card
-        icon={getColoredStatusIcon(submission?.status_id)}
+        icon={getColoredStatusIcon(getCodeById(submission?.status_id) || submission?.status?.status_code)}
         collapsible={false}
         headerClassName="items-center"
         title={
           <div className="flex items-center gap-2">
             <span>สถานะคำร้อง (Submission Status)</span>
-            <StatusBadge statusId={submission?.status_id} />
+            <StatusBadge
+              statusId={submission?.status_id}
+              fallbackLabel={submission?.status?.status_name}
+            />
           </div>
         }
         className="mb-6"
