@@ -10,6 +10,7 @@ import { authAPI, systemAPI } from '../../../lib/api';
 // เพิ่ม apiClient สำหรับเรียก API โดยตรง
 import apiClient from '../../../lib/api';
 import { submissionAPI, documentAPI, fileAPI} from '../../../lib/member_api';
+import { getStatusIdByName } from '../../../lib/status_service';
 
 // =================================================================
 // FILE UPLOAD COMPONENT
@@ -362,10 +363,16 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
         return;
       }
 
+      const deptPendingStatusId = await getStatusIdByName('อยู่ระหว่างการพิจารณาจากหัวหน้าสาขา');
+      if (!deptPendingStatusId) {
+        throw new Error('ไม่พบสถานะ "อยู่ระหว่างการพิจารณาจากหัวหน้าสาขา"');
+      }
+
       // Step 1: Create submission record
       const submissionRes = await submissionAPI.createSubmission({
         submission_type: 'fund_application',
-        year_id: subcategoryData?.year_id
+        year_id: subcategoryData?.year_id,
+        status_id: deptPendingStatusId
       });
       const submissionId = submissionRes?.submission?.submission_id;
 
@@ -407,7 +414,7 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
 
     } catch (error) {
       console.error('Error submitting application:', error);
-      setErrors({ general: 'เกิดข้อผิดพลาดในการส่งคำร้อง' });
+      setErrors({ general: error?.message || 'เกิดข้อผิดพลาดในการส่งคำร้อง' });
     } finally {
       setSubmitting(false);
     }
