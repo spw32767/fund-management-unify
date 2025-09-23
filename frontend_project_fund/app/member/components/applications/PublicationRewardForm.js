@@ -22,7 +22,6 @@ import { PDFDocument } from 'pdf-lib';
 import { notificationsAPI } from '../../../lib/notifications_api';
 import { systemConfigAPI } from '../../../lib/system_config_api';
 import { getAuthorSubmissionFields } from './PublicationRewardForm.helpers.mjs';
-import { getStatusIdByName } from '../../../lib/status_service';
 
 // =================================================================
 // CONFIGURATION & CONSTANTS
@@ -2292,19 +2291,12 @@ const showSubmissionConfirmation = async () => {
           subcategory_budget_id: formData.subcategory_budget_id
         });
 
-        // ใน submitApplication function - เพิ่ม validation และ submission data
-        const deptPendingStatusId = await getStatusIdByName('อยู่ระหว่างการพิจารณาจากหัวหน้าสาขา');
-        if (!deptPendingStatusId) {
-          throw new Error('ไม่พบสถานะ "อยู่ระหว่างการพิจารณาจากหัวหน้าสาขา"');
-        }
-
         const submissionResponse = await submissionAPI.create({
           submission_type: 'publication_reward',
           year_id: formData.year_id,
           category_id: formData.category_id || categoryId,
           subcategory_id: formData.subcategory_id,        // Dynamic resolved
           subcategory_budget_id: formData.subcategory_budget_id,  // Dynamic resolved
-          status_id: deptPendingStatusId,
         });
         
         submissionId = submissionResponse.submission.submission_id;

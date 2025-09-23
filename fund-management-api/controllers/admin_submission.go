@@ -4,6 +4,7 @@ package controllers
 import (
 	"fund-management-api/config"
 	"fund-management-api/models"
+	"fund-management-api/utils"
 	"net/http"
 	"strconv"
 	"strings"
@@ -277,10 +278,21 @@ func ApproveSubmission(c *gin.Context) {
 		return
 	}
 
-	// Validate status (1=pending, 4=revision requested)
-	if submission.StatusID != 1 && submission.StatusID != 4 {
+	allowedForApproval, err := utils.StatusMatchesCodes(
+		submission.StatusID,
+		utils.StatusCodePending,
+		utils.StatusCodeDraft,
+		utils.StatusCodeDeptHeadPending,
+		utils.StatusCodeDeptHeadRecommended,
+	)
+	if err != nil {
 		tx.Rollback()
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Only pending or revision-requested submissions can be approved"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to verify submission status"})
+		return
+	}
+	if !allowedForApproval {
+		tx.Rollback()
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Only submissions awaiting review can be approved"})
 		return
 	}
 
@@ -406,10 +418,22 @@ func RejectSubmission(c *gin.Context) {
 		return
 	}
 
-	// Only pending (1) or revision-requested (4) can be rejected
-	if submission.StatusID != 1 && submission.StatusID != 4 {
+	allowedForRejection, err := utils.StatusMatchesCodes(
+		submission.StatusID,
+		utils.StatusCodePending,
+		utils.StatusCodeDraft,
+		utils.StatusCodeDeptHeadPending,
+		utils.StatusCodeDeptHeadRecommended,
+		utils.StatusCodeDeptHeadNotRecommended,
+	)
+	if err != nil {
 		tx.Rollback()
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Only pending or revision-requested submissions can be rejected"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to verify submission status"})
+		return
+	}
+	if !allowedForRejection {
+		tx.Rollback()
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Only submissions awaiting review can be rejected"})
 		return
 	}
 
