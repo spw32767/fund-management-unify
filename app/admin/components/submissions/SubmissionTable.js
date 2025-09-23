@@ -320,12 +320,8 @@ export default function SubmissionTable({
                 <td className="px-6 py-4 whitespace-nowrap text-sm">
                   <StatusBadge
                     statusId={s.status_id}
-                    label={s.display_status || s.status?.status_name}
-                    text={s.display_status || s.status?.status_name}
-                    statusName={s.display_status || s.status?.status_name}
-                  >
-                    {s.display_status || s.status?.status_name || 'ไม่ทราบสถานะ'}
-                  </StatusBadge>
+                    fallbackLabel={s.display_status || s.status?.status_name}
+                  />
                 </td>
 
                 {/* วันที่ส่งคำร้อง */}

@@ -2,6 +2,7 @@
 
 import apiClient, { dashboardAPI } from '../lib/api';
 import { targetRolesUtils } from '../lib/target_roles_utils';
+import { statusService, buildStatusMaps } from './status_service';
 
 // Teacher API methods for role-based fund access
 export const teacherAPI = {
@@ -771,6 +772,26 @@ export const publicationRewardAPI = {
 // ==================== UTILITY FUNCTIONS ====================
 
 export const submissionUtils = {
+  _statusMaps: null,
+
+  async ensureStatusMaps() {
+    if (this._statusMaps) {
+      return this._statusMaps;
+    }
+    const statuses = await statusService.fetchAll();
+    this._statusMaps = buildStatusMaps(statuses);
+    return this._statusMaps;
+  },
+
+  getStatusMapsSync() {
+    if (!this._statusMaps) {
+      const cached = statusService.getCached();
+      if (cached) {
+        this._statusMaps = buildStatusMaps(cached);
+      }
+    }
+    return this._statusMaps;
+  },
 
   // Get submission type display name
   getSubmissionTypeName(type) {
@@ -785,13 +806,25 @@ export const submissionUtils = {
 
   // Get submission status display name
   getStatusName(statusId) {
-    const statuses = {
-      1: 'รอพิจารณา',
-      2: 'อนุมัติ',
-      3: 'ไม่อนุมัติ',
-      4: 'ต้องแก้ไข'
-    };
-    return statuses[statusId] || 'ไม่ทราบสถานะ';
+    if (statusId == null) {
+      return 'ไม่ทราบสถานะ';
+    }
+
+    const maps = this.getStatusMapsSync();
+    if (maps?.byId) {
+      return maps.byId[Number(statusId)]?.status_name || 'ไม่ทราบสถานะ';
+    }
+
+    return 'ไม่ทราบสถานะ';
+  },
+
+  async getStatusNameAsync(statusId) {
+    if (statusId == null) {
+      return 'ไม่ทราบสถานะ';
+    }
+
+    const maps = await this.ensureStatusMaps();
+    return maps.byId[Number(statusId)]?.status_name || 'ไม่ทราบสถานะ';
   },
 
   // Format submission number for display

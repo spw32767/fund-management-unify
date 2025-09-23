@@ -144,8 +144,13 @@ export default function ReceivedFundsList({ onNavigate }) {
     },
     {
       header: "สถานะ",
-      accessor: "status",
-      render: (v, row) => <StatusBadge status={v} statusId={row.status_id} />,
+      accessor: "status_id",
+      render: (_, row) => (
+        <StatusBadge
+          statusId={row.status_id}
+          fallbackLabel={row.status}
+        />
+      ),
     },
     {
       header: "การดำเนินการ",

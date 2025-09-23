@@ -7,6 +7,7 @@ import { FileCheck, FileText, Filter, Download } from 'lucide-react';
 import PageLayout from '../common/PageLayout';
 import Card from '../common/Card';
 import StatusBadge from '@/app/admin/components/common/StatusBadge';
+import { useStatusMap } from '@/app/hooks/useStatusMap';
 import { toast } from 'react-hot-toast';
 
 import adminAPI from '@/app/lib/admin_api';
@@ -95,6 +96,12 @@ function groupRowsToCategories(rows) {
 
 // =========================
 export default function ApprovalRecords() {
+  const { statuses } = useStatusMap();
+  const approvedStatus = useMemo(
+    () => statuses?.find((status) => status.status_code === 'approved'),
+    [statuses]
+  );
+
   // meta
   const [years, setYears] = useState([]);     // [{id,label}]
   const [users, setUsers] = useState([]);     // normalized users
@@ -315,7 +322,10 @@ export default function ApprovalRecords() {
         title={
           <div className="flex items-center gap-3">
             <span>ผลการอนุมัติทุน</span>
-            <StatusBadge statusId={2} />
+            <StatusBadge
+              statusId={approvedStatus?.application_status_id}
+              fallbackLabel={approvedStatus?.status_name || 'อนุมัติ'}
+            />
           </div>
         }
         headerClassName="items-center"

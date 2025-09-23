@@ -18,15 +18,18 @@ import PageLayout from "../common/PageLayout";
 import Card from "../common/Card";
 import StatusBadge from "../common/StatusBadge";
 import { formatCurrency } from "@/app/utils/format";
+import { useStatusMap } from "@/app/hooks/useStatusMap";
 
-const getStatusIcon = (statusId) => {
-  switch (statusId) {
-    case 2:
+const getStatusIcon = (statusCode) => {
+  switch (statusCode) {
+    case "approved":
       return <CheckCircle className="h-5 w-5 text-green-600" />;
-    case 3:
+    case "rejected":
       return <XCircle className="h-5 w-5 text-red-600" />;
-    case 4:
+    case "revision":
       return <AlertCircle className="h-5 w-5 text-orange-600" />;
+    case "draft":
+      return <Clock className="h-5 w-5 text-gray-600" />;
     default:
       return <Clock className="h-5 w-5 text-yellow-600" />;
   }
@@ -35,6 +38,7 @@ const getStatusIcon = (statusId) => {
 export default function FundApplicationDetail({ submissionId, onNavigate }) {
   const [submission, setSubmission] = useState(null);
   const [loading, setLoading] = useState(true);
+  const { getCodeById } = useStatusMap();
 
   useEffect(() => {
     if (submissionId) {
@@ -200,14 +204,14 @@ export default function FundApplicationDetail({ submissionId, onNavigate }) {
         <div className="flex justify-between items-start">
           <div>
             <div className="flex flex-wrap items-center gap-3 mb-2">
-              {getStatusIcon(submission.status_id)}
+              {getStatusIcon(getCodeById(submission.status_id) || submission.Status?.status_code)}
               <h3 className="text-lg font-semibold">
                 สถานะคำร้อง (Submission Status)
               </h3>
               <div className="flex-shrink-0">
                 <StatusBadge
-                  status={submission.Status?.status_name}
                   statusId={submission.status_id}
+                  fallbackLabel={submission.Status?.status_name}
                 />
               </div>
               <h3 className="text-lg font-semibold w-full">
