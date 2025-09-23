@@ -4,12 +4,14 @@
 import { useState, useEffect } from 'react';
 import { commonAPI } from '../../../lib/admin_submission_api';
 import { adminAPI } from '../../../lib/admin_api';
+import { useStatusMap } from '@/app/hooks/useStatusMap';
 
 export default function SubmissionFilters({ filters, onFilterChange, onSearch }) {
   const [years, setYears] = useState([]);
   const [categories, setCategories] = useState([]);
   const [subcategories, setSubcategories] = useState([]);
   const [searchTerm, setSearchTerm] = useState(filters.search || '');
+  const { statuses, isLoading: statusLoading, getLabelById } = useStatusMap();
   
   // Fetch initial data
   useEffect(() => {
@@ -158,13 +160,18 @@ export default function SubmissionFilters({ filters, onFilterChange, onSearch })
             value={filters.status}
             onChange={(e) => handleChange('status', e.target.value)}
             className="block w-full pl-3 pr-10 py-2 text-base border border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md bg-white"
+            disabled={statusLoading && !statuses}
           >
             <option value="">ทั้งหมด</option>
-            {/* สถานะตามตาราง application_status */}
-            <option value="1">อยู่ระหว่างการพิจารณา</option>
-            <option value="2">อนุมัติแล้ว</option>
-            <option value="3">ไม่อนุมัติ</option>
-            <option value="4">ต้องการข้อมูลเพิ่มเติม</option>
+            {Array.isArray(statuses) &&
+              statuses.map((status) => (
+                <option
+                  key={status.application_status_id}
+                  value={status.application_status_id}
+                >
+                  {status.status_name}
+                </option>
+              ))}
           </select>
         </div>
 
@@ -233,11 +240,7 @@ export default function SubmissionFilters({ filters, onFilterChange, onSearch })
             
             {filters.status && (
               <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-800 border border-green-200">
-                สถานะ: {filters.status === '1' ? 'อยู่ระหว่างการพิจารณา' : 
-                        filters.status === '2' ? 'อนุมัติ' :
-                        filters.status === '3' ? 'ปฏิเสธ' :
-                        filters.status === '4' ? 'ต้องการข้อมูลเพิ่มเติม' :
-                        filters.status}
+                สถานะ: {getLabelById(filters.status) || filters.status}
                 <button
                   type="button"
                   onClick={() => handleChange('status', '')}

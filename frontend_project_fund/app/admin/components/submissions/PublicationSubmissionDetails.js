@@ -28,6 +28,7 @@ import PageLayout from '../common/PageLayout';
 import Card from '../common/Card';
 import { toast } from 'react-hot-toast';
 import StatusBadge from '@/app/admin/components/common/StatusBadge';
+import { useStatusMap } from '@/app/hooks/useStatusMap';
 
 import apiClient from "@/app/lib/api";
 import { adminAnnouncementAPI } from "@/app/lib/admin_announcement_api";
@@ -45,32 +46,32 @@ import { PDFDocument } from 'pdf-lib';
  * Helpers
  * ========================= */
 
-const getStatusIcon = (statusId) => {
-  switch (statusId) {
-    case 2: return CheckCircle;     // อนุมัติ
-    case 3: return XCircle;         // ไม่อนุมัติ
-    case 4: return AlertTriangle;   // ต้องแก้ไข
-    case 5: return FileText;        // แบบร่าง
-    case 1:
-    default: return Clock;          // อยู่ระหว่างการพิจารณา / ไม่ทราบ
+const getStatusIcon = (statusCode) => {
+  switch (statusCode) {
+    case 'approved': return CheckCircle;
+    case 'rejected': return XCircle;
+    case 'revision': return AlertTriangle;
+    case 'draft': return FileText;
+    case 'pending':
+    default: return Clock;
   }
 };
 
 // สีของไอคอนให้สอดคล้องกับ StatusBadge
-const getStatusIconColor = (statusId) => {
-  switch (statusId) {
-    case 2: return 'text-green-600';
-    case 3: return 'text-red-600';
-    case 4: return 'text-orange-600';
-    case 5: return 'text-gray-500';
-    case 1:
+const getStatusIconColor = (statusCode) => {
+  switch (statusCode) {
+    case 'approved': return 'text-green-600';
+    case 'rejected': return 'text-red-600';
+    case 'revision': return 'text-orange-600';
+    case 'draft': return 'text-gray-500';
+    case 'pending':
     default: return 'text-yellow-600';
   }
 };
 
-const getColoredStatusIcon = (statusId) => {
-  const Icon = getStatusIcon(statusId);
-  const color = getStatusIconColor(statusId);
+const getColoredStatusIcon = (statusCode) => {
+  const Icon = getStatusIcon(statusCode);
+  const color = getStatusIconColor(statusCode);
   // คืน "คอมโพเนนต์" ที่ Card จะเรียกใช้ (จะได้รับ props เช่น className/size)
   return function ColoredStatusIcon(props) {
     return <Icon {...props} className={`${props.className || ''} ${color}`} />;
@@ -907,6 +908,7 @@ export default function PublicationSubmissionDetails({ submissionId, onBack }) {
 
   const [attachments, setAttachments] = useState([]);
   const [attachmentsLoading, setAttachmentsLoading] = useState(false)
+  const { getCodeById } = useStatusMap();
 
   // Load data
   useEffect(() => {
@@ -1583,13 +1585,16 @@ export default function PublicationSubmissionDetails({ submissionId, onBack }) {
     >
     {/* Status Summary */}
     <Card
-      icon={getColoredStatusIcon(submission?.status_id)}
+      icon={getColoredStatusIcon(getCodeById(submission?.status_id) || submission?.status?.status_code)}
       collapsible={false}
       headerClassName="items-center"
       title={
         <div className="flex items-center gap-2">
           <span>สถานะคำร้อง (Submission Status)</span>
-          <StatusBadge statusId={submission?.status_id} />
+          <StatusBadge
+            statusId={submission?.status_id}
+            fallbackLabel={submission?.status?.status_name}
+          />
         </div>
       }
     >

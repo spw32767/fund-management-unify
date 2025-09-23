@@ -12,11 +12,13 @@ import ExportButton from './ExportButton';
 import { submissionsListingAPI, adminSubmissionAPI, commonAPI } from '../../../lib/admin_submission_api';
 import { toast } from 'react-hot-toast';
 import systemConfigAPI from '../../../lib/system_config_api'
+import { useStatusMap } from '@/app/hooks/useStatusMap';
 
 // ----------- CONFIG -----------
 const PAGE_SIZE  = 10;        // how many rows to show at a time
 
 export default function SubmissionsManagement() {
+  const { getLabelById } = useStatusMap();
   // Views
   const [currentView, setCurrentView] = useState('list');
   const [selectedSubmissionId, setSelectedSubmissionId] = useState(null);
@@ -219,15 +221,7 @@ export default function SubmissionsManagement() {
     if (filters.search?.trim()) {
       const q = filters.search.trim().toLowerCase();
 
-      const statusText = (sid) => {
-        switch (Number(sid)) {
-          case 1: return 'รอพิจารณา';
-          case 2: return 'อนุมัติแล้ว';
-          case 3: return 'ไม่อนุมัติ';
-          case 4: return 'ต้องแก้ไข';
-          default: return '';
-        }
-      };
+      const statusText = (sid) => getLabelById(sid) || '';
 
       const norm = (v) => (v ?? '').toString().toLowerCase();
 
