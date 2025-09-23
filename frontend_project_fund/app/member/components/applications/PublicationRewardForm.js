@@ -2282,54 +2282,66 @@ const showSubmissionConfirmation = async () => {
 
       console.log(`Total files to upload: ${allFiles.length}`);
 
-      // Create submission if not exists
+      const rawCategoryId = formData.category_id ?? categoryId;
+      if (!rawCategoryId) {
+        throw new Error('ไม่พบหมวดหมู่ของคำร้อง');
+      }
+
+      const resolvedCategoryId = Number(rawCategoryId);
+      if (!Number.isInteger(resolvedCategoryId)) {
+        throw new Error('หมวดหมู่ของคำร้องไม่ถูกต้อง');
+      }
+
+      Swal.update({
+        html: submissionId ? 'กำลังตรวจสอบและอัปเดตข้อมูลทุน...' : 'กำลังตรวจสอบข้อมูลทุน...'
+      });
+
+      // Re-resolve the budget/subcategory pairing to ensure we submit the latest mapping
+      const freshResolution = await resolveBudgetAndSubcategory({
+        category_id: resolvedCategoryId,
+        year_id: formData.year_id,
+        author_status: formData.author_status,
+        journal_quartile: formData.journal_quartile
+      });
+
+      if (!freshResolution || !freshResolution.subcategory_id || !freshResolution.subcategory_budget_id) {
+        throw new Error('ไม่สามารถระบุหมวดทุนที่สอดคล้องได้');
+      }
+
+      const resolvedSubcategoryId = Number(freshResolution.subcategory_id);
+      const resolvedBudgetId = Number(freshResolution.subcategory_budget_id);
+      const rewardAmountSource = freshResolution.reward_amount ?? freshResolution.amount ?? 0;
+      const parsedRewardAmount = Number(rewardAmountSource);
+      const resolvedRewardAmount = Number.isFinite(parsedRewardAmount) ? parsedRewardAmount : 0;
+
+      if (!Number.isInteger(resolvedSubcategoryId) || !Number.isInteger(resolvedBudgetId)) {
+        throw new Error('ข้อมูลหมวดทุนไม่ถูกต้อง');
+      }
+
+      resolvedRewardContext = {
+        subcategoryId: resolvedSubcategoryId,
+        budgetId: resolvedBudgetId,
+        rewardAmount: resolvedRewardAmount
+      };
+
+      // Sync state to the latest resolved values for downstream logic/debugging
+      setFormData(prev => ({
+        ...prev,
+        subcategory_id: resolvedSubcategoryId,
+        subcategory_budget_id: resolvedBudgetId,
+        publication_reward: resolvedRewardAmount,
+        reward_amount: resolvedRewardAmount
+      }));
+
+      console.log('Resolved mapping before submission:', {
+        resolvedSubcategoryId,
+        resolvedBudgetId,
+        resolvedRewardAmount
+      });
+
       if (!submissionId) {
         Swal.update({
           html: 'กำลังสร้างคำร้อง...'
-        });
-
-        console.log('Before POST:', {
-          subcategory_id: formData.subcategory_id,
-          subcategory_budget_id: formData.subcategory_budget_id
-        });
-
-        // Re-resolve the budget/subcategory pairing to ensure we submit the latest mapping
-        const freshResolution = await resolveBudgetAndSubcategory({
-          category_id: formData.category_id || categoryId,
-          year_id: formData.year_id,
-          author_status: formData.author_status,
-          journal_quartile: formData.journal_quartile
-        });
-
-        if (!freshResolution || !freshResolution.subcategory_id || !freshResolution.subcategory_budget_id) {
-          throw new Error('ไม่สามารถระบุหมวดทุนที่สอดคล้องได้');
-        }
-
-        const resolvedSubcategoryId = Number(freshResolution.subcategory_id);
-        const resolvedBudgetId = Number(freshResolution.subcategory_budget_id);
-        const resolvedRewardAmount = Number(
-          freshResolution.reward_amount ?? freshResolution.amount ?? 0
-        );
-
-        resolvedRewardContext = {
-          subcategoryId: resolvedSubcategoryId,
-          budgetId: resolvedBudgetId,
-          rewardAmount: resolvedRewardAmount
-        };
-
-        // Sync state to the latest resolved values for downstream logic/debugging
-        setFormData(prev => ({
-          ...prev,
-          subcategory_id: resolvedSubcategoryId,
-          subcategory_budget_id: resolvedBudgetId,
-          publication_reward: resolvedRewardAmount,
-          reward_amount: resolvedRewardAmount
-        }));
-
-        console.log('Resolved mapping before submission:', {
-          resolvedSubcategoryId,
-          resolvedBudgetId,
-          resolvedRewardAmount
         });
 
         // ใน submitApplication function - เพิ่ม validation และ submission data
@@ -2341,7 +2353,7 @@ const showSubmissionConfirmation = async () => {
         const submissionResponse = await submissionAPI.create({
           submission_type: 'publication_reward',
           year_id: formData.year_id,
-          category_id: formData.category_id || categoryId,
+          category_id: resolvedCategoryId,
           subcategory_id: resolvedSubcategoryId,        // Dynamic resolved
           subcategory_budget_id: resolvedBudgetId,  // Dynamic resolved
           status_id: deptPendingStatusId,
@@ -2350,6 +2362,31 @@ const showSubmissionConfirmation = async () => {
         submissionId = submissionResponse.submission.submission_id;
         setCurrentSubmissionId(submissionId);
         console.log('Created submission:', submissionId);
+      } else {
+        Swal.update({
+          html: 'กำลังอัปเดตข้อมูลคำร้อง...'
+        });
+
+        const updatePayload = {
+          subcategory_id: resolvedSubcategoryId,
+          subcategory_budget_id: resolvedBudgetId
+        };
+
+        if (resolvedCategoryId) {
+          updatePayload.category_id = resolvedCategoryId;
+        }
+
+        try {
+          await submissionAPI.update(submissionId, updatePayload);
+          console.log('Updated submission with resolved mapping:', {
+            submissionId,
+            resolvedSubcategoryId,
+            resolvedBudgetId
+          });
+        } catch (updateError) {
+          console.error('Failed to update submission mapping:', updateError);
+          throw new Error('ไม่สามารถอัปเดตหมวดทุนของคำร้องได้');
+        }
       }
 
       // Step 2: Manage Users in Submission
