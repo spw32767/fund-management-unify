@@ -4,7 +4,7 @@ export const DEPT_STATUS_LABELS = {
   rejected: 'ไม่เห็นควรพิจารณา',
   // Backward compatibility: some legacy code may still reference "recommended"
   // which previously mapped to the department head approval outcome.
-  recommended: 'อยู่ระหว่างการพิจารณา',
+  recommended: 'เห็นควรพิจารณาจากหัวหน้าสาขา',
 };
 
 export function getDeptStatusLabels() {

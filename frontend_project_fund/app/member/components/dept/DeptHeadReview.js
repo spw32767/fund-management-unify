@@ -7,6 +7,7 @@ import Card from "../common/Card";
 import DataTable from "../common/DataTable";
 import StatusBadge from "../common/StatusBadge";
 import { deptHeadAPI } from "../../../lib/member_api";
+import { APIError } from "../../../lib/api";
 import { useStatusMap } from "@/app/hooks/useStatusMap";
 import DEPT_STATUS_LABELS from "@/app/lib/dept_status_labels";
 
@@ -22,6 +23,11 @@ const formatDate = (value) => {
   } catch (error) {
     return value;
   }
+};
+
+const DECISION_MAP = {
+  approve: "agree",
+  reject: "disagree",
 };
 
 export default function DeptHeadReview() {
@@ -89,10 +95,25 @@ export default function DeptHeadReview() {
       setLoading(true);
       setError(null);
 
-      const response = await deptHeadAPI.getPendingReviews({
-        status_id: pendingStatusId,
-        status: pendingStatusId,
-      });
+      let response;
+      const params = { status: "pending_dept" };
+      if (Number.isFinite(pendingStatusId)) {
+        params.status_id = pendingStatusId;
+      }
+
+      try {
+        response = await deptHeadAPI.getPendingReviews(params);
+      } catch (requestError) {
+        const message = requestError?.message?.toLowerCase?.() || "";
+        if (
+          requestError instanceof APIError &&
+          message.includes("invalid status")
+        ) {
+          response = await deptHeadAPI.getPendingReviews({ status: "pending" });
+        } else {
+          throw requestError;
+        }
+      }
       const rows = response?.submissions || response?.data || [];
 
       const normalized = rows
@@ -185,11 +206,13 @@ export default function DeptHeadReview() {
 
     try {
       const payload = {
-        decision: isApprove ? "approve" : "reject",
-        status_id: nextStatusId,
-        application_status_id: nextStatusId,
-        status: nextStatusId,
+        decision: DECISION_MAP[actionTarget.action] ||
+          (isApprove ? "approve" : "reject"),
       };
+      if (Number.isFinite(nextStatusId)) {
+        payload.status_id = nextStatusId;
+        payload.application_status_id = nextStatusId;
+      }
       const trimmed = actionComment.trim();
       if (trimmed) {
         payload.comment = trimmed;
