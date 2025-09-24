@@ -91,6 +91,47 @@ const formatBankAccount = (value) => {
   return cleaned.slice(0, 15);
 };
 
+// Ensure summary generator fonts are loaded before drawing to canvas
+const SUMMARY_FONT_DESCRIPTORS = [
+  '400 32px "TH Sarabun New"',
+  '700 32px "TH Sarabun New"',
+  '400 40px "TH Sarabun New"',
+  '700 40px "TH Sarabun New"',
+  '700 52px "TH Sarabun New"',
+];
+
+let summaryFontsLoaded = false;
+
+const ensureSummaryFontsLoaded = async () => {
+  if (summaryFontsLoaded) {
+    return;
+  }
+
+  if (typeof document === 'undefined' || !document.fonts?.load) {
+    summaryFontsLoaded = true;
+    return;
+  }
+
+  try {
+    const loaders = SUMMARY_FONT_DESCRIPTORS.map(async (descriptor) => {
+      try {
+        if (!document.fonts.check(descriptor)) {
+          await document.fonts.load(descriptor);
+        }
+      } catch (err) {
+        console.warn('Unable to load font descriptor', descriptor, err);
+      }
+    });
+
+    await Promise.all(loaders);
+    await document.fonts.ready;
+    summaryFontsLoaded = true;
+  } catch (error) {
+    console.warn('Unable to ensure summary fonts are ready:', error);
+    summaryFontsLoaded = true; // avoid retry loops; canvas will fallback gracefully
+  }
+};
+
 // Quartile sorting order
 const getQuartileSortOrder = (quartile) => {
   const orderMap = {
@@ -484,6 +525,8 @@ const generateSubmissionSummaryPdf = async ({
   }
 
   try {
+    await ensureSummaryFontsLoaded();
+
     const canvas = document.createElement('canvas');
     const width = 1240;
     const marginX = 120;
