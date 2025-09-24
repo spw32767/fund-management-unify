@@ -17,6 +17,7 @@ import apiClient from '@/app/lib/api';
 import { toast } from 'react-hot-toast';
 import Swal from 'sweetalert2';
 import { useStatusMap } from '@/app/hooks/useStatusMap';
+import DEPT_STATUS_LABELS from '@/app/lib/dept_status_labels';
 import 'sweetalert2/dist/sweetalert2.min.css';
 
 import { PDFDocument } from 'pdf-lib';
@@ -55,12 +56,6 @@ const getColoredStatusIcon = (statusCode) => {
   return function ColoredStatusIcon(props) {
     return <Icon {...props} className={`${props.className || ''} ${color}`} />;
   };
-};
-
-const DEPT_STATUS_LABELS = {
-  pending: 'อยู่ระหว่างการพิจารณาจากหัวหน้าสาขา',
-  recommended: 'เห็นควรพิจารณาจากหัวหน้าสาขา',
-  rejected: 'ไม่เห็นควรพิจารณา',
 };
 
 const pickApplicant = (submission) => {
