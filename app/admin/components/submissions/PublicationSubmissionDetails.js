@@ -29,8 +29,6 @@ import Card from '../common/Card';
 import { toast } from 'react-hot-toast';
 import StatusBadge from '@/app/admin/components/common/StatusBadge';
 import { useStatusMap } from '@/app/hooks/useStatusMap';
-import DEPT_STATUS_LABELS from '@/app/lib/dept_status_labels';
-import DeptReviewNotice from './DeptReviewNotice';
 
 import apiClient from "@/app/lib/api";
 import { adminAnnouncementAPI } from "@/app/lib/admin_announcement_api";
@@ -79,6 +77,7 @@ const getColoredStatusIcon = (statusCode) => {
     return <Icon {...props} className={`${props.className || ''} ${color}`} />;
   };
 };
+
 
 const formatDate = (dateString) => {
   if (!dateString) return '-';
@@ -317,9 +316,8 @@ function ReadonlyMoney({ value, aria }) {
 /* =========================
  * Approval Panel (admin-only)
  * ========================= */
-function ApprovalPanel({ submission, pubDetail, onApprove, onReject, deptReviewGuard }) {
-  const guard = deptReviewGuard || {};
-  const approvable = guard.canAdminAct ?? (submission?.status_id === 1);
+function ApprovalPanel({ submission, pubDetail, onApprove, onReject }) {
+  const approvable = submission?.status_id === 1; // อยู่ระหว่างการพิจารณา
   if (!approvable) return null;
 
   // Defaults from "ข้อมูลการเงิน"
@@ -910,72 +908,7 @@ export default function PublicationSubmissionDetails({ submissionId, onBack }) {
 
   const [attachments, setAttachments] = useState([]);
   const [attachmentsLoading, setAttachmentsLoading] = useState(false)
-  const { getCodeById, getByName, getLabelById, isLoading: statusLoading } = useStatusMap();
-  const deptReviewGuard = useMemo(() => {
-    const parseNumericId = (value) => {
-      const num = Number(value);
-      return Number.isFinite(num) ? num : undefined;
-    };
-
-    const statusId = parseNumericId(submission?.status_id);
-    const statusCode =
-      getCodeById?.(submission?.status_id) ||
-      submission?.status?.status_code ||
-      submission?.status_code ||
-      undefined;
-    const statusName =
-      getLabelById?.(submission?.status_id) ||
-      submission?.status?.status_name ||
-      submission?.status_name ||
-      undefined;
-
-    const pendingStatus = getByName?.(DEPT_STATUS_LABELS.pending);
-    const recommendedStatus = getByName?.(DEPT_STATUS_LABELS.recommended);
-    const rejectedStatus = getByName?.(DEPT_STATUS_LABELS.rejected);
-
-    const pendingId = parseNumericId(
-      pendingStatus?.application_status_id ?? pendingStatus?.status_id ?? pendingStatus?.id,
-    );
-    const recommendedId = parseNumericId(
-      recommendedStatus?.application_status_id ?? recommendedStatus?.status_id ?? recommendedStatus?.id,
-    );
-    const rejectedId = parseNumericId(
-      rejectedStatus?.application_status_id ?? rejectedStatus?.status_id ?? rejectedStatus?.id,
-    );
-
-    const labelsLoaded = !statusLoading;
-    const missingCritical = labelsLoaded && (!pendingStatus || !recommendedStatus);
-    const needsDeptReview = labelsLoaded && Boolean(pendingStatus || recommendedStatus || rejectedStatus);
-    const isPending = needsDeptReview && pendingId != null && statusId === pendingId;
-    const isRecommended = needsDeptReview && recommendedId != null && statusId === recommendedId;
-    const isDeptRejected = needsDeptReview && rejectedId != null && statusId === rejectedId;
-
-    const fallbackPending = statusCode === 'pending';
-    let canAdminAct = fallbackPending;
-    if (!labelsLoaded) {
-      canAdminAct = false;
-    } else if (needsDeptReview) {
-      canAdminAct = Boolean(isRecommended) && !missingCritical && !isDeptRejected;
-    }
-    if (!needsDeptReview && (isDeptRejected || missingCritical)) {
-      canAdminAct = false;
-    }
-
-    return {
-      statusId,
-      statusCode,
-      currentStatusName: statusName,
-      pendingStatusId: pendingId,
-      recommendedStatusId: recommendedId,
-      rejectedStatusId: rejectedId,
-      needsDeptReview,
-      isPending,
-      isRecommended,
-      isDeptRejected,
-      missingCriticalStatuses: missingCritical,
-      canAdminAct,
-    };
-  }, [submission, getByName, getLabelById, getCodeById, statusLoading]);
+  const { getCodeById } = useStatusMap();
 
   // Load data
   useEffect(() => {
@@ -2055,15 +1988,12 @@ export default function PublicationSubmissionDetails({ submissionId, onBack }) {
             </div>
           </Card>
 
-          <DeptReviewNotice guard={deptReviewGuard} className="mb-6" />
-
           {/* Admin-only Approval Panel */}
           <ApprovalPanel
             submission={submission}
             pubDetail={pubDetail}
             onApprove={approve}
             onReject={reject}
-            deptReviewGuard={deptReviewGuard}
           />
         </div>
       )}
