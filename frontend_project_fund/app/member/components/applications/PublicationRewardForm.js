@@ -93,11 +93,11 @@ const formatBankAccount = (value) => {
 
 // Ensure summary generator fonts are loaded before drawing to canvas
 const SUMMARY_FONT_DESCRIPTORS = [
-  '400 32px "TH Sarabun New"',
-  '700 32px "TH Sarabun New"',
-  '400 40px "TH Sarabun New"',
-  '700 40px "TH Sarabun New"',
-  '700 52px "TH Sarabun New"',
+  '400 30px "TH Sarabun New"',
+  '700 30px "TH Sarabun New"',
+  '400 34px "TH Sarabun New"',
+  '700 34px "TH Sarabun New"',
+  '700 36px "TH Sarabun New"',
 ];
 
 let summaryFontsLoaded = false;
@@ -543,107 +543,87 @@ const generateSubmissionSummaryPdf = async ({
     ctx.textBaseline = 'top';
 
     const fontFamily = '"TH Sarabun New", "Sarabun", "Tahoma", sans-serif';
+    const baseStyle = {
+      font: `30px ${fontFamily}`,
+      lineHeight: 42,
+      color: '#111827',
+      align: 'left',
+      spacingAfter: 12,
+    };
+
     const styles = {
+      text: baseStyle,
       title: {
-        font: `bold 52px ${fontFamily}`,
-        lineHeight: 68,
+        ...baseStyle,
+        font: `bold 36px ${fontFamily}`,
+        lineHeight: 50,
         color: '#1f2937',
         align: 'center',
         spacingAfter: 6,
       },
       subtitle: {
-        font: `bold 40px ${fontFamily}`,
-        lineHeight: 54,
+        ...baseStyle,
+        font: `bold 34px ${fontFamily}`,
+        lineHeight: 46,
         color: '#1f2937',
         align: 'center',
-        spacingAfter: 28,
+        spacingAfter: 24,
       },
       location: {
-        font: `32px ${fontFamily}`,
-        lineHeight: 44,
-        color: '#111827',
-        spacingAfter: 4,
+        ...baseStyle,
+        spacingAfter: 6,
       },
       date: {
-        font: `32px ${fontFamily}`,
-        lineHeight: 44,
-        color: '#111827',
+        ...baseStyle,
         align: 'right',
-        spacingAfter: 20,
+        spacingAfter: 18,
       },
       subject: {
-        font: `bold 32px ${fontFamily}`,
-        lineHeight: 44,
-        color: '#111827',
-        align: 'left',
+        ...baseStyle,
         spacingAfter: 10,
       },
       salutation: {
-        font: `32px ${fontFamily}`,
-        lineHeight: 44,
-        color: '#111827',
-        align: 'left',
-        spacingAfter: 16,
+        ...baseStyle,
+        spacingAfter: 14,
       },
       body: {
-        font: `32px ${fontFamily}`,
-        lineHeight: 46,
-        color: '#111827',
-        align: 'left',
-        spacingAfter: 16,
-        indent: 48,
+        ...baseStyle,
+        spacingAfter: 14,
       },
       bodyNoIndent: {
-        font: `32px ${fontFamily}`,
-        lineHeight: 46,
-        color: '#111827',
-        align: 'left',
+        ...baseStyle,
         spacingAfter: 12,
       },
       list: {
-        font: `32px ${fontFamily}`,
-        lineHeight: 44,
-        color: '#111827',
-        align: 'left',
+        ...baseStyle,
         spacingAfter: 12,
-        indent: 64,
+        indent: 36,
       },
       documentList: {
-        font: `32px ${fontFamily}`,
-        lineHeight: 44,
-        color: '#111827',
-        align: 'left',
+        ...baseStyle,
         spacingAfter: 16,
-        indent: 64,
+        indent: 36,
       },
-      checkbox: {
-        font: `32px ${fontFamily}`,
-        lineHeight: 44,
-        color: '#111827',
-        align: 'left',
+      condition: {
+        ...baseStyle,
         spacingAfter: 10,
-        indent: 64,
+        indent: 36,
       },
       signoff: {
-        font: `32px ${fontFamily}`,
-        lineHeight: 44,
-        color: '#111827',
+        ...baseStyle,
         align: 'right',
         spacingBefore: 24,
-        spacingAfter: 12,
+        spacingAfter: 10,
       },
       signature: {
-        font: `32px ${fontFamily}`,
-        lineHeight: 44,
-        color: '#111827',
+        ...baseStyle,
         align: 'right',
-        spacingAfter: 8,
+        spacingAfter: 6,
       },
       signatureName: {
-        font: `32px ${fontFamily}`,
-        lineHeight: 44,
-        color: '#111827',
+        ...baseStyle,
         align: 'right',
+        spacingAfter: 0,
       },
     };
 
@@ -693,11 +673,11 @@ const generateSubmissionSummaryPdf = async ({
       .filter(doc => !doc.isGenerated)
       .map(doc => {
         const label = safeDisplay(doc.type || doc.name, 'เอกสารแนบ');
-        return `☑ ${label} — จำนวน 1 ฉบับ`;
+        return `${label} — จำนวน 1 ฉบับ`;
       });
     const documentListText = documentLines.length > 0
       ? documentLines.join('\n')
-      : '☑ ไม่พบรายการเอกสารแนบ — จำนวน 1 ฉบับ';
+      : 'ไม่พบรายการเอกสารแนบ — จำนวน 1 ฉบับ';
 
     const signatureText = safeDisplay(formData.signature, '........................................');
     const kkuReportYear = safeDisplay(systemConfig?.kku_report_year, '—');
@@ -727,12 +707,12 @@ const generateSubmissionSummaryPdf = async ({
       { type: 'documentList', text: documentListText },
       { type: 'bodyNoIndent', text: 'ข้าพเจ้าขอรับรองว่า' },
       {
-        type: 'checkbox',
-        text: '☑ ผลงานตีพิมพ์ที่ขอรับการสนับสนุนไม่เคยได้รับการจัดสรรทุนของมหาวิทยาลัย และทุนส่งเสริมการวิจัยจากกองทุนวิจัย นวัตกรรม และบริการวิชาการ วิทยาลัยการคอมพิวเตอร์',
+        type: 'condition',
+        text: 'ผลงานตีพิมพ์ที่ขอรับการสนับสนุนไม่เคยได้รับการจัดสรรทุนของมหาวิทยาลัย และทุนส่งเสริมการวิจัยจากกองทุนวิจัย นวัตกรรม และบริการวิชาการ วิทยาลัยการคอมพิวเตอร์',
       },
       {
-        type: 'checkbox',
-        text: `☑ จะปฏิบัติตามระเบียบมหาวิทยาลัยขอนแก่น ว่าด้วยกองทุนวิจัยในระดับคณะ พ.ศ. ${kkuReportYear} รวมถึงหลักเกณฑ์และประกาศอื่นใดที่เกี่ยวข้องทุกประการ`,
+        type: 'condition',
+        text: `จะปฏิบัติตามระเบียบมหาวิทยาลัยขอนแก่น ว่าด้วยกองทุนวิจัยในระดับคณะ พ.ศ. ${kkuReportYear} รวมถึงหลักเกณฑ์และประกาศอื่นใดที่เกี่ยวข้องทุกประการ`,
       },
       { type: 'signoff', text: 'ขอแสดงความนับถือ' },
       { type: 'signature', text: `(ลงชื่อ) ${signatureText} ผู้สมัครขอใช้เงิน` },
