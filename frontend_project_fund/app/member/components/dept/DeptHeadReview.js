@@ -1,13 +1,14 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
-import { ClipboardList, Loader2 } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { ClipboardList, Loader2, RotateCcw } from "lucide-react";
 import PageLayout from "../common/PageLayout";
 import Card from "../common/Card";
 import DataTable from "../common/DataTable";
 import StatusBadge from "../common/StatusBadge";
 import { deptHeadAPI } from "../../../lib/member_api";
-import { statusService } from "../../../lib/status_service";
+import { useStatusMap } from "@/app/hooks/useStatusMap";
+import DEPT_STATUS_LABELS from "@/app/lib/dept_status_labels";
 
 const formatDate = (value) => {
   if (!value) {
@@ -23,107 +24,120 @@ const formatDate = (value) => {
   }
 };
 
-const STATUS_LABELS = {
-  pending: "อยู่ระหว่างการพิจารณาจากหัวหน้าสาขา",
-  recommended: "เห็นควรพิจารณาจากหัวหน้าสาขา",
-  rejected: "ไม่เห็นควรพิจารณา",
+const DECISION_MAP = {
+  recommend: "agree",
+  reject: "disagree",
 };
 
 export default function DeptHeadReview() {
+  const { getByName, isLoading: statusLoading } = useStatusMap();
+
   const [submissions, setSubmissions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [statusError, setStatusError] = useState(null);
   const [actionTarget, setActionTarget] = useState(null);
   const [actionComment, setActionComment] = useState("");
   const [actionLoading, setActionLoading] = useState(false);
   const [actionError, setActionError] = useState(null);
-  const statusCacheRef = useRef(null);
 
-  const resolveDeptStatuses = async () => {
-    if (statusCacheRef.current) {
-      return statusCacheRef.current;
-    }
-
-    const statuses = await statusService.fetchAll();
-    const findByName = (label) =>
-      statuses.find((status) => status?.status_name === label);
-
-    const pending = findByName(STATUS_LABELS.pending);
-    const recommended = findByName(STATUS_LABELS.recommended);
-    const rejected = findByName(STATUS_LABELS.rejected);
-
-    if (!pending) {
-      throw new Error(`ไม่พบสถานะ "${STATUS_LABELS.pending}"`);
-    }
-    if (!recommended) {
-      throw new Error(`ไม่พบสถานะ "${STATUS_LABELS.recommended}"`);
-    }
-    if (!rejected) {
-      throw new Error(`ไม่พบสถานะ "${STATUS_LABELS.rejected}"`);
-    }
-
-    const toId = (status) => {
+  const statusInfo = useMemo(() => {
+    const parseId = (status) => {
       if (!status) return undefined;
-      const rawId = status.application_status_id ?? status.status_id ?? status.id;
+      const rawId =
+        status.application_status_id ?? status.status_id ?? status.id;
       const numericId = Number(rawId);
       return Number.isFinite(numericId) ? numericId : undefined;
     };
 
-    const info = {
-      pending,
-      recommended,
-      rejected,
-      pendingId: toId(pending),
-      recommendedId: toId(recommended),
-      rejectedId: toId(rejected),
-    };
+    const pending = getByName?.(DEPT_STATUS_LABELS.pending);
+    const recommended = getByName?.(DEPT_STATUS_LABELS.recommended);
+    const rejected = getByName?.(DEPT_STATUS_LABELS.rejected);
 
-    if (!info.pendingId || !info.recommendedId || !info.rejectedId) {
-      throw new Error("ไม่สามารถระบุรหัสสถานะหัวหน้าสาขาได้");
+    const pendingId = parseId(pending);
+    const recommendedId = parseId(recommended);
+    const rejectedId = parseId(rejected);
+
+    return {
+      pendingId,
+      recommendedId,
+      rejectedId,
+      ready: Boolean(pendingId && recommendedId && rejectedId),
+    };
+  }, [getByName]);
+
+  const statusesReady = statusInfo.ready;
+  const pendingStatusId = statusInfo.pendingId;
+
+  useEffect(() => {
+    if (!statusLoading) {
+      if (!statusesReady) {
+        setStatusError("ไม่พบสถานะที่จำเป็นสำหรับขั้นตอนหัวหน้าสาขา");
+        setSubmissions([]);
+        setLoading(false);
+      } else {
+        setStatusError(null);
+      }
+    }
+  }, [statusLoading, statusesReady]);
+
+  const loadSubmissions = useCallback(async () => {
+    if (!statusesReady || !pendingStatusId) {
+      return;
     }
 
-    statusCacheRef.current = info;
-    return info;
-  };
-
-  const loadSubmissions = async () => {
     try {
       setLoading(true);
       setError(null);
-      const statusInfo = await resolveDeptStatuses();
-      const response = await deptHeadAPI.getPendingReviews({ status_id: statusInfo.pendingId });
+
+      const response = await deptHeadAPI.getPendingReviews({ status: "pending" });
       const rows = response?.submissions || response?.data || [];
 
       const normalized = rows
-        .filter((item) => {
-          const itemStatusId = Number(
+        .map((item) => {
+          const statusIdRaw =
             item.status_id ??
             item.status?.application_status_id ??
             item.status?.status_id ??
-            item.status?.id
-          );
-          return Number.isFinite(itemStatusId)
-            ? itemStatusId === statusInfo.pendingId
-            : true;
+            item.status?.id;
+          const statusId = Number(statusIdRaw);
+          const normalizedStatusId = Number.isFinite(statusId)
+            ? statusId
+            : undefined;
+
+          const fallbackName = `${item.user?.user_fname || ""} ${
+            item.user?.user_lname || ""
+          }`.trim();
+          const applicantName =
+            item.applicant_name ||
+            item.user?.full_name ||
+            (fallbackName !== "" ? fallbackName : null);
+
+          return {
+            id: item.submission_id || item.id,
+            submission_number:
+              item.submission_number || item.request_number || "-",
+            category:
+              item.category_name || item.category?.category_name || "-",
+            subcategory:
+              item.subcategory_name || item.subcategory?.subcategory_name || "-",
+            applicant: applicantName || "-",
+            submitted_at: item.submitted_at || item.created_at,
+            statusId: normalizedStatusId,
+            statusLabel:
+              item.status?.status_name ||
+              item.status_name ||
+              item.status ||
+              "",
+            raw: item,
+          };
         })
-        .map((item) => ({
-          id: item.submission_id || item.id,
-          submission_number: item.submission_number || item.request_number || "-",
-          category: item.category_name || item.category?.category_name || "-",
-          subcategory: item.subcategory_name || item.subcategory?.subcategory_name || "-",
-          applicant:
-          item.applicant_name ||
-          item.user?.full_name ||
-          `${item.user?.user_fname || ""} ${item.user?.user_lname || ""}`.trim() ||
-          "-",
-        submitted_at: item.submitted_at || item.created_at,
-        status:
-          item.status?.status_name ||
-          item.status_name ||
-          item.status ||
-          "รอพิจารณา",
-        raw: item,
-      }));
+        .filter((row) => {
+          if (!Number.isFinite(row.statusId)) {
+            return true;
+          }
+          return row.statusId === pendingStatusId;
+        });
 
       setSubmissions(normalized);
     } catch (err) {
@@ -133,11 +147,54 @@ export default function DeptHeadReview() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [pendingStatusId, statusesReady]);
 
   useEffect(() => {
-    loadSubmissions();
+    if (!statusLoading && statusesReady && pendingStatusId) {
+      loadSubmissions();
+    }
+  }, [statusLoading, statusesReady, pendingStatusId, loadSubmissions]);
+
+  const openAction = useCallback((row, action) => {
+    setActionTarget({ ...row, action });
+    setActionComment("");
+    setActionError(null);
   }, []);
+
+  const closeAction = useCallback(() => {
+    setActionTarget(null);
+    setActionComment("");
+    setActionError(null);
+  }, []);
+
+  const confirmAction = useCallback(async () => {
+    if (!actionTarget) return;
+
+    if (!statusesReady) {
+      setActionError("ไม่พบสถานะที่จำเป็นสำหรับการบันทึกผล");
+      return;
+    }
+
+    setActionLoading(true);
+    setActionError(null);
+
+    try {
+      const decision = DECISION_MAP[actionTarget.action] || actionTarget.action;
+      const payload = { decision };
+      const trimmed = actionComment.trim();
+      if (trimmed) {
+        payload.comment = trimmed;
+      }
+      await deptHeadAPI.submitDecision(actionTarget.id, payload);
+      closeAction();
+      await loadSubmissions();
+    } catch (err) {
+      console.error("Dept review action failed:", err);
+      setActionError(err?.message || "ไม่สามารถดำเนินการได้");
+    } finally {
+      setActionLoading(false);
+    }
+  }, [actionTarget, actionComment, closeAction, loadSubmissions, statusesReady]);
 
   const columns = useMemo(
     () => [
@@ -164,8 +221,13 @@ export default function DeptHeadReview() {
       },
       {
         header: "สถานะ",
-        accessor: "status",
-        render: (value) => <StatusBadge status={value} />,
+        accessor: "statusId",
+        render: (value, row) => (
+          <StatusBadge
+            statusId={value}
+            fallbackLabel={row.statusLabel || DEPT_STATUS_LABELS.pending}
+          />
+        ),
       },
       {
         header: "ดำเนินการ",
@@ -188,61 +250,19 @@ export default function DeptHeadReview() {
         ),
       },
     ],
-    []
+    [openAction]
   );
 
-  const openAction = (row, action) => {
-    setActionTarget({ ...row, action });
-    setActionComment("");
-    setActionError(null);
-  };
-
-  const closeAction = () => {
-    setActionTarget(null);
-    setActionComment("");
-    setActionError(null);
-  };
-
-  const confirmAction = async () => {
-    if (!actionTarget) return;
-    setActionLoading(true);
-    setActionError(null);
-    try {
-      const statusInfo = await resolveDeptStatuses();
-      const basePayload = {
-        comment: actionComment?.trim() ? actionComment.trim() : undefined,
-        reviewed_at: new Date().toISOString(),
-      };
-
-      if (actionTarget.action === "recommend") {
-        await deptHeadAPI.recommendSubmission(actionTarget.id, {
-          ...basePayload,
-          status_id: statusInfo.recommendedId,
-        });
-      } else {
-        await deptHeadAPI.rejectSubmission(actionTarget.id, {
-          ...basePayload,
-          status_id: statusInfo.rejectedId,
-        });
-      }
-      closeAction();
-      await loadSubmissions();
-    } catch (err) {
-      console.error("Dept review action failed:", err);
-      setActionError(err?.message || "ไม่สามารถดำเนินการได้");
-    } finally {
-      setActionLoading(false);
-    }
-  };
+  const showStatusBlocker = Boolean(statusError);
 
   return (
     <PageLayout
-      title="พิจารณาคำร้อง (สาขา)"
+      title="พิจารณาคำร้องขอทุน"
       subtitle="ตรวจสอบและส่งต่อคำร้องไปยังผู้ดูแลระบบ"
       icon={ClipboardList}
       breadcrumbs={[
         { label: "หน้าแรก", href: "/member" },
-        { label: "พิจารณาคำร้อง (สาขา)" },
+        { label: "พิจารณาคำร้องขอทุน" },
       ]}
     >
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
@@ -255,15 +275,21 @@ export default function DeptHeadReview() {
           </div>
           <button
             onClick={loadSubmissions}
-            className="px-3 py-1 text-sm rounded-md border border-gray-200 text-gray-700 hover:bg-gray-50"
+            disabled={loading || statusLoading || !statusesReady}
+            className="inline-flex h-10 w-10 items-center justify-center rounded-md border border-gray-200 text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+            aria-label="รีเฟรชรายการ"
           >
-            รีเฟรชรายการ
+            <RotateCcw
+              className={`h-4 w-4 ${loading ? "animate-spin text-blue-600" : ""}`}
+            />
           </button>
         </div>
       </div>
 
       <Card collapsible={false}>
-        {loading ? (
+        {showStatusBlocker ? (
+          <div className="py-16 text-center text-red-600">{statusError}</div>
+        ) : loading ? (
           <div className="flex items-center justify-center py-16 text-gray-600">
             <Loader2 className="animate-spin mr-2" />
             กำลังโหลดข้อมูล...

@@ -5,10 +5,12 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"fund-management-api/config"
 	"fund-management-api/models"
+	"fund-management-api/services"
 	"fund-management-api/utils"
 	"io"
 	"mime/multipart"
@@ -371,12 +373,12 @@ func DeleteSubmission(c *gin.Context) {
 // SubmitSubmission submits a submission (changes status)
 func SubmitSubmission(c *gin.Context) {
 	submissionID := c.Param("id")
-	userID, _ := c.Get("userID")
+	userIDValue, _ := c.Get("userID")
 
 	// Find submission
 	var submission models.Submission
 	if err := config.DB.Where("submission_id = ? AND user_id = ? AND deleted_at IS NULL",
-		submissionID, userID).First(&submission).Error; err != nil {
+		submissionID, userIDValue).First(&submission).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Submission not found"})
 		return
 	}
@@ -387,13 +389,92 @@ func SubmitSubmission(c *gin.Context) {
 		return
 	}
 
-	// Update submission
+	// Resolve target status
+	statusIDs, err := services.GetStatusIDsByNames([]string{services.StatusDeptHeadPendingLabel})
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	pendingID := statusIDs[services.StatusDeptHeadPendingLabel]
+	if pendingID == 0 {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Pending department status is not configured"})
+		return
+	}
+
+	userID, ok := userIDValue.(int)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Invalid user context"})
+		return
+	}
+
+	tx := config.DB.Begin()
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+		}
+	}()
+
 	now := time.Now()
+	oldStatus := submission.StatusID
 	submission.SubmittedAt = &now
 	submission.UpdatedAt = now
+	submission.StatusID = pendingID
 
-	if err := config.DB.Save(&submission).Error; err != nil {
+	if err := tx.Save(&submission).Error; err != nil {
+		tx.Rollback()
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to submit submission"})
+		return
+	}
+
+	historyNote := "auto:submitted_for_dept_head_review"
+	history := models.SubmissionStatusHistory{
+		SubmissionID: submission.SubmissionID,
+		OldStatusID:  &oldStatus,
+		NewStatusID:  pendingID,
+		ChangedBy:    userID,
+		CreatedAt:    now,
+		Notes:        &historyNote,
+	}
+
+	if err := tx.Create(&history).Error; err != nil {
+		tx.Rollback()
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to record status history"})
+		return
+	}
+
+	auditValues := map[string]interface{}{
+		"action":        "submit",
+		"new_status_id": pendingID,
+	}
+	serialized, _ := json.Marshal(auditValues)
+	entityID := submission.SubmissionID
+	audit := models.AuditLog{
+		UserID:      userID,
+		Action:      "submit",
+		EntityType:  "submission",
+		EntityID:    &entityID,
+		NewValues:   stringPtr(string(serialized)),
+		Description: stringPtr("Submission sent to department review"),
+		IPAddress:   c.ClientIP(),
+	}
+	if submission.SubmissionNumber != "" {
+		number := submission.SubmissionNumber
+		audit.EntityNumber = &number
+	}
+	userAgent := strings.TrimSpace(c.GetHeader("User-Agent"))
+	if userAgent != "" {
+		ua := userAgent
+		audit.UserAgent = &ua
+	}
+
+	if err := tx.Create(&audit).Error; err != nil {
+		tx.Rollback()
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to log submission activity"})
+		return
+	}
+
+	if err := tx.Commit().Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to finalize submission"})
 		return
 	}
 
@@ -401,6 +482,14 @@ func SubmitSubmission(c *gin.Context) {
 		"success": true,
 		"message": "Submission submitted successfully",
 	})
+}
+
+func stringPtr(value string) *string {
+	if strings.TrimSpace(value) == "" {
+		return nil
+	}
+	v := value
+	return &v
 }
 
 // ===================== FILE UPLOAD SYSTEM =====================

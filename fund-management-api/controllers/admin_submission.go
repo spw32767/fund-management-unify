@@ -4,6 +4,7 @@ package controllers
 import (
 	"fund-management-api/config"
 	"fund-management-api/models"
+	"fund-management-api/services"
 	"net/http"
 	"strconv"
 	"strings"
@@ -277,10 +278,44 @@ func ApproveSubmission(c *gin.Context) {
 		return
 	}
 
-	// Validate status (1=pending, 4=revision requested)
-	if submission.StatusID != 1 && submission.StatusID != 4 {
+	statusNames := []string{
+		"อยู่ระหว่างการพิจารณา",
+		"ต้องการข้อมูลเพิ่มเติม",
+		services.StatusDeptHeadPendingLabel,
+		services.StatusDeptHeadRecommendedLabel,
+	}
+	statusIDs, err := services.GetStatusIDsByNames(statusNames)
+	if err != nil {
 		tx.Rollback()
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Only pending or revision-requested submissions can be approved"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	deptPendingID := statusIDs[services.StatusDeptHeadPendingLabel]
+	deptRecommendedID := statusIDs[services.StatusDeptHeadRecommendedLabel]
+	generalPendingID := statusIDs["อยู่ระหว่างการพิจารณา"]
+	revisionID := statusIDs["ต้องการข้อมูลเพิ่มเติม"]
+
+	if deptPendingID != 0 && submission.StatusID == deptPendingID {
+		tx.Rollback()
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Submission is awaiting department head review"})
+		return
+	}
+
+	allowedStatuses := map[int]bool{}
+	if deptRecommendedID != 0 {
+		allowedStatuses[deptRecommendedID] = true
+	}
+	if generalPendingID != 0 {
+		allowedStatuses[generalPendingID] = true
+	}
+	if revisionID != 0 {
+		allowedStatuses[revisionID] = true
+	}
+
+	if !allowedStatuses[submission.StatusID] {
+		tx.Rollback()
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Submission cannot be approved in its current status"})
 		return
 	}
 
@@ -406,10 +441,44 @@ func RejectSubmission(c *gin.Context) {
 		return
 	}
 
-	// Only pending (1) or revision-requested (4) can be rejected
-	if submission.StatusID != 1 && submission.StatusID != 4 {
+	statusNames := []string{
+		"อยู่ระหว่างการพิจารณา",
+		"ต้องการข้อมูลเพิ่มเติม",
+		services.StatusDeptHeadPendingLabel,
+		services.StatusDeptHeadRecommendedLabel,
+	}
+	statusIDs, err := services.GetStatusIDsByNames(statusNames)
+	if err != nil {
 		tx.Rollback()
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Only pending or revision-requested submissions can be rejected"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	deptPendingID := statusIDs[services.StatusDeptHeadPendingLabel]
+	deptRecommendedID := statusIDs[services.StatusDeptHeadRecommendedLabel]
+	generalPendingID := statusIDs["อยู่ระหว่างการพิจารณา"]
+	revisionID := statusIDs["ต้องการข้อมูลเพิ่มเติม"]
+
+	if deptPendingID != 0 && submission.StatusID == deptPendingID {
+		tx.Rollback()
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Submission is awaiting department head review"})
+		return
+	}
+
+	allowed := map[int]bool{}
+	if generalPendingID != 0 {
+		allowed[generalPendingID] = true
+	}
+	if revisionID != 0 {
+		allowed[revisionID] = true
+	}
+	if deptRecommendedID != 0 {
+		allowed[deptRecommendedID] = true
+	}
+
+	if !allowed[submission.StatusID] {
+		tx.Rollback()
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Submission cannot be rejected in its current status"})
 		return
 	}
 
