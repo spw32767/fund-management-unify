@@ -268,10 +268,102 @@ const THAI_MONTHS = [
   'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'
 ];
 
-const AUTHOR_ROLE_LABELS = {
-  first_author: 'เป็นผู้ประพันธ์ชื่อแรก (First Author)',
-  corresponding_author: 'เป็นผู้ประพันธ์บรรณกิจ (Corresponding Author)',
-  coauthor: 'เป็นผู้ร่วมประพันธ์ (Co-author)'
+const AUTHOR_ROLE_SENTENCES = {
+  first_author: 'เป็นผู้ประพันธ์ชื่อแรก (first author)',
+  corresponding_author: 'เป็นผู้ประพันธ์บรรณกิจ (corresponding author)',
+  coauthor: 'เป็นผู้ร่วมประพันธ์ (co-author)'
+};
+
+const QUARTILE_SENTENCES = {
+  T5: 'บทความตีพิมพ์ในวารสารระดับนานาชาติ ควอไทล์ 1 (ลำดับ 5% แรก) ที่สามารถสืบค้นได้ในฐานข้อมูล WOS หรือ ISI หรือ SCOPUS',
+  T10: 'บทความตีพิมพ์ในวารสารระดับนานาชาติ ควอไทล์ 1 (ลำดับ 10% แรก) ที่สามารถสืบค้นได้ในฐานข้อมูล WOS หรือ ISI หรือ SCOPUS',
+  Q1: 'บทความตีพิมพ์ในวารสารระดับนานาชาติ ควอไทล์ 1 ที่สามารถสืบค้นได้ในฐานข้อมูล WOS หรือ ISI หรือ SCOPUS',
+  Q2: 'บทความตีพิมพ์ในวารสารระดับนานาชาติ ควอไทล์ 2 ที่สามารถสืบค้นได้ในฐานข้อมูล WOS หรือ ISI หรือ SCOPUS',
+  Q3: 'บทความตีพิมพ์ในวารสารระดับนานาชาติ ควอไทล์ 3 ที่สามารถสืบค้นได้ในฐานข้อมูล WOS หรือ ISI หรือ SCOPUS',
+  Q4: 'บทความตีพิมพ์ในวารสารระดับนานาชาติ ควอไทล์ 4 ที่สามารถสืบค้นได้ในฐานข้อมูล WOS หรือ ISI หรือ SCOPUS',
+  TCI: 'บทความตีพิมพ์ในวารสารระดับนานาชาติ อยู่ในฐานข้อมูล WOS หรือ ISI หรือ SCOPUS หรือวารสารที่อยู่ในฐานข้อมูล TCI'
+};
+
+const THAI_DIGITS = ['ศูนย์', 'หนึ่ง', 'สอง', 'สาม', 'สี่', 'ห้า', 'หก', 'เจ็ด', 'แปด', 'เก้า'];
+const THAI_UNITS = ['', 'สิบ', 'ร้อย', 'พัน', 'หมื่น', 'แสน', 'ล้าน'];
+
+const normalizeThaiNumberSegment = (value) => {
+  const trimmed = `${value}`.replace(/^0+/, '');
+  return trimmed === '' ? '0' : trimmed;
+};
+
+const readThaiNumber = (raw) => {
+  const value = normalizeThaiNumberSegment(raw);
+  if (value === '0') return '';
+
+  if (value.length > 6) {
+    const head = value.slice(0, -6);
+    const tail = value.slice(-6);
+    const headText = readThaiNumber(head);
+    const tailText = readThaiNumber(tail);
+    return `${headText}ล้าน${tailText || ''}`;
+  }
+
+  const digits = value.split('').map((ch) => parseInt(ch, 10));
+  const len = digits.length;
+  let result = '';
+
+  digits.forEach((digit, index) => {
+    if (Number.isNaN(digit) || digit === 0) return;
+    const position = len - index - 1;
+    if (position === 0) {
+      if (digit === 1 && len > 1) {
+        result += 'เอ็ด';
+      } else {
+        result += THAI_DIGITS[digit];
+      }
+      return;
+    }
+
+    if (position === 1) {
+      if (digit === 2) {
+        result += 'ยี่สิบ';
+        return;
+      }
+      if (digit === 1) {
+        result += 'สิบ';
+        return;
+      }
+    }
+
+    result += `${THAI_DIGITS[digit]}${THAI_UNITS[position]}`;
+  });
+
+  return result;
+};
+
+const toBahtText = (amount) => {
+  if (amount === null || amount === undefined || amount === '') {
+    return '';
+  }
+
+  const numeric = parseFloat(`${amount}`.toString().replace(/,/g, ''));
+  if (Number.isNaN(numeric)) {
+    return '';
+  }
+
+  if (numeric === 0) {
+    return 'ศูนย์บาทถ้วน';
+  }
+
+  const fixed = Math.abs(numeric).toFixed(2);
+  const [bahtPart, satangPart] = fixed.split('.');
+  const bahtText = readThaiNumber(bahtPart) || 'ศูนย์';
+  const satangValue = parseInt(satangPart, 10);
+
+  let result = `${bahtText}บาท`;
+  if (satangValue === 0) {
+    result += 'ถ้วน';
+  } else {
+    result += `${readThaiNumber(satangPart)}สตางค์`;
+  }
+
+  return result;
 };
 
 const formatThaiDate = (value) => {
@@ -349,18 +441,19 @@ const wrapParagraph = (ctx, text, font, maxWidth) => {
 const wrapEntryLines = (ctx, entry, style, contentWidth, bulletIndent) => {
   const paragraphs = `${entry.text ?? ''}`.split('\n');
   const lines = [];
-  const indentWidth = style.bullet ? bulletIndent : 0;
+  const indentValue = entry.indent ?? style.indent ?? 0;
+  const indentWidth = (style.bullet ? bulletIndent : 0) + indentValue;
   const prefixExtra = entry.prefix ? 40 : 0;
   const maxWidth = Math.max(contentWidth - indentWidth - prefixExtra, 50);
 
   paragraphs.forEach((paragraph, index) => {
     const text = paragraph.trim();
     if (index > 0) {
-      lines.push({ text: '', isSpacer: true });
+      lines.push({ text: '', isSpacer: true, indent: indentValue });
     }
 
     if (!text) {
-      lines.push({ text: '' });
+      lines.push({ text: '', indent: indentValue });
       return;
     }
 
@@ -370,7 +463,8 @@ const wrapEntryLines = (ctx, entry, style, contentWidth, bulletIndent) => {
         text: segment,
         isBullet: style.bullet && segmentIndex === 0 && !entry.prefix,
         isBulletContinuation: style.bullet && segmentIndex > 0,
-        prefix: segmentIndex === 0 ? (entry.prefix || null) : null
+        prefix: segmentIndex === 0 ? (entry.prefix || null) : null,
+        indent: indentValue,
       });
     });
   });
@@ -381,9 +475,9 @@ const wrapEntryLines = (ctx, entry, style, contentWidth, bulletIndent) => {
 const generateSubmissionSummaryPdf = async ({
   formData,
   currentUser,
-  coauthors,
-  externalFundings,
   documents,
+  systemConfig,
+  fiscalYear,
 }) => {
   if (typeof window === 'undefined' || typeof document === 'undefined') {
     return null;
@@ -391,172 +485,216 @@ const generateSubmissionSummaryPdf = async ({
 
   try {
     const canvas = document.createElement('canvas');
-    const width = 1240; // ~A4 width at high resolution
-    const marginX = 80;
-    const marginY = 80;
-    const bulletIndent = 50;
+    const width = 1240;
+    const marginX = 120;
+    const marginY = 100;
+    const bulletIndent = 56;
     const contentWidth = width - marginX * 2;
 
     canvas.width = width;
-    canvas.height = 2000; // temporary height for measurement
+    canvas.height = 2200;
 
     const ctx = canvas.getContext('2d');
     ctx.fillStyle = '#ffffff';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     ctx.textBaseline = 'top';
 
-    const sectionStyle = 'bold 34px "Sarabun", "Tahoma", sans-serif';
-    const textStyle = '28px "Sarabun", "Tahoma", sans-serif';
-
+    const fontFamily = '"TH Sarabun New", "Sarabun", "Tahoma", sans-serif';
     const styles = {
-      header: {
-        font: 'bold 46px "Sarabun", "Tahoma", sans-serif',
-        lineHeight: 60,
+      title: {
+        font: `bold 52px ${fontFamily}`,
+        lineHeight: 68,
         color: '#1f2937',
         align: 'center',
-        spacingAfter: 12,
-      },
-      subheader: {
-        font: '24px "Sarabun", "Tahoma", sans-serif',
-        lineHeight: 32,
-        color: '#4b5563',
-        align: 'center',
-        spacingAfter: 24,
-      },
-      section: {
-        font: sectionStyle,
-        lineHeight: 44,
-        color: '#1f2937',
-        align: 'left',
-        spacingBefore: 16,
-        spacingAfter: 8,
-      },
-      text: {
-        font: textStyle,
-        lineHeight: 38,
-        color: '#111827',
-        align: 'left',
         spacingAfter: 6,
       },
-      bullet: {
-        font: '26px "Sarabun", "Tahoma", sans-serif',
-        lineHeight: 36,
-        color: '#374151',
-        align: 'left',
-        spacingAfter: 4,
-        bullet: true,
+      subtitle: {
+        font: `bold 40px ${fontFamily}`,
+        lineHeight: 54,
+        color: '#1f2937',
+        align: 'center',
+        spacingAfter: 28,
       },
-      note: {
-        font: 'italic 24px "Sarabun", "Tahoma", sans-serif',
-        lineHeight: 32,
-        color: '#6b7280',
+      location: {
+        font: `32px ${fontFamily}`,
+        lineHeight: 44,
+        color: '#111827',
+        spacingAfter: 4,
+      },
+      date: {
+        font: `32px ${fontFamily}`,
+        lineHeight: 44,
+        color: '#111827',
+        align: 'right',
+        spacingAfter: 20,
+      },
+      subject: {
+        font: `bold 32px ${fontFamily}`,
+        lineHeight: 44,
+        color: '#111827',
         align: 'left',
-        spacingBefore: 18,
+        spacingAfter: 10,
+      },
+      salutation: {
+        font: `32px ${fontFamily}`,
+        lineHeight: 44,
+        color: '#111827',
+        align: 'left',
+        spacingAfter: 16,
+      },
+      body: {
+        font: `32px ${fontFamily}`,
+        lineHeight: 46,
+        color: '#111827',
+        align: 'left',
+        spacingAfter: 16,
+        indent: 48,
+      },
+      bodyNoIndent: {
+        font: `32px ${fontFamily}`,
+        lineHeight: 46,
+        color: '#111827',
+        align: 'left',
+        spacingAfter: 12,
+      },
+      list: {
+        font: `32px ${fontFamily}`,
+        lineHeight: 44,
+        color: '#111827',
+        align: 'left',
+        spacingAfter: 12,
+        indent: 64,
+      },
+      documentList: {
+        font: `32px ${fontFamily}`,
+        lineHeight: 44,
+        color: '#111827',
+        align: 'left',
+        spacingAfter: 16,
+        indent: 64,
+      },
+      checkbox: {
+        font: `32px ${fontFamily}`,
+        lineHeight: 44,
+        color: '#111827',
+        align: 'left',
+        spacingAfter: 10,
+        indent: 64,
+      },
+      signoff: {
+        font: `32px ${fontFamily}`,
+        lineHeight: 44,
+        color: '#111827',
+        align: 'right',
+        spacingBefore: 24,
+        spacingAfter: 12,
+      },
+      signature: {
+        font: `32px ${fontFamily}`,
+        lineHeight: 44,
+        color: '#111827',
+        align: 'right',
+        spacingAfter: 8,
+      },
+      signatureName: {
+        font: `32px ${fontFamily}`,
+        lineHeight: 44,
+        color: '#111827',
+        align: 'right',
       },
     };
 
-    const nowThai = formatThaiDate(new Date());
-    const applicantTitle = [
-      safeDisplay(currentUser?.position_name, '').toString().trim(),
-      safeDisplay(currentUser?.user_fname, '').toString().trim(),
-      safeDisplay(currentUser?.user_lname, '').toString().trim(),
-    ].filter(Boolean).join(' ') || safeDisplay(`${formData.applicant_name ?? ''}`.trim(), '—');
+    const todayThai = formatThaiDate(new Date());
     const employmentDate = formatThaiDate(currentUser?.date_of_employment);
-    const authorRole = AUTHOR_ROLE_LABELS[formData.author_status] || '—';
-    const quartileDescription = QUARTILE_MAP[formData.journal_quartile] || '';
+    const applicantNameParts = [
+      safeDisplay(currentUser?.user_fname, ''),
+      safeDisplay(currentUser?.user_lname, ''),
+    ].filter(Boolean);
+    let applicantName = applicantNameParts.join(' ').trim();
+    if (!applicantName) {
+      applicantName = safeDisplay(formData.applicant_name, '—');
+    }
+
+    const positionName = safeDisplay(currentUser?.position_name, '—');
+    const fiscalYearDisplay = safeDisplay(fiscalYear, '—');
+    const installmentDisplay = safeDisplay(
+      systemConfig?.installment !== null && systemConfig?.installment !== undefined
+        ? `${systemConfig.installment}`
+        : '',
+      '—'
+    );
+
+    const totalAmountNumeric = Number.parseFloat(formData.total_amount) || 0;
+    const totalAmountFormatted = totalAmountNumeric.toLocaleString('th-TH', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+    const totalAmountText = toBahtText(totalAmountNumeric);
+
     const publicationThai = formatThaiMonthYear(formData.journal_month, formData.journal_year);
-    const indexingList = [
-      formData.in_isi ? 'ISI' : null,
-      formData.in_scopus ? 'Scopus' : null,
-      formData.in_web_of_science ? 'Web of Science' : null,
-      formData.in_tci ? 'TCI' : null,
-    ].filter(Boolean).join(', ');
+    const volumeIssue = safeDisplay(formData.journal_issue, '');
+    const pageNumbers = safeDisplay(formData.journal_pages, '');
+    const authorNameList = safeDisplay(formData.author_name_list, '');
+    const articleTitle = safeDisplay(formData.article_title, '');
+    const journalName = safeDisplay(formData.journal_name, '');
 
-    const coauthorLines = (coauthors || []).map((author, index) => `${index + 1}. ${author.user_fname || ''} ${author.user_lname || ''}`.trim());
-    const fundingLines = (externalFundings || [])
-      .filter(f => safeDisplay(f.fundName || f.file?.name || '', '') !== '')
-      .map((funding, index) => {
-        const fundName = safeDisplay(funding.fundName || funding.file?.name, `ทุนภายนอก ${index + 1}`);
-        const amount = formatCurrency(funding.amount || 0);
-        return `${fundName} — ${amount} บาท`;
+    const articleDetailParts = [authorNameList, articleTitle, journalName, publicationThai, volumeIssue, pageNumbers]
+      .map(part => (part && part !== '—' ? part : ''))
+      .filter(Boolean);
+    const articleDetailText = articleDetailParts.length > 0 ? articleDetailParts.join(' ') : '—';
+
+    const authorRoleSentence = AUTHOR_ROLE_SENTENCES[formData.author_status] || '';
+    const quartileSentence = QUARTILE_SENTENCES[formData.journal_quartile] || '';
+
+    const documentLines = (documents || [])
+      .filter(doc => !doc.isGenerated)
+      .map(doc => {
+        const label = safeDisplay(doc.type || doc.name, 'เอกสารแนบ');
+        return `☑ ${label} — จำนวน 1 ฉบับ`;
       });
+    const documentListText = documentLines.length > 0
+      ? documentLines.join('\n')
+      : '☑ ไม่พบรายการเอกสารแนบ — จำนวน 1 ฉบับ';
 
-    const documentEntries = [
-      { name: 'แบบฟอร์มสรุปคำขอ (สร้างโดยระบบ)', type: 'เอกสารที่ระบบจัดทำ', isGenerated: true },
-      ...((documents || []).map(doc => ({
-        name: doc.name,
-        type: doc.type,
-      })))
-    ];
+    const signatureText = safeDisplay(formData.signature, '........................................');
+    const kkuReportYear = safeDisplay(systemConfig?.kku_report_year, '—');
 
     const content = [
-      { type: 'header', text: 'แบบฟอร์มขอเบิกเงินรางวัลการตีพิมพ์เผยแพร่ผลงานวิจัย' },
-      { type: 'subheader', text: `จัดทำจากระบบออนไลน์เมื่อ ${nowThai}` },
-      { type: 'section', text: 'ข้อมูลผู้ยื่นคำร้อง' },
-      { type: 'text', text: `ชื่อ-นามสกุล: ${applicantTitle}` },
-      { type: 'text', text: `ตำแหน่ง: ${safeDisplay(currentUser?.position_name, '—')}` },
-      { type: 'text', text: `วันที่เริ่มปฏิบัติงาน: ${employmentDate}` },
-      { type: 'text', text: `เบอร์โทรศัพท์ที่ติดต่อได้: ${safeDisplay(formData.phone_number, '—')}` },
-      { type: 'text', text: `บัญชีธนาคารสำหรับรับเงิน: ${safeDisplay(formData.bank_account, '—')} (${safeDisplay(formData.bank_name, '—')})` },
-      { type: 'section', text: 'รายละเอียดบทความ' },
-      { type: 'text', text: `ชื่อบทความ: ${safeDisplay(formData.article_title, '—')}` },
-      { type: 'text', text: `รายชื่อผู้แต่งตามบทความ: ${safeDisplay(formData.author_name_list, '—')}` },
-      { type: 'text', text: `วารสารที่ตีพิมพ์: ${safeDisplay(formData.journal_name, '—')}` },
-      { type: 'text', text: `สถานะผู้ยื่นคำร้อง: ${authorRole}` },
-      { type: 'text', text: `Quartile: ${safeDisplay(formData.journal_quartile, '—')}` },
+      { type: 'title', text: 'ใบสมัครเพื่อขอใช้เงินกองทุนวิจัย นวัตกรรม และบริการวิชาการ วิทยาลัยการคอมพิวเตอร์ มหาวิทยาลัยขอนแก่น' },
+      { type: 'subtitle', text: 'เงินรางวัลการตีพิมพ์เผยแพร่ผลงานวิจัยที่ได้รับการตีพิมพ์ในสาขาวิทยาศาสตร์และเทคโนโลยี' },
+      { type: 'location', text: 'เขียนที่  วิทยาลัยการคอมพิวเตอร์ มหาวิทยาลัยขอนแก่น' },
+      { type: 'date', text: todayThai },
+      { type: 'subject', text: 'เรื่องขออนุมัติเบิกค่าใช้จ่ายในการสนับสนุนการตีพิมพ์ผลงานวิจัยในสาขาวิทยาศาสตร์และเทคโนโลยี' },
+      { type: 'salutation', text: 'เรียน  คณบดีวิทยาลัยการคอมพิวเตอร์' },
+      {
+        type: 'body',
+        text: `ข้าพเจ้า ${applicantName} บรรจุเมื่อวันที่ ${employmentDate}          ตำแหน่ง ${positionName} สังกัดหน่วยงาน/สาขาวิชา วิทยาลัยการคอมพิวเตอร์ มหาวิทยาลัยขอนแก่น ขอยื่นใบสมัครเพื่อขอใช้เงินกองทุนวิจัย นวัตกรรมและบริการวิชาการ วิทยาลัยการคอมพิวเตอร์ มหาวิทยาลัยขอนแก่น ประจำปีงบประมาณ พ.ศ. ${fiscalYearDisplay}  งวดที่ ${installmentDisplay} ดังนี้`,
+      },
+      {
+        type: 'body',
+        text: `ข้าพเจ้าขออนุมัติใช้เงินกองทุนฯ ในวงเงินจำนวน ${totalAmountFormatted} บาท (${totalAmountText}) เพื่อเป็นค่าตอบแทนผลงานวิจัยที่ได้รับการตีพิมพ์ในวารสาร ดังนี้`,
+      },
+      { type: 'list', text: '1) ผู้แต่ง. ชื่อเรื่อง. ชื่อวารสาร. ปีที่พิมพ์. ปีที่ (ฉบับที่) หน้า.' },
+      { type: 'list', text: articleDetailText },
+      {
+        type: 'body',
+        text: `ข้าพเจ้า ${authorRoleSentence || '—'} ได้ตีพิมพ์ ${quartileSentence || ''}`.trim(),
+      },
+      { type: 'body', text: 'ทั้งนี้ได้แนบ หลักฐานเพื่อประกอบการพิจารณา ดังนี้' },
+      { type: 'documentList', text: documentListText },
+      { type: 'bodyNoIndent', text: 'ข้าพเจ้าขอรับรองว่า' },
+      {
+        type: 'checkbox',
+        text: '☑ ผลงานตีพิมพ์ที่ขอรับการสนับสนุนไม่เคยได้รับการจัดสรรทุนของมหาวิทยาลัย และทุนส่งเสริมการวิจัยจากกองทุนวิจัย นวัตกรรม และบริการวิชาการ วิทยาลัยการคอมพิวเตอร์',
+      },
+      {
+        type: 'checkbox',
+        text: `☑ จะปฏิบัติตามระเบียบมหาวิทยาลัยขอนแก่น ว่าด้วยกองทุนวิจัยในระดับคณะ พ.ศ. ${kkuReportYear} รวมถึงหลักเกณฑ์และประกาศอื่นใดที่เกี่ยวข้องทุกประการ`,
+      },
+      { type: 'signoff', text: 'ขอแสดงความนับถือ' },
+      { type: 'signature', text: `(ลงชื่อ) ${signatureText} ผู้สมัครขอใช้เงิน` },
+      { type: 'signatureName', text: `(${applicantName})` },
     ];
-
-    if (quartileDescription) {
-      content.push({ type: 'text', text: `รายละเอียด Quartile: ${quartileDescription}` });
-    }
-
-    content.push(
-      { type: 'text', text: `ฉบับ Vol./Issue: ${safeDisplay(formData.journal_issue, '—')}` },
-      { type: 'text', text: `หน้าที่ตีพิมพ์: ${safeDisplay(formData.journal_pages, '—')}` },
-      { type: 'text', text: `เดือน/ปีที่ตีพิมพ์: ${publicationThai}` },
-      { type: 'text', text: `DOI: ${safeDisplay(formData.doi, '—')}` },
-      { type: 'text', text: `ลิงก์บทความ: ${safeDisplay(formData.journal_url, '—')}` },
-      { type: 'text', text: `ฐานข้อมูลที่สืบค้นได้: ${safeDisplay(indexingList, '—')}` },
-    );
-
-    if (coauthorLines.length > 0) {
-      content.push({ type: 'section', text: 'ผู้แต่งร่วม' });
-      content.push({ type: 'text', text: `จำนวนผู้แต่งร่วม: ${coauthorLines.length} คน` });
-      coauthorLines.forEach(line => {
-        content.push({ type: 'bullet', text: line });
-      });
-    }
-
-    content.push({ type: 'section', text: 'สรุปจำนวนเงินที่ขอเบิก' });
-    content.push(
-      { type: 'text', text: `เงินรางวัลการตีพิมพ์: ${formatCurrency(formData.publication_reward || 0)} บาท` },
-      { type: 'text', text: `ค่าปรับปรุงบทความ: ${formatCurrency(formData.revision_fee || 0)} บาท` },
-      { type: 'text', text: `ค่าการตีพิมพ์: ${formatCurrency(formData.publication_fee || 0)} บาท` },
-      { type: 'text', text: `ทุนภายนอกที่ได้รับ: ${formatCurrency(formData.external_funding_amount || 0)} บาท` },
-      { type: 'text', text: `ยอดสุทธิที่ขอเบิก: ${formatCurrency(formData.total_amount || 0)} บาท` },
-    );
-
-    if (fundingLines.length > 0) {
-      content.push({ type: 'section', text: 'รายละเอียดทุนภายนอก' });
-      fundingLines.forEach(line => {
-        content.push({ type: 'bullet', text: line });
-      });
-    }
-
-    if (documentEntries.length > 0) {
-      content.push({ type: 'section', text: 'รายการเอกสารที่รวมในไฟล์ PDF' });
-      documentEntries.forEach(doc => {
-        const labelParts = [];
-        if (doc.type) {
-          labelParts.push(doc.type);
-        }
-        labelParts.push(doc.name);
-        content.push({ type: 'bullet', text: labelParts.join(' — '), prefix: doc.isGenerated ? '⭐' : '☑' });
-      });
-      content.push({ type: 'note', text: '⭐ แสดงถึงเอกสารที่ระบบสร้างให้อัตโนมัติจากข้อมูลในแบบฟอร์ม' });
-    }
-
-    content.push({ type: 'note', text: 'หมายเหตุ: เอกสารหน้านี้ถูกสร้างขึ้นโดยอัตโนมัติและจะถูกจัดวางเป็นหน้แรกเมื่อรวมไฟล์ PDF ทั้งหมด' });
 
     const processed = [];
     let totalHeight = marginY;
@@ -590,25 +728,36 @@ const generateSubmissionSummaryPdf = async ({
       ctx.font = style.font;
       ctx.fillStyle = style.color || '#111827';
 
-      if ((style.align || 'left') === 'center') {
+      const alignment = style.align || 'left';
+      if (alignment === 'center') {
         ctx.textAlign = 'center';
         lines.forEach((line) => {
           const text = typeof line === 'string' ? line : line.text || '';
           ctx.fillText(text, width / 2, cursorY);
           cursorY += style.lineHeight;
         });
+      } else if (alignment === 'right') {
+        ctx.textAlign = 'right';
+        const rightX = marginX + contentWidth;
+        lines.forEach((line) => {
+          const text = typeof line === 'string' ? line : line.text || '';
+          ctx.fillText(text, rightX, cursorY);
+          cursorY += style.lineHeight;
+        });
       } else {
         ctx.textAlign = 'left';
         lines.forEach((line) => {
           const text = typeof line === 'string' ? line : line.text || '';
+          const indent = line.indent ?? entry.indent ?? style.indent ?? 0;
+          const drawX = marginX + indent;
           if (line.prefix) {
-            ctx.fillText(`${line.prefix} ${text}`, marginX, cursorY);
+            ctx.fillText(`${line.prefix} ${text}`, drawX, cursorY);
           } else if (line.isBullet) {
-            ctx.fillText(`• ${text}`, marginX, cursorY);
+            ctx.fillText(`• ${text}`, drawX, cursorY);
           } else if (line.isBulletContinuation) {
-            ctx.fillText(text, marginX + bulletIndent, cursorY);
+            ctx.fillText(text, drawX + bulletIndent, cursorY);
           } else {
-            ctx.fillText(text, marginX, cursorY);
+            ctx.fillText(text, drawX, cursorY);
           }
           cursorY += style.lineHeight;
         });
@@ -931,6 +1080,10 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
   const [years, setYears] = useState([]);
   const [currentSubmissionId, setCurrentSubmissionId] = useState(null);
   const [currentUser, setCurrentUser] = useState(null);
+  const [systemConfigInfo, setSystemConfigInfo] = useState({
+    installment: null,
+    kku_report_year: null,
+  });
   const [mergedPdfFile, setMergedPdfFile] = useState(null);
   const [availableAuthorStatuses, setAvailableAuthorStatuses] = useState([]);
   const [availableQuartiles, setAvailableQuartiles] = useState([]);
@@ -1489,6 +1642,11 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
         const rawWindow = await systemConfigAPI.getWindow();
         const root = rawWindow?.data ?? rawWindow; // รองรับทั้ง 2 รูปแบบ (admin vs window)
 
+        setSystemConfigInfo({
+          installment: root?.installment ?? null,
+          kku_report_year: root?.kku_report_year ?? null,
+        });
+
         // อ่าน announcement_id ที่ถูกต้องจาก system_config
         setAnnouncementLock({
           main_annoucement: root?.config_id ?? null,
@@ -1503,6 +1661,7 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
       } catch (e) {
         console.warn('Cannot fetch system-config window; main_annoucement/reward_announcement will be null', e);
         setAnnouncementLock({ main_annoucement: null, reward_announcement: null });
+        setSystemConfigInfo({ installment: null, kku_report_year: null });
       }
 
       console.log('Raw API responses:');
@@ -2317,12 +2476,13 @@ const showSubmissionConfirmation = async () => {
 
   let summaryFile = null;
   try {
+    const selectedYear = years.find(year => year.year_id === formData.year_id);
     const summaryBlob = await generateSubmissionSummaryPdf({
       formData,
       currentUser,
-      coauthors,
-      externalFundings,
       documents: allFilesList,
+      systemConfig: systemConfigInfo,
+      fiscalYear: selectedYear?.year || null,
     });
 
     if (summaryBlob) {
