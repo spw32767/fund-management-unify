@@ -43,6 +43,16 @@ const Toast = Swal.mixin({
 // Draft storage constants
 const DRAFT_KEY = 'publication_reward_draft';
 
+// Author status to subcategory mapping
+const AUTHOR_STATUS_SUBCATEGORY_MAP = {
+  first_author: 14,
+  corresponding_author: 15
+};
+
+const getSubcategoryIdForAuthorStatus = (status) => {
+  return AUTHOR_STATUS_SUBCATEGORY_MAP[status] ?? null;
+};
+
 // =================================================================
 // UTILITY FUNCTIONS
 // =================================================================
@@ -778,7 +788,13 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
       const quartiles = enabledPairs.filter(p => p.author_status === formData.author_status).map(p => p.journal_quartile);
       const sorted = sortQuartiles(quartiles);
       setAvailableQuartiles(sorted);
-      setFormData(prev => ({ ...prev, journal_quartile: '', subcategory_id: null, subcategory_budget_id: null }));
+      const mappedSubcategoryId = getSubcategoryIdForAuthorStatus(formData.author_status);
+      setFormData(prev => ({
+        ...prev,
+        journal_quartile: '',
+        subcategory_id: mappedSubcategoryId,
+        subcategory_budget_id: null
+      }));
       if (sorted.length === 0) {
         setResolutionError('ไม่พบทุนสำหรับปี/สถานะ/ควอร์ไทล์ที่เลือก');
       } else {
@@ -799,9 +815,11 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
             journal_quartile: formData.journal_quartile
           });
           if (result) {
+            const mappedSubcategoryId = getSubcategoryIdForAuthorStatus(formData.author_status);
+            const resolvedSubcategoryId = mappedSubcategoryId ?? result?.subcategory_id ?? null;
             setFormData(prev => ({
               ...prev,
-              subcategory_id: result.subcategory_id,
+              subcategory_id: resolvedSubcategoryId,
               subcategory_budget_id: result.subcategory_budget_id,
               publication_reward: result.reward_amount,
               reward_amount: result.reward_amount,
@@ -2286,8 +2304,10 @@ const showSubmissionConfirmation = async () => {
           html: 'กำลังสร้างคำร้อง...'
         });
 
+        const submissionSubcategoryId = getSubcategoryIdForAuthorStatus(formData.author_status) ?? formData.subcategory_id;
+
         console.log('Before POST:', {
-          subcategory_id: formData.subcategory_id,
+          subcategory_id: submissionSubcategoryId,
           subcategory_budget_id: formData.subcategory_budget_id
         });
 
@@ -2295,7 +2315,7 @@ const showSubmissionConfirmation = async () => {
           submission_type: 'publication_reward',
           year_id: formData.year_id,
           category_id: formData.category_id || categoryId,
-          subcategory_id: formData.subcategory_id,        // Dynamic resolved
+          subcategory_id: submissionSubcategoryId,        // Dynamic resolved
           subcategory_budget_id: formData.subcategory_budget_id,  // Dynamic resolved
         });
         
