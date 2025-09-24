@@ -29,6 +29,7 @@ import Card from '../common/Card';
 import { toast } from 'react-hot-toast';
 import StatusBadge from '@/app/admin/components/common/StatusBadge';
 import { useStatusMap } from '@/app/hooks/useStatusMap';
+import DEPT_STATUS_LABELS from '@/app/lib/dept_status_labels';
 import DeptReviewNotice from './DeptReviewNotice';
 
 import apiClient from "@/app/lib/api";
@@ -78,13 +79,6 @@ const getColoredStatusIcon = (statusCode) => {
     return <Icon {...props} className={`${props.className || ''} ${color}`} />;
   };
 };
-
-const DEPT_STATUS_LABELS = {
-  pending: 'อยู่ระหว่างการพิจารณาจากหัวหน้าสาขา',
-  recommended: 'เห็นควรพิจารณาจากหัวหน้าสาขา',
-  rejected: 'ไม่เห็นควรพิจารณา',
-};
-
 
 const formatDate = (dateString) => {
   if (!dateString) return '-';

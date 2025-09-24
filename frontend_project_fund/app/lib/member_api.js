@@ -34,15 +34,11 @@ const resolveRoleName = (role) => {
 
 export const deptHeadAPI = {
   async getPendingReviews(params = {}) {
-    return apiClient.get('/dept-head/submissions', params);
+    return apiClient.get('/dept-head/review/submissions', params);
   },
 
-  async recommendSubmission(submissionId, payload = {}) {
-    return apiClient.post(`/dept-head/submissions/${submissionId}/recommend`, payload);
-  },
-
-  async rejectSubmission(submissionId, payload = {}) {
-    return apiClient.post(`/dept-head/submissions/${submissionId}/reject`, payload);
+  async submitDecision(submissionId, payload = {}) {
+    return apiClient.post(`/dept-head/review/${submissionId}/decision`, payload);
   },
 };
 
