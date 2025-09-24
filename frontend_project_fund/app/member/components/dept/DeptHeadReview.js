@@ -24,11 +24,6 @@ const formatDate = (value) => {
   }
 };
 
-const DECISION_MAP = {
-  recommend: "agree",
-  reject: "disagree",
-};
-
 export default function DeptHeadReview() {
   const { getByName, isLoading: statusLoading } = useStatusMap();
 
@@ -51,23 +46,27 @@ export default function DeptHeadReview() {
     };
 
     const pending = getByName?.(DEPT_STATUS_LABELS.pending);
-    const recommended = getByName?.(DEPT_STATUS_LABELS.recommended);
+    const forwarded =
+      getByName?.(DEPT_STATUS_LABELS.forwarded) ||
+      getByName?.(DEPT_STATUS_LABELS.recommended);
     const rejected = getByName?.(DEPT_STATUS_LABELS.rejected);
 
     const pendingId = parseId(pending);
-    const recommendedId = parseId(recommended);
+    const forwardedId = parseId(forwarded);
     const rejectedId = parseId(rejected);
 
     return {
       pendingId,
-      recommendedId,
+      forwardedId,
       rejectedId,
-      ready: Boolean(pendingId && recommendedId && rejectedId),
+      ready: Boolean(pendingId && forwardedId && rejectedId),
     };
   }, [getByName]);
 
   const statusesReady = statusInfo.ready;
   const pendingStatusId = statusInfo.pendingId;
+  const forwardedStatusId = statusInfo.forwardedId;
+  const rejectedStatusId = statusInfo.rejectedId;
 
   useEffect(() => {
     if (!statusLoading) {
@@ -90,7 +89,10 @@ export default function DeptHeadReview() {
       setLoading(true);
       setError(null);
 
-      const response = await deptHeadAPI.getPendingReviews({ status: "pending" });
+      const response = await deptHeadAPI.getPendingReviews({
+        status_id: pendingStatusId,
+        status: pendingStatusId,
+      });
       const rows = response?.submissions || response?.data || [];
 
       const normalized = rows
@@ -132,12 +134,7 @@ export default function DeptHeadReview() {
             raw: item,
           };
         })
-        .filter((row) => {
-          if (!Number.isFinite(row.statusId)) {
-            return true;
-          }
-          return row.statusId === pendingStatusId;
-        });
+        .filter((row) => Number.isFinite(row.statusId) && row.statusId === pendingStatusId);
 
       setSubmissions(normalized);
     } catch (err) {
@@ -175,12 +172,24 @@ export default function DeptHeadReview() {
       return;
     }
 
+    const isApprove = actionTarget.action === "approve";
+    const nextStatusId = isApprove ? forwardedStatusId : rejectedStatusId;
+
+    if (!Number.isFinite(nextStatusId)) {
+      setActionError("ไม่สามารถระบุสถานะถัดไปได้");
+      return;
+    }
+
     setActionLoading(true);
     setActionError(null);
 
     try {
-      const decision = DECISION_MAP[actionTarget.action] || actionTarget.action;
-      const payload = { decision };
+      const payload = {
+        decision: isApprove ? "approve" : "reject",
+        status_id: nextStatusId,
+        application_status_id: nextStatusId,
+        status: nextStatusId,
+      };
       const trimmed = actionComment.trim();
       if (trimmed) {
         payload.comment = trimmed;
@@ -194,7 +203,15 @@ export default function DeptHeadReview() {
     } finally {
       setActionLoading(false);
     }
-  }, [actionTarget, actionComment, closeAction, loadSubmissions, statusesReady]);
+  }, [
+    actionTarget,
+    actionComment,
+    closeAction,
+    forwardedStatusId,
+    loadSubmissions,
+    rejectedStatusId,
+    statusesReady,
+  ]);
 
   const columns = useMemo(
     () => [
@@ -235,10 +252,10 @@ export default function DeptHeadReview() {
         render: (_, row) => (
           <div className="flex gap-2">
             <button
-              onClick={() => openAction(row, "recommend")}
+              onClick={() => openAction(row, "approve")}
               className="px-3 py-1 text-sm rounded-md border border-blue-200 text-blue-700 hover:bg-blue-50"
             >
-              เห็นควร/ส่งต่อ Admin
+              อนุมัติ
             </button>
             <button
               onClick={() => openAction(row, "reject")}
@@ -270,7 +287,7 @@ export default function DeptHeadReview() {
           <div>
             <h3 className="text-lg font-semibold text-gray-800">รายการคำร้องที่รอตรวจสอบ</h3>
             <p className="text-sm text-gray-500 mt-1">
-              เลือกดำเนินการเพื่อเห็นควรและส่งต่อ หรือปฏิเสธพร้อมระบุเหตุผล
+              เลือกดำเนินการเพื่ออนุมัติหรือปฏิเสธ พร้อมระบุความคิดเห็นประกอบ
             </p>
           </div>
           <button
@@ -310,7 +327,7 @@ export default function DeptHeadReview() {
           <div className="bg-white rounded-xl shadow-xl w-full max-w-lg">
             <div className="px-6 py-4 border-b">
               <h3 className="text-lg font-semibold text-gray-800">
-                {actionTarget.action === "recommend" ? "เห็นควร/ส่งต่อ Admin" : "ปฏิเสธคำร้อง"}
+                {actionTarget.action === "approve" ? "อนุมัติคำร้อง" : "ปฏิเสธคำร้อง"}
               </h3>
               <p className="text-sm text-gray-500 mt-1">
                 เลขคำร้อง {actionTarget.submission_number}
@@ -347,7 +364,7 @@ export default function DeptHeadReview() {
                 onClick={confirmAction}
                 disabled={actionLoading}
                 className={`px-4 py-2 text-sm rounded-md text-white ${
-                  actionTarget.action === "recommend"
+                  actionTarget.action === "approve"
                     ? "bg-blue-600 hover:bg-blue-700"
                     : "bg-red-600 hover:bg-red-700"
                 } disabled:opacity-60`}
@@ -357,8 +374,8 @@ export default function DeptHeadReview() {
                     <Loader2 className="animate-spin" size={16} />
                     กำลังบันทึก...
                   </span>
-                ) : actionTarget.action === "recommend" ? (
-                  "เห็นควร/ส่งต่อ"
+                ) : actionTarget.action === "approve" ? (
+                  "อนุมัติ"
                 ) : (
                   "ปฏิเสธ"
                 )}
