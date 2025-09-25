@@ -91,6 +91,47 @@ const formatBankAccount = (value) => {
   return cleaned.slice(0, 15);
 };
 
+// Ensure summary generator fonts are loaded before drawing to canvas
+const SUMMARY_FONT_DESCRIPTORS = [
+  '400 30px "TH Sarabun New"',
+  '700 30px "TH Sarabun New"',
+  '400 34px "TH Sarabun New"',
+  '700 34px "TH Sarabun New"',
+  '700 36px "TH Sarabun New"',
+];
+
+let summaryFontsLoaded = false;
+
+const ensureSummaryFontsLoaded = async () => {
+  if (summaryFontsLoaded) {
+    return;
+  }
+
+  if (typeof document === 'undefined' || !document.fonts?.load) {
+    summaryFontsLoaded = true;
+    return;
+  }
+
+  try {
+    const loaders = SUMMARY_FONT_DESCRIPTORS.map(async (descriptor) => {
+      try {
+        if (!document.fonts.check(descriptor)) {
+          await document.fonts.load(descriptor);
+        }
+      } catch (err) {
+        console.warn('Unable to load font descriptor', descriptor, err);
+      }
+    });
+
+    await Promise.all(loaders);
+    await document.fonts.ready;
+    summaryFontsLoaded = true;
+  } catch (error) {
+    console.warn('Unable to ensure summary fonts are ready:', error);
+    summaryFontsLoaded = true; // avoid retry loops; canvas will fallback gracefully
+  }
+};
+
 // Quartile sorting order
 const getQuartileSortOrder = (quartile) => {
   const orderMap = {
@@ -256,6 +297,522 @@ const mergePDFs = async (pdfFiles) => {
   const mergedBytes = await merged.save();
   const blob = new Blob([mergedBytes], { type: 'application/pdf' });
   return { blob, skipped }; // << คืน Blob + รายชื่อไฟล์ที่ถูกข้าม
+};
+
+
+// =================================================================
+// AUTO-GENERATED SUMMARY PDF
+// =================================================================
+
+const THAI_MONTHS = [
+  'มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน',
+  'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'
+];
+
+const AUTHOR_ROLE_SENTENCES = {
+  first_author: 'เป็นผู้ประพันธ์ชื่อแรก (first author)',
+  corresponding_author: 'เป็นผู้ประพันธ์บรรณกิจ (corresponding author)',
+  coauthor: 'เป็นผู้ร่วมประพันธ์ (co-author)'
+};
+
+const QUARTILE_SENTENCES = {
+  T5: 'บทความตีพิมพ์ในวารสารระดับนานาชาติ ควอไทล์ 1 (ลำดับ 5% แรก) ที่สามารถสืบค้นได้ในฐานข้อมูล WOS หรือ ISI หรือ SCOPUS',
+  T10: 'บทความตีพิมพ์ในวารสารระดับนานาชาติ ควอไทล์ 1 (ลำดับ 10% แรก) ที่สามารถสืบค้นได้ในฐานข้อมูล WOS หรือ ISI หรือ SCOPUS',
+  Q1: 'บทความตีพิมพ์ในวารสารระดับนานาชาติ ควอไทล์ 1 ที่สามารถสืบค้นได้ในฐานข้อมูล WOS หรือ ISI หรือ SCOPUS',
+  Q2: 'บทความตีพิมพ์ในวารสารระดับนานาชาติ ควอไทล์ 2 ที่สามารถสืบค้นได้ในฐานข้อมูล WOS หรือ ISI หรือ SCOPUS',
+  Q3: 'บทความตีพิมพ์ในวารสารระดับนานาชาติ ควอไทล์ 3 ที่สามารถสืบค้นได้ในฐานข้อมูล WOS หรือ ISI หรือ SCOPUS',
+  Q4: 'บทความตีพิมพ์ในวารสารระดับนานาชาติ ควอไทล์ 4 ที่สามารถสืบค้นได้ในฐานข้อมูล WOS หรือ ISI หรือ SCOPUS',
+  TCI: 'บทความตีพิมพ์ในวารสารระดับนานาชาติ อยู่ในฐานข้อมูล WOS หรือ ISI หรือ SCOPUS หรือวารสารที่อยู่ในฐานข้อมูล TCI'
+};
+
+const THAI_DIGITS = ['ศูนย์', 'หนึ่ง', 'สอง', 'สาม', 'สี่', 'ห้า', 'หก', 'เจ็ด', 'แปด', 'เก้า'];
+const THAI_UNITS = ['', 'สิบ', 'ร้อย', 'พัน', 'หมื่น', 'แสน', 'ล้าน'];
+
+const normalizeThaiNumberSegment = (value) => {
+  const trimmed = `${value}`.replace(/^0+/, '');
+  return trimmed === '' ? '0' : trimmed;
+};
+
+const readThaiNumber = (raw) => {
+  const value = normalizeThaiNumberSegment(raw);
+  if (value === '0') return '';
+
+  if (value.length > 6) {
+    const head = value.slice(0, -6);
+    const tail = value.slice(-6);
+    const headText = readThaiNumber(head);
+    const tailText = readThaiNumber(tail);
+    return `${headText}ล้าน${tailText || ''}`;
+  }
+
+  const digits = value.split('').map((ch) => parseInt(ch, 10));
+  const len = digits.length;
+  let result = '';
+
+  digits.forEach((digit, index) => {
+    if (Number.isNaN(digit) || digit === 0) return;
+    const position = len - index - 1;
+    if (position === 0) {
+      if (digit === 1 && len > 1) {
+        result += 'เอ็ด';
+      } else {
+        result += THAI_DIGITS[digit];
+      }
+      return;
+    }
+
+    if (position === 1) {
+      if (digit === 2) {
+        result += 'ยี่สิบ';
+        return;
+      }
+      if (digit === 1) {
+        result += 'สิบ';
+        return;
+      }
+    }
+
+    result += `${THAI_DIGITS[digit]}${THAI_UNITS[position]}`;
+  });
+
+  return result;
+};
+
+const toBahtText = (amount) => {
+  if (amount === null || amount === undefined || amount === '') {
+    return '';
+  }
+
+  const numeric = parseFloat(`${amount}`.toString().replace(/,/g, ''));
+  if (Number.isNaN(numeric)) {
+    return '';
+  }
+
+  if (numeric === 0) {
+    return 'ศูนย์บาทถ้วน';
+  }
+
+  const fixed = Math.abs(numeric).toFixed(2);
+  const [bahtPart, satangPart] = fixed.split('.');
+  const bahtText = readThaiNumber(bahtPart) || 'ศูนย์';
+  const satangValue = parseInt(satangPart, 10);
+
+  let result = `${bahtText}บาท`;
+  if (satangValue === 0) {
+    result += 'ถ้วน';
+  } else {
+    result += `${readThaiNumber(satangPart)}สตางค์`;
+  }
+
+  return result;
+};
+
+const formatThaiDate = (value) => {
+  if (!value) return '—';
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return '—';
+  const day = date.getDate();
+  const month = THAI_MONTHS[date.getMonth()] ?? '';
+  const year = date.getFullYear() + 543;
+  return `${day} ${month} ${year}`;
+};
+
+const formatThaiMonthYear = (month, year) => {
+  const monthIndex = parseInt(month, 10) - 1;
+  const monthName = Number.isInteger(monthIndex) && monthIndex >= 0 && monthIndex < THAI_MONTHS.length
+    ? THAI_MONTHS[monthIndex]
+    : '';
+  const numericYear = parseInt(year, 10);
+  const displayYear = Number.isNaN(numericYear) ? '' : numericYear + 543;
+
+  if (!monthName && !displayYear) return '—';
+  if (monthName && displayYear) return `${monthName} ${displayYear}`;
+  return monthName || displayYear || '—';
+};
+
+const safeDisplay = (value, fallback = '—') => {
+  if (value === null || value === undefined) return fallback;
+  if (typeof value === 'string' && value.trim() === '') return fallback;
+  return value;
+};
+
+const wrapParagraph = (ctx, text, font, maxWidth) => {
+  ctx.font = font;
+  if (maxWidth <= 0) return [text];
+
+  const content = `${text}`;
+  if (!content) return [''];
+
+  const words = content.split(' ');
+  const useCharWrap = words.length === 1;
+  const lines = [];
+
+  if (useCharWrap) {
+    let current = '';
+    for (const char of content) {
+      const test = current + char;
+      if (ctx.measureText(test).width > maxWidth && current) {
+        lines.push(current);
+        current = char;
+      } else {
+        current = test;
+      }
+    }
+    if (current) lines.push(current);
+    return lines;
+  }
+
+  let current = '';
+  words.forEach((rawWord) => {
+    const word = rawWord.trim();
+    if (!word) return;
+    const test = current ? `${current} ${word}` : word;
+    if (ctx.measureText(test).width > maxWidth && current) {
+      lines.push(current);
+      current = word;
+    } else {
+      current = test;
+    }
+  });
+
+  if (current) lines.push(current);
+  return lines.length > 0 ? lines : [''];
+};
+
+const wrapEntryLines = (ctx, entry, style, contentWidth, bulletIndent) => {
+  const paragraphs = `${entry.text ?? ''}`.split('\n');
+  const lines = [];
+  const indentValue = entry.indent ?? style.indent ?? 0;
+  const indentWidth = (style.bullet ? bulletIndent : 0) + indentValue;
+  const prefixExtra = entry.prefix ? 40 : 0;
+  const maxWidth = Math.max(contentWidth - indentWidth - prefixExtra, 50);
+
+  paragraphs.forEach((paragraph, index) => {
+    const text = paragraph.trim();
+    if (index > 0) {
+      lines.push({ text: '', isSpacer: true, indent: indentValue });
+    }
+
+    if (!text) {
+      lines.push({ text: '', indent: indentValue });
+      return;
+    }
+
+    const wrapped = wrapParagraph(ctx, text, style.font, maxWidth);
+    wrapped.forEach((segment, segmentIndex) => {
+      lines.push({
+        text: segment,
+        isBullet: style.bullet && segmentIndex === 0 && !entry.prefix,
+        isBulletContinuation: style.bullet && segmentIndex > 0,
+        prefix: segmentIndex === 0 ? (entry.prefix || null) : null,
+        indent: indentValue,
+      });
+    });
+  });
+
+  return lines;
+};
+
+const generateSubmissionSummaryPdf = async ({
+  formData,
+  currentUser,
+  documents,
+  systemConfig,
+  fiscalYear,
+}) => {
+  if (typeof window === 'undefined' || typeof document === 'undefined') {
+    return null;
+  }
+
+  try {
+    await ensureSummaryFontsLoaded();
+
+    const canvas = document.createElement('canvas');
+    const width = 1240;
+    const marginX = 120;
+    const marginY = 100;
+    const bulletIndent = 56;
+    const contentWidth = width - marginX * 2;
+
+    canvas.width = width;
+    canvas.height = 2200;
+
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.textBaseline = 'top';
+
+    const fontFamily = '"TH Sarabun New", "Sarabun", "Tahoma", sans-serif';
+    const baseStyle = {
+      font: `30px ${fontFamily}`,
+      lineHeight: 42,
+      color: '#111827',
+      align: 'left',
+      spacingAfter: 12,
+    };
+
+    const styles = {
+      text: baseStyle,
+      title: {
+        ...baseStyle,
+        font: `bold 36px ${fontFamily}`,
+        lineHeight: 50,
+        color: '#1f2937',
+        align: 'center',
+        spacingAfter: 6,
+      },
+      subtitle: {
+        ...baseStyle,
+        font: `bold 34px ${fontFamily}`,
+        lineHeight: 46,
+        color: '#1f2937',
+        align: 'center',
+        spacingAfter: 24,
+      },
+      location: {
+        ...baseStyle,
+        spacingAfter: 6,
+      },
+      date: {
+        ...baseStyle,
+        align: 'right',
+        spacingAfter: 18,
+      },
+      subject: {
+        ...baseStyle,
+        spacingAfter: 10,
+      },
+      salutation: {
+        ...baseStyle,
+        spacingAfter: 14,
+      },
+      body: {
+        ...baseStyle,
+        spacingAfter: 14,
+      },
+      bodyNoIndent: {
+        ...baseStyle,
+        spacingAfter: 12,
+      },
+      list: {
+        ...baseStyle,
+        spacingAfter: 12,
+        indent: 36,
+      },
+      documentList: {
+        ...baseStyle,
+        spacingAfter: 16,
+        indent: 36,
+      },
+      condition: {
+        ...baseStyle,
+        spacingAfter: 10,
+        indent: 36,
+      },
+      signoff: {
+        ...baseStyle,
+        align: 'right',
+        spacingBefore: 24,
+        spacingAfter: 10,
+      },
+      signature: {
+        ...baseStyle,
+        align: 'right',
+        spacingAfter: 6,
+      },
+      signatureName: {
+        ...baseStyle,
+        align: 'right',
+        spacingAfter: 0,
+      },
+    };
+
+    const todayThai = formatThaiDate(new Date());
+    const employmentDate = formatThaiDate(currentUser?.date_of_employment);
+    const applicantNameParts = [
+      safeDisplay(currentUser?.user_fname, ''),
+      safeDisplay(currentUser?.user_lname, ''),
+    ].filter(Boolean);
+    let applicantName = applicantNameParts.join(' ').trim();
+    if (!applicantName) {
+      applicantName = safeDisplay(formData.applicant_name, '—');
+    }
+
+    const positionName = safeDisplay(currentUser?.position_name, '—');
+    const fiscalYearDisplay = safeDisplay(fiscalYear, '—');
+    const installmentDisplay = safeDisplay(
+      systemConfig?.installment !== null && systemConfig?.installment !== undefined
+        ? `${systemConfig.installment}`
+        : '',
+      '—'
+    );
+
+    const totalAmountNumeric = Number.parseFloat(formData.total_amount) || 0;
+    const totalAmountFormatted = totalAmountNumeric.toLocaleString('th-TH', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+    const totalAmountText = toBahtText(totalAmountNumeric);
+
+    const publicationThai = formatThaiMonthYear(formData.journal_month, formData.journal_year);
+    const volumeIssue = safeDisplay(formData.journal_issue, '');
+    const pageNumbers = safeDisplay(formData.journal_pages, '');
+    const authorNameList = safeDisplay(formData.author_name_list, '');
+    const articleTitle = safeDisplay(formData.article_title, '');
+    const journalName = safeDisplay(formData.journal_name, '');
+
+    const articleDetailParts = [authorNameList, articleTitle, journalName, publicationThai, volumeIssue, pageNumbers]
+      .map(part => (part && part !== '—' ? part : ''))
+      .filter(Boolean);
+    const articleDetailText = articleDetailParts.length > 0 ? articleDetailParts.join(' ') : '—';
+
+    const authorRoleSentence = AUTHOR_ROLE_SENTENCES[formData.author_status] || '';
+    const quartileSentence = QUARTILE_SENTENCES[formData.journal_quartile] || '';
+
+    const documentLines = (documents || [])
+      .filter(doc => !doc.isGenerated)
+      .map(doc => {
+        const label = safeDisplay(doc.type || doc.name, 'เอกสารแนบ');
+        return `${label} — จำนวน 1 ฉบับ`;
+      });
+    const documentListText = documentLines.length > 0
+      ? documentLines.join('\n')
+      : 'ไม่พบรายการเอกสารแนบ — จำนวน 1 ฉบับ';
+
+    const signatureText = safeDisplay(formData.signature, '........................................');
+    const kkuReportYear = safeDisplay(systemConfig?.kku_report_year, '—');
+
+    const content = [
+      { type: 'title', text: 'ใบสมัครเพื่อขอใช้เงินกองทุนวิจัย นวัตกรรม และบริการวิชาการ วิทยาลัยการคอมพิวเตอร์ มหาวิทยาลัยขอนแก่น' },
+      { type: 'subtitle', text: 'เงินรางวัลการตีพิมพ์เผยแพร่ผลงานวิจัยที่ได้รับการตีพิมพ์ในสาขาวิทยาศาสตร์และเทคโนโลยี' },
+      { type: 'location', text: 'เขียนที่  วิทยาลัยการคอมพิวเตอร์ มหาวิทยาลัยขอนแก่น' },
+      { type: 'date', text: todayThai },
+      { type: 'subject', text: 'เรื่องขออนุมัติเบิกค่าใช้จ่ายในการสนับสนุนการตีพิมพ์ผลงานวิจัยในสาขาวิทยาศาสตร์และเทคโนโลยี' },
+      { type: 'salutation', text: 'เรียน  คณบดีวิทยาลัยการคอมพิวเตอร์' },
+      {
+        type: 'body',
+        text: `ข้าพเจ้า ${applicantName} บรรจุเมื่อวันที่ ${employmentDate}          ตำแหน่ง ${positionName} สังกัดหน่วยงาน/สาขาวิชา วิทยาลัยการคอมพิวเตอร์ มหาวิทยาลัยขอนแก่น ขอยื่นใบสมัครเพื่อขอใช้เงินกองทุนวิจัย นวัตกรรมและบริการวิชาการ วิทยาลัยการคอมพิวเตอร์ มหาวิทยาลัยขอนแก่น ประจำปีงบประมาณ พ.ศ. ${fiscalYearDisplay}  งวดที่ ${installmentDisplay} ดังนี้`,
+      },
+      {
+        type: 'body',
+        text: `ข้าพเจ้าขออนุมัติใช้เงินกองทุนฯ ในวงเงินจำนวน ${totalAmountFormatted} บาท (${totalAmountText}) เพื่อเป็นค่าตอบแทนผลงานวิจัยที่ได้รับการตีพิมพ์ในวารสาร ดังนี้`,
+      },
+      { type: 'list', text: '1) ผู้แต่ง. ชื่อเรื่อง. ชื่อวารสาร. ปีที่พิมพ์. ปีที่ (ฉบับที่) หน้า.' },
+      { type: 'list', text: articleDetailText },
+      {
+        type: 'body',
+        text: `ข้าพเจ้า ${authorRoleSentence || '—'} ได้ตีพิมพ์ ${quartileSentence || ''}`.trim(),
+      },
+      { type: 'body', text: 'ทั้งนี้ได้แนบ หลักฐานเพื่อประกอบการพิจารณา ดังนี้' },
+      { type: 'documentList', text: documentListText },
+      { type: 'bodyNoIndent', text: 'ข้าพเจ้าขอรับรองว่า' },
+      {
+        type: 'condition',
+        text: 'ผลงานตีพิมพ์ที่ขอรับการสนับสนุนไม่เคยได้รับการจัดสรรทุนของมหาวิทยาลัย และทุนส่งเสริมการวิจัยจากกองทุนวิจัย นวัตกรรม และบริการวิชาการ วิทยาลัยการคอมพิวเตอร์',
+      },
+      {
+        type: 'condition',
+        text: `จะปฏิบัติตามระเบียบมหาวิทยาลัยขอนแก่น ว่าด้วยกองทุนวิจัยในระดับคณะ พ.ศ. ${kkuReportYear} รวมถึงหลักเกณฑ์และประกาศอื่นใดที่เกี่ยวข้องทุกประการ`,
+      },
+      { type: 'signoff', text: 'ขอแสดงความนับถือ' },
+      { type: 'signature', text: `(ลงชื่อ) ${signatureText} ผู้สมัครขอใช้เงิน` },
+      { type: 'signatureName', text: `(${applicantName})` },
+    ];
+
+    const processed = [];
+    let totalHeight = marginY;
+
+    content.forEach((entry) => {
+      const style = styles[entry.type] || styles.text;
+      const lines = wrapEntryLines(ctx, entry, style, contentWidth, bulletIndent);
+      const visibleLines = lines.length > 0 ? lines : [{ text: '' }];
+      const spacingBefore = style.spacingBefore || 0;
+      const spacingAfter = style.spacingAfter || 0;
+      const entryHeight = spacingBefore + (visibleLines.length * style.lineHeight) + spacingAfter;
+      totalHeight += entryHeight;
+      processed.push({ ...entry, style, lines: visibleLines });
+    });
+
+    totalHeight += marginY;
+
+    canvas.height = totalHeight;
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.textBaseline = 'top';
+
+    let cursorY = marginY;
+
+    processed.forEach((entry) => {
+      const { style, lines } = entry;
+      if (style.spacingBefore) {
+        cursorY += style.spacingBefore;
+      }
+
+      ctx.font = style.font;
+      ctx.fillStyle = style.color || '#111827';
+
+      const alignment = style.align || 'left';
+      if (alignment === 'center') {
+        ctx.textAlign = 'center';
+        lines.forEach((line) => {
+          const text = typeof line === 'string' ? line : line.text || '';
+          ctx.fillText(text, width / 2, cursorY);
+          cursorY += style.lineHeight;
+        });
+      } else if (alignment === 'right') {
+        ctx.textAlign = 'right';
+        const rightX = marginX + contentWidth;
+        lines.forEach((line) => {
+          const text = typeof line === 'string' ? line : line.text || '';
+          ctx.fillText(text, rightX, cursorY);
+          cursorY += style.lineHeight;
+        });
+      } else {
+        ctx.textAlign = 'left';
+        lines.forEach((line) => {
+          const text = typeof line === 'string' ? line : line.text || '';
+          const indent = line.indent ?? entry.indent ?? style.indent ?? 0;
+          const drawX = marginX + indent;
+          if (line.prefix) {
+            ctx.fillText(`${line.prefix} ${text}`, drawX, cursorY);
+          } else if (line.isBullet) {
+            ctx.fillText(`• ${text}`, drawX, cursorY);
+          } else if (line.isBulletContinuation) {
+            ctx.fillText(text, drawX + bulletIndent, cursorY);
+          } else {
+            ctx.fillText(text, drawX, cursorY);
+          }
+          cursorY += style.lineHeight;
+        });
+      }
+
+      if (style.spacingAfter) {
+        cursorY += style.spacingAfter;
+      }
+    });
+
+    const dataUrl = canvas.toDataURL('image/png');
+    const pngBytes = await fetch(dataUrl).then(res => res.arrayBuffer());
+    const pdfDoc = await PDFDocument.create();
+    const pngImage = await pdfDoc.embedPng(pngBytes);
+    const pngDims = pngImage.scale(1);
+    const pageWidth = 595.28; // A4 width in points
+    const pageHeight = (pngDims.height / pngDims.width) * pageWidth;
+    const page = pdfDoc.addPage([pageWidth, pageHeight]);
+
+    page.drawImage(pngImage, {
+      x: 0,
+      y: 0,
+      width: pageWidth,
+      height: pageHeight,
+    });
+
+    const pdfBytes = await pdfDoc.save();
+    return new Blob([pdfBytes], { type: 'application/pdf' });
+  } catch (error) {
+    console.error('Failed to generate summary PDF:', error);
+    return null;
+  }
 };
 
 
@@ -546,6 +1103,10 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
   const [years, setYears] = useState([]);
   const [currentSubmissionId, setCurrentSubmissionId] = useState(null);
   const [currentUser, setCurrentUser] = useState(null);
+  const [systemConfigInfo, setSystemConfigInfo] = useState({
+    installment: null,
+    kku_report_year: null,
+  });
   const [mergedPdfFile, setMergedPdfFile] = useState(null);
   const [availableAuthorStatuses, setAvailableAuthorStatuses] = useState([]);
   const [availableQuartiles, setAvailableQuartiles] = useState([]);
@@ -1104,6 +1665,11 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
         const rawWindow = await systemConfigAPI.getWindow();
         const root = rawWindow?.data ?? rawWindow; // รองรับทั้ง 2 รูปแบบ (admin vs window)
 
+        setSystemConfigInfo({
+          installment: root?.installment ?? null,
+          kku_report_year: root?.kku_report_year ?? null,
+        });
+
         // อ่าน announcement_id ที่ถูกต้องจาก system_config
         setAnnouncementLock({
           main_annoucement: root?.config_id ?? null,
@@ -1118,6 +1684,7 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
       } catch (e) {
         console.warn('Cannot fetch system-config window; main_annoucement/reward_announcement will be null', e);
         setAnnouncementLock({ main_annoucement: null, reward_announcement: null });
+        setSystemConfigInfo({ installment: null, kku_report_year: null });
       }
 
       console.log('Raw API responses:');
@@ -1919,69 +2486,123 @@ const showSubmissionConfirmation = async () => {
     });
   }
 
-    // Check if files exist
-    if (allFiles.length === 0) {
-      Swal.fire({
-        icon: 'warning',
-        title: 'ไม่พบเอกสารแนบ',
-        text: 'กรุณาแนบไฟล์บทความอย่างน้อย 1 ไฟล์',
-        confirmButtonColor: '#3085d6'
-      });
-      return false;
+  // Check if files exist
+  if (allFiles.length === 0) {
+    Swal.fire({
+      icon: 'warning',
+      title: 'ไม่พบเอกสารแนบ',
+      text: 'กรุณาแนบไฟล์บทความอย่างน้อย 1 ไฟล์',
+      confirmButtonColor: '#3085d6'
+    });
+    return false;
+  }
+
+  let summaryFile = null;
+  try {
+    const selectedYear = years.find(year => year.year_id === formData.year_id);
+    const summaryBlob = await generateSubmissionSummaryPdf({
+      formData,
+      currentUser,
+      documents: allFilesList,
+      systemConfig: systemConfigInfo,
+      fiscalYear: selectedYear?.year || null,
+    });
+
+    if (summaryBlob) {
+      summaryFile = new File([summaryBlob], '00_แบบฟอร์มสรุปคำขอ.pdf', { type: 'application/pdf' });
     }
+  } catch (error) {
+    console.error('Failed to generate auto-summary PDF:', error);
+  }
 
-    // Create merged PDF
-    let mergedPdfBlob = null;
-    let mergedPdfUrl = null;
-    let previewViewed = false;
+  const filesForDisplay = summaryFile
+    ? [
+        {
+          name: summaryFile.name,
+          type: 'เอกสารที่ระบบจัดทำจากแบบฟอร์ม',
+          size: summaryFile.size,
+          isGenerated: true,
+        },
+        ...allFilesList,
+      ]
+    : [...allFilesList];
 
-    try {
-      // Show loading while merging PDF
-      Swal.fire({
-        title: 'กำลังเตรียมเอกสาร...',
-        html: 'กำลังรวมไฟล์ PDF ทั้งหมด',
-        allowOutsideClick: false,
-        showConfirmButton: false,
-        willOpen: () => {
-          Swal.showLoading();
-        }
-      });
+  const fileListHtml = filesForDisplay.length
+    ? filesForDisplay
+        .map(file => {
+          const sizeValue = typeof file.size === 'number' && !Number.isNaN(file.size)
+            ? `${(file.size / 1024 / 1024).toFixed(2)} MB`
+            : '';
+          const icon = file.isGenerated ? '⭐' : '📄';
+          const typeLabel = file.type ? `<span class="ml-2 text-[10px] text-gray-500">(${file.type})</span>` : '';
+          const sizeLabel = sizeValue
+            ? `<span class="text-gray-500 ml-2 whitespace-nowrap">${sizeValue}</span>`
+            : '<span class="ml-2 whitespace-nowrap text-gray-300">&nbsp;</span>';
+          return `
+            <li class="flex justify-between items-start text-xs">
+              <span>${icon} ${file.name}${typeLabel}</span>
+              ${sizeLabel}
+            </li>
+          `;
+        })
+        .join('')
+    : '<li class="text-xs text-gray-500">ไม่พบไฟล์ที่เลือก</li>';
 
-      // Filter PDF files only
-      const pdfFiles = allFiles.filter(file => file.type === 'application/pdf');
-      
-      if (pdfFiles.length > 0) {
-        if (pdfFiles.length > 1) {
-          // Merge multiple PDFs (robust)
-          const { blob, skipped } = await mergePDFs(pdfFiles);
-          const mergedFile = new File([blob], 'merged_documents.pdf', { type: 'application/pdf' });
-          setMergedPdfFile(mergedFile);
-          mergedPdfUrl = URL.createObjectURL(blob);
-          if (skipped?.length) {
-            Toast.fire({ icon: 'warning', title: 'ข้ามไฟล์ PDF บางไฟล์', text: skipped.join(', ') });
-          }
-        } else {
-          // Use single PDF
-          const one = pdfFiles[0];
-          setMergedPdfFile(one);
-          mergedPdfUrl = URL.createObjectURL(one);
-        }
+  // Create merged PDF
+  let mergedPdfUrl = null;
+  let previewViewed = false;
+
+  try {
+    // Show loading while merging PDF
+    Swal.fire({
+      title: 'กำลังเตรียมเอกสาร...',
+      html: 'กำลังรวมไฟล์ PDF ทั้งหมด',
+      allowOutsideClick: false,
+      showConfirmButton: false,
+      willOpen: () => {
+        Swal.showLoading();
       }
-      Swal.close();
-      } catch (error) {
-        console.error('Error creating merged PDF:', error);
-        Swal.close();
-        setMergedPdfFile(null);
-        // อย่าหยุด flow — ส่งไฟล์แยกแทน
-        Toast.fire({
-          icon: 'warning',
-          title: 'ไม่สามารถรวมไฟล์ PDF',
-          text: 'ระบบจะส่งไฟล์แยกแทน'
-        });
-        // ไม่ return false; ให้ไปต่อได้
-      }
+    });
 
-    const summaryHTML = `
+    const attachmentPdfFiles = allFiles.filter(file => file.type === 'application/pdf');
+    const pdfFiles = [];
+    if (summaryFile) {
+      pdfFiles.push(summaryFile);
+    }
+    pdfFiles.push(...attachmentPdfFiles);
+
+    if (pdfFiles.length > 0) {
+      if (pdfFiles.length > 1) {
+        // Merge multiple PDFs (robust)
+        const { blob, skipped } = await mergePDFs(pdfFiles);
+        const mergedFile = new File([blob], 'merged_documents.pdf', { type: 'application/pdf' });
+        setMergedPdfFile(mergedFile);
+        mergedPdfUrl = URL.createObjectURL(blob);
+        if (skipped?.length) {
+          Toast.fire({ icon: 'warning', title: 'ข้ามไฟล์ PDF บางไฟล์', text: skipped.join(', ') });
+        }
+      } else {
+        // Use single PDF (summary only or single attachment)
+        const single = pdfFiles[0];
+        setMergedPdfFile(single);
+        mergedPdfUrl = URL.createObjectURL(single);
+      }
+    }
+    Swal.close();
+  } catch (error) {
+    console.error('Error creating merged PDF:', error);
+    Swal.close();
+    setMergedPdfFile(null);
+    // อย่าหยุด flow — ส่งไฟล์แยกแทน
+    Toast.fire({
+      icon: 'warning',
+      title: 'ไม่สามารถรวมไฟล์ PDF',
+      text: 'ระบบจะส่งไฟล์แยกแทน'
+    });
+    // ไม่ return false; ให้ไปต่อได้
+  }
+
+  const summaryHTML = `
       <div class="text-left space-y-4">
         <div class="bg-gray-50 p-4 rounded-lg">
           <h4 class="font-semibold text-gray-700 mb-2">ข้อมูลบทความ</h4>
@@ -2054,17 +2675,13 @@ const showSubmissionConfirmation = async () => {
           <h4 class="font-semibold text-yellow-700 mb-2">เอกสารแนบ</h4>
           <div class="space-y-3 text-sm">
             <div>
-              <p class="font-medium mb-2">ไฟล์ทั้งหมด (${allFilesList.length} ไฟล์):</p>
-              <div class="bg-white p-3 rounded border max-h-32 overflow-y-auto">
+              <p class="font-medium mb-2">ไฟล์ทั้งหมด (${filesForDisplay.length} ไฟล์ รวมเอกสารที่ระบบจัดทำ)</p>
+              <div class="bg-white p-3 rounded border max-h-40 overflow-y-auto">
                 <ul class="space-y-1">
-                  ${allFilesList.map(file => `
-                    <li class="flex justify-between items-center text-xs">
-                      <span>📄 ${file.name}</span>
-                      <span class="text-gray-500">${(file.size / 1024 / 1024).toFixed(2)} MB</span>
-                    </li>
-                  `).join('')}
+                  ${fileListHtml}
                 </ul>
               </div>
+              <p class="text-xs text-gray-500 mt-2">⭐ หมายถึงเอกสารที่ระบบสร้างให้อัตโนมัติจากข้อมูลแบบฟอร์ม</p>
             </div>
 
             ${mergedPdfUrl ? `
