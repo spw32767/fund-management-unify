@@ -791,11 +791,21 @@ const generateSubmissionSummaryPdf = async ({
 
     const result = await requestPublicationSummaryPdf(endpoint, payload);
     if (result.ok) {
+      let previewPdfBlob = null;
+      if (result.mimeType?.includes('wordprocessingml')) {
+        try {
+          previewPdfBlob = await generateSummaryPdfViaCanvas(summaryContext);
+        } catch (previewError) {
+          console.warn('Unable to generate preview PDF for DOCX summary:', previewError);
+        }
+      }
+
       return {
         blob: result.blob,
         mimeType: result.mimeType,
         suggestedFileName: result.suggestedFileName,
         source: 'docx-service',
+        previewPdfBlob,
       };
     }
 
@@ -824,6 +834,7 @@ const generateSubmissionSummaryPdf = async ({
     mimeType: 'application/pdf',
     suggestedFileName: 'publication-summary.pdf',
     source: 'canvas-fallback',
+    previewPdfBlob: canvasBlob,
   };
 };
 
@@ -2511,6 +2522,7 @@ const showSubmissionConfirmation = async () => {
 
   let summaryFile = null;
   let summaryFileIsPdf = false;
+  let summaryPreviewFile = null;
   try {
     const selectedYear = years.find(year => year.year_id === formData.year_id);
     const summaryResult = await generateSubmissionSummaryPdf({
@@ -2531,6 +2543,15 @@ const showSubmissionConfirmation = async () => {
 
       summaryFile = new File([summaryResult.blob], fileName, { type: mimeType });
       summaryFileIsPdf = !isDocx && mimeType === 'application/pdf';
+
+      if (isDocx && summaryResult.previewPdfBlob) {
+        const previewFileName = fileName.toLowerCase().endsWith('.docx')
+          ? fileName.slice(0, -5) + '.pdf'
+          : `${fileName}.pdf`;
+        summaryPreviewFile = new File([summaryResult.previewPdfBlob], previewFileName, {
+          type: 'application/pdf',
+        });
+      }
     }
   } catch (error) {
     console.error('Failed to generate auto-summary PDF:', error);
@@ -2589,6 +2610,8 @@ const showSubmissionConfirmation = async () => {
     const pdfFiles = [];
     if (summaryFile && summaryFileIsPdf) {
       pdfFiles.push(summaryFile);
+    } else if (summaryPreviewFile) {
+      pdfFiles.push(summaryPreviewFile);
     }
     pdfFiles.push(...attachmentPdfFiles);
 
