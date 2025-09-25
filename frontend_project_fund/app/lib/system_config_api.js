@@ -83,6 +83,9 @@ export const systemConfigAPI = {
       activity_support_announcement: root?.activity_support_announcement ?? null,
       conference_announcement: root?.conference_announcement ?? null,
       service_announcement: root?.service_announcement ?? null,
+      // additional fields used in member forms
+      kku_report_year: root?.kku_report_year ?? null,
+      installment: root?.installment ?? null,
     };
   },
 };
