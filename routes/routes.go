@@ -39,7 +39,6 @@ func SetupRoutes(router *gin.Engine) {
 			RegisterFileRoutes(public)   // สำหรับ GET /files, DELETE /files/:name
 
 			public.GET("/years", controllers.GetActiveYears)
-			public.POST("/publication-summary", controllers.GeneratePublicationSummary)
 
 			// Authentication
 			public.POST("/login", controllers.Login)
@@ -155,16 +154,6 @@ func SetupRoutes(router *gin.Engine) {
 				staff.GET("/subcategories", controllers.GetSubcategoryForRole)
 				staff.GET("/submissions", controllers.GetStaffSubmissions) // Staff ดู submissions ของตัวเอง
 				staff.GET("/dashboard/stats", controllers.GetDashboardStats)
-			}
-
-			// Dept head review endpoints
-			deptHead := protected.Group("/dept-head")
-			deptHead.Use(middleware.RequireRole(4))
-			{
-				deptHead.GET("/submissions", controllers.GetDeptHeadSubmissions)
-				deptHead.GET("/submissions/:id", controllers.GetDeptHeadSubmission)
-				deptHead.POST("/submissions/:id/approve", controllers.DeptHeadApproveSubmission)
-				deptHead.POST("/submissions/:id/reject", controllers.DeptHeadRejectSubmission)
 			}
 
 			// Fund Applications
