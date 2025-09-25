@@ -1,90 +1,130 @@
 "use client";
 
-import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { deptHeadAPI } from "@/app/lib/member_api";
-import PageLayout from "@/app/member/components/common/PageLayout";
-import StatusBadge from "@/app/member/components/common/StatusBadge";
-import DeptPublicationSubmissionDetails from "@/app/member/components/dept/DeptPublicationSubmissionDetails";
-import { Loader2 } from "lucide-react";
-import { useStatusMap } from "@/app/hooks/useStatusMap";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { ClipboardList, Loader2 } from "lucide-react";
+import PageLayout from "../common/PageLayout";
+import Card from "../common/Card";
+import DataTable from "../common/DataTable";
+import StatusBadge from "../common/StatusBadge";
+import { deptHeadAPI } from "../../../lib/member_api";
+import { statusService } from "../../../lib/status_service";
 
-// Simple TH date (BE +543). ป้องกัน null/invalid => "-"
-function formatDate(value) {
-  if (!value) return "-";
-  const d = new Date(value);
-  if (isNaN(d)) return "-";
-  const thYear = d.getFullYear() + 543;
-  const th = d.toLocaleDateString("th-TH", { day: "numeric", month: "long" });
-  return `${th} ${thYear}`;
-}
+const formatDate = (value) => {
+  if (!value) {
+    return "-";
+  }
+  try {
+    return new Date(value).toLocaleString("th-TH", {
+      dateStyle: "medium",
+      timeStyle: "short",
+    });
+  } catch (error) {
+    return value;
+  }
+};
 
-/**
- * DeptHeadReview
- * - แสดงรายการที่อยู่สถานะ "อยู่ระหว่างการพิจารณาจากหัวหน้าสาขา"
- * - กดดูรายละเอียดจะสลับไปหน้า DeptPublicationSubmissionDetails ภายในคอมโพเนนต์เดียว
- * - เห็นควร / ไม่เห็นควร ได้จาก modal ดำเนินการ (ส่ง payload { decision, comment? })
- */
+const STATUS_LABELS = {
+  pending: "อยู่ระหว่างการพิจารณาจากหัวหน้าสาขา",
+  recommended: "เห็นควรพิจารณาจากหัวหน้าสาขา",
+  rejected: "ไม่เห็นควรพิจารณา",
+};
+
 export default function DeptHeadReview() {
-  // ----- toggle list <-> details -----
-  const [selectedId, setSelectedId] = useState(null);
-  const handleView = useCallback((id) => setSelectedId(id), []);
-  const handleBack = useCallback(() => setSelectedId(null), []);
-
-  // ----- load list -----
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
   const [submissions, setSubmissions] = useState([]);
-
-  // ----- action modal -----
-  const [actionTarget, setActionTarget] = useState(null); // { id, submission_number, action }
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [actionTarget, setActionTarget] = useState(null);
   const [actionComment, setActionComment] = useState("");
   const [actionLoading, setActionLoading] = useState(false);
   const [actionError, setActionError] = useState(null);
+  const statusCacheRef = useRef(null);
 
-  // for label rendering
-  const { getLabelById } = useStatusMap();
+  const resolveDeptStatuses = async () => {
+    if (statusCacheRef.current) {
+      return statusCacheRef.current;
+    }
 
-  const normalizeRow = useCallback((item) => {
-    const statusIdRaw =
-      item?.status_id ??
-      item?.status?.application_status_id ??
-      item?.status?.status_id ??
-      item?.status?.id;
-    const statusId = Number(statusIdRaw);
-    const normalizedStatusId = Number.isFinite(statusId) ? statusId : undefined;
+    const statuses = await statusService.fetchAll();
+    const findByName = (label) =>
+      statuses.find((status) => status?.status_name === label);
 
-    const fallbackName = `${item?.user?.user_fname || ""} ${item?.user?.user_lname || ""}`.trim();
-    const applicantName =
-      item?.applicant_name ||
-      item?.user?.full_name ||
-      (fallbackName !== "" ? fallbackName : null);
+    const pending = findByName(STATUS_LABELS.pending);
+    const recommended = findByName(STATUS_LABELS.recommended);
+    const rejected = findByName(STATUS_LABELS.rejected);
 
-    return {
-      id: item?.submission_id || item?.id,
-      submission_number: item?.submission_number || item?.request_number || "-",
-      category: item?.category_name || item?.category?.category_name || "-",
-      subcategory: item?.subcategory_name || item?.subcategory?.subcategory_name || "-",
-      applicant: applicantName || "-",
-      submitted_at: item?.submitted_at || item?.created_at,
-      statusId: normalizedStatusId,
-      statusLabel: item?.status?.status_name || item?.status_name || item?.status || "",
-      raw: item,
+    if (!pending) {
+      throw new Error(`ไม่พบสถานะ "${STATUS_LABELS.pending}"`);
+    }
+    if (!recommended) {
+      throw new Error(`ไม่พบสถานะ "${STATUS_LABELS.recommended}"`);
+    }
+    if (!rejected) {
+      throw new Error(`ไม่พบสถานะ "${STATUS_LABELS.rejected}"`);
+    }
+
+    const toId = (status) => {
+      if (!status) return undefined;
+      const rawId = status.application_status_id ?? status.status_id ?? status.id;
+      const numericId = Number(rawId);
+      return Number.isFinite(numericId) ? numericId : undefined;
     };
-  }, []);
 
-  const loadSubmissions = useCallback(async () => {
+    const info = {
+      pending,
+      recommended,
+      rejected,
+      pendingId: toId(pending),
+      recommendedId: toId(recommended),
+      rejectedId: toId(rejected),
+    };
+
+    if (!info.pendingId || !info.recommendedId || !info.rejectedId) {
+      throw new Error("ไม่สามารถระบุรหัสสถานะหัวหน้าสาขาได้");
+    }
+
+    statusCacheRef.current = info;
+    return info;
+  };
+
+  const loadSubmissions = async () => {
     try {
       setLoading(true);
       setError(null);
-
-      // ให้ backend กรองตามคีย์ "pending" เอง (ไม่ต้องส่ง status_id)
-      const params = { status: "pending" };
-      const response = await deptHeadAPI.getPendingReviews(params);
-
+      const statusInfo = await resolveDeptStatuses();
+      const response = await deptHeadAPI.getPendingReviews({ status_id: statusInfo.pendingId });
       const rows = response?.submissions || response?.data || [];
-      const normalized = rows.map(normalizeRow);
 
-      // ถ้าต้องการกรองซ้ำฝั่ง FE ให้ทำที่นี่ (ส่วนใหญ่ไม่จำเป็น)
+      const normalized = rows
+        .filter((item) => {
+          const itemStatusId = Number(
+            item.status_id ??
+            item.status?.application_status_id ??
+            item.status?.status_id ??
+            item.status?.id
+          );
+          return Number.isFinite(itemStatusId)
+            ? itemStatusId === statusInfo.pendingId
+            : true;
+        })
+        .map((item) => ({
+          id: item.submission_id || item.id,
+          submission_number: item.submission_number || item.request_number || "-",
+          category: item.category_name || item.category?.category_name || "-",
+          subcategory: item.subcategory_name || item.subcategory?.subcategory_name || "-",
+          applicant:
+          item.applicant_name ||
+          item.user?.full_name ||
+          `${item.user?.user_fname || ""} ${item.user?.user_lname || ""}`.trim() ||
+          "-",
+        submitted_at: item.submitted_at || item.created_at,
+        status:
+          item.status?.status_name ||
+          item.status_name ||
+          item.status ||
+          "รอพิจารณา",
+        raw: item,
+      }));
+
       setSubmissions(normalized);
     } catch (err) {
       console.error("Error loading dept head submissions:", err);
@@ -93,54 +133,26 @@ export default function DeptHeadReview() {
     } finally {
       setLoading(false);
     }
-  }, [normalizeRow]);
+  };
 
   useEffect(() => {
     loadSubmissions();
-  }, [loadSubmissions]);
-
-  // ----- action modal -----
-  const openAction = useCallback((row, action) => {
-    setActionTarget({ ...row, action }); // action = "approve" | "reject"
-    setActionComment("");
-    setActionError(null);
   }, []);
 
-  const closeAction = useCallback(() => {
-    setActionTarget(null);
-    setActionComment("");
-    setActionError(null);
-  }, []);
-
-  const confirmAction = useCallback(async () => {
-    if (!actionTarget) return;
-
-    const isApprove = actionTarget.action === "approve";
-    const payload = { decision: isApprove ? "approve" : "reject" };
-    const comment = actionComment.trim();
-    if (comment) payload.comment = comment;
-
-    setActionLoading(true);
-    setActionError(null);
-
-    try {
-      await deptHeadAPI.submitDecision(actionTarget.id, payload);
-      closeAction();
-      await loadSubmissions();
-    } catch (err) {
-      console.error("Dept review action failed:", err);
-      setActionError(err?.message || "ไม่สามารถดำเนินการได้");
-    } finally {
-      setActionLoading(false);
-    }
-  }, [actionTarget, actionComment, closeAction, loadSubmissions]);
-
-  // ----- table -----
   const columns = useMemo(
     () => [
-      { header: "เลขคำร้อง", accessor: "submission_number" },
-      { header: "ประเภททุน", accessor: "category" },
-      { header: "หมวด/ทุนย่อย", accessor: "subcategory" },
+      {
+        header: "เลขคำร้อง",
+        accessor: "submission_number",
+      },
+      {
+        header: "ประเภททุน",
+        accessor: "category",
+      },
+      {
+        header: "หมวด/ทุนย่อย",
+        accessor: "subcategory",
+      },
       {
         header: "ผู้ยื่นคำร้อง",
         accessor: "applicant",
@@ -152,28 +164,19 @@ export default function DeptHeadReview() {
       },
       {
         header: "สถานะ",
-        accessor: "statusId",
-        render: (value, row) => (
-          <StatusBadge statusId={value} fallbackLabel={getLabelById?.(value) || row.statusLabel || "อยู่ระหว่างการพิจารณา"} />
-        ),
+        accessor: "status",
+        render: (value) => <StatusBadge status={value} />,
       },
       {
         header: "ดำเนินการ",
         accessor: "actions",
         render: (_, row) => (
-          <div className="flex flex-wrap gap-2">
+          <div className="flex gap-2">
             <button
-              onClick={() => handleView(row.id)}
-              className="px-3 py-1 text-sm rounded-md border border-gray-200 text-gray-700 hover:bg-gray-50"
-              title="ดูรายละเอียด"
-            >
-              ดูรายละเอียด
-            </button>
-            <button
-              onClick={() => openAction(row, "approve")}
+              onClick={() => openAction(row, "recommend")}
               className="px-3 py-1 text-sm rounded-md border border-blue-200 text-blue-700 hover:bg-blue-50"
             >
-              อนุมัติ (เห็นควร)
+              เห็นควร/ส่งต่อ Admin
             </button>
             <button
               onClick={() => openAction(row, "reject")}
@@ -185,114 +188,142 @@ export default function DeptHeadReview() {
         ),
       },
     ],
-    [getLabelById, handleView, openAction]
+    []
   );
 
-  // ====== RENDER ======
-  if (selectedId) {
-    return (
-        <DeptPublicationSubmissionDetails submissionId={selectedId} onBack={handleBack} />
-    );
-  }
+  const openAction = (row, action) => {
+    setActionTarget({ ...row, action });
+    setActionComment("");
+    setActionError(null);
+  };
+
+  const closeAction = () => {
+    setActionTarget(null);
+    setActionComment("");
+    setActionError(null);
+  };
+
+  const confirmAction = async () => {
+    if (!actionTarget) return;
+    setActionLoading(true);
+    setActionError(null);
+    try {
+      const statusInfo = await resolveDeptStatuses();
+      const basePayload = {
+        comment: actionComment?.trim() ? actionComment.trim() : undefined,
+        reviewed_at: new Date().toISOString(),
+      };
+
+      if (actionTarget.action === "recommend") {
+        await deptHeadAPI.recommendSubmission(actionTarget.id, {
+          ...basePayload,
+          status_id: statusInfo.recommendedId,
+        });
+      } else {
+        await deptHeadAPI.rejectSubmission(actionTarget.id, {
+          ...basePayload,
+          status_id: statusInfo.rejectedId,
+        });
+      }
+      closeAction();
+      await loadSubmissions();
+    } catch (err) {
+      console.error("Dept review action failed:", err);
+      setActionError(err?.message || "ไม่สามารถดำเนินการได้");
+    } finally {
+      setActionLoading(false);
+    }
+  };
 
   return (
-    <PageLayout title="พิจารณาคำร้อง (หัวหน้าสาขา)">
-      {/* error block */}
-      {error && (
-        <div className="mb-4 rounded-md border border-red-300 bg-red-50 px-4 py-3 text-red-700">
-          {error}
+    <PageLayout
+      title="พิจารณาคำร้อง (สาขา)"
+      subtitle="ตรวจสอบและส่งต่อคำร้องไปยังผู้ดูแลระบบ"
+      icon={ClipboardList}
+      breadcrumbs={[
+        { label: "หน้าแรก", href: "/member" },
+        { label: "พิจารณาคำร้อง (สาขา)" },
+      ]}
+    >
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <h3 className="text-lg font-semibold text-gray-800">รายการคำร้องที่รอตรวจสอบ</h3>
+            <p className="text-sm text-gray-500 mt-1">
+              เลือกดำเนินการเพื่อเห็นควรและส่งต่อ หรือปฏิเสธพร้อมระบุเหตุผล
+            </p>
+          </div>
+          <button
+            onClick={loadSubmissions}
+            className="px-3 py-1 text-sm rounded-md border border-gray-200 text-gray-700 hover:bg-gray-50"
+          >
+            รีเฟรชรายการ
+          </button>
         </div>
-      )}
-
-      {/* table */}
-      <div className="overflow-x-auto rounded-lg border border-gray-300">
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50">
-            <tr>
-              {columns.map((col) => (
-                <th
-                  key={col.accessor}
-                  className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider"
-                >
-                  {col.header}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-100 bg-white">
-            {loading ? (
-              <tr>
-                <td colSpan={columns.length} className="px-4 py-8 text-center text-gray-500">
-                  <span className="inline-flex items-center gap-2">
-                    <Loader2 className="animate-spin" size={16} />
-                    กำลังโหลดรายการ...
-                  </span>
-                </td>
-              </tr>
-            ) : submissions.length === 0 ? (
-              <tr>
-                <td colSpan={columns.length} className="px-4 py-8 text-center text-gray-500">
-                  ไม่พบรายการที่อยู่ระหว่างการพิจารณา
-                </td>
-              </tr>
-            ) : (
-              submissions.map((row) => (
-                <tr key={row.id}>
-                  {columns.map((col) => {
-                    const value = row[col.accessor];
-                    return (
-                      <td key={col.accessor} className="px-4 py-3 text-sm text-gray-800">
-                        {col.render ? col.render(value, row) : value ?? "-"}
-                      </td>
-                    );
-                  })}
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
       </div>
 
-      {/* action modal */}
+      <Card collapsible={false}>
+        {loading ? (
+          <div className="flex items-center justify-center py-16 text-gray-600">
+            <Loader2 className="animate-spin mr-2" />
+            กำลังโหลดข้อมูล...
+          </div>
+        ) : error ? (
+          <div className="py-16 text-center text-red-600">{error}</div>
+        ) : (
+          <DataTable
+            columns={columns}
+            data={submissions}
+            emptyMessage="ไม่มีคำร้องที่รอพิจารณา"
+          />
+        )}
+      </Card>
+
       {actionTarget && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-          <div className="w-full max-w-lg overflow-hidden rounded-xl bg-white shadow-xl">
-            <div className="border-b px-6 py-4">
-              <h3 className="text-base font-semibold text-gray-900">
-                {actionTarget.action === "approve" ? "ยืนยันการเห็นควร" : "ยืนยันการปฏิเสธ"}
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-lg">
+            <div className="px-6 py-4 border-b">
+              <h3 className="text-lg font-semibold text-gray-800">
+                {actionTarget.action === "recommend" ? "เห็นควร/ส่งต่อ Admin" : "ปฏิเสธคำร้อง"}
               </h3>
-              <p className="mt-1 text-sm text-gray-600">
-                เลขคำร้อง: {actionTarget.submission_number}
+              <p className="text-sm text-gray-500 mt-1">
+                เลขคำร้อง {actionTarget.submission_number}
               </p>
             </div>
 
-            <div className="space-y-4 px-6 py-4">
+            <div className="px-6 py-4 space-y-4">
               <div>
-                <label className="mb-2 block text-sm font-medium text-gray-700">ความคิดเห็นเพิ่มเติม</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  ความคิดเห็นเพิ่มเติม
+                </label>
                 <textarea
                   value={actionComment}
-                  onChange={(e) => setActionComment(e.target.value)}
+                  onChange={(event) => setActionComment(event.target.value)}
                   rows={4}
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   placeholder="ระบุเหตุผลหรือข้อมูลเพิ่มเติม (ถ้ามี)"
                 />
               </div>
-              {actionError && <div className="text-sm text-red-600">{actionError}</div>}
+              {actionError && (
+                <div className="text-sm text-red-600">{actionError}</div>
+              )}
             </div>
 
-            <div className="flex justify-end gap-3 border-t px-6 py-4">
+            <div className="px-6 py-4 border-t flex justify-end gap-3">
               <button
                 onClick={closeAction}
                 disabled={actionLoading}
-                className="rounded-md border border-gray-300 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 disabled:opacity-60"
+                className="px-4 py-2 text-sm rounded-md border border-gray-300 text-gray-600 hover:bg-gray-50 disabled:opacity-60"
               >
                 ยกเลิก
               </button>
               <button
                 onClick={confirmAction}
                 disabled={actionLoading}
-                className={`rounded-md px-4 py-2 text-sm text-white ${
-                  actionTarget.action === "approve" ? "bg-blue-600 hover:bg-blue-700" : "bg-red-600 hover:bg-red-700"
+                className={`px-4 py-2 text-sm rounded-md text-white ${
+                  actionTarget.action === "recommend"
+                    ? "bg-blue-600 hover:bg-blue-700"
+                    : "bg-red-600 hover:bg-red-700"
                 } disabled:opacity-60`}
               >
                 {actionLoading ? (
@@ -300,8 +331,8 @@ export default function DeptHeadReview() {
                     <Loader2 className="animate-spin" size={16} />
                     กำลังบันทึก...
                   </span>
-                ) : actionTarget.action === "approve" ? (
-                  "อนุมัติ"
+                ) : actionTarget.action === "recommend" ? (
+                  "เห็นควร/ส่งต่อ"
                 ) : (
                   "ปฏิเสธ"
                 )}

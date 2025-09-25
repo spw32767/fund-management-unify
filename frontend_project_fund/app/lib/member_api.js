@@ -32,49 +32,23 @@ const resolveRoleName = (role) => {
   return null;
 };
 
-// 🔹 Shared details endpoint (ทุก role ที่ Auth ผ่านสามารถเรียกได้ แต่ข้อมูลจะถูก redaction ตาม role)
-async function getSubmissionDetails(id, params = {}) {
-  return apiClient.get(`/submissions/${id}/details`, params);
-}
-
-async function getSubmissionDocuments(id, params = {}) {
-  return apiClient.get(`/submissions/${id}/documents`, params);
-}
-
-async function getDocumentTypes(params = {}) {
-  return apiClient.get('/document-types', params);
-}
-
 export const deptHeadAPI = {
   async getPendingReviews(params = {}) {
-    return apiClient.get('/dept-head/review/submissions', params);
+    return apiClient.get('/dept-head/submissions', params);
   },
 
-  async submitDecision(submissionId, payload = {}) {
-    return apiClient.post(`/dept-head/review/${submissionId}/decision`, payload);
+  async recommendSubmission(submissionId, payload = {}) {
+    return apiClient.post(`/dept-head/submissions/${submissionId}/recommend`, payload);
   },
 
-  // 🔹 เพิ่มเมธอดดูรายละเอียดสำหรับ Dept Head (เรียก shared endpoint ตัวเดียวกัน)
-  async getSubmissionDetails(id, params = {}) {
-    return getSubmissionDetails(id, params);
-  },
-
-  async getSubmissionDocuments(id, params = {}) {
-    return getSubmissionDocuments(id, params);
-  },
-
-  async getDocumentTypes(params = {}) {
-    return getDocumentTypes(params);
+  async rejectSubmission(submissionId, payload = {}) {
+    return apiClient.post(`/dept-head/submissions/${submissionId}/reject`, payload);
   },
 };
 
 export const memberAPI = {
   ...teacherAPI,
   ...staffAPI,
-  // 🔹 รวม shared details ไว้ให้เรียกตรงได้เลย
-  getSubmissionDetails,
-  getSubmissionDocuments,
-  getDocumentTypes,
   deptHead: deptHeadAPI,
 };
 
