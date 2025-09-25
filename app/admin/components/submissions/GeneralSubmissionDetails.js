@@ -18,10 +18,8 @@ import { toast } from 'react-hot-toast';
 import Swal from 'sweetalert2';
 import { useStatusMap } from '@/app/hooks/useStatusMap';
 import 'sweetalert2/dist/sweetalert2.min.css';
-
 import { PDFDocument } from 'pdf-lib';
 import PublicationSubmissionDetails from './PublicationSubmissionDetails';
-import DeptReviewNotice from './DeptReviewNotice';
 
 /* =========================
  * Helpers
@@ -57,12 +55,6 @@ const getColoredStatusIcon = (statusCode) => {
   };
 };
 
-const DEPT_STATUS_LABELS = {
-  pending: 'อยู่ระหว่างการพิจารณาจากหัวหน้าสาขา',
-  recommended: 'เห็นควรพิจารณาจากหัวหน้าสาขา',
-  rejected: 'ไม่เห็นควรพิจารณา',
-};
-
 const pickApplicant = (submission) => {
   const applicant =
     submission?.applicant ||
@@ -89,15 +81,8 @@ const getUserFullName = (u) => {
  *  - โหมด Pending (status_id=1): ฟอร์มอนุมัติ/ไม่อนุมัติ
  *  - โหมดอื่น: แสดงผลแบบ read-only เพื่อเทียบกับฝั่งซ้าย
  * ========================= */
-function FundApprovalPanel({ submission, fundDetail, onApprove, onReject, deptReviewGuard }) {
-  const parseNumericId = (value) => {
-    const num = Number(value);
-    return Number.isFinite(num) ? num : undefined;
-  };
-
-  const guard = deptReviewGuard || {};
-  const statusId = guard.statusId ?? parseNumericId(submission?.status_id);
-  const canAdminAct = guard.canAdminAct ?? (statusId === 1);
+function FundApprovalPanel({ submission, fundDetail, onApprove, onReject }) {
+  const statusId = Number(submission?.status_id);
   const requested = Number(fundDetail?.requested_amount || 0);
 
   // ✅ เรียก Hooks เสมอเพื่อไม่ให้ผิดลำดับเมื่อสถานะเปลี่ยน
@@ -121,7 +106,7 @@ function FundApprovalPanel({ submission, fundDetail, onApprove, onReject, deptRe
   };
 
   const handleApprove = async () => {
-    if (!validate() || !canAdminAct) return;
+    if (!validate()) return;
 
     const html = `
       <div style="text-align:left;font-size:14px;line-height:1.6;display:grid;row-gap:.6rem;">
@@ -170,8 +155,6 @@ function FundApprovalPanel({ submission, fundDetail, onApprove, onReject, deptRe
   };
 
   const handleReject = async () => {
-    if (!canAdminAct) return;
-
     const { value: reason } = await Swal.fire({
       title: 'เหตุผลการไม่อนุมัติ',
       input: 'textarea',
@@ -209,7 +192,7 @@ function FundApprovalPanel({ submission, fundDetail, onApprove, onReject, deptRe
   };
 
   // ====== READ-ONLY MODE (status_id !== 1) ======
-  if (!canAdminAct) {
+  if (statusId !== 1) {
     const approvedAmount =
       statusId === 2
         ? Number(
@@ -434,72 +417,7 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
   // ---- States/Refs (คงลำดับ Hooks ให้คงที่) ----
   const [loading, setLoading] = useState(true);
   const [submission, setSubmission] = useState(null);
-  const { getCodeById, getByName, getLabelById, isLoading: statusLoading } = useStatusMap();
-  const deptReviewGuard = useMemo(() => {
-    const parseNumericId = (value) => {
-      const num = Number(value);
-      return Number.isFinite(num) ? num : undefined;
-    };
-
-    const statusId = parseNumericId(submission?.status_id);
-    const statusCode =
-      getCodeById?.(submission?.status_id) ||
-      submission?.status?.status_code ||
-      submission?.status_code ||
-      undefined;
-    const statusName =
-      getLabelById?.(submission?.status_id) ||
-      submission?.status?.status_name ||
-      submission?.status_name ||
-      undefined;
-
-    const pendingStatus = getByName?.(DEPT_STATUS_LABELS.pending);
-    const recommendedStatus = getByName?.(DEPT_STATUS_LABELS.recommended);
-    const rejectedStatus = getByName?.(DEPT_STATUS_LABELS.rejected);
-
-    const pendingId = parseNumericId(
-      pendingStatus?.application_status_id ?? pendingStatus?.status_id ?? pendingStatus?.id,
-    );
-    const recommendedId = parseNumericId(
-      recommendedStatus?.application_status_id ?? recommendedStatus?.status_id ?? recommendedStatus?.id,
-    );
-    const rejectedId = parseNumericId(
-      rejectedStatus?.application_status_id ?? rejectedStatus?.status_id ?? rejectedStatus?.id,
-    );
-
-    const labelsLoaded = !statusLoading;
-    const missingCritical = labelsLoaded && (!pendingStatus || !recommendedStatus);
-    const needsDeptReview = labelsLoaded && Boolean(pendingStatus || recommendedStatus || rejectedStatus);
-    const isPending = needsDeptReview && pendingId != null && statusId === pendingId;
-    const isRecommended = needsDeptReview && recommendedId != null && statusId === recommendedId;
-    const isDeptRejected = needsDeptReview && rejectedId != null && statusId === rejectedId;
-
-    const fallbackPending = statusCode === 'pending';
-    let canAdminAct = fallbackPending;
-    if (!labelsLoaded) {
-      canAdminAct = false;
-    } else if (needsDeptReview) {
-      canAdminAct = Boolean(isRecommended) && !missingCritical && !isDeptRejected;
-    }
-    if (!needsDeptReview && (isDeptRejected || missingCritical)) {
-      canAdminAct = false;
-    }
-
-    return {
-      statusId,
-      statusCode,
-      currentStatusName: statusName,
-      pendingStatusId: pendingId,
-      recommendedStatusId: recommendedId,
-      rejectedStatusId: rejectedId,
-      needsDeptReview,
-      isPending,
-      isRecommended,
-      isDeptRejected,
-      missingCriticalStatuses: missingCritical,
-      canAdminAct,
-    };
-  }, [submission, getByName, getLabelById, getCodeById, statusLoading]);
+  const { getCodeById } = useStatusMap();
 
   // เอกสารแนบ + label ประเภทไฟล์
   const [attachments, setAttachments] = useState([]);
@@ -889,8 +807,6 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
         </div>
       </Card>
 
-      <DeptReviewNotice guard={deptReviewGuard} className="mb-6" />
-
       {/* ==== ซ้าย–ขวา: Request Information | Approval Result ==== */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
         <RequestInfoCard submission={submission} detail={detail} />
@@ -899,7 +815,6 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
           fundDetail={detail}
           onApprove={approve}
           onReject={reject}
-          deptReviewGuard={deptReviewGuard}
         />
       </div>
 
