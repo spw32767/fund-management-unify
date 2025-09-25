@@ -109,16 +109,19 @@ func GetSystemConfigWindow(c *gin.Context) {
 		ActivitySupportAnnouncement sql.NullInt64
 		ConferenceAnnouncement      sql.NullInt64
 		ServiceAnnouncement         sql.NullInt64
+		KkuReportYear               sql.NullString
+		Installment                 sql.NullInt64
 	}
 
 	if err := config.DB.Raw(`
-		SELECT
-		  config_id, system_version, current_year, start_date, end_date, last_updated, updated_by,
-		  main_annoucement, reward_announcement, activity_support_announcement, conference_announcement, service_announcement
-		FROM system_config
-		ORDER BY config_id DESC
-		LIMIT 1
-	`).Scan(&row).Error; err != nil {
+                SELECT
+                  config_id, system_version, current_year, start_date, end_date, last_updated, updated_by,
+                  main_annoucement, reward_announcement, activity_support_announcement, conference_announcement, service_announcement,
+                  kku_report_year, installment
+                FROM system_config
+                ORDER BY config_id DESC
+                LIMIT 1
+        `).Scan(&row).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch system_config window"})
 		return
 	}
@@ -180,6 +183,19 @@ func GetSystemConfigWindow(c *gin.Context) {
 		"conference_announcement":       toIntPtr(row.ConferenceAnnouncement),
 		"service_announcement":          toIntPtr(row.ServiceAnnouncement),
 
+		"kku_report_year": func() interface{} {
+			if row.KkuReportYear.Valid {
+				return row.KkuReportYear.String
+			}
+			return nil
+		}(),
+		"installment": func() interface{} {
+			if row.Installment.Valid {
+				return int(row.Installment.Int64)
+			}
+			return nil
+		}(),
+
 		"is_open_raw":       isOpenRaw,
 		"is_open_effective": isOpenEff,
 		"now":               now.Format(time.RFC3339Nano),
@@ -199,21 +215,24 @@ func GetSystemConfigAdmin(c *gin.Context) {
 		LastUpdated   sql.NullTime   `json:"last_updated"`
 		UpdatedBy     sql.NullInt64  `json:"updated_by"`
 
-		MainAnnoucement             sql.NullInt64 `json:"main_annoucement"`
-		RewardAnnouncement          sql.NullInt64 `json:"reward_announcement"`
-		ActivitySupportAnnouncement sql.NullInt64 `json:"activity_support_announcement"`
-		ConferenceAnnouncement      sql.NullInt64 `json:"conference_announcement"`
-		ServiceAnnouncement         sql.NullInt64 `json:"service_announcement"`
+		MainAnnoucement             sql.NullInt64  `json:"main_annoucement"`
+		RewardAnnouncement          sql.NullInt64  `json:"reward_announcement"`
+		ActivitySupportAnnouncement sql.NullInt64  `json:"activity_support_announcement"`
+		ConferenceAnnouncement      sql.NullInt64  `json:"conference_announcement"`
+		ServiceAnnouncement         sql.NullInt64  `json:"service_announcement"`
+		KkuReportYear               sql.NullString `json:"kku_report_year"`
+		Installment                 sql.NullInt64  `json:"installment"`
 	}
 
 	if err := config.DB.Raw(`
-		SELECT
-		  config_id, system_version, current_year, start_date, end_date, last_updated, updated_by,
-		  main_annoucement, reward_announcement, activity_support_announcement, conference_announcement, service_announcement
-		FROM system_config
-		ORDER BY config_id DESC
-		LIMIT 1
-	`).Scan(&row).Error; err != nil {
+                SELECT
+                  config_id, system_version, current_year, start_date, end_date, last_updated, updated_by,
+                  main_annoucement, reward_announcement, activity_support_announcement, conference_announcement, service_announcement,
+                  kku_report_year, installment
+                FROM system_config
+                ORDER BY config_id DESC
+                LIMIT 1
+        `).Scan(&row).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "error": "failed to fetch system_config"})
 		return
 	}
@@ -272,6 +291,19 @@ func GetSystemConfigAdmin(c *gin.Context) {
 		"activity_support_announcement": toIntPtr(row.ActivitySupportAnnouncement),
 		"conference_announcement":       toIntPtr(row.ConferenceAnnouncement),
 		"service_announcement":          toIntPtr(row.ServiceAnnouncement),
+
+		"kku_report_year": func() interface{} {
+			if row.KkuReportYear.Valid {
+				return row.KkuReportYear.String
+			}
+			return nil
+		}(),
+		"installment": func() interface{} {
+			if row.Installment.Valid {
+				return int(row.Installment.Int64)
+			}
+			return nil
+		}(),
 
 		"is_open_raw":       isOpenRaw,
 		"is_open_effective": isOpenEff,
