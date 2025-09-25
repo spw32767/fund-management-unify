@@ -5,7 +5,7 @@ import { useState, useEffect, useRef } from "react";
 import { Award, Upload, Users, FileText, Plus, X, Save, Send, AlertCircle, Search, Eye, Calculator, Signature } from "lucide-react";
 import PageLayout from "../common/PageLayout";
 import SimpleCard from "../common/SimpleCard";
-import { systemAPI, authAPI, joinApiUrl } from '../../../lib/api';
+import apiClient, { systemAPI, authAPI } from '../../../lib/api';
 import {
   submissionAPI,
   publicationDetailsAPI,
@@ -54,6 +54,25 @@ const getSubcategoryIdForAuthorStatus = (status) => {
   return AUTHOR_STATUS_SUBCATEGORY_MAP[status] ?? null;
 };
 
+const buildPublicationSummaryEndpoint = (baseURL) => {
+  const trimmed = (baseURL || '').trim();
+  if (!trimmed) {
+    return '/api/v1/publication-summary';
+  }
+
+  const normalized = trimmed.replace(/\/+$/, '');
+
+  if (/\/api\/v\d+$/i.test(normalized)) {
+    return `${normalized}/publication-summary`;
+  }
+
+  if (/\/api$/i.test(normalized)) {
+    return `${normalized}/v1/publication-summary`;
+  }
+
+  return `${normalized}/api/v1/publication-summary`;
+};
+
 const PUBLICATION_SUMMARY_ENDPOINT = (() => {
   const env = (typeof process !== 'undefined' && process?.env) ? process.env : {};
   const explicit = (env.NEXT_PUBLIC_PUBLICATION_SUMMARY_URL || '').trim();
@@ -61,7 +80,7 @@ const PUBLICATION_SUMMARY_ENDPOINT = (() => {
     return explicit.replace(/\/+$/, '');
   }
 
-  return joinApiUrl('/publication-summary');
+  return buildPublicationSummaryEndpoint(apiClient?.baseURL);
 })();
 
 // =================================================================
@@ -736,10 +755,16 @@ const generateSubmissionSummaryPdf = async ({
 
   const attempted = new Set();
   const endpoints = [PUBLICATION_SUMMARY_ENDPOINT];
-  const fallbackEndpoint = joinApiUrl('/publication-summary');
-  if (!endpoints.includes(fallbackEndpoint)) {
-    endpoints.push(fallbackEndpoint);
-  }
+  const fallbackCandidates = [
+    buildPublicationSummaryEndpoint(apiClient?.baseURL),
+    buildPublicationSummaryEndpoint(''),
+  ];
+
+  fallbackCandidates.forEach((candidate) => {
+    if (candidate && !endpoints.includes(candidate)) {
+      endpoints.push(candidate);
+    }
+  });
 
   let lastError = null;
 
