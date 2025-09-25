@@ -20,6 +20,15 @@ import (
 func GetSubmissionDetails(c *gin.Context) {
 	submissionID := c.Param("id")
 
+<<<<<<< HEAD
+=======
+	roleIDVal, _ := c.Get("roleID")
+	userIDVal, _ := c.Get("userID")
+
+	roleID, _ := roleIDVal.(int)
+	userID, _ := userIDVal.(int)
+
+>>>>>>> a9087e9e415a806d69c45a13532e14e8928818d9
 	// Validate submissionID
 	if submissionID == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Submission ID is required"})
@@ -44,6 +53,7 @@ func GetSubmissionDetails(c *gin.Context) {
 		return
 	}
 
+<<<<<<< HEAD
 	// ดึง submission users (co-authors)
 	var submissionUsers []models.SubmissionUser
 	if err := config.DB.Where("submission_id = ?", submissionID).
@@ -53,6 +63,30 @@ func GetSubmissionDetails(c *gin.Context) {
 		submissionUsers = []models.SubmissionUser{}
 	}
 
+=======
+	if roleID != 3 && roleID != 4 {
+		isOwner := submission.UserID == userID
+		if !isOwner {
+			var count int64
+			if err := config.DB.Model(&models.SubmissionUser{}).
+				Where("submission_id = ? AND user_id = ?", submission.SubmissionID, userID).
+				Count(&count).Error; err != nil || count == 0 {
+				c.JSON(http.StatusForbidden, gin.H{"error": "Access denied"})
+				return
+			}
+		}
+	}
+
+	// ดึง submission users (co-authors)
+	var submissionUsers []models.SubmissionUser
+	if err := config.DB.Where("submission_id = ?", submissionID).
+		Preload("User").
+		Order("display_order ASC").
+		Find(&submissionUsers).Error; err != nil {
+		submissionUsers = []models.SubmissionUser{}
+	}
+
+>>>>>>> a9087e9e415a806d69c45a13532e14e8928818d9
 	// ดึง documents
 	var documents []models.SubmissionDocument
 	config.DB.Where("submission_id = ?", submissionID).
@@ -86,12 +120,36 @@ func GetSubmissionDetails(c *gin.Context) {
 
 	// เพิ่มรายละเอียดตาม submission type
 	if submission.SubmissionType == "publication_reward" && submission.PublicationRewardDetail != nil {
+<<<<<<< HEAD
 		if submission.StatusID != 2 {
 			submission.PublicationRewardDetail.AnnounceReferenceNumber = ""
 		}
 		response["details"] = gin.H{
 			"type": "publication_reward",
 			"data": submission.PublicationRewardDetail,
+=======
+		detail := *submission.PublicationRewardDetail
+
+		if submission.StatusID != 2 {
+			detail.AnnounceReferenceNumber = ""
+		}
+
+		if roleID == 4 {
+			detail.RewardApproveAmount = 0
+			detail.RevisionFeeApproveAmount = 0
+			detail.PublicationFeeApproveAmount = 0
+			detail.TotalApproveAmount = 0
+			if detail.ApprovedAmount != nil {
+				zero := 0.0
+				detail.ApprovedAmount = &zero
+			}
+			detail.AnnounceReferenceNumber = ""
+		}
+
+		response["details"] = gin.H{
+			"type": "publication_reward",
+			"data": detail,
+>>>>>>> a9087e9e415a806d69c45a13532e14e8928818d9
 		}
 	} else if submission.SubmissionType == "fund_application" && submission.FundApplicationDetail != nil {
 		if submission.StatusID != 2 {

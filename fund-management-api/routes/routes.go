@@ -178,6 +178,7 @@ func SetupRoutes(router *gin.Engine) {
 				// Basic CRUD
 				submissions.POST("", controllers.CreateSubmission)
 				submissions.GET("/:id", controllers.GetSubmission)
+				submissions.GET("/:id/details", controllers.GetSubmissionDetails)
 				submissions.PUT("/:id", controllers.UpdateSubmission)
 				submissions.DELETE("/:id", controllers.DeleteSubmission)
 

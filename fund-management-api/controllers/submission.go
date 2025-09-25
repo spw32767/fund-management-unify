@@ -829,21 +829,35 @@ func AttachDocument(c *gin.Context) {
 // GetSubmissionDocuments returns documents attached to a submission
 func GetSubmissionDocuments(c *gin.Context) {
 	submissionID := c.Param("id")
-	userID, _ := c.Get("userID")
-	roleID, _ := c.Get("roleID")
+
+	userIDVal, _ := c.Get("userID")
+	roleIDVal, _ := c.Get("roleID")
+
+	userID, _ := userIDVal.(int)
+	roleID, _ := roleIDVal.(int)
 
 	// Find submission
 	var submission models.Submission
 	query := config.DB.Where("submission_id = ? AND deleted_at IS NULL", submissionID)
 
 	// Check permission
-	if roleID.(int) != 3 { // Not admin
+	if roleID != 3 && roleID != 4 { // Not admin or dept head
 		query = query.Where("user_id = ?", userID)
 	}
 
 	if err := query.First(&submission).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Submission not found"})
 		return
+	}
+
+	if roleID != 3 && roleID != 4 && submission.UserID != userID {
+		var count int64
+		if err := config.DB.Model(&models.SubmissionUser{}).
+			Where("submission_id = ? AND user_id = ?", submission.SubmissionID, userID).
+			Count(&count).Error; err != nil || count == 0 {
+			c.JSON(http.StatusForbidden, gin.H{"error": "Access denied"})
+			return
+		}
 	}
 
 	// Get documents
