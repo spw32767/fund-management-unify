@@ -21,6 +21,7 @@ import Swal from 'sweetalert2';
 import { PDFDocument } from 'pdf-lib';
 import { notificationsAPI } from '../../../lib/notifications_api';
 import { systemConfigAPI } from '../../../lib/system_config_api';
+import buildPublicationSummaryContext from '../../../lib/publication_summary';
 import { getAuthorSubmissionFields } from './PublicationRewardForm.helpers.mjs';
 
 // =================================================================
@@ -52,6 +53,21 @@ const AUTHOR_STATUS_SUBCATEGORY_MAP = {
 const getSubcategoryIdForAuthorStatus = (status) => {
   return AUTHOR_STATUS_SUBCATEGORY_MAP[status] ?? null;
 };
+
+const PUBLICATION_SUMMARY_ENDPOINT = (() => {
+  const env = (typeof process !== 'undefined' && process?.env) ? process.env : {};
+  const explicit = (env.NEXT_PUBLIC_PUBLICATION_SUMMARY_URL || '').trim();
+  if (explicit) {
+    return explicit;
+  }
+
+  const base = (env.NEXT_PUBLIC_API_URL || env.BACKEND_URL || '').trim();
+  if (base) {
+    return `${base.replace(/\/$/, '')}/publication-summary`;
+  }
+
+  return '/api/publication-summary';
+})();
 
 // =================================================================
 // UTILITY FUNCTIONS
@@ -304,138 +320,6 @@ const mergePDFs = async (pdfFiles) => {
 // AUTO-GENERATED SUMMARY PDF
 // =================================================================
 
-const THAI_MONTHS = [
-  'มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน',
-  'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'
-];
-
-const AUTHOR_ROLE_SENTENCES = {
-  first_author: 'เป็นผู้ประพันธ์ชื่อแรก (first author)',
-  corresponding_author: 'เป็นผู้ประพันธ์บรรณกิจ (corresponding author)',
-  coauthor: 'เป็นผู้ร่วมประพันธ์ (co-author)'
-};
-
-const QUARTILE_SENTENCES = {
-  T5: 'บทความตีพิมพ์ในวารสารระดับนานาชาติ ควอไทล์ 1 (ลำดับ 5% แรก) ที่สามารถสืบค้นได้ในฐานข้อมูล WOS หรือ ISI หรือ SCOPUS',
-  T10: 'บทความตีพิมพ์ในวารสารระดับนานาชาติ ควอไทล์ 1 (ลำดับ 10% แรก) ที่สามารถสืบค้นได้ในฐานข้อมูล WOS หรือ ISI หรือ SCOPUS',
-  Q1: 'บทความตีพิมพ์ในวารสารระดับนานาชาติ ควอไทล์ 1 ที่สามารถสืบค้นได้ในฐานข้อมูล WOS หรือ ISI หรือ SCOPUS',
-  Q2: 'บทความตีพิมพ์ในวารสารระดับนานาชาติ ควอไทล์ 2 ที่สามารถสืบค้นได้ในฐานข้อมูล WOS หรือ ISI หรือ SCOPUS',
-  Q3: 'บทความตีพิมพ์ในวารสารระดับนานาชาติ ควอไทล์ 3 ที่สามารถสืบค้นได้ในฐานข้อมูล WOS หรือ ISI หรือ SCOPUS',
-  Q4: 'บทความตีพิมพ์ในวารสารระดับนานาชาติ ควอไทล์ 4 ที่สามารถสืบค้นได้ในฐานข้อมูล WOS หรือ ISI หรือ SCOPUS',
-  TCI: 'บทความตีพิมพ์ในวารสารระดับนานาชาติ อยู่ในฐานข้อมูล WOS หรือ ISI หรือ SCOPUS หรือวารสารที่อยู่ในฐานข้อมูล TCI'
-};
-
-const THAI_DIGITS = ['ศูนย์', 'หนึ่ง', 'สอง', 'สาม', 'สี่', 'ห้า', 'หก', 'เจ็ด', 'แปด', 'เก้า'];
-const THAI_UNITS = ['', 'สิบ', 'ร้อย', 'พัน', 'หมื่น', 'แสน', 'ล้าน'];
-
-const normalizeThaiNumberSegment = (value) => {
-  const trimmed = `${value}`.replace(/^0+/, '');
-  return trimmed === '' ? '0' : trimmed;
-};
-
-const readThaiNumber = (raw) => {
-  const value = normalizeThaiNumberSegment(raw);
-  if (value === '0') return '';
-
-  if (value.length > 6) {
-    const head = value.slice(0, -6);
-    const tail = value.slice(-6);
-    const headText = readThaiNumber(head);
-    const tailText = readThaiNumber(tail);
-    return `${headText}ล้าน${tailText || ''}`;
-  }
-
-  const digits = value.split('').map((ch) => parseInt(ch, 10));
-  const len = digits.length;
-  let result = '';
-
-  digits.forEach((digit, index) => {
-    if (Number.isNaN(digit) || digit === 0) return;
-    const position = len - index - 1;
-    if (position === 0) {
-      if (digit === 1 && len > 1) {
-        result += 'เอ็ด';
-      } else {
-        result += THAI_DIGITS[digit];
-      }
-      return;
-    }
-
-    if (position === 1) {
-      if (digit === 2) {
-        result += 'ยี่สิบ';
-        return;
-      }
-      if (digit === 1) {
-        result += 'สิบ';
-        return;
-      }
-    }
-
-    result += `${THAI_DIGITS[digit]}${THAI_UNITS[position]}`;
-  });
-
-  return result;
-};
-
-const toBahtText = (amount) => {
-  if (amount === null || amount === undefined || amount === '') {
-    return '';
-  }
-
-  const numeric = parseFloat(`${amount}`.toString().replace(/,/g, ''));
-  if (Number.isNaN(numeric)) {
-    return '';
-  }
-
-  if (numeric === 0) {
-    return 'ศูนย์บาทถ้วน';
-  }
-
-  const fixed = Math.abs(numeric).toFixed(2);
-  const [bahtPart, satangPart] = fixed.split('.');
-  const bahtText = readThaiNumber(bahtPart) || 'ศูนย์';
-  const satangValue = parseInt(satangPart, 10);
-
-  let result = `${bahtText}บาท`;
-  if (satangValue === 0) {
-    result += 'ถ้วน';
-  } else {
-    result += `${readThaiNumber(satangPart)}สตางค์`;
-  }
-
-  return result;
-};
-
-const formatThaiDate = (value) => {
-  if (!value) return '—';
-  const date = value instanceof Date ? value : new Date(value);
-  if (Number.isNaN(date.getTime())) return '—';
-  const day = date.getDate();
-  const month = THAI_MONTHS[date.getMonth()] ?? '';
-  const year = date.getFullYear() + 543;
-  return `${day} ${month} ${year}`;
-};
-
-const formatThaiMonthYear = (month, year) => {
-  const monthIndex = parseInt(month, 10) - 1;
-  const monthName = Number.isInteger(monthIndex) && monthIndex >= 0 && monthIndex < THAI_MONTHS.length
-    ? THAI_MONTHS[monthIndex]
-    : '';
-  const numericYear = parseInt(year, 10);
-  const displayYear = Number.isNaN(numericYear) ? '' : numericYear + 543;
-
-  if (!monthName && !displayYear) return '—';
-  if (monthName && displayYear) return `${monthName} ${displayYear}`;
-  return monthName || displayYear || '—';
-};
-
-const safeDisplay = (value, fallback = '—') => {
-  if (value === null || value === undefined) return fallback;
-  if (typeof value === 'string' && value.trim() === '') return fallback;
-  return value;
-};
-
 const wrapParagraph = (ctx, text, font, maxWidth) => {
   ctx.font = font;
   if (maxWidth <= 0) return [text];
@@ -513,16 +397,12 @@ const wrapEntryLines = (ctx, entry, style, contentWidth, bulletIndent) => {
   return lines;
 };
 
-const generateSubmissionSummaryPdf = async ({
-  formData,
-  currentUser,
-  documents,
-  systemConfig,
-  fiscalYear,
-}) => {
+const generateSummaryPdfViaCanvas = async (summaryContext) => {
   if (typeof window === 'undefined' || typeof document === 'undefined') {
     return null;
   }
+
+  const { meta } = summaryContext;
 
   try {
     await ensureSummaryFontsLoaded();
@@ -627,71 +507,26 @@ const generateSubmissionSummaryPdf = async ({
       },
     };
 
-    const todayThai = formatThaiDate(new Date());
-    const employmentDate = formatThaiDate(currentUser?.date_of_employment);
-    const applicantNameParts = [
-      safeDisplay(currentUser?.user_fname, ''),
-      safeDisplay(currentUser?.user_lname, ''),
-    ].filter(Boolean);
-    let applicantName = applicantNameParts.join(' ').trim();
-    if (!applicantName) {
-      applicantName = safeDisplay(formData.applicant_name, '—');
-    }
-
-    const positionName = safeDisplay(currentUser?.position_name, '—');
-    const fiscalYearDisplay = safeDisplay(fiscalYear, '—');
-    const installmentDisplay = safeDisplay(
-      systemConfig?.installment !== null && systemConfig?.installment !== undefined
-        ? `${systemConfig.installment}`
-        : '',
-      '—'
-    );
-
-    const totalAmountNumeric = Number.parseFloat(formData.total_amount) || 0;
-    const totalAmountFormatted = totalAmountNumeric.toLocaleString('th-TH', {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    });
-    const totalAmountText = toBahtText(totalAmountNumeric);
-
-    const publicationThai = formatThaiMonthYear(formData.journal_month, formData.journal_year);
-    const volumeIssue = safeDisplay(formData.journal_issue, '');
-    const pageNumbers = safeDisplay(formData.journal_pages, '');
-    const authorNameList = safeDisplay(formData.author_name_list, '');
-    const articleTitle = safeDisplay(formData.article_title, '');
-    const journalName = safeDisplay(formData.journal_name, '');
-
-    const articleDetailParts = [authorNameList, articleTitle, journalName, publicationThai, volumeIssue, pageNumbers]
-      .map(part => (part && part !== '—' ? part : ''))
-      .filter(Boolean);
-    const articleDetailText = articleDetailParts.length > 0 ? articleDetailParts.join(' ') : '—';
-
-    const authorRoleSentence = AUTHOR_ROLE_SENTENCES[formData.author_status] || '';
-    const quartileSentence = QUARTILE_SENTENCES[formData.journal_quartile] || '';
-
-    const documentLines = (documents || [])
-      .filter(doc => !doc.isGenerated)
-      .map(doc => {
-        const label = safeDisplay(doc.type || doc.name, 'เอกสารแนบ');
-        return `${label} — จำนวน 1 ฉบับ`;
-      });
-    const documentListText = documentLines.length > 0
-      ? documentLines.join('\n')
-      : 'ไม่พบรายการเอกสารแนบ — จำนวน 1 ฉบับ';
-
-    const signatureText = safeDisplay(formData.signature, '........................................');
-    const kkuReportYear = safeDisplay(systemConfig?.kku_report_year, '—');
+    const installmentDisplay = meta.installmentDisplay || '—';
+    const totalAmountFormatted = meta.totalAmountDisplay || '0.00';
+    const totalAmountText = meta.totalAmountText || '—';
+    const articleDetailText = meta.articleDetailText || '—';
+    const authorRoleSentence = meta.authorRoleSentence || '—';
+    const quartileSentence = meta.quartileSentence || '';
+    const documentListText = meta.documentListText || '☑ ไม่พบรายการเอกสารแนบ';
+    const signatureText = meta.signatureText || '........................................';
+    const kkuReportYear = meta.kkuReportYear || '—';
 
     const content = [
       { type: 'title', text: 'ใบสมัครเพื่อขอใช้เงินกองทุนวิจัย นวัตกรรม และบริการวิชาการ วิทยาลัยการคอมพิวเตอร์ มหาวิทยาลัยขอนแก่น' },
       { type: 'subtitle', text: 'เงินรางวัลการตีพิมพ์เผยแพร่ผลงานวิจัยที่ได้รับการตีพิมพ์ในสาขาวิทยาศาสตร์และเทคโนโลยี' },
       { type: 'location', text: 'เขียนที่  วิทยาลัยการคอมพิวเตอร์ มหาวิทยาลัยขอนแก่น' },
-      { type: 'date', text: todayThai },
+      { type: 'date', text: meta.dateThai || '—' },
       { type: 'subject', text: 'เรื่องขออนุมัติเบิกค่าใช้จ่ายในการสนับสนุนการตีพิมพ์ผลงานวิจัยในสาขาวิทยาศาสตร์และเทคโนโลยี' },
       { type: 'salutation', text: 'เรียน  คณบดีวิทยาลัยการคอมพิวเตอร์' },
       {
         type: 'body',
-        text: `ข้าพเจ้า ${applicantName} บรรจุเมื่อวันที่ ${employmentDate}          ตำแหน่ง ${positionName} สังกัดหน่วยงาน/สาขาวิชา วิทยาลัยการคอมพิวเตอร์ มหาวิทยาลัยขอนแก่น ขอยื่นใบสมัครเพื่อขอใช้เงินกองทุนวิจัย นวัตกรรมและบริการวิชาการ วิทยาลัยการคอมพิวเตอร์ มหาวิทยาลัยขอนแก่น ประจำปีงบประมาณ พ.ศ. ${fiscalYearDisplay}  งวดที่ ${installmentDisplay} ดังนี้`,
+        text: `ข้าพเจ้า ${meta.applicantName || '—'} บรรจุเมื่อวันที่ ${meta.employmentDate || '—'}          ตำแหน่ง ${meta.positionName || '—'} สังกัดหน่วยงาน/สาขาวิชา วิทยาลัยการคอมพิวเตอร์ มหาวิทยาลัยขอนแก่น ขอยื่นใบสมัครเพื่อขอใช้เงินกองทุนวิจัย นวัตกรรมและบริการวิชาการ วิทยาลัยการคอมพิวเตอร์ มหาวิทยาลัยขอนแก่น ประจำปีงบประมาณ พ.ศ. ${meta.fiscalYearDisplay || '—'}  งวดที่ ${installmentDisplay} ดังนี้`,
       },
       {
         type: 'body',
@@ -701,7 +536,7 @@ const generateSubmissionSummaryPdf = async ({
       { type: 'list', text: articleDetailText },
       {
         type: 'body',
-        text: `ข้าพเจ้า ${authorRoleSentence || '—'} ได้ตีพิมพ์ ${quartileSentence || ''}`.trim(),
+        text: `ข้าพเจ้า ${authorRoleSentence} ได้ตีพิมพ์ ${quartileSentence}`.trim(),
       },
       { type: 'body', text: 'ทั้งนี้ได้แนบ หลักฐานเพื่อประกอบการพิจารณา ดังนี้' },
       { type: 'documentList', text: documentListText },
@@ -716,7 +551,7 @@ const generateSubmissionSummaryPdf = async ({
       },
       { type: 'signoff', text: 'ขอแสดงความนับถือ' },
       { type: 'signature', text: `(ลงชื่อ) ${signatureText} ผู้สมัครขอใช้เงิน` },
-      { type: 'signatureName', text: `(${applicantName})` },
+      { type: 'signatureName', text: `(${meta.applicantName || '—'})` },
     ];
 
     const processed = [];
@@ -810,9 +645,137 @@ const generateSubmissionSummaryPdf = async ({
     const pdfBytes = await pdfDoc.save();
     return new Blob([pdfBytes], { type: 'application/pdf' });
   } catch (error) {
-    console.error('Failed to generate summary PDF:', error);
+    console.error('Failed to generate summary PDF via canvas:', error);
     return null;
   }
+};
+
+const requestPublicationSummaryPdf = async (endpoint, payload) => {
+  try {
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+
+    if (response.ok) {
+      const buffer = await response.arrayBuffer();
+      return { ok: true, blob: new Blob([buffer], { type: 'application/pdf' }) };
+    }
+
+    let errorPayload = null;
+    try {
+      errorPayload = await response.json();
+    } catch (readError) {
+      console.warn('Unable to parse publication summary error payload:', readError);
+      errorPayload = { details: await response.text() };
+    }
+
+    const errorCode = errorPayload?.error;
+    const errorDetails = errorPayload?.details;
+
+    return {
+      ok: false,
+      status: response.status,
+      errorCode,
+      errorDetails,
+      errorPayload,
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      status: null,
+      networkError: error,
+    };
+  }
+};
+
+const handlePublicationSummaryError = (error) => {
+  if (error?.errorCode === 'LIBREOFFICE_NOT_INSTALLED') {
+    Toast.fire({
+      icon: 'warning',
+      title: 'ไม่สามารถสร้างแบบฟอร์มจากไฟล์ Word ได้',
+      text: 'กรุณาติดตั้ง LibreOffice (คำสั่ง soffice) บนเซิร์ฟเวอร์ แล้วลองใหม่อีกครั้ง เพื่อใช้งานแบบฟอร์มเวอร์ชันเดียวกับ DOCX',
+    });
+    return;
+  }
+
+  const details = error?.errorDetails
+    || error?.networkError?.message
+    || 'ระบบจะใช้รูปแบบ PDF เดิมแทนชั่วคราว';
+
+  Toast.fire({
+    icon: 'warning',
+    title: 'ไม่สามารถสร้างแบบฟอร์มเวอร์ชัน Word ได้',
+    text: details,
+  });
+};
+
+const generateSubmissionSummaryPdf = async ({
+  formData,
+  currentUser,
+  documents,
+  systemConfig,
+  fiscalYear,
+}) => {
+  if (typeof window === 'undefined' || typeof document === 'undefined') {
+    return null;
+  }
+
+  const filteredDocuments = Array.isArray(documents)
+    ? documents.filter(doc => !doc.isGenerated)
+    : [];
+
+  const summaryContext = buildPublicationSummaryContext({
+    formData,
+    currentUser,
+    documents: filteredDocuments,
+    systemConfig,
+    fiscalYear,
+  });
+
+  const payload = {
+    placeholders: summaryContext.placeholders,
+    documentLines: summaryContext.documentLines,
+  };
+
+  const attempted = new Set();
+  const endpoints = [PUBLICATION_SUMMARY_ENDPOINT];
+  const fallbackEndpoint = '/api/publication-summary';
+  if (!endpoints.includes(fallbackEndpoint)) {
+    endpoints.push(fallbackEndpoint);
+  }
+
+  let lastError = null;
+
+  for (const endpoint of endpoints) {
+    if (attempted.has(endpoint)) {
+      continue;
+    }
+
+    attempted.add(endpoint);
+
+    const result = await requestPublicationSummaryPdf(endpoint, payload);
+    if (result.ok) {
+      return result.blob;
+    }
+
+    lastError = result;
+
+    if (result?.errorPayload) {
+      console.warn('Docx-based summary generation failed:', result.errorPayload);
+    } else if (result?.networkError) {
+      console.warn('Docx-based summary generation encountered a network error:', result.networkError);
+    }
+
+    // Try the next endpoint automatically when the current one fails.
+  }
+
+  if (lastError) {
+    handlePublicationSummaryError(lastError);
+  }
+
+  return generateSummaryPdfViaCanvas(summaryContext);
 };
 
 
