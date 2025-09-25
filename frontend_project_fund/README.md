@@ -7,9 +7,9 @@ The `POST /api/publication-summary` endpoint can generate a PDF document from th
 | Variable | Description |
 | --- | --- |
 | `LIBREOFFICE_PATH` | Optional hint that points either to the `soffice` executable or to its containing directory. Multiple paths can be provided using the platform delimiter (`:` on Linux/macOS, `;` on Windows). |
-| `PUBLICATION_SUMMARY_FALLBACK_FORMAT` | When set to `docx`, the route returns the patched DOCX file instead of failing if LibreOffice is unavailable. |
+| `PUBLICATION_SUMMARY_FALLBACK_FORMAT` | Optional override for the behavior when LibreOffice is unavailable. Defaults to returning the patched DOCX response; set to `error` to keep the previous 503 error response instead. |
 
-If LibreOffice cannot be located the API responds with HTTP `503` and JSON `{ "error": "LIBREOFFICE_NOT_INSTALLED", ... }`. Configure `LIBREOFFICE_PATH` on platforms where LibreOffice is installed outside of the default locations (for example, a custom Windows install directory).
+If LibreOffice cannot be located the API now returns the patched DOCX document so that callers can still download the official template. Configure `LIBREOFFICE_PATH` on platforms where LibreOffice is installed outside of the default locations (for example, a custom Windows install directory), or set `PUBLICATION_SUMMARY_FALLBACK_FORMAT=error` to surface an explicit error instead.
 
 ### Local testing
 

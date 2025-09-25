@@ -353,14 +353,18 @@ export async function POST(request) {
       });
 
       if (conversionError?.message === 'LIBREOFFICE_NOT_INSTALLED') {
-        if (process.env.PUBLICATION_SUMMARY_FALLBACK_FORMAT === 'docx') {
-          log('warn', 'conversion.fallback_to_docx');
+        const fallbackPreference = (process.env.PUBLICATION_SUMMARY_FALLBACK_FORMAT || '').trim().toLowerCase();
+        const shouldReturnDocx = fallbackPreference !== 'error';
+
+        if (shouldReturnDocx) {
+          log('warn', 'conversion.fallback_to_docx', { fallbackPreference });
           return new NextResponse(patchedDocx, {
             status: 200,
             headers: {
               'Content-Type':
                 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
               'Content-Disposition': 'attachment; filename="publication-summary.docx"',
+              'X-Publication-Summary-Fallback': 'docx',
             },
           });
         }
