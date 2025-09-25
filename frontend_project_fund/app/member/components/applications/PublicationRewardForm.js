@@ -650,6 +650,29 @@ const generateSummaryPdfViaCanvas = async (summaryContext) => {
   }
 };
 
+const parseContentDispositionFilename = (headerValue) => {
+  if (!headerValue || typeof headerValue !== 'string') {
+    return null;
+  }
+
+  // RFC 6266 allows filename* and quoted/unquoted filename parameters.
+  const utf8FilenameMatch = headerValue.match(/filename\*=(?:UTF-8'')?([^;]+)/i);
+  if (utf8FilenameMatch && utf8FilenameMatch[1]) {
+    try {
+      return decodeURIComponent(utf8FilenameMatch[1].trim().replace(/^"|"$/g, ''));
+    } catch (err) {
+      console.warn('Unable to decode UTF-8 filename from Content-Disposition header:', err);
+    }
+  }
+
+  const asciiFilenameMatch = headerValue.match(/filename="?([^";]+)"?/i);
+  if (asciiFilenameMatch && asciiFilenameMatch[1]) {
+    return asciiFilenameMatch[1].trim();
+  }
+
+  return null;
+};
+
 const requestPublicationSummaryPdf = async (endpoint, payload) => {
   try {
     const response = await fetch(endpoint, {
@@ -660,7 +683,18 @@ const requestPublicationSummaryPdf = async (endpoint, payload) => {
 
     if (response.ok) {
       const buffer = await response.arrayBuffer();
-      return { ok: true, blob: new Blob([buffer], { type: 'application/pdf' }) };
+      const contentType = response.headers?.get('Content-Type') || 'application/pdf';
+      const mimeType = contentType.split(';')[0].trim().toLowerCase();
+      const suggestedFileName = parseContentDispositionFilename(
+        response.headers?.get('Content-Disposition') || '',
+      );
+
+      return {
+        ok: true,
+        blob: new Blob([buffer], { type: mimeType || 'application/pdf' }),
+        mimeType: mimeType || 'application/pdf',
+        suggestedFileName,
+      };
     }
 
     let errorPayload = null;
@@ -757,7 +791,12 @@ const generateSubmissionSummaryPdf = async ({
 
     const result = await requestPublicationSummaryPdf(endpoint, payload);
     if (result.ok) {
-      return result.blob;
+      return {
+        blob: result.blob,
+        mimeType: result.mimeType,
+        suggestedFileName: result.suggestedFileName,
+        source: 'docx-service',
+      };
     }
 
     lastError = result;
@@ -775,7 +814,17 @@ const generateSubmissionSummaryPdf = async ({
     handlePublicationSummaryError(lastError);
   }
 
-  return generateSummaryPdfViaCanvas(summaryContext);
+  const canvasBlob = await generateSummaryPdfViaCanvas(summaryContext);
+  if (!canvasBlob) {
+    return null;
+  }
+
+  return {
+    blob: canvasBlob,
+    mimeType: 'application/pdf',
+    suggestedFileName: 'publication-summary.pdf',
+    source: 'canvas-fallback',
+  };
 };
 
 
@@ -2461,9 +2510,10 @@ const showSubmissionConfirmation = async () => {
   }
 
   let summaryFile = null;
+  let summaryFileIsPdf = false;
   try {
     const selectedYear = years.find(year => year.year_id === formData.year_id);
-    const summaryBlob = await generateSubmissionSummaryPdf({
+    const summaryResult = await generateSubmissionSummaryPdf({
       formData,
       currentUser,
       documents: allFilesList,
@@ -2471,8 +2521,16 @@ const showSubmissionConfirmation = async () => {
       fiscalYear: selectedYear?.year || null,
     });
 
-    if (summaryBlob) {
-      summaryFile = new File([summaryBlob], '00_แบบฟอร์มสรุปคำขอ.pdf', { type: 'application/pdf' });
+    if (summaryResult?.blob) {
+      const mimeType = summaryResult.mimeType || 'application/pdf';
+      const isDocx = mimeType.includes('wordprocessingml');
+      const defaultFileName = isDocx
+        ? '00_แบบฟอร์มสรุปคำขอ.docx'
+        : '00_แบบฟอร์มสรุปคำขอ.pdf';
+      const fileName = summaryResult.suggestedFileName || defaultFileName;
+
+      summaryFile = new File([summaryResult.blob], fileName, { type: mimeType });
+      summaryFileIsPdf = !isDocx && mimeType === 'application/pdf';
     }
   } catch (error) {
     console.error('Failed to generate auto-summary PDF:', error);
@@ -2529,7 +2587,7 @@ const showSubmissionConfirmation = async () => {
 
     const attachmentPdfFiles = allFiles.filter(file => file.type === 'application/pdf');
     const pdfFiles = [];
-    if (summaryFile) {
+    if (summaryFile && summaryFileIsPdf) {
       pdfFiles.push(summaryFile);
     }
     pdfFiles.push(...attachmentPdfFiles);
