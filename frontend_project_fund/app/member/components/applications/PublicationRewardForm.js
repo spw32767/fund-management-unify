@@ -54,6 +54,21 @@ const getSubcategoryIdForAuthorStatus = (status) => {
   return AUTHOR_STATUS_SUBCATEGORY_MAP[status] ?? null;
 };
 
+const PUBLICATION_SUMMARY_ENDPOINT = (() => {
+  const env = (typeof process !== 'undefined' && process?.env) ? process.env : {};
+  const explicit = (env.NEXT_PUBLIC_PUBLICATION_SUMMARY_URL || '').trim();
+  if (explicit) {
+    return explicit;
+  }
+
+  const base = (env.NEXT_PUBLIC_API_URL || env.BACKEND_URL || '').trim();
+  if (base) {
+    return `${base.replace(/\/$/, '')}/publication-summary`;
+  }
+
+  return '/api/publication-summary';
+})();
+
 // =================================================================
 // UTILITY FUNCTIONS
 // =================================================================
@@ -659,7 +674,7 @@ const generateSubmissionSummaryPdf = async ({
   });
 
   try {
-    const response = await fetch('/api/publication-summary', {
+    const response = await fetch(PUBLICATION_SUMMARY_ENDPOINT, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
