@@ -8,7 +8,6 @@ import SubmissionTable from './SubmissionTable';
 import SubmissionFilters from './SubmissionFilters';
 import PublicationSubmissionDetails from './PublicationSubmissionDetails';
 import GeneralSubmissionDetails from './GeneralSubmissionDetails';
-import ExportButton from './ExportButton';
 import { submissionsListingAPI, adminSubmissionAPI, commonAPI } from '../../../lib/admin_submission_api';
 import { toast } from 'react-hot-toast';
 import systemConfigAPI from '../../../lib/system_config_api'
@@ -557,7 +556,6 @@ export default function SubmissionsManagement() {
         { label: "หน้าแรก", href: "/admin" },
         { label: "จัดการคำร้อง" }
       ]}
-      actions={<ExportButton onExport={handleExport} />}
     >
       {/* Year Selector */}
       <div className="mb-6">
