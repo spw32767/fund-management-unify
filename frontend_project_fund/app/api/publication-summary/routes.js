@@ -5,6 +5,7 @@ import os from 'os';
 import { randomUUID } from 'crypto';
 import { execFile } from 'child_process';
 import { promisify } from 'util';
+import { performance } from 'perf_hooks';
 import { patchDocument, PatchType, Paragraph, TextRun } from 'docx';
 
 export const runtime = 'nodejs';
@@ -39,6 +40,31 @@ const resolveTemplatePath = async () => {
   return null;
 };
 
+const logScope = 'publication-summary';
+
+const log = (level, event, metadata = {}) => {
+  const entry = {
+    scope: logScope,
+    event,
+    timestamp: new Date().toISOString(),
+    ...metadata,
+  };
+
+  const serialized = JSON.stringify(entry);
+
+  switch (level) {
+    case 'error':
+      console.error(serialized);
+      break;
+    case 'warn':
+      console.warn(serialized);
+      break;
+    default:
+      console.log(serialized);
+      break;
+  }
+};
+
 const createParagraph = (text = '') => new Paragraph({
   children: [new TextRun({ text })],
 });
@@ -67,7 +93,42 @@ const buildPatches = (placeholders = {}, documentLines = []) => {
   return patches;
 };
 
-const candidateLibreOfficePaths = () => {
+const envDelimiter = process.platform === 'win32' ? ';' : path.delimiter;
+
+const sanitizeEnvPaths = (value = '') =>
+  value
+    .split(envDelimiter)
+    .map((candidate) => candidate.trim())
+    .filter(Boolean);
+
+const ensureSofficeExecutable = async (candidatePath) => {
+  if (!candidatePath) {
+    return [];
+  }
+
+  const normalized = path.normalize(candidatePath);
+
+  try {
+    const stats = await fs.stat(normalized);
+    if (stats.isDirectory()) {
+      const executables = process.platform === 'win32' ? ['soffice.exe'] : ['soffice', 'libreoffice'];
+      return executables.map((name) => path.join(normalized, name));
+    }
+
+    if (stats.isFile()) {
+      return [normalized];
+    }
+  } catch (error) {
+    log('warn', 'libreoffice.env_candidate.invalid', {
+      candidatePath,
+      error: error?.message,
+    });
+  }
+
+  return [normalized];
+};
+
+const defaultLibreOfficeLocations = () => {
   if (process.platform === 'win32') {
     return [
       'C:/Program Files/LibreOffice/program/soffice.exe',
@@ -76,24 +137,103 @@ const candidateLibreOfficePaths = () => {
     ];
   }
 
-  return ['soffice', 'libreoffice'];
+  const unixCandidates = [
+    '/usr/bin/soffice',
+    '/usr/local/bin/soffice',
+    '/snap/bin/libreoffice',
+    '/Applications/LibreOffice.app/Contents/MacOS/soffice',
+    'soffice',
+    'libreoffice',
+  ];
+
+  return unixCandidates;
+};
+
+const resolveOnPath = async (command) => {
+  const locator = process.platform === 'win32' ? 'where' : 'which';
+
+  try {
+    const { stdout } = await execFileAsync(locator, [command]);
+    const match = stdout
+      .split(/\r?\n/g)
+      .map((line) => line.trim())
+      .find(Boolean);
+
+    if (match) {
+      await fs.access(match);
+      return match;
+    }
+  } catch (error) {
+    log('warn', 'libreoffice.locator.failed', {
+      command,
+      locator,
+      error: error?.message,
+    });
+  }
+
+  return null;
 };
 
 const resolveLibreOffice = async () => {
-  const candidates = candidateLibreOfficePaths();
+  const envCandidates = sanitizeEnvPaths(process.env.LIBREOFFICE_PATH || '');
+  const envResolved = await Promise.all(envCandidates.map((candidate) => ensureSofficeExecutable(candidate)));
+  const flattenedEnv = envResolved.flat();
+
+  const candidates = [...flattenedEnv, ...defaultLibreOfficeLocations()];
+  const seen = new Set();
+  const attempts = [];
+
+  log('info', 'libreoffice.resolve.start', {
+    envCandidates,
+    totalCandidates: candidates.length,
+  });
+
   for (const candidate of candidates) {
-    try {
-      if (candidate.includes('/') || candidate.includes('\\') || candidate.includes(':')) {
-        await fs.access(candidate);
-        return candidate;
+    if (!candidate || seen.has(candidate)) {
+      continue;
+    }
+    seen.add(candidate);
+    const hasPathSeparators = /[\\/]/.test(candidate) || candidate.includes(':');
+    attempts.push(candidate);
+
+    if (hasPathSeparators) {
+      try {
+        const stats = await fs.stat(candidate);
+        if (stats.isFile()) {
+          log('info', 'libreoffice.resolve.success', { resolvedPath: candidate, method: 'absolute' });
+          return candidate;
+        }
+      } catch (error) {
+        log('warn', 'libreoffice.resolve.candidate_missing', {
+          candidate,
+          error: error?.message,
+        });
       }
-      await execFileAsync('which', [candidate]);
-      return candidate;
-    } catch (error) {
-      // Try the next candidate
+      continue;
+    }
+
+    const resolved = await resolveOnPath(candidate);
+    if (resolved) {
+      log('info', 'libreoffice.resolve.success', { resolvedPath: resolved, method: 'which', candidate });
+      return resolved;
     }
   }
-  throw new Error('LibreOffice CLI (soffice) not found on server');
+
+  log('error', 'libreoffice.resolve.failed', { attempts });
+  throw new Error('LIBREOFFICE_NOT_INSTALLED');
+};
+
+const readFileSafe = async (filePath) => {
+  try {
+    const data = await fs.readFile(filePath);
+    return data;
+  } catch (error) {
+    log('error', 'filesystem.read_failed', {
+      filePath,
+      error: error?.message,
+    });
+    throw error;
+  }
 };
 
 const convertDocxToPdf = async (docxBuffer) => {
@@ -101,8 +241,11 @@ const convertDocxToPdf = async (docxBuffer) => {
   const docxPath = path.join(tmpDir, `summary-${randomUUID()}.docx`);
   const pdfPath = path.join(tmpDir, `${path.parse(docxPath).name}.pdf`);
 
+  log('info', 'conversion.prepare', { tmpDir, docxPath, pdfPath });
+
   try {
     await fs.writeFile(docxPath, docxBuffer);
+    log('info', 'conversion.file_written', { docxPath, size: docxBuffer.length });
 
     let libreOffice;
     try {
@@ -113,20 +256,65 @@ const convertDocxToPdf = async (docxBuffer) => {
       throw enhancedError;
     }
 
-    await execFileAsync(libreOffice, ['--headless', '--convert-to', 'pdf', '--outdir', tmpDir, docxPath], {
-      timeout: 30000,
-    });
+    const start = performance.now();
+    try {
+      const { stdout, stderr } = await execFileAsync(
+        libreOffice,
+        ['--headless', '--norestore', '--convert-to', 'pdf', '--outdir', tmpDir, docxPath],
+        {
+          timeout: 30000,
+        },
+      );
 
-    const pdfBuffer = await fs.readFile(pdfPath);
+      log('info', 'conversion.command.completed', {
+        executable: libreOffice,
+        durationMs: Math.round(performance.now() - start),
+        stdout: stdout?.trim(),
+        stderr: stderr?.trim(),
+      });
+    } catch (error) {
+      log('error', 'conversion.command.failed', {
+        executable: libreOffice,
+        durationMs: Math.round(performance.now() - start),
+        code: error?.code,
+        signal: error?.signal,
+        stdout: error?.stdout?.trim(),
+        stderr: error?.stderr?.trim(),
+        error: error?.message,
+      });
+      throw error;
+    }
+
+    const pdfBuffer = await readFileSafe(pdfPath);
+    log('info', 'conversion.read_pdf.success', { pdfPath, size: pdfBuffer.length });
     return pdfBuffer;
   } finally {
     await fs.rm(tmpDir, { recursive: true, force: true });
+    log('info', 'conversion.cleanup.completed', { tmpDir });
   }
 };
 
 export async function POST(request) {
   try {
-    const payload = await request.json();
+    if (request.bodyUsed) {
+      log('warn', 'request.body.already_used');
+      return NextResponse.json(
+        { error: 'REQUEST_BODY_ALREADY_READ', details: 'Request body stream has already been consumed.' },
+        { status: 409 },
+      );
+    }
+
+    let payload;
+    try {
+      payload = await request.json();
+    } catch (parseError) {
+      log('error', 'request.body.parse_failed', { error: parseError?.message });
+      return NextResponse.json(
+        { error: 'INVALID_JSON', details: 'Unable to parse request body as JSON.' },
+        { status: 400 },
+      );
+    }
+
     const { placeholders, documentLines } = payload || {};
 
     if (!placeholders || typeof placeholders !== 'object') {
@@ -139,7 +327,7 @@ export async function POST(request) {
       return NextResponse.json({ error: 'TEMPLATE_NOT_AVAILABLE' }, { status: 503 });
     }
 
-    const templateBuffer = await fs.readFile(templatePath);
+    const templateBuffer = await readFileSafe(templatePath);
     const patches = buildPatches(placeholders, documentLines);
 
     const patchedDocx = await patchDocument({
@@ -159,9 +347,24 @@ export async function POST(request) {
         },
       });
     } catch (conversionError) {
-      console.error('DOCX to PDF conversion failed:', conversionError);
+      log('error', 'conversion.failed', {
+        error: conversionError?.message,
+        code: conversionError?.code,
+      });
 
       if (conversionError?.message === 'LIBREOFFICE_NOT_INSTALLED') {
+        if (process.env.PUBLICATION_SUMMARY_FALLBACK_FORMAT === 'docx') {
+          log('warn', 'conversion.fallback_to_docx');
+          return new NextResponse(patchedDocx, {
+            status: 200,
+            headers: {
+              'Content-Type':
+                'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+              'Content-Disposition': 'attachment; filename="publication-summary.docx"',
+            },
+          });
+        }
+
         return NextResponse.json(
           {
             error: 'LIBREOFFICE_NOT_INSTALLED',
@@ -178,7 +381,7 @@ export async function POST(request) {
       );
     }
   } catch (error) {
-    console.error('Failed to generate publication summary document:', error);
+    log('error', 'summary.generation_failed', { error: error?.message });
     return NextResponse.json({ error: 'SUMMARY_GENERATION_FAILED', details: error.message }, { status: 500 });
   }
 }
