@@ -191,9 +191,7 @@ export default function DeptHeadReview() {
   // ====== RENDER ======
   if (selectedId) {
     return (
-      <PageLayout title="รายละเอียดคำร้อง (หัวหน้าสาขา)">
         <DeptPublicationSubmissionDetails submissionId={selectedId} onBack={handleBack} />
-      </PageLayout>
     );
   }
 
