@@ -31,10 +31,19 @@ func resolveTemplatePath() (string, error) {
 
 	wd, _ := os.Getwd()
 	if wd != "" {
-		candidates = append(candidates,
-			filepath.Join(wd, "frontend_project_fund", "public", "templates", "publication_reward_template.docx"),
-			filepath.Join(wd, "แบบฟอร์มสมัครรับ เงินรางวัลตีพิมพ์ - 2568.docx"),
-		)
+		roots := []string{wd}
+		if parent := filepath.Dir(wd); parent != "" && parent != wd {
+			roots = append(roots, parent)
+		}
+
+		for _, root := range roots {
+			candidates = append(candidates,
+				filepath.Join(root, "templates", "publication_reward_template.docx"),
+				filepath.Join(root, "frontend_project_fund", "public", "templates", "publication_reward_template.docx"),
+				filepath.Join(root, "publication_reward_template.docx"),
+				filepath.Join(root, "แบบฟอร์มสมัครรับ เงินรางวัลตีพิมพ์ - 2568.docx"),
+			)
+		}
 	}
 
 	for _, candidate := range candidates {
