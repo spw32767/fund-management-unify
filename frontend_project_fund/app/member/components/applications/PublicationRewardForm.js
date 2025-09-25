@@ -5,7 +5,7 @@ import { useState, useEffect, useRef } from "react";
 import { Award, Upload, Users, FileText, Plus, X, Save, Send, AlertCircle, Search, Eye, Calculator, Signature } from "lucide-react";
 import PageLayout from "../common/PageLayout";
 import SimpleCard from "../common/SimpleCard";
-import { systemAPI, authAPI } from '../../../lib/api';
+import { systemAPI, authAPI, joinApiUrl } from '../../../lib/api';
 import {
   submissionAPI,
   publicationDetailsAPI,
@@ -58,15 +58,10 @@ const PUBLICATION_SUMMARY_ENDPOINT = (() => {
   const env = (typeof process !== 'undefined' && process?.env) ? process.env : {};
   const explicit = (env.NEXT_PUBLIC_PUBLICATION_SUMMARY_URL || '').trim();
   if (explicit) {
-    return explicit;
+    return explicit.replace(/\/+$/, '');
   }
 
-  const base = (env.NEXT_PUBLIC_API_URL || env.BACKEND_URL || '').trim();
-  if (base) {
-    return `${base.replace(/\/$/, '')}/publication-summary`;
-  }
-
-  return '/api/publication-summary';
+  return joinApiUrl('/publication-summary');
 })();
 
 // =================================================================
@@ -741,7 +736,7 @@ const generateSubmissionSummaryPdf = async ({
 
   const attempted = new Set();
   const endpoints = [PUBLICATION_SUMMARY_ENDPOINT];
-  const fallbackEndpoint = '/api/publication-summary';
+  const fallbackEndpoint = joinApiUrl('/publication-summary');
   if (!endpoints.includes(fallbackEndpoint)) {
     endpoints.push(fallbackEndpoint);
   }

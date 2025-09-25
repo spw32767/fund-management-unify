@@ -1,7 +1,58 @@
 // app/lib/api.js - Updated API Client Service for Backend Communication
+
+export const API_VERSION_PREFIX = '/api/v1';
+const API_VERSION_REGEX = /\/api\/v\d+$/i;
+const DEFAULT_BACKEND_ORIGIN = 'http://localhost:8080';
+
+const stripTrailingSlashes = (value = '') => value.replace(/\/+$/, '');
+const hasValue = (value) => typeof value === 'string' && value.trim().length > 0;
+const ensureLeadingSlash = (value = '') => {
+  if (!value) {
+    return '';
+  }
+  return value.startsWith('/') ? value : `/${value}`;
+};
+
+export const resolveApiBaseUrl = () => {
+  const candidates = [
+    process.env.NEXT_PUBLIC_API_URL,
+    process.env.NEXT_PUBLIC_BACKEND_URL,
+    process.env.BACKEND_URL,
+  ];
+
+  let selected = candidates.find(hasValue);
+
+  if (!selected) {
+    selected = `${DEFAULT_BACKEND_ORIGIN}${API_VERSION_PREFIX}`;
+  }
+
+  const normalized = stripTrailingSlashes(selected.trim());
+
+  if (API_VERSION_REGEX.test(normalized)) {
+    return normalized;
+  }
+
+  if (/\/api$/i.test(normalized)) {
+    return `${normalized}/v1`;
+  }
+
+  return `${normalized}${API_VERSION_PREFIX}`;
+};
+
+export const joinApiUrl = (path, base = resolveApiBaseUrl()) => {
+  const sanitizedBase = stripTrailingSlashes(base || '');
+  const sanitizedPath = ensureLeadingSlash(path || '');
+
+  if (!sanitizedBase) {
+    return sanitizedPath || `${API_VERSION_PREFIX}${sanitizedPath}`;
+  }
+
+  return `${sanitizedBase}${sanitizedPath}`;
+};
+
 class APIClient {
   constructor() {
-    this.baseURL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080/api/v1';
+    this.baseURL = resolveApiBaseUrl();
     console.log('API Base URL:', this.baseURL); // Debug log
     this.accessTokenKey = 'access_token';
     this.refreshTokenKey = 'refresh_token';
