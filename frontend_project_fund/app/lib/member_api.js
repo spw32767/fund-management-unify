@@ -37,6 +37,14 @@ async function getSubmissionDetails(id, params = {}) {
   return apiClient.get(`/submissions/${id}/details`, params);
 }
 
+async function getSubmissionDocuments(id, params = {}) {
+  return apiClient.get(`/submissions/${id}/documents`, params);
+}
+
+async function getDocumentTypes(params = {}) {
+  return apiClient.get('/document-types', params);
+}
+
 export const deptHeadAPI = {
   async getPendingReviews(params = {}) {
     return apiClient.get('/dept-head/review/submissions', params);
@@ -50,6 +58,14 @@ export const deptHeadAPI = {
   async getSubmissionDetails(id, params = {}) {
     return getSubmissionDetails(id, params);
   },
+
+  async getSubmissionDocuments(id, params = {}) {
+    return getSubmissionDocuments(id, params);
+  },
+
+  async getDocumentTypes(params = {}) {
+    return getDocumentTypes(params);
+  },
 };
 
 export const memberAPI = {
@@ -57,6 +73,8 @@ export const memberAPI = {
   ...staffAPI,
   // 🔹 รวม shared details ไว้ให้เรียกตรงได้เลย
   getSubmissionDetails,
+  getSubmissionDocuments,
+  getDocumentTypes,
   deptHead: deptHeadAPI,
 };
 

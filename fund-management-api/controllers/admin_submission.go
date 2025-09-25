@@ -20,6 +20,12 @@ import (
 func GetSubmissionDetails(c *gin.Context) {
 	submissionID := c.Param("id")
 
+	roleIDVal, _ := c.Get("roleID")
+	userIDVal, _ := c.Get("userID")
+
+	roleID, _ := roleIDVal.(int)
+	userID, _ := userIDVal.(int)
+
 	// Validate submissionID
 	if submissionID == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Submission ID is required"})
@@ -42,6 +48,19 @@ func GetSubmissionDetails(c *gin.Context) {
 	if err := query.First(&submission, submissionID).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Submission not found"})
 		return
+	}
+
+	if roleID != 3 && roleID != 4 {
+		isOwner := submission.UserID == userID
+		if !isOwner {
+			var count int64
+			if err := config.DB.Model(&models.SubmissionUser{}).
+				Where("submission_id = ? AND user_id = ?", submission.SubmissionID, userID).
+				Count(&count).Error; err != nil || count == 0 {
+				c.JSON(http.StatusForbidden, gin.H{"error": "Access denied"})
+				return
+			}
+		}
 	}
 
 	// ดึง submission users (co-authors)
@@ -86,12 +105,27 @@ func GetSubmissionDetails(c *gin.Context) {
 
 	// เพิ่มรายละเอียดตาม submission type
 	if submission.SubmissionType == "publication_reward" && submission.PublicationRewardDetail != nil {
+		detail := *submission.PublicationRewardDetail
+
 		if submission.StatusID != 2 {
-			submission.PublicationRewardDetail.AnnounceReferenceNumber = ""
+			detail.AnnounceReferenceNumber = ""
 		}
+
+		if roleID == 4 {
+			detail.RewardApproveAmount = 0
+			detail.RevisionFeeApproveAmount = 0
+			detail.PublicationFeeApproveAmount = 0
+			detail.TotalApproveAmount = 0
+			if detail.ApprovedAmount != nil {
+				zero := 0.0
+				detail.ApprovedAmount = &zero
+			}
+			detail.AnnounceReferenceNumber = ""
+		}
+
 		response["details"] = gin.H{
 			"type": "publication_reward",
-			"data": submission.PublicationRewardDetail,
+			"data": detail,
 		}
 	} else if submission.SubmissionType == "fund_application" && submission.FundApplicationDetail != nil {
 		if submission.StatusID != 2 {
