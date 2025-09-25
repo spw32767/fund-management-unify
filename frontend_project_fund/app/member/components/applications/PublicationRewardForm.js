@@ -60,17 +60,63 @@ const buildPublicationSummaryEndpoint = (baseURL) => {
     return '/api/v1/publication-summary';
   }
 
-  const normalized = trimmed.replace(/\/+$/, '');
+  const sanitized = trimmed.split(/[?#]/)[0].replace(/\/+$/, '');
 
-  if (/\/api\/v\d+$/i.test(normalized)) {
-    return `${normalized}/publication-summary`;
+  if (!sanitized) {
+    return '/api/v1/publication-summary';
   }
 
-  if (/\/api$/i.test(normalized)) {
-    return `${normalized}/v1/publication-summary`;
-  }
+  try {
+    const parsed = new URL(sanitized, (typeof window !== 'undefined' && window.location?.origin) ? window.location.origin : undefined);
+    const segments = parsed.pathname.split('/').filter(Boolean);
 
-  return `${normalized}/api/v1/publication-summary`;
+    let apiIndex = segments.findIndex(segment => segment.toLowerCase() === 'api');
+    if (apiIndex === -1) {
+      apiIndex = segments.findIndex(segment => /^api-?v\d+$/i.test(segment));
+      if (apiIndex !== -1) {
+        const versionMatch = segments[apiIndex].match(/v(\d+)/i);
+        const version = versionMatch ? `v${versionMatch[1]}` : 'v1';
+        segments[apiIndex] = 'api';
+        segments.splice(apiIndex + 1, 0, version);
+      }
+    }
+
+    if (apiIndex === -1) {
+      segments.push('api', 'v1', 'publication-summary');
+    } else {
+      const versionSegment = segments[apiIndex + 1];
+      if (!versionSegment || !/^v\d+$/i.test(versionSegment)) {
+        segments.splice(apiIndex + 1, 0, 'v1');
+      }
+
+      const versionIndex = segments.findIndex((segment, idx) => idx > apiIndex && /^v\d+$/i.test(segment));
+      const cutoffIndex = versionIndex === -1 ? segments.length : versionIndex + 1;
+      segments.splice(cutoffIndex, segments.length - cutoffIndex, 'publication-summary');
+    }
+
+    parsed.pathname = `/${segments.join('/')}`;
+    parsed.search = '';
+    parsed.hash = '';
+
+    return parsed.toString().replace(/\/+$/, '');
+  } catch (error) {
+    const withLeadingSlash = sanitized.startsWith('/') ? sanitized : `/${sanitized}`;
+
+    if (/^\/api\/v\d+$/i.test(withLeadingSlash)) {
+      return `${withLeadingSlash}/publication-summary`;
+    }
+
+    const collapsedMatch = withLeadingSlash.match(/^\/api-?v(\d+)$/i);
+    if (collapsedMatch) {
+      return `/api/v${collapsedMatch[1]}/publication-summary`;
+    }
+
+    if (/^\/api$/i.test(withLeadingSlash)) {
+      return `${withLeadingSlash}/v1/publication-summary`;
+    }
+
+    return `${withLeadingSlash}/api/v1/publication-summary`;
+  }
 };
 
 const PUBLICATION_SUMMARY_ENDPOINT = (() => {
