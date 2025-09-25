@@ -650,6 +650,67 @@ const generateSummaryPdfViaCanvas = async (summaryContext) => {
   }
 };
 
+const requestPublicationSummaryPdf = async (endpoint, payload) => {
+  try {
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+
+    if (response.ok) {
+      const buffer = await response.arrayBuffer();
+      return { ok: true, blob: new Blob([buffer], { type: 'application/pdf' }) };
+    }
+
+    let errorPayload = null;
+    try {
+      errorPayload = await response.json();
+    } catch (readError) {
+      console.warn('Unable to parse publication summary error payload:', readError);
+      errorPayload = { details: await response.text() };
+    }
+
+    const errorCode = errorPayload?.error;
+    const errorDetails = errorPayload?.details;
+
+    return {
+      ok: false,
+      status: response.status,
+      errorCode,
+      errorDetails,
+      errorPayload,
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      status: null,
+      networkError: error,
+    };
+  }
+};
+
+const handlePublicationSummaryError = (error) => {
+  if (error?.errorCode === 'LIBREOFFICE_NOT_INSTALLED') {
+    Toast.fire({
+      icon: 'warning',
+      title: 'ไม่สามารถสร้างแบบฟอร์มจากไฟล์ Word ได้',
+      text: 'กรุณาติดตั้ง LibreOffice (คำสั่ง soffice) บนเซิร์ฟเวอร์ แล้วลองใหม่อีกครั้ง เพื่อใช้งานแบบฟอร์มเวอร์ชันเดียวกับ DOCX',
+    });
+    return;
+  }
+
+  const details = error?.errorDetails
+    || error?.networkError?.message
+    || 'ระบบจะใช้รูปแบบ PDF เดิมแทนชั่วคราว';
+
+  Toast.fire({
+    icon: 'warning',
+    title: 'ไม่สามารถสร้างแบบฟอร์มเวอร์ชัน Word ได้',
+    text: details,
+  });
+};
+
 const generateSubmissionSummaryPdf = async ({
   formData,
   currentUser,
@@ -673,49 +734,45 @@ const generateSubmissionSummaryPdf = async ({
     fiscalYear,
   });
 
-  try {
-    const response = await fetch(PUBLICATION_SUMMARY_ENDPOINT, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        placeholders: summaryContext.placeholders,
-        documentLines: summaryContext.documentLines,
-      }),
-    });
+  const payload = {
+    placeholders: summaryContext.placeholders,
+    documentLines: summaryContext.documentLines,
+  };
 
-    if (response.ok) {
-      const buffer = await response.arrayBuffer();
-      return new Blob([buffer], { type: 'application/pdf' });
+  const attempted = new Set();
+  const endpoints = [PUBLICATION_SUMMARY_ENDPOINT];
+  const fallbackEndpoint = '/api/publication-summary';
+  if (!endpoints.includes(fallbackEndpoint)) {
+    endpoints.push(fallbackEndpoint);
+  }
+
+  let lastError = null;
+
+  for (const endpoint of endpoints) {
+    if (attempted.has(endpoint)) {
+      continue;
     }
 
-    let errorPayload = null;
-    try {
-      errorPayload = await response.json();
-    } catch (readError) {
-      console.warn('Unable to parse publication summary error payload:', readError);
-      errorPayload = { details: await response.text() };
+    attempted.add(endpoint);
+
+    const result = await requestPublicationSummaryPdf(endpoint, payload);
+    if (result.ok) {
+      return result.blob;
     }
 
-    const errorCode = errorPayload?.error;
-    const errorDetails = errorPayload?.details;
+    lastError = result;
 
-    if (errorCode === 'LIBREOFFICE_NOT_INSTALLED') {
-      Toast.fire({
-        icon: 'warning',
-        title: 'ไม่สามารถสร้างแบบฟอร์มจากไฟล์ Word ได้',
-        text: 'กรุณาติดตั้ง LibreOffice (คำสั่ง soffice) บนเซิร์ฟเวอร์ แล้วลองใหม่อีกครั้ง เพื่อใช้งานแบบฟอร์มเวอร์ชันเดียวกับ DOCX',
-      });
-    } else {
-      Toast.fire({
-        icon: 'warning',
-        title: 'ไม่สามารถสร้างแบบฟอร์มเวอร์ชัน Word ได้',
-        text: errorDetails || 'ระบบจะใช้รูปแบบ PDF เดิมแทนชั่วคราว',
-      });
+    if (result?.errorPayload) {
+      console.warn('Docx-based summary generation failed:', result.errorPayload);
+    } else if (result?.networkError) {
+      console.warn('Docx-based summary generation encountered a network error:', result.networkError);
     }
 
-    console.warn('Docx-based summary generation failed:', errorPayload);
-  } catch (error) {
-    console.warn('Unable to generate docx-based summary PDF:', error);
+    // Try the next endpoint automatically when the current one fails.
+  }
+
+  if (lastError) {
+    handlePublicationSummaryError(lastError);
   }
 
   return generateSummaryPdfViaCanvas(summaryContext);
