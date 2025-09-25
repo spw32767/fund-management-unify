@@ -1,6 +1,6 @@
 "use client";
 
-import AuthGuard from "../../components/AuthGuard";
+import AuthGuard from "@/app/components/AuthGuard";
 import DeptHeadReview from "../components/dept/DeptHeadReview";
 
 export default function DeptReviewPage() {

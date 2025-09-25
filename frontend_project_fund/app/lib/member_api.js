@@ -10,7 +10,7 @@ import {
   submissionUtils,
 } from './teacher_api';
 import staffAPI from './staff_api';
-import apiClient from './api';
+import deptHeadSubmissionAPI from './dept_head_submission_api';
 
 const ROLE_NAME_BY_ID = {
   1: 'teacher',
@@ -34,15 +34,28 @@ const resolveRoleName = (role) => {
 
 export const deptHeadAPI = {
   async getPendingReviews(params = {}) {
-    return apiClient.get('/dept-head/submissions', params);
+    const query = { status_code: '5', ...params };
+    return deptHeadSubmissionAPI.list(query);
+  },
+
+  async getSubmissionDetails(submissionId) {
+    return deptHeadSubmissionAPI.getSubmissionDetails(submissionId);
   },
 
   async recommendSubmission(submissionId, payload = {}) {
-    return apiClient.post(`/dept-head/submissions/${submissionId}/recommend`, payload);
+    return deptHeadSubmissionAPI.recommendSubmission(submissionId, payload);
   },
 
   async rejectSubmission(submissionId, payload = {}) {
-    return apiClient.post(`/dept-head/submissions/${submissionId}/reject`, payload);
+    return deptHeadSubmissionAPI.rejectSubmission(submissionId, payload);
+  },
+
+  async getSubmissionDocuments(submissionId, params = {}) {
+    return deptHeadSubmissionAPI.getSubmissionDocuments(submissionId, params);
+  },
+
+  async getDocumentTypes(params = {}) {
+    return deptHeadSubmissionAPI.getDocumentTypes(params);
   },
 };
 
