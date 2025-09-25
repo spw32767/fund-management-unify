@@ -46,17 +46,24 @@ async function getDocumentTypes(params = {}) {
 }
 
 export const deptHeadAPI = {
-  async getPendingReviews(params = {}) {
-    return apiClient.get('/dept-head/review/submissions', params);
+  async listSubmissions(params = {}) {
+    return apiClient.get('/dept-head/submissions', { params });
   },
 
-  async submitDecision(submissionId, payload = {}) {
-    return apiClient.post(`/dept-head/review/${submissionId}/decision`, payload);
+  async getSubmission(id, params = {}) {
+    return apiClient.get(`/dept-head/submissions/${id}`, { params });
   },
 
-  // 🔹 เพิ่มเมธอดดูรายละเอียดสำหรับ Dept Head (เรียก shared endpoint ตัวเดียวกัน)
+  async approveSubmission(id, payload = {}) {
+    return apiClient.post(`/dept-head/submissions/${id}/approve`, payload);
+  },
+
+  async rejectSubmission(id, payload = {}) {
+    return apiClient.post(`/dept-head/submissions/${id}/reject`, payload);
+  },
+
   async getSubmissionDetails(id, params = {}) {
-    return getSubmissionDetails(id, params);
+    return this.getSubmission(id, params);
   },
 
   async getSubmissionDocuments(id, params = {}) {

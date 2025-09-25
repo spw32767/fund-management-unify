@@ -147,14 +147,24 @@ func SetupRoutes(router *gin.Engine) {
 				teacher.GET("/user-innovations", controllers.GetUserInnovations)
 			}
 
-			// Staff-specific endpoints
-			staff := protected.Group("/staff")
-			{
-				// ใช้ function เดียวกัน
-				staff.GET("/subcategories", controllers.GetSubcategoryForRole)
-				staff.GET("/submissions", controllers.GetStaffSubmissions) // Staff ดู submissions ของตัวเอง
-				staff.GET("/dashboard/stats", controllers.GetDashboardStats)
-			}
+                        // Staff-specific endpoints
+                        staff := protected.Group("/staff")
+                        {
+                                // ใช้ function เดียวกัน
+                                staff.GET("/subcategories", controllers.GetSubcategoryForRole)
+                                staff.GET("/submissions", controllers.GetStaffSubmissions) // Staff ดู submissions ของตัวเอง
+                                staff.GET("/dashboard/stats", controllers.GetDashboardStats)
+                        }
+
+                        // Dept head review endpoints
+                        deptHead := protected.Group("/dept-head")
+                        deptHead.Use(middleware.RequireRole(4))
+                        {
+                                deptHead.GET("/submissions", controllers.GetDeptHeadSubmissions)
+                                deptHead.GET("/submissions/:id", controllers.GetDeptHeadSubmission)
+                                deptHead.POST("/submissions/:id/approve", controllers.DeptHeadApproveSubmission)
+                                deptHead.POST("/submissions/:id/reject", controllers.DeptHeadRejectSubmission)
+                        }
 
 			// Fund Applications
 			applications := protected.Group("/applications")

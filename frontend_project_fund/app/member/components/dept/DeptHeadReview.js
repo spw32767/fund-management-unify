@@ -1,210 +1,180 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { deptHeadAPI } from "@/app/lib/member_api";
+import { Loader2 } from "lucide-react";
+
 import PageLayout from "@/app/member/components/common/PageLayout";
 import StatusBadge from "@/app/member/components/common/StatusBadge";
 import DeptPublicationSubmissionDetails from "@/app/member/components/dept/DeptPublicationSubmissionDetails";
-import { Loader2 } from "lucide-react";
+import { deptHeadAPI } from "@/app/lib/member_api";
 import { useStatusMap } from "@/app/hooks/useStatusMap";
 
-// Simple TH date (BE +543). ป้องกัน null/invalid => "-"
-function formatDate(value) {
+const REVIEW_STATUS = "DEPTHEAD_REVIEWING";
+const PAGE_SIZE = 10;
+
+function formatThaiDate(value) {
   if (!value) return "-";
-  const d = new Date(value);
-  if (isNaN(d)) return "-";
-  const thYear = d.getFullYear() + 543;
-  const th = d.toLocaleDateString("th-TH", { day: "numeric", month: "long" });
-  return `${th} ${thYear}`;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "-";
+  const formatted = date.toLocaleDateString("th-TH", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
+  return formatted;
 }
 
-/**
- * DeptHeadReview
- * - แสดงรายการที่อยู่สถานะ "อยู่ระหว่างการพิจารณาจากหัวหน้าสาขา"
- * - กดดูรายละเอียดจะสลับไปหน้า DeptPublicationSubmissionDetails ภายในคอมโพเนนต์เดียว
- * - เห็นควร / ไม่เห็นควร ได้จาก modal ดำเนินการ (ส่ง payload { decision, comment? })
- */
-export default function DeptHeadReview() {
-  // ----- toggle list <-> details -----
-  const [selectedId, setSelectedId] = useState(null);
-  const handleView = useCallback((id) => setSelectedId(id), []);
-  const handleBack = useCallback(() => setSelectedId(null), []);
+function getApplicantName(item) {
+  const user = item?.user || item?.User || {};
+  const fallback = [user.user_fname, user.user_lname].filter(Boolean).join(" ");
+  return (
+    item?.applicant_name ||
+    user.full_name ||
+    user.fullname ||
+    fallback ||
+    "-"
+  ).trim();
+}
 
-  // ----- load list -----
+export default function DeptHeadReview() {
+  const [selectedId, setSelectedId] = useState(null);
+  const [submissions, setSubmissions] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [submissions, setSubmissions] = useState([]);
+  const [page, setPage] = useState(1);
+  const [pagination, setPagination] = useState({
+    current_page: 1,
+    total_pages: 1,
+    total_count: 0,
+    per_page: PAGE_SIZE,
+    has_next: false,
+    has_prev: false,
+  });
 
-  // ----- action modal -----
-  const [actionTarget, setActionTarget] = useState(null); // { id, submission_number, action }
-  const [actionComment, setActionComment] = useState("");
-  const [actionLoading, setActionLoading] = useState(false);
-  const [actionError, setActionError] = useState(null);
-
-  // for label rendering
   const { getLabelById } = useStatusMap();
 
-  const normalizeRow = useCallback((item) => {
-    const statusIdRaw =
-      item?.status_id ??
-      item?.status?.application_status_id ??
-      item?.status?.status_id ??
-      item?.status?.id;
-    const statusId = Number(statusIdRaw);
-    const normalizedStatusId = Number.isFinite(statusId) ? statusId : undefined;
-
-    const fallbackName = `${item?.user?.user_fname || ""} ${item?.user?.user_lname || ""}`.trim();
-    const applicantName =
-      item?.applicant_name ||
-      item?.user?.full_name ||
-      (fallbackName !== "" ? fallbackName : null);
-
-    return {
-      id: item?.submission_id || item?.id,
-      submission_number: item?.submission_number || item?.request_number || "-",
-      category: item?.category_name || item?.category?.category_name || "-",
-      subcategory: item?.subcategory_name || item?.subcategory?.subcategory_name || "-",
-      applicant: applicantName || "-",
-      submitted_at: item?.submitted_at || item?.created_at,
-      statusId: normalizedStatusId,
-      statusLabel: item?.status?.status_name || item?.status_name || item?.status || "",
-      raw: item,
-    };
-  }, []);
-
-  const loadSubmissions = useCallback(async () => {
+  const loadSubmissions = useCallback(async (targetPage = 1) => {
+    const pageParam = Math.max(1, targetPage);
     try {
       setLoading(true);
       setError(null);
 
-      // ให้ backend กรองตามคีย์ "pending" เอง (ไม่ต้องส่ง status_id)
-      const params = { status: "pending" };
-      const response = await deptHeadAPI.getPendingReviews(params);
+      const response = await deptHeadAPI.listSubmissions({
+        status: REVIEW_STATUS,
+        page: pageParam,
+        limit: PAGE_SIZE,
+      });
 
-      const rows = response?.submissions || response?.data || [];
-      const normalized = rows.map(normalizeRow);
+      const items = response?.submissions || response?.data || [];
+      const pager = response?.pagination || {};
 
-      // ถ้าต้องการกรองซ้ำฝั่ง FE ให้ทำที่นี่ (ส่วนใหญ่ไม่จำเป็น)
-      setSubmissions(normalized);
+      setSubmissions(items);
+      setPagination({
+        current_page: pager.current_page || pageParam,
+        total_pages: pager.total_pages || Math.max(1, Math.ceil((pager.total_count || items.length) / (pager.per_page || PAGE_SIZE))),
+        total_count: pager.total_count ?? items.length,
+        per_page: pager.per_page || PAGE_SIZE,
+        has_next: pager.has_next ?? (pageParam < (pager.total_pages || 1)),
+        has_prev: pager.has_prev ?? (pageParam > 1),
+      });
+      setPage(pager.current_page || pageParam);
     } catch (err) {
       console.error("Error loading dept head submissions:", err);
-      setError(err?.message || "ไม่สามารถโหลดรายการคำร้องได้");
       setSubmissions([]);
+      setError(err?.message || "ไม่สามารถโหลดรายการคำร้องได้");
+      setPagination((prev) => ({
+        ...prev,
+        current_page: pageParam,
+        total_pages: 1,
+        total_count: 0,
+        has_next: false,
+        has_prev: pageParam > 1,
+      }));
+      setPage(pageParam);
     } finally {
       setLoading(false);
     }
-  }, [normalizeRow]);
+  }, []);
 
   useEffect(() => {
-    loadSubmissions();
+    loadSubmissions(1);
   }, [loadSubmissions]);
 
-  // ----- action modal -----
-  const openAction = useCallback((row, action) => {
-    setActionTarget({ ...row, action }); // action = "approve" | "reject"
-    setActionComment("");
-    setActionError(null);
-  }, []);
-
-  const closeAction = useCallback(() => {
-    setActionTarget(null);
-    setActionComment("");
-    setActionError(null);
-  }, []);
-
-  const confirmAction = useCallback(async () => {
-    if (!actionTarget) return;
-
-    const isApprove = actionTarget.action === "approve";
-    const payload = { decision: isApprove ? "approve" : "reject" };
-    const comment = actionComment.trim();
-    if (comment) payload.comment = comment;
-
-    setActionLoading(true);
-    setActionError(null);
-
-    try {
-      await deptHeadAPI.submitDecision(actionTarget.id, payload);
-      closeAction();
-      await loadSubmissions();
-    } catch (err) {
-      console.error("Dept review action failed:", err);
-      setActionError(err?.message || "ไม่สามารถดำเนินการได้");
-    } finally {
-      setActionLoading(false);
-    }
-  }, [actionTarget, actionComment, closeAction, loadSubmissions]);
-
-  // ----- table -----
   const columns = useMemo(
     () => [
       { header: "เลขคำร้อง", accessor: "submission_number" },
       { header: "ประเภททุน", accessor: "category" },
       { header: "หมวด/ทุนย่อย", accessor: "subcategory" },
-      {
-        header: "ผู้ยื่นคำร้อง",
-        accessor: "applicant",
-      },
-      {
-        header: "วันที่ยื่น",
-        accessor: "submitted_at",
-        render: (value) => <span className="text-gray-600">{formatDate(value)}</span>,
-      },
-      {
-        header: "สถานะ",
-        accessor: "statusId",
-        render: (value, row) => (
-          <StatusBadge statusId={value} fallbackLabel={getLabelById?.(value) || row.statusLabel || "อยู่ระหว่างการพิจารณา"} />
-        ),
-      },
-      {
-        header: "ดำเนินการ",
-        accessor: "actions",
-        render: (_, row) => (
-          <div className="flex flex-wrap gap-2">
-            <button
-              onClick={() => handleView(row.id)}
-              className="px-3 py-1 text-sm rounded-md border border-gray-200 text-gray-700 hover:bg-gray-50"
-              title="ดูรายละเอียด"
-            >
-              ดูรายละเอียด
-            </button>
-            <button
-              onClick={() => openAction(row, "approve")}
-              className="px-3 py-1 text-sm rounded-md border border-blue-200 text-blue-700 hover:bg-blue-50"
-            >
-              อนุมัติ (เห็นควร)
-            </button>
-            <button
-              onClick={() => openAction(row, "reject")}
-              className="px-3 py-1 text-sm rounded-md border border-red-200 text-red-600 hover:bg-red-50"
-            >
-              ปฏิเสธ
-            </button>
-          </div>
-        ),
-      },
+      { header: "ผู้ยื่นคำร้อง", accessor: "applicant" },
+      { header: "วันที่ยื่น", accessor: "submitted_at" },
+      { header: "สถานะ", accessor: "status" },
+      { header: "ดำเนินการ", accessor: "actions" },
     ],
-    [getLabelById, handleView, openAction]
+    []
   );
 
-  // ====== RENDER ======
+  const rows = useMemo(() => {
+    return (Array.isArray(submissions) ? submissions : []).map((item) => {
+      const statusIdRaw =
+        item?.status_id ??
+        item?.status?.application_status_id ??
+        item?.status?.status_id ??
+        item?.Status?.ApplicationStatusID;
+      const statusId = Number.isFinite(Number(statusIdRaw)) ? Number(statusIdRaw) : undefined;
+
+      return {
+        id: item?.submission_id || item?.SubmissionID,
+        submission_number: item?.submission_number || item?.SubmissionNumber || "-",
+        category:
+          item?.category?.category_name ||
+          item?.Category?.CategoryName ||
+          item?.category_name ||
+          "-",
+        subcategory:
+          item?.subcategory?.subcategory_name ||
+          item?.Subcategory?.SubcategoryName ||
+          item?.subcategory_name ||
+          "-",
+        applicant: getApplicantName(item),
+        submitted_at: item?.submitted_at || item?.SubmittedAt || item?.created_at || item?.CreatedAt,
+        statusId,
+        statusLabel:
+          item?.status?.status_name ||
+          item?.Status?.StatusName ||
+          item?.status_name ||
+          "",
+      };
+    });
+  }, [submissions]);
+
+  const handleDecisionComplete = useCallback(() => {
+    setSelectedId(null);
+    loadSubmissions(page);
+  }, [loadSubmissions, page]);
+
+  const handleBack = useCallback(() => {
+    setSelectedId(null);
+    loadSubmissions(page);
+  }, [loadSubmissions, page]);
+
   if (selectedId) {
     return (
-        <DeptPublicationSubmissionDetails submissionId={selectedId} onBack={handleBack} />
+      <DeptPublicationSubmissionDetails
+        submissionId={selectedId}
+        onBack={handleBack}
+        onDecisionComplete={handleDecisionComplete}
+      />
     );
   }
 
   return (
     <PageLayout title="พิจารณาคำร้อง (หัวหน้าสาขา)">
-      {/* error block */}
       {error && (
         <div className="mb-4 rounded-md border border-red-300 bg-red-50 px-4 py-3 text-red-700">
           {error}
         </div>
       )}
 
-      {/* table */}
       <div className="overflow-x-auto rounded-lg border border-gray-300">
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
@@ -212,7 +182,7 @@ export default function DeptHeadReview() {
               {columns.map((col) => (
                 <th
                   key={col.accessor}
-                  className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider"
+                  className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-700"
                 >
                   {col.header}
                 </th>
@@ -229,23 +199,34 @@ export default function DeptHeadReview() {
                   </span>
                 </td>
               </tr>
-            ) : submissions.length === 0 ? (
+            ) : rows.length === 0 ? (
               <tr>
                 <td colSpan={columns.length} className="px-4 py-8 text-center text-gray-500">
                   ไม่พบรายการที่อยู่ระหว่างการพิจารณา
                 </td>
               </tr>
             ) : (
-              submissions.map((row) => (
-                <tr key={row.id}>
-                  {columns.map((col) => {
-                    const value = row[col.accessor];
-                    return (
-                      <td key={col.accessor} className="px-4 py-3 text-sm text-gray-800">
-                        {col.render ? col.render(value, row) : value ?? "-"}
-                      </td>
-                    );
-                  })}
+              rows.map((row) => (
+                <tr key={row.id || row.submission_number}>
+                  <td className="px-4 py-3 text-sm text-gray-800">{row.submission_number}</td>
+                  <td className="px-4 py-3 text-sm text-gray-800">{row.category}</td>
+                  <td className="px-4 py-3 text-sm text-gray-800">{row.subcategory}</td>
+                  <td className="px-4 py-3 text-sm text-gray-800">{row.applicant}</td>
+                  <td className="px-4 py-3 text-sm text-gray-800">{formatThaiDate(row.submitted_at)}</td>
+                  <td className="px-4 py-3 text-sm text-gray-800">
+                    <StatusBadge
+                      statusId={row.statusId}
+                      fallbackLabel={getLabelById?.(row.statusId) || row.statusLabel || "อยู่ระหว่างการพิจารณา"}
+                    />
+                  </td>
+                  <td className="px-4 py-3 text-sm text-gray-800">
+                    <button
+                      onClick={() => setSelectedId(row.id)}
+                      className="rounded-md border border-gray-200 px-3 py-1 text-sm text-gray-700 transition-colors hover:bg-gray-50"
+                    >
+                      ดูรายละเอียด
+                    </button>
+                  </td>
                 </tr>
               ))
             )}
@@ -253,63 +234,29 @@ export default function DeptHeadReview() {
         </table>
       </div>
 
-      {/* action modal */}
-      {actionTarget && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-          <div className="w-full max-w-lg overflow-hidden rounded-xl bg-white shadow-xl">
-            <div className="border-b px-6 py-4">
-              <h3 className="text-base font-semibold text-gray-900">
-                {actionTarget.action === "approve" ? "ยืนยันการเห็นควร" : "ยืนยันการปฏิเสธ"}
-              </h3>
-              <p className="mt-1 text-sm text-gray-600">
-                เลขคำร้อง: {actionTarget.submission_number}
-              </p>
-            </div>
-
-            <div className="space-y-4 px-6 py-4">
-              <div>
-                <label className="mb-2 block text-sm font-medium text-gray-700">ความคิดเห็นเพิ่มเติม</label>
-                <textarea
-                  value={actionComment}
-                  onChange={(e) => setActionComment(e.target.value)}
-                  rows={4}
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="ระบุเหตุผลหรือข้อมูลเพิ่มเติม (ถ้ามี)"
-                />
-              </div>
-              {actionError && <div className="text-sm text-red-600">{actionError}</div>}
-            </div>
-
-            <div className="flex justify-end gap-3 border-t px-6 py-4">
-              <button
-                onClick={closeAction}
-                disabled={actionLoading}
-                className="rounded-md border border-gray-300 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 disabled:opacity-60"
-              >
-                ยกเลิก
-              </button>
-              <button
-                onClick={confirmAction}
-                disabled={actionLoading}
-                className={`rounded-md px-4 py-2 text-sm text-white ${
-                  actionTarget.action === "approve" ? "bg-blue-600 hover:bg-blue-700" : "bg-red-600 hover:bg-red-700"
-                } disabled:opacity-60`}
-              >
-                {actionLoading ? (
-                  <span className="flex items-center gap-2">
-                    <Loader2 className="animate-spin" size={16} />
-                    กำลังบันทึก...
-                  </span>
-                ) : actionTarget.action === "approve" ? (
-                  "อนุมัติ"
-                ) : (
-                  "ปฏิเสธ"
-                )}
-              </button>
-            </div>
-          </div>
+      <div className="mt-4 flex flex-col gap-2 text-sm text-gray-600 md:flex-row md:items-center md:justify-between">
+        <span>พบทั้งหมด {pagination.total_count} รายการ</span>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => loadSubmissions(page - 1)}
+            disabled={loading || !pagination.has_prev}
+            className="rounded-md border border-gray-300 px-3 py-1 transition-colors disabled:cursor-not-allowed disabled:opacity-60 hover:bg-gray-50"
+          >
+            ก่อนหน้า
+          </button>
+          <span>
+            หน้า {pagination.current_page} / {pagination.total_pages || 1}
+          </span>
+          <button
+            onClick={() => loadSubmissions(page + 1)}
+            disabled={loading || !pagination.has_next}
+            className="rounded-md border border-gray-300 px-3 py-1 transition-colors disabled:cursor-not-allowed disabled:opacity-60 hover:bg-gray-50"
+          >
+            ถัดไป
+          </button>
         </div>
-      )}
+      </div>
     </PageLayout>
   );
 }
+
