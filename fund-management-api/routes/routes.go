@@ -156,6 +156,16 @@ func SetupRoutes(router *gin.Engine) {
 				staff.GET("/dashboard/stats", controllers.GetDashboardStats)
 			}
 
+			// Dept head review endpoints
+			deptHead := protected.Group("/dept-head")
+			deptHead.Use(middleware.RequireRole(4))
+			{
+				deptHead.GET("/submissions", controllers.GetDeptHeadSubmissions)
+				deptHead.GET("/submissions/:id/details", controllers.GetDeptHeadSubmissionDetails)
+				deptHead.POST("/submissions/:id/recommend", controllers.DeptHeadRecommendSubmission)
+				deptHead.POST("/submissions/:id/reject", controllers.DeptHeadRejectSubmission)
+			}
+
 			// Fund Applications
 			applications := protected.Group("/applications")
 			{
@@ -248,6 +258,7 @@ func SetupRoutes(router *gin.Engine) {
 				// List and view (teachers can see their own, admin can see all)
 				publications.GET("", controllers.GetPublicationRewards)
 				publications.GET("/:id", controllers.GetPublicationReward)
+				publications.POST("/preview", controllers.PreviewPublicationReward)
 
 				// Only teachers can create/update/delete
 				publications.POST("", middleware.RequireRole(1), controllers.CreatePublicationReward)
