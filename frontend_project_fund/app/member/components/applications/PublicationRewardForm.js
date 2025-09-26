@@ -1879,7 +1879,11 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
         previewWindow.close();
       }
 
-      const message = error?.message || 'ไม่สามารถสร้างตัวอย่างได้';
+      let message = error?.message || 'ไม่สามารถสร้างตัวอย่างได้';
+
+      if (message && message.toLowerCase().includes('failed to read generated pdf')) {
+        message = 'ระบบไม่สามารถสร้างไฟล์ตัวอย่าง PDF ได้ในขณะนี้ กรุณาติดต่อผู้ดูแลระบบเพื่อตรวจสอบบริการแปลงเอกสาร';
+      }
 
       setPreviewState((prev) => ({
         ...prev,
@@ -1889,7 +1893,9 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
       }));
 
       Toast.fire({ icon: 'error', title: 'ไม่สามารถสร้างตัวอย่างได้', text: message });
-      throw error;
+      const wrappedError = new Error(message);
+      wrappedError.originalError = error;
+      throw wrappedError;
     }
   };
 
