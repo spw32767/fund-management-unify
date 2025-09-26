@@ -110,6 +110,25 @@ const formatPreviewTimestamp = (timestamp) => {
   }
 };
 
+const toFormString = (value) => {
+  if (value === null || value === undefined) {
+    return '';
+  }
+
+  if (typeof value === 'number') {
+    if (!Number.isFinite(value)) {
+      return '';
+    }
+    return String(value);
+  }
+
+  if (typeof value === 'boolean') {
+    return value ? '1' : '0';
+  }
+
+  return String(value);
+};
+
 // Quartile sorting order
 const getQuartileSortOrder = (quartile) => {
   const orderMap = {
@@ -1699,32 +1718,52 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
 
     const payload = {
       formData: {
-        ...formData,
-        publication_date: buildPublicationDate(),
+        author_status: toFormString(formData.author_status).trim(),
+        article_title: toFormString(formData.article_title).trim(),
+        journal_name: toFormString(formData.journal_name).trim(),
+        journal_issue: toFormString(formData.journal_issue).trim(),
+        journal_pages: toFormString(formData.journal_pages).trim(),
+        journal_month: toFormString(formData.journal_month).trim(),
+        journal_year: toFormString(formData.journal_year).trim(),
+        journal_quartile: toFormString(formData.journal_quartile).trim(),
+        publication_reward: toFormString(formData.publication_reward).trim(),
+        revision_fee: toFormString(formData.revision_fee).trim(),
+        publication_fee: toFormString(formData.publication_fee).trim(),
+        external_funding_amount: toFormString(formData.external_funding_amount).trim(),
+        total_amount: toFormString(formData.total_amount).trim(),
+        author_name_list: toFormString(formData.author_name_list).trim(),
+        signature: toFormString(formData.signature).trim(),
+        publication_date: toFormString(buildPublicationDate()).trim(),
+        doi: toFormString(formData.doi).trim(),
+        volume_issue: toFormString(formData.volume_issue ?? formData.journal_issue).trim(),
+        page_numbers: toFormString(formData.page_numbers ?? formData.journal_pages).trim(),
+        journal_url: toFormString(formData.journal_url).trim(),
+        article_online_db: toFormString(formData.article_online_db).trim(),
+        article_online_date: toFormString(formData.article_online_date).trim(),
       },
       applicant: currentUser
         ? {
-            prefix_name: currentUser.prefix_name || currentUser.title || '',
-            user_fname: currentUser.user_fname || currentUser.first_name || '',
-            user_lname: currentUser.user_lname || currentUser.last_name || '',
-            position_name: currentUser.position?.position_name || currentUser.position_name || '',
-            date_of_employment: currentUser.date_of_employment || currentUser.start_date || '',
+            prefix_name: toFormString(currentUser.prefix_name || currentUser.title).trim(),
+            user_fname: toFormString(currentUser.user_fname || currentUser.first_name).trim(),
+            user_lname: toFormString(currentUser.user_lname || currentUser.last_name).trim(),
+            position_name: toFormString(currentUser.position?.position_name || currentUser.position_name).trim(),
+            date_of_employment: toFormString(currentUser.date_of_employment || currentUser.start_date).trim(),
           }
         : {},
       coauthors: (coauthors || []).map((author, index) => ({
         order: index + 1,
         user_id: author.user_id,
-        user_fname: author.user_fname,
-        user_lname: author.user_lname,
+        user_fname: toFormString(author.user_fname).trim(),
+        user_lname: toFormString(author.user_lname).trim(),
       })),
       external_fundings: (externalFundings || []).map((funding) => ({
-        fund_name: funding.fundName || '',
-        amount: funding.amount || '',
+        fund_name: toFormString(funding.fundName).trim(),
+        amount: toFormString(funding.amount).trim(),
       })),
       attachments: attachments.map((item, index) => ({
-        filename: item.name,
+        filename: toFormString(item.name).trim(),
         document_type_id: item.document_type_id ?? null,
-        document_type_name: item.document_type_name || item.type || '',
+        document_type_name: toFormString(item.document_type_name || item.type).trim(),
         display_order: index + 1,
       })),
     };
