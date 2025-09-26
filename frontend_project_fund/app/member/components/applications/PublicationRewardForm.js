@@ -1750,14 +1750,8 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
         || localStorage.getItem('access_token')
         || localStorage.getItem('auth_token');
 
-      const sessionId = typeof apiClient.getSessionId === 'function' ? apiClient.getSessionId() : null;
-
       if (storedToken) {
         headers.Authorization = `Bearer ${storedToken}`;
-      }
-
-      if (sessionId) {
-        headers['X-Session-ID'] = sessionId;
       }
 
       headers.Accept = 'application/pdf,application/json';
