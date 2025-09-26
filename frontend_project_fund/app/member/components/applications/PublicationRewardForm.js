@@ -1697,11 +1697,53 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
       error: null,
     }));
 
+    const stringify = (value, { allowBoolean = false } = {}) => {
+      if (value === null || value === undefined) {
+        return '';
+      }
+
+      if (typeof value === 'number') {
+        if (!Number.isFinite(value)) {
+          return '';
+        }
+        return String(value);
+      }
+
+      if (typeof value === 'boolean') {
+        return allowBoolean ? (value ? 'true' : 'false') : '';
+      }
+
+      const str = String(value);
+      return str === 'null' || str === 'undefined' ? '' : str;
+    };
+
+    const normalizedFormData = {
+      author_status: stringify(formData.author_status),
+      article_title: stringify(formData.article_title),
+      journal_name: stringify(formData.journal_name),
+      journal_issue: stringify(formData.journal_issue ?? formData.volume_issue),
+      journal_pages: stringify(formData.journal_pages ?? formData.page_numbers),
+      journal_month: stringify(formData.journal_month),
+      journal_year: stringify(formData.journal_year),
+      journal_quartile: stringify(formData.journal_quartile),
+      publication_reward: stringify(formData.publication_reward),
+      revision_fee: stringify(formData.revision_fee),
+      publication_fee: stringify(formData.publication_fee),
+      external_funding_amount: stringify(formData.external_funding_amount),
+      total_amount: stringify(formData.total_amount),
+      author_name_list: stringify(formData.author_name_list),
+      signature: stringify(formData.signature),
+      publication_date: stringify(buildPublicationDate()),
+      doi: stringify(formData.doi),
+      volume_issue: stringify(formData.volume_issue ?? formData.journal_issue),
+      page_numbers: stringify(formData.page_numbers ?? formData.journal_pages),
+      journal_url: stringify(formData.journal_url),
+      article_online_db: stringify(formData.article_online_db),
+      article_online_date: stringify(formData.article_online_date),
+    };
+
     const payload = {
-      formData: {
-        ...formData,
-        publication_date: buildPublicationDate(),
-      },
+      formData: normalizedFormData,
       applicant: currentUser
         ? {
             prefix_name: currentUser.prefix_name || currentUser.title || '',
@@ -1718,8 +1760,8 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
         user_lname: author.user_lname,
       })),
       external_fundings: (externalFundings || []).map((funding) => ({
-        fund_name: funding.fundName || '',
-        amount: funding.amount || '',
+        fund_name: stringify(funding.fundName),
+        amount: stringify(funding.amount),
       })),
       attachments: attachments.map((item, index) => ({
         filename: item.name,
@@ -1750,7 +1792,7 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
     }
 
     try {
-      const response = await fetch(`${apiClient.baseURL}/publication-rewards/preview`, {
+      const response = await fetch(`${apiClient.baseURL}/publication-summary/preview`, {
         method: 'POST',
         headers,
         body: formDataPayload,
@@ -4136,6 +4178,21 @@ const showSubmissionConfirmation = async () => {
                       </a>
                     </div>
                   </div>
+                </div>
+              )}
+
+              {previewState.hasPreviewed && latestPreviewUrl && (
+                <div className="mt-4">
+                  <div className="border border-gray-200 rounded-lg overflow-hidden bg-white shadow-sm">
+                    <iframe
+                      src={latestPreviewUrl}
+                      title="ตัวอย่างเอกสารเบิกค่าตีพิมพ์"
+                      className="w-full h-[600px]"
+                    />
+                  </div>
+                  <p className="mt-2 text-xs text-gray-500">
+                    หากเอกสารไม่แสดงผล กรุณาใช้ปุ่มเปิดหรือดาวน์โหลดด้านบน
+                  </p>
                 </div>
               )}
             </div>
