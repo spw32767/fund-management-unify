@@ -10,6 +10,7 @@ import {
   submissionUtils,
 } from './teacher_api';
 import staffAPI from './staff_api';
+import deptHeadAPI from './dept_head_api';
 import apiClient from './api';
 
 const ROLE_NAME_BY_ID = {
@@ -30,20 +31,6 @@ const resolveRoleName = (role) => {
     return resolveRoleName(role.role || role.role_id);
   }
   return null;
-};
-
-export const deptHeadAPI = {
-  async getPendingReviews(params = {}) {
-    return apiClient.get('/dept-head/submissions', params);
-  },
-
-  async recommendSubmission(submissionId, payload = {}) {
-    return apiClient.post(`/dept-head/submissions/${submissionId}/recommend`, payload);
-  },
-
-  async rejectSubmission(submissionId, payload = {}) {
-    return apiClient.post(`/dept-head/submissions/${submissionId}/reject`, payload);
-  },
 };
 
 export const memberAPI = {
