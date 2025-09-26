@@ -1792,7 +1792,7 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
     }
 
     try {
-      const response = await fetch(`${apiClient.baseURL}/publication-rewards/preview`, {
+      const response = await fetch(`${apiClient.baseURL}/publication-summary/preview`, {
         method: 'POST',
         headers,
         body: formDataPayload,
