@@ -16,9 +16,11 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -163,9 +165,9 @@ func handlePublicationRewardPreviewSubmission(c *gin.Context) {
 		"{{author_name_list}}":   strings.TrimSpace(detail.AuthorNameList),
 		"{{paper_title}}":        strings.TrimSpace(detail.PaperTitle),
 		"{{journal_name}}":       strings.TrimSpace(detail.JournalName),
-		"{{publication_date}}":   utils.FormatThaiDate(detail.PublicationDate),
+		"{{publication_year}}":   formatThaiYear(detail.PublicationDate),
 		"{{volume_issue}}":       strings.TrimSpace(detail.VolumeIssue),
-		"{{page_numbers}}":       strings.TrimSpace(detail.PageNumbers),
+		"{{page_number}}":        strings.TrimSpace(detail.PageNumbers),
 		"{{author_role}}":        buildAuthorRole(detail.AuthorType),
 		"{{quartile_line}}":      buildQuartileLine(detail.Quartile),
 		"{{document_line}}":      buildDocumentLine(documents),
@@ -248,10 +250,7 @@ func buildFormPreviewReplacements(payload *PublicationRewardPreviewFormPayload, 
 
 	totalAmount := parseFormFloat(payload.FormData.TotalAmount)
 	publicationDate := resolveFormPublicationDate(&payload.FormData)
-	publicationDateText := ""
-	if publicationDate != nil {
-		publicationDateText = utils.FormatThaiDate(*publicationDate)
-	}
+	publicationYearText := derivePublicationYear(publicationDate, payload.FormData.JournalYear)
 
 	replacements := map[string]string{
 		"{{date_th}}":            utils.FormatThaiDate(time.Now()),
@@ -264,9 +263,9 @@ func buildFormPreviewReplacements(payload *PublicationRewardPreviewFormPayload, 
 		"{{author_name_list}}":   strings.TrimSpace(payload.FormData.AuthorNameList),
 		"{{paper_title}}":        strings.TrimSpace(payload.FormData.ArticleTitle),
 		"{{journal_name}}":       strings.TrimSpace(payload.FormData.JournalName),
-		"{{publication_date}}":   publicationDateText,
+		"{{publication_year}}":   publicationYearText,
 		"{{volume_issue}}":       strings.TrimSpace(payload.FormData.JournalIssue),
-		"{{page_numbers}}":       strings.TrimSpace(payload.FormData.JournalPages),
+		"{{page_number}}":        strings.TrimSpace(payload.FormData.JournalPages),
 		"{{author_role}}":        buildAuthorRole(payload.FormData.AuthorStatus),
 		"{{quartile_line}}":      buildQuartileLine(payload.FormData.JournalQuartile),
 		"{{document_line}}":      buildPreviewDocumentLine(payload.Attachments, attachments),
@@ -395,7 +394,7 @@ func mergePreviewPDFWithAttachments(base []byte, files []*multipart.FileHeader) 
 	}
 
 	outputPath := filepath.Join(tmpDir, "merged.pdf")
-	if err := mergePDFsWithNode(inputFiles, outputPath); err != nil {
+	if err := mergePDFs(inputFiles, outputPath); err != nil {
 		return nil, err
 	}
 
@@ -407,26 +406,9 @@ func mergePreviewPDFWithAttachments(base []byte, files []*multipart.FileHeader) 
 	return merged, nil
 }
 
-func mergePDFsWithNode(inputs []string, outputPath string) error {
+func mergePDFs(inputs []string, outputPath string) error {
 	if len(inputs) == 0 {
 		return fmt.Errorf("no pdf files provided for merging")
-	}
-
-	scriptPath := filepath.Join("scripts", "merge_pdf.js")
-	absScriptPath, err := filepath.Abs(scriptPath)
-	if err != nil {
-		return fmt.Errorf("failed to resolve merge script path: %w", err)
-	}
-	if _, err := os.Stat(absScriptPath); err != nil {
-		if os.IsNotExist(err) {
-			return fmt.Errorf("merge script not found at %s", absScriptPath)
-		}
-		return fmt.Errorf("failed to access merge script: %w", err)
-	}
-
-	nodeBinary, err := exec.LookPath("node")
-	if err != nil {
-		return fmt.Errorf("node binary not found: %w", err)
 	}
 
 	absOutput, err := filepath.Abs(outputPath)
@@ -443,7 +425,59 @@ func mergePDFsWithNode(inputs []string, outputPath string) error {
 		absInputs = append(absInputs, absInput)
 	}
 
-	args := append([]string{absScriptPath, absOutput}, absInputs...)
+	var attempts []string
+
+	if nodeBinary, err := resolveNodeBinary(); err == nil {
+		if err := mergePDFsWithNode(nodeBinary, absInputs, absOutput); err == nil {
+			return nil
+		} else {
+			attempts = append(attempts, fmt.Sprintf("node (%v)", err))
+		}
+	} else {
+		attempts = append(attempts, fmt.Sprintf("node (%v)", err))
+	}
+
+	if gsBinary, err := exec.LookPath("gs"); err == nil {
+		if err := mergePDFsWithGhostscript(gsBinary, absInputs, absOutput); err == nil {
+			return nil
+		} else {
+			attempts = append(attempts, fmt.Sprintf("gs (%v)", err))
+		}
+	} else {
+		attempts = append(attempts, fmt.Sprintf("gs (%v)", err))
+	}
+
+	if uniteBinary, err := exec.LookPath("pdfunite"); err == nil {
+		if err := mergePDFsWithPdfunite(uniteBinary, absInputs, absOutput); err == nil {
+			return nil
+		} else {
+			attempts = append(attempts, fmt.Sprintf("pdfunite (%v)", err))
+		}
+	} else {
+		attempts = append(attempts, fmt.Sprintf("pdfunite (%v)", err))
+	}
+
+	if len(attempts) == 0 {
+		return fmt.Errorf("failed to merge pdf files: no merge strategy available")
+	}
+
+	return fmt.Errorf("failed to merge pdf files: %s", strings.Join(attempts, "; "))
+}
+
+func mergePDFsWithNode(nodeBinary string, inputs []string, outputPath string) error {
+	scriptPath := filepath.Join("scripts", "merge_pdf.js")
+	absScriptPath, err := filepath.Abs(scriptPath)
+	if err != nil {
+		return fmt.Errorf("failed to resolve merge script path: %w", err)
+	}
+	if _, err := os.Stat(absScriptPath); err != nil {
+		if os.IsNotExist(err) {
+			return fmt.Errorf("merge script not found at %s", absScriptPath)
+		}
+		return fmt.Errorf("failed to access merge script: %w", err)
+	}
+
+	args := append([]string{absScriptPath, outputPath}, inputs...)
 
 	repoDir := filepath.Dir(filepath.Dir(absScriptPath))
 	nodeModulesPath := filepath.Join(repoDir, "..", "frontend_project_fund", "node_modules")
@@ -473,10 +507,94 @@ func mergePDFsWithNode(inputs []string, outputPath string) error {
 		if msg == "" {
 			msg = err.Error()
 		}
-		return fmt.Errorf("failed to merge pdf files: %s", msg)
+		return fmt.Errorf("%s", msg)
 	}
 
 	return nil
+}
+
+func mergePDFsWithGhostscript(gsBinary string, inputs []string, outputPath string) error {
+	args := []string{"-q", "-dNOPAUSE", "-dBATCH", "-sDEVICE=pdfwrite", fmt.Sprintf("-sOutputFile=%s", outputPath)}
+	args = append(args, inputs...)
+
+	cmd := exec.Command(gsBinary, args...)
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	if err := cmd.Run(); err != nil {
+		msg := strings.TrimSpace(stderr.String())
+		if msg == "" {
+			msg = strings.TrimSpace(stdout.String())
+		}
+		if msg == "" {
+			msg = err.Error()
+		}
+		return fmt.Errorf("%s", msg)
+	}
+
+	return nil
+}
+
+func mergePDFsWithPdfunite(uniteBinary string, inputs []string, outputPath string) error {
+	args := append([]string{}, inputs...)
+	args = append(args, outputPath)
+
+	cmd := exec.Command(uniteBinary, args...)
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	if err := cmd.Run(); err != nil {
+		msg := strings.TrimSpace(stderr.String())
+		if msg == "" {
+			msg = strings.TrimSpace(stdout.String())
+		}
+		if msg == "" {
+			msg = err.Error()
+		}
+		return fmt.Errorf("%s", msg)
+	}
+
+	return nil
+}
+
+func resolveNodeBinary() (string, error) {
+	if override := strings.TrimSpace(os.Getenv("PUBLICATION_PREVIEW_NODE_BINARY")); override != "" {
+		if filepath.IsAbs(override) {
+			if _, err := os.Stat(override); err == nil {
+				return override, nil
+			} else {
+				return "", fmt.Errorf("configured node binary %s is not accessible: %w", override, err)
+			}
+		}
+		if resolved, err := exec.LookPath(override); err == nil {
+			return resolved, nil
+		}
+	}
+
+	candidates := []string{"node", "nodejs"}
+	var errs []string
+	for _, candidate := range candidates {
+		if candidate == "" {
+			continue
+		}
+		if resolved, err := exec.LookPath(candidate); err == nil {
+			return resolved, nil
+		} else {
+			errs = append(errs, fmt.Sprintf("%s: %v", candidate, err))
+		}
+	}
+
+	if len(errs) > 0 {
+		return "", fmt.Errorf("node binary not found: %s", strings.Join(errs, "; "))
+	}
+
+	return "", fmt.Errorf("node binary not found")
 }
 
 func buildPreviewDocumentLine(meta []PublicationRewardPreviewAttachment, attachments []*multipart.FileHeader) string {
@@ -738,6 +856,7 @@ func fillDocxTemplate(templatePath, outputPath string, replacements map[string]s
 
 		if strings.HasSuffix(strings.ToLower(file.Name), ".xml") {
 			content := string(data)
+			content = normalizeDocxPlaceholders(content, replacements)
 			for placeholder, value := range replacements {
 				content = strings.ReplaceAll(content, placeholder, formatDocxValue(value))
 			}
@@ -790,4 +909,82 @@ var xmlReplacer = strings.NewReplacer(
 
 func xmlEscape(value string) string {
 	return xmlReplacer.Replace(value)
+}
+
+var (
+	placeholderRegexCache sync.Map
+	proofErrTagPattern    = regexp.MustCompile(`<w:proofErr[^>]*/>`)
+)
+
+func normalizeDocxPlaceholders(content string, replacements map[string]string) string {
+	if len(replacements) == 0 {
+		return content
+	}
+
+	content = proofErrTagPattern.ReplaceAllString(content, "")
+
+	keys := make([]string, 0, len(replacements))
+	for placeholder := range replacements {
+		keys = append(keys, placeholder)
+	}
+	sort.Strings(keys)
+
+	for _, placeholder := range keys {
+		re := placeholderRegexFor(placeholder)
+		content = re.ReplaceAllString(content, placeholder)
+	}
+
+	return content
+}
+
+func placeholderRegexFor(placeholder string) *regexp.Regexp {
+	if cached, ok := placeholderRegexCache.Load(placeholder); ok {
+		return cached.(*regexp.Regexp)
+	}
+
+	key := strings.TrimSpace(placeholder)
+	if len(key) < 4 {
+		re := regexp.MustCompile(regexp.QuoteMeta(placeholder))
+		placeholderRegexCache.Store(placeholder, re)
+		return re
+	}
+
+	inner := strings.TrimPrefix(key, "{{")
+	inner = strings.TrimSuffix(inner, "}}")
+
+	var builder strings.Builder
+	gap := `(?:\s|<[^>]+>)*`
+
+	builder.WriteString(`\{\{`)
+	builder.WriteString(gap)
+	for _, r := range inner {
+		builder.WriteString(regexp.QuoteMeta(string(r)))
+		builder.WriteString(gap)
+	}
+	builder.WriteString(`\}\}`)
+
+	re := regexp.MustCompile(builder.String())
+	placeholderRegexCache.Store(placeholder, re)
+	return re
+}
+
+func formatThaiYear(t time.Time) string {
+	if t.IsZero() {
+		return ""
+	}
+	return strconv.Itoa(t.Year() + 543)
+}
+
+func formatThaiYearPtr(t *time.Time) string {
+	if t == nil {
+		return ""
+	}
+	return formatThaiYear(*t)
+}
+
+func derivePublicationYear(date *time.Time, fallback string) string {
+	if value := formatThaiYearPtr(date); value != "" {
+		return value
+	}
+	return strings.TrimSpace(fallback)
 }
