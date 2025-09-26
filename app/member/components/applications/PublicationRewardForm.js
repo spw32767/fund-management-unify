@@ -1,11 +1,11 @@
 // app/teacher/components/applications/PublicationRewardForm.js
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { Award, Upload, Users, FileText, Plus, X, Save, Send, AlertCircle, Search, Eye, Calculator, Signature } from "lucide-react";
 import PageLayout from "../common/PageLayout";
 import SimpleCard from "../common/SimpleCard";
-import { systemAPI, authAPI } from '../../../lib/api';
+import apiClient, { systemAPI, authAPI } from '../../../lib/api';
 import {
   submissionAPI,
   publicationDetailsAPI,
@@ -18,7 +18,6 @@ import {
   publicationBudgetAPI
 } from '../../../lib/publication_api';
 import Swal from 'sweetalert2';
-import { PDFDocument } from 'pdf-lib';
 import { notificationsAPI } from '../../../lib/notifications_api';
 import { systemConfigAPI } from '../../../lib/system_config_api';
 import { getAuthorSubmissionFields } from './PublicationRewardForm.helpers.mjs';
@@ -89,6 +88,26 @@ const formatBankAccount = (value) => {
   const cleaned = value.replace(/\D/g, '');
   // Limit to 15 digits
   return cleaned.slice(0, 15);
+};
+
+const formatPreviewTimestamp = (timestamp) => {
+  if (!timestamp) return '';
+  try {
+    const date = new Date(timestamp);
+    if (Number.isNaN(date.getTime())) {
+      return '';
+    }
+    return date.toLocaleString('th-TH', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  } catch (error) {
+    console.warn('formatPreviewTimestamp failed:', error);
+    return '';
+  }
 };
 
 // Quartile sorting order
@@ -224,38 +243,6 @@ const getDocumentTypeName = (documentTypeId) => {
   };
   
   return typeMap[documentTypeId] || `เอกสารประเภท ${documentTypeId}`;
-};
-
-// PDF merging utility (robust)
-const mergePDFs = async (pdfFiles) => {
-  const merged = await PDFDocument.create();
-  const skipped = [];
-
-  for (const f of pdfFiles) {
-    if (!f) continue;
-    try {
-      const bytes = await f.arrayBuffer();
-      const src = await PDFDocument.load(bytes, { ignoreEncryption: true });
-      const pages = await merged.copyPages(src, src.getPageIndices());
-      pages.forEach(p => merged.addPage(p));
-    } catch (e) {
-      console.warn('mergePDFs: skip file', f?.name, e);
-      skipped.push(f?.name || 'unknown.pdf');
-      // ข้ามไฟล์ที่เสียแทนที่จะล้มทั้งกระบวนการ
-      continue;
-    }
-  }
-
-  // ไม่มีหน้าสำหรับรวมเลย -> โยน error เพื่อให้ fallback เป็น “ส่งไฟล์แยก”
-  if (merged.getPageCount() === 0) {
-    const err = new Error('No PDF pages to merge');
-    err.skipped = skipped;
-    throw err;
-  }
-
-  const mergedBytes = await merged.save();
-  const blob = new Blob([mergedBytes], { type: 'application/pdf' });
-  return { blob, skipped }; // << คืน Blob + รายชื่อไฟล์ที่ถูกข้าม
 };
 
 
@@ -546,7 +533,16 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
   const [years, setYears] = useState([]);
   const [currentSubmissionId, setCurrentSubmissionId] = useState(null);
   const [currentUser, setCurrentUser] = useState(null);
-  const [mergedPdfFile, setMergedPdfFile] = useState(null);
+  const [previewState, setPreviewState] = useState({
+    loading: false,
+    error: null,
+    blobUrl: null,
+    signedUrl: null,
+    hasPreviewed: false,
+    timestamp: null,
+  });
+  const previewUrlRef = useRef(null);
+  const previewSignatureRef = useRef('');
   const [availableAuthorStatuses, setAvailableAuthorStatuses] = useState([]);
   const [availableQuartiles, setAvailableQuartiles] = useState([]);
   const [quartileConfigs, setQuartileConfigs] = useState({}); // เก็บ config ของแต่ละ quartile
@@ -627,6 +623,15 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
     main_annoucement: null,
     reward_announcement: null,
   });
+
+  useEffect(() => {
+    return () => {
+      if (previewUrlRef.current) {
+        URL.revokeObjectURL(previewUrlRef.current);
+        previewUrlRef.current = null;
+      }
+    };
+  }, []);
   useEffect(() => {
     let ro = false;
 
@@ -708,6 +713,126 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
   // =================================================================
   // EFFECT HOOKS
   // =================================================================
+
+  const attachmentSignature = useMemo(() => {
+    const parts = [];
+
+    if (Array.isArray(documentTypes) && documentTypes.length > 0) {
+      documentTypes.forEach((docType) => {
+        const docId = docType?.id;
+        const file = uploadedFiles?.[docId] || uploadedFiles?.[String(docId)];
+        if (file) {
+          parts.push(`main:${docId}:${file.name}:${file.size}:${file.lastModified ?? ''}`);
+        }
+      });
+    } else {
+      Object.entries(uploadedFiles || {}).forEach(([key, file]) => {
+        if (file) {
+          parts.push(`main:${key}:${file.name}:${file.size}:${file.lastModified ?? ''}`);
+        }
+      });
+    }
+
+    (otherDocuments || []).forEach((file, index) => {
+      if (file) {
+        parts.push(`other:${index}:${file.name || ''}:${file.size || ''}:${file.lastModified ?? ''}`);
+      }
+    });
+
+    (externalFundingFiles || []).forEach((doc) => {
+      if (doc?.file) {
+        const file = doc.file;
+        parts.push(`external:${doc.funding_id}:${file.name || ''}:${file.size || ''}:${file.lastModified ?? ''}:${doc.timestamp ?? ''}`);
+      }
+    });
+
+    return parts.join('|');
+  }, [documentTypes, uploadedFiles, otherDocuments, externalFundingFiles]);
+
+  const coauthorSignature = useMemo(() => {
+    return (coauthors || [])
+      .map((coauthor) => `${coauthor.user_id || ''}:${coauthor.user_fname || ''}:${coauthor.user_lname || ''}`)
+      .join('|');
+  }, [coauthors]);
+
+  const externalFundingSignature = useMemo(() => {
+    return (externalFundings || [])
+      .map((funding) => `${funding.id || ''}:${funding.fundName || ''}:${funding.amount || ''}`)
+      .join('|');
+  }, [externalFundings]);
+
+  const formSignature = useMemo(() => {
+    return JSON.stringify({
+      author_status: formData.author_status,
+      article_title: formData.article_title,
+      journal_name: formData.journal_name,
+      journal_issue: formData.journal_issue,
+      journal_pages: formData.journal_pages,
+      journal_month: formData.journal_month,
+      journal_year: formData.journal_year,
+      journal_quartile: formData.journal_quartile,
+      author_name_list: formData.author_name_list,
+      total_amount: formData.total_amount,
+      revision_fee: formData.revision_fee,
+      publication_fee: formData.publication_fee,
+      external_funding_amount: formData.external_funding_amount,
+      publication_reward: formData.publication_reward,
+      signature: formData.signature,
+    });
+  }, [
+    formData.author_status,
+    formData.article_title,
+    formData.journal_name,
+    formData.journal_issue,
+    formData.journal_pages,
+    formData.journal_month,
+    formData.journal_year,
+    formData.journal_quartile,
+    formData.author_name_list,
+    formData.total_amount,
+    formData.revision_fee,
+    formData.publication_fee,
+    formData.external_funding_amount,
+    formData.publication_reward,
+    formData.signature,
+  ]);
+
+  const previewDataSignature = useMemo(() => {
+    return [formSignature, coauthorSignature, externalFundingSignature, attachmentSignature].join('||');
+  }, [formSignature, coauthorSignature, externalFundingSignature, attachmentSignature]);
+
+  useEffect(() => {
+    if (!previewDataSignature) {
+      return;
+    }
+
+    if (previewSignatureRef.current === '') {
+      previewSignatureRef.current = previewDataSignature;
+      return;
+    }
+
+    if (previewSignatureRef.current !== previewDataSignature) {
+      previewSignatureRef.current = previewDataSignature;
+      setPreviewState((prev) => {
+        if (prev.blobUrl && previewUrlRef.current === prev.blobUrl) {
+          try {
+            URL.revokeObjectURL(prev.blobUrl);
+          } catch (error) {
+            console.warn('Failed to revoke preview blob URL:', error);
+          }
+          previewUrlRef.current = null;
+        }
+        return {
+          loading: false,
+          error: null,
+          blobUrl: null,
+          signedUrl: null,
+          hasPreviewed: false,
+          timestamp: null,
+        };
+      });
+    }
+  }, [previewDataSignature]);
 
   // Set category context from navigation
   useEffect(() => {
@@ -1433,52 +1558,297 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
   // ฟังก์ชันรวมไฟล์ทั้งหมดเพื่อแสดงผล
   const getAllAttachedFiles = () => {
     const allFiles = [];
-    
-    // 1. Main document files
-    Object.entries(uploadedFiles).forEach(([key, file]) => {
-      if (file) {
-        const docType = documentTypes.find(dt => dt.id == key);
-        allFiles.push({
-          id: `uploaded-${key}`,
-          name: file.name,
-          type: docType?.name || 'เอกสาร',
-          size: file.size,
-          file: file,
-          source: 'uploaded',
-          canDelete: true
-        });
+    const processedMain = new Set();
+
+    const resolveDocumentTypeName = (docTypeId) => {
+      if (!docTypeId && docTypeId !== 0) return '';
+      const doc = Array.isArray(documentTypes)
+        ? documentTypes.find((dt) => String(dt.id) === String(docTypeId))
+        : null;
+      if (doc?.name) {
+        return doc.name;
       }
+      const numericId = Number(docTypeId);
+      return Number.isNaN(numericId) ? '' : getDocumentTypeName(numericId);
+    };
+
+    if (Array.isArray(documentTypes) && documentTypes.length > 0) {
+      documentTypes.forEach((docType) => {
+        if (!docType) return;
+        if (docType.name === 'เอกสารอื่นๆ' || Number(docType.id) === 12) {
+          return;
+        }
+        const file = uploadedFiles?.[docType.id] || uploadedFiles?.[String(docType.id)];
+        if (file) {
+          allFiles.push({
+            id: `uploaded-${docType.id}`,
+            name: file.name,
+            type: docType.name || getDocumentTypeName(docType.id),
+            size: file.size,
+            file,
+            source: 'uploaded',
+            canDelete: true,
+            document_type_id: Number(docType.id),
+            document_type_name: docType.name || getDocumentTypeName(docType.id),
+          });
+          processedMain.add(String(docType.id));
+        }
+      });
+    }
+
+    Object.entries(uploadedFiles || {}).forEach(([key, file]) => {
+      if (!file) return;
+      if (processedMain.has(String(key))) return;
+
+      const docName = resolveDocumentTypeName(key) || 'เอกสาร';
+      const docId = Number(key);
+
+      allFiles.push({
+        id: `uploaded-${key}`,
+        name: file.name,
+        type: docName,
+        size: file.size,
+        file,
+        source: 'uploaded',
+        canDelete: true,
+        document_type_id: Number.isNaN(docId) ? null : docId,
+        document_type_name: docName,
+      });
     });
-    
-    // 2. Other documents
-    otherDocuments.forEach((file, index) => {
+
+    (otherDocuments || []).forEach((file, index) => {
+      if (!file) return;
+      const typeName = resolveDocumentTypeName('other') || 'เอกสารอื่นๆ';
       allFiles.push({
         id: `other-${index}`,
         name: file.name || 'ไม่ระบุชื่อ',
-        type: 'เอกสารอื่นๆ',
+        type: typeName,
         size: file.size || 0,
-        file: file,
+        file,
         source: 'other',
         canDelete: true,
-        index: index // เก็บ index เพื่อใช้ลบ
+        index,
+        document_type_id: null,
+        document_type_name: typeName,
       });
     });
-    
-    // 3. External funding files
-    externalFundingFiles.forEach((doc, index) => {
+
+    (externalFundingFiles || []).forEach((doc) => {
+      if (!doc?.file) return;
       const funding = externalFundings.find(f => f.id === doc.funding_id);
+      const typeName = resolveDocumentTypeName(12) || 'เอกสารเบิกจ่ายภายนอก';
       allFiles.push({
         id: `external-${doc.funding_id}`,
         name: doc.file.name,
-        type: `หลักฐานทุนภายนอก - ${funding?.fundName || 'ไม่ระบุชื่อ'}`,
+        type: `${typeName}${funding?.fundName ? ` - ${funding.fundName}` : ''}`,
         size: doc.file.size,
         file: doc.file,
         source: 'external',
-        canDelete: false // ลบผ่าน table external funding แทน
+        canDelete: false,
+        document_type_id: 12,
+        document_type_name: typeName,
       });
     });
-    
+
     return allFiles;
+  };
+
+  const attachedFiles = useMemo(() => getAllAttachedFiles(), [attachmentSignature, documentTypes, externalFundings]);
+  const latestPreviewUrl = previewState.blobUrl || previewState.signedUrl;
+
+  const buildPublicationDate = () => {
+    if (formData.publication_date) {
+      return formData.publication_date;
+    }
+
+    const rawYear = (formData.journal_year || '').toString().trim();
+    if (!rawYear) {
+      return '';
+    }
+
+    const rawMonth = (formData.journal_month || '').toString().trim();
+    let monthNumber = parseInt(rawMonth, 10);
+    if (Number.isNaN(monthNumber) || monthNumber < 1 || monthNumber > 12) {
+      monthNumber = 1;
+    }
+
+    const monthString = monthNumber.toString().padStart(2, '0');
+    return `${rawYear}-${monthString}-01`;
+  };
+
+  const generatePreview = async ({ openWindow = true } = {}) => {
+    const attachments = attachedFiles;
+
+    if (!attachments || attachments.length === 0) {
+      const message = 'กรุณาแนบไฟล์อย่างน้อย 1 ไฟล์ก่อนดูตัวอย่าง';
+      setPreviewState((prev) => ({
+        ...prev,
+        error: message,
+        hasPreviewed: false,
+        loading: false,
+      }));
+      Toast.fire({ icon: 'warning', title: message });
+      throw new Error(message);
+    }
+
+    setPreviewState((prev) => ({
+      ...prev,
+      loading: true,
+      error: null,
+    }));
+
+    const payload = {
+      formData: {
+        ...formData,
+        publication_date: buildPublicationDate(),
+      },
+      applicant: currentUser
+        ? {
+            prefix_name: currentUser.prefix_name || currentUser.title || '',
+            user_fname: currentUser.user_fname || currentUser.first_name || '',
+            user_lname: currentUser.user_lname || currentUser.last_name || '',
+            position_name: currentUser.position?.position_name || currentUser.position_name || '',
+            date_of_employment: currentUser.date_of_employment || currentUser.start_date || '',
+          }
+        : {},
+      coauthors: (coauthors || []).map((author, index) => ({
+        order: index + 1,
+        user_id: author.user_id,
+        user_fname: author.user_fname,
+        user_lname: author.user_lname,
+      })),
+      external_fundings: (externalFundings || []).map((funding) => ({
+        fund_name: funding.fundName || '',
+        amount: funding.amount || '',
+      })),
+      attachments: attachments.map((item, index) => ({
+        filename: item.name,
+        document_type_id: item.document_type_id ?? null,
+        document_type_name: item.document_type_name || item.type || '',
+        display_order: index + 1,
+      })),
+    };
+
+    const formDataPayload = new FormData();
+    formDataPayload.append('data', JSON.stringify(payload));
+
+    attachments.forEach((item) => {
+      if (item?.file) {
+        formDataPayload.append('attachments', item.file, item.name || 'attachment.pdf');
+      }
+    });
+
+    const headers = {};
+    const token = apiClient.getToken();
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
+    }
+
+    let previewWindow = null;
+    if (openWindow && typeof window !== 'undefined') {
+      previewWindow = window.open('', '_blank');
+    }
+
+    try {
+      const response = await fetch(`${apiClient.baseURL}/publication-rewards/preview`, {
+        method: 'POST',
+        headers,
+        body: formDataPayload,
+      });
+
+      const contentType = response.headers.get('content-type') || '';
+
+      if (!response.ok) {
+        let errorMessage = 'ไม่สามารถสร้างตัวอย่างได้';
+        if (contentType.includes('application/json')) {
+          const errorData = await response.json().catch(() => ({}));
+          errorMessage = errorData.error || errorData.message || errorMessage;
+        }
+        throw new Error(errorMessage);
+      }
+
+      if (contentType.includes('application/json')) {
+        const data = await response.json();
+        const previewUrl = data.url || data.preview_url || data.link;
+        if (!previewUrl) {
+          throw new Error('ไม่มี URL สำหรับดูตัวอย่าง');
+        }
+
+        if (previewUrlRef.current) {
+          try {
+            URL.revokeObjectURL(previewUrlRef.current);
+          } catch (error) {
+            console.warn('Failed to revoke previous preview blob URL:', error);
+          }
+          previewUrlRef.current = null;
+        }
+
+        setPreviewState({
+          loading: false,
+          error: null,
+          blobUrl: null,
+          signedUrl: previewUrl,
+          hasPreviewed: true,
+          timestamp: Date.now(),
+        });
+
+        if (previewWindow) {
+          previewWindow.location = previewUrl;
+        } else if (openWindow && typeof window !== 'undefined') {
+          window.open(previewUrl, '_blank', 'noopener,noreferrer');
+        }
+
+        Toast.fire({ icon: 'success', title: 'สร้างตัวอย่างเอกสารสำเร็จ' });
+        return { type: 'url', url: previewUrl };
+      }
+
+      const blob = await response.blob();
+      const blobUrl = URL.createObjectURL(blob);
+
+      if (previewUrlRef.current) {
+        try {
+          URL.revokeObjectURL(previewUrlRef.current);
+        } catch (error) {
+          console.warn('Failed to revoke previous preview blob URL:', error);
+        }
+      }
+
+      previewUrlRef.current = blobUrl;
+
+      setPreviewState({
+        loading: false,
+        error: null,
+        blobUrl,
+        signedUrl: null,
+        hasPreviewed: true,
+        timestamp: Date.now(),
+      });
+
+      if (previewWindow) {
+        previewWindow.location = blobUrl;
+      } else if (openWindow && typeof window !== 'undefined') {
+        window.open(blobUrl, '_blank', 'noopener,noreferrer');
+      }
+
+      Toast.fire({ icon: 'success', title: 'สร้างตัวอย่างเอกสารสำเร็จ' });
+      return { type: 'blob', url: blobUrl };
+    } catch (error) {
+      if (previewWindow && !previewWindow.closed) {
+        previewWindow.close();
+      }
+
+      const message = error?.message || 'ไม่สามารถสร้างตัวอย่างได้';
+
+      setPreviewState((prev) => ({
+        ...prev,
+        loading: false,
+        error: message,
+        hasPreviewed: false,
+      }));
+
+      Toast.fire({ icon: 'error', title: 'ไม่สามารถสร้างตัวอย่างได้', text: message });
+      throw error;
+    }
   };
 
   // ฟังก์ชันลบไฟล์จาก Attached Files
@@ -1854,7 +2224,6 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
     setErrors({});
     setCurrentSubmissionId(null);
     deleteDraftFromLocal();
-    setMergedPdfFile(null);
   };
 
   // =================================================================
@@ -1867,119 +2236,32 @@ const showSubmissionConfirmation = async () => {
     ? `${formData.journal_month}/${formData.journal_year}` 
     : '-';
 
-  // Collect all files for display and PDF merging (ไม่ซ้ำกัน)
-  const allFiles = [];
-  const allFilesList = [];
-  const processedFileNames = new Set(); // เก็บชื่อไฟล์ที่ประมวลผลแล้ว
-  
-  // 1. Files from uploadedFiles
-  Object.entries(uploadedFiles).forEach(([key, file]) => {
-    if (file && !processedFileNames.has(file.name)) {
-      const docType = documentTypes.find(dt => dt.id == key);
-      allFiles.push(file);
-      allFilesList.push({
-        name: file.name,
-        type: docType?.name || 'เอกสาร',
-        size: file.size
-      });
-      processedFileNames.add(file.name);
-    }
-  });
-  
-  // 2. Files from otherDocuments (เฉพาะที่ไม่ซ้ำ)
-  if (otherDocuments && Array.isArray(otherDocuments) && otherDocuments.length > 0) {
-    otherDocuments.forEach(doc => {
-      const file = doc.file || doc;
-      const fileName = file.name || doc.name;
-      if (file && fileName && !processedFileNames.has(fileName)) {
-        allFiles.push(file);
-        allFilesList.push({
-          name: fileName,
-          type: 'เอกสารอื่นๆ',
-          size: file.size || doc.size || 0
-        });
-        processedFileNames.add(fileName);
-      }
+  const currentAttachments = attachedFiles || [];
+  const allFilesList = currentAttachments.map((file) => ({
+    name: file.name,
+    type: file.document_type_name || file.type || 'เอกสาร',
+    size: file.size || 0,
+  }));
+
+  if (currentAttachments.length === 0) {
+    Swal.fire({
+      icon: 'warning',
+      title: 'ไม่พบเอกสารแนบ',
+      text: 'กรุณาแนบไฟล์บทความอย่างน้อย 1 ไฟล์',
+      confirmButtonColor: '#3085d6'
     });
-  }
-  
-  // 3. Files from externalFundingFiles (ใช้ externalFundingFiles แทน externalFundings)
-  if (externalFundingFiles && externalFundingFiles.length > 0) {
-    externalFundingFiles.forEach(doc => {
-      const funding = externalFundings.find(f => f.id === doc.funding_id);
-      if (doc.file && !processedFileNames.has(doc.file.name)) {
-        allFiles.push(doc.file);
-        allFilesList.push({
-          name: doc.file.name,
-          type: `หลักฐานทุนภายนอก - ${funding?.fundName || 'ไม่ระบุ'}`,
-          size: doc.file.size
-        });
-        processedFileNames.add(doc.file.name);
-      }
-    });
+    return false;
   }
 
-    // Check if files exist
-    if (allFiles.length === 0) {
-      Swal.fire({
-        icon: 'warning',
-        title: 'ไม่พบเอกสารแนบ',
-        text: 'กรุณาแนบไฟล์บทความอย่างน้อย 1 ไฟล์',
-        confirmButtonColor: '#3085d6'
-      });
-      return false;
-    }
-
-    // Create merged PDF
-    let mergedPdfBlob = null;
-    let mergedPdfUrl = null;
-    let previewViewed = false;
-
-    try {
-      // Show loading while merging PDF
-      Swal.fire({
-        title: 'กำลังเตรียมเอกสาร...',
-        html: 'กำลังรวมไฟล์ PDF ทั้งหมด',
-        allowOutsideClick: false,
-        showConfirmButton: false,
-        willOpen: () => {
-          Swal.showLoading();
-        }
-      });
-
-      // Filter PDF files only
-      const pdfFiles = allFiles.filter(file => file.type === 'application/pdf');
-      
-      if (pdfFiles.length > 0) {
-        if (pdfFiles.length > 1) {
-          // Merge multiple PDFs (robust)
-          const { blob, skipped } = await mergePDFs(pdfFiles);
-          const mergedFile = new File([blob], 'merged_documents.pdf', { type: 'application/pdf' });
-          setMergedPdfFile(mergedFile);
-          mergedPdfUrl = URL.createObjectURL(blob);
-          if (skipped?.length) {
-            Toast.fire({ icon: 'warning', title: 'ข้ามไฟล์ PDF บางไฟล์', text: skipped.join(', ') });
-          }
-        } else {
-          // Use single PDF
-          const one = pdfFiles[0];
-          setMergedPdfFile(one);
-          mergedPdfUrl = URL.createObjectURL(one);
-        }
-      }
-      Swal.close();
-      } catch (error) {
-        console.error('Error creating merged PDF:', error);
-        Swal.close();
-        setMergedPdfFile(null);
-        // อย่าหยุด flow — ส่งไฟล์แยกแทน
-        Toast.fire({
-          icon: 'warning',
-          title: 'ไม่สามารถรวมไฟล์ PDF',
-          text: 'ระบบจะส่งไฟล์แยกแทน'
-        });
-        // ไม่ return false; ให้ไปต่อได้
-      }
+  const previewAvailable = previewState.hasPreviewed && !!latestPreviewUrl;
+  let previewViewed = previewAvailable;
+  const previewButtonInitialLabel = previewAvailable ? '👀 เปิดอีกครั้ง' : '👀 ดูตัวอย่าง';
+  const previewStatusMarkup = previewAvailable
+    ? '<span class="text-green-600">✅ ดูตัวอย่างเอกสารแล้ว</span>'
+    : '<span class="text-red-600">⚠️ กรุณาดูตัวอย่างเอกสารก่อนส่งคำร้อง</span>';
+  const previewButtonInitialClass = previewAvailable
+    ? 'px-3 py-1 bg-green-500 text-white text-xs rounded hover:bg-green-600 transition-colors'
+    : 'px-3 py-1 bg-blue-500 text-white text-xs rounded hover:bg-blue-600 transition-colors';
 
     const summaryHTML = `
       <div class="text-left space-y-4">
@@ -2067,26 +2349,24 @@ const showSubmissionConfirmation = async () => {
               </div>
             </div>
 
-            ${mergedPdfUrl ? `
-              <div class="bg-blue-50 border border-blue-200 p-3 rounded">
-                <div class="flex items-center justify-between">
-                  <div>
-                    <p class="font-medium text-blue-800">📋 เอกสารรวม (PDF)</p>
-                    <p class="text-xs text-blue-600">ไฟล์ PDF ทั้งหมดรวมเป็นไฟล์เดียว</p>
-                  </div>
-                  <button
-                    id="preview-pdf-btn"
-                    type="button"
-                    class="px-3 py-1 bg-blue-500 text-white text-xs rounded hover:bg-blue-600 transition-colors"
-                  >
-                    👀 ดูตัวอย่าง
-                  </button>
-                </div>
-                <div id="preview-status" class="mt-2 text-xs">
-                  <span class="text-red-600">⚠️ กรุณาดูตัวอย่างเอกสารก่อนส่งคำร้อง</span>
-                </div>
-              </div>
-            ` : ''}
+        <div class="bg-blue-50 border border-blue-200 p-3 rounded">
+          <div class="flex items-center justify-between">
+            <div>
+              <p class="font-medium text-blue-800">📋 เอกสารรวม (PDF)</p>
+              <p class="text-xs text-blue-600">ไฟล์ PDF ทั้งหมดรวมเป็นไฟล์เดียว</p>
+            </div>
+            <button
+              id="preview-pdf-btn"
+              type="button"
+              class="${previewButtonInitialClass}"
+            >
+              ${previewButtonInitialLabel}
+            </button>
+          </div>
+          <div id="preview-status" class="mt-2 text-xs">
+            ${previewStatusMarkup}
+          </div>
+        </div>
           </div>
         </div>
 
@@ -2119,7 +2399,7 @@ const showSubmissionConfirmation = async () => {
         },
         // Dynamic validation
         preConfirm: () => {
-          if (mergedPdfUrl && !previewViewed) {
+          if (currentAttachments.length > 0 && !previewViewed) {
             Swal.showValidationMessage('กรุณาดูตัวอย่างเอกสารรวมก่อนส่งคำร้อง');
             return false;
           }
@@ -2129,33 +2409,42 @@ const showSubmissionConfirmation = async () => {
           // Add event listener for preview button
           const previewBtn = document.getElementById('preview-pdf-btn');
           const previewStatus = document.getElementById('preview-status');
-          
-          if (previewBtn && mergedPdfUrl) {
-            previewBtn.addEventListener('click', () => {
-              window.open(mergedPdfUrl, '_blank');
-              previewViewed = true;
-              
-              // Update status
-              if (previewStatus) {
-                previewStatus.innerHTML = '<span class="text-green-600">✅ ดูตัวอย่างเอกสารแล้ว</span>';
-              }
-              
-              // Change button color
-              previewBtn.className = 'px-3 py-1 bg-green-500 text-white text-xs rounded hover:bg-green-600 transition-colors';
-              previewBtn.innerHTML = '✅ ดูแล้ว';
-              
-              // Hide validation message if visible
-              const validationMessage = document.querySelector('.swal2-validation-message');
-              if (validationMessage) {
-                validationMessage.style.display = 'none';
+
+          if (previewBtn) {
+            const originalLabel = previewBtn.innerHTML;
+            const originalClass = previewBtn.className;
+
+            previewBtn.addEventListener('click', async () => {
+              previewBtn.disabled = true;
+              previewBtn.innerHTML = '⏳ กำลังสร้าง...';
+              previewBtn.className = originalClass;
+
+              try {
+                await generatePreview({ openWindow: true });
+                previewViewed = true;
+
+                if (previewStatus) {
+                  previewStatus.innerHTML = '<span class="text-green-600">✅ ดูตัวอย่างเอกสารแล้ว</span>';
+                }
+
+                previewBtn.className = 'px-3 py-1 bg-green-500 text-white text-xs rounded hover:bg-green-600 transition-colors';
+                previewBtn.innerHTML = '✅ ดูแล้ว';
+
+                const validationMessage = document.querySelector('.swal2-validation-message');
+                if (validationMessage) {
+                  validationMessage.style.display = 'none';
+                }
+              } catch (error) {
+                const message = error?.message || 'ไม่สามารถสร้างตัวอย่างได้';
+                if (previewStatus) {
+                  previewStatus.innerHTML = `<span class="text-red-600">❌ ${message}</span>`;
+                }
+                previewBtn.className = originalClass;
+                previewBtn.innerHTML = originalLabel;
+              } finally {
+                previewBtn.disabled = false;
               }
             });
-          }
-        },
-        willClose: () => {
-          // Clean up URL object when dialog closes
-          if (mergedPdfUrl) {
-            URL.revokeObjectURL(mergedPdfUrl);
           }
         }
       });
@@ -3780,6 +4069,76 @@ const showSubmissionConfirmation = async () => {
                 <p className="text-sm">กำลังโหลดประเภทเอกสาร... (Loading document types...)</p>
               </div>
             )}
+
+            <div className="border-t border-gray-200 pt-4">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <button
+                  type="button"
+                  onClick={() => generatePreview({ openWindow: true })}
+                  disabled={previewState.loading || attachedFiles.length === 0}
+                  className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
+                >
+                  {previewState.loading ? (
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                  ) : (
+                    <Eye className="h-4 w-4" />
+                  )}
+                  {previewState.loading ? 'กำลังสร้างตัวอย่าง...' : 'ดูตัวอย่างเอกสารรวม'}
+                </button>
+
+                <div className="text-sm text-gray-500">
+                  รวมไฟล์ทั้งหมด {attachedFiles.length} ไฟล์
+                </div>
+              </div>
+
+              {!previewState.loading && attachedFiles.length === 0 && (
+                <p className="mt-2 text-sm text-gray-600 flex items-center gap-2">
+                  <AlertCircle className="h-4 w-4 text-gray-400" />
+                  กรุณาแนบไฟล์ก่อนดูตัวอย่างเอกสาร
+                </p>
+              )}
+
+              {previewState.error && (
+                <p className="mt-2 text-sm text-red-600 flex items-center gap-2">
+                  <AlertCircle className="h-4 w-4" />
+                  {previewState.error}
+                </p>
+              )}
+
+              {previewState.hasPreviewed && latestPreviewUrl && (
+                <div className="mt-3 bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-800">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <p className="font-medium">ดูตัวอย่างล่าสุดเมื่อ {formatPreviewTimestamp(previewState.timestamp) || '—'}</p>
+                      <p className="text-xs text-blue-600">สามารถเปิดหรือดาวน์โหลดเอกสารจากลิงก์ด้านล่าง</p>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (latestPreviewUrl) {
+                            window.open(latestPreviewUrl, '_blank', 'noopener,noreferrer');
+                          }
+                        }}
+                        className="inline-flex items-center gap-2 px-3 py-1.5 rounded-md bg-blue-600 text-white hover:bg-blue-700"
+                      >
+                        <Eye className="h-4 w-4" />
+                        เปิดอีกครั้ง
+                      </button>
+                      <a
+                        href={latestPreviewUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        download={previewState.blobUrl ? 'publication_reward_preview.pdf' : undefined}
+                        className="inline-flex items-center gap-2 px-3 py-1.5 rounded-md bg-white text-blue-700 border border-blue-300 hover:bg-blue-100"
+                      >
+                        ⬇️ ดาวน์โหลด
+                      </a>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </SimpleCard>
 
