@@ -299,6 +299,13 @@ func SetupRoutes(router *gin.Engine) {
 				}
 			}
 
+			// Legacy/compatibility route for publication summary preview
+			publicationSummary := protected.Group("/publication-summary")
+			{
+				// POST /api/v1/publication-summary/preview (alias of publication reward preview)
+				publicationSummary.POST("/preview", controllers.PreviewPublicationReward)
+			}
+
 			rewardConfig := v1.Group("/reward-config")
 			rewardConfig.Use(middleware.AuthMiddleware())
 			{
@@ -461,6 +468,7 @@ func SetupRoutes(router *gin.Engine) {
 				{
 					systemConfig.GET("", controllers.GetSystemConfigAdmin)
 					systemConfig.PUT("", controllers.UpdateSystemConfigWindow)
+					systemConfig.PATCH("/announcements/:slot", controllers.UpdateSystemConfigAnnouncement)
 				}
 
 				submissionManagement := admin.Group("/submissions")
