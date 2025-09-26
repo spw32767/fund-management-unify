@@ -1738,11 +1738,34 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
       }
     });
 
-    const headers = {};
-    const token = apiClient.getToken();
-    if (token) {
-      headers.Authorization = `Bearer ${token}`;
-    }
+    const resolveAuthHeaders = () => {
+      const headers = {};
+
+      if (typeof window === 'undefined') {
+        headers.Accept = 'application/pdf,application/json';
+        return headers;
+      }
+
+      const storedToken = (typeof apiClient.getToken === 'function' ? apiClient.getToken() : null)
+        || localStorage.getItem('access_token')
+        || localStorage.getItem('auth_token');
+
+      const sessionId = typeof apiClient.getSessionId === 'function' ? apiClient.getSessionId() : null;
+
+      if (storedToken) {
+        headers.Authorization = `Bearer ${storedToken}`;
+      }
+
+      if (sessionId) {
+        headers['X-Session-ID'] = sessionId;
+      }
+
+      headers.Accept = 'application/pdf,application/json';
+
+      return headers;
+    };
+
+    let authHeaders = resolveAuthHeaders();
 
     let previewWindow = null;
     if (openWindow && typeof window !== 'undefined') {
@@ -1750,11 +1773,38 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
     }
 
     try {
-      const response = await fetch(`${apiClient.baseURL}/publication-rewards/preview`, {
+      let response = await fetch(`${apiClient.baseURL}/publication-rewards/preview`, {
         method: 'POST',
-        headers,
+        headers: authHeaders,
         body: formDataPayload,
       });
+
+      if (response.status === 401) {
+        const contentType = response.headers.get('content-type') || '';
+        let errorPayload = null;
+        if (contentType.includes('application/json')) {
+          errorPayload = await response.json().catch(() => null);
+        }
+
+        const authErrorCode = errorPayload?.code || errorPayload?.error || '';
+
+        if (authErrorCode === 'TOKEN_EXPIRED' || authErrorCode === 'SESSION_EXPIRED' || authErrorCode === 'SESSION_NOT_FOUND') {
+          try {
+            await authAPI.refreshAccessToken();
+            authHeaders = resolveAuthHeaders();
+            response = await fetch(`${apiClient.baseURL}/publication-rewards/preview`, {
+              method: 'POST',
+              headers: authHeaders,
+              body: formDataPayload,
+            });
+          } catch (refreshError) {
+            throw new Error('เซสชันหมดอายุ กรุณาเข้าสู่ระบบใหม่');
+          }
+        } else {
+          const message = errorPayload?.error || errorPayload?.message || 'การยืนยันตัวตนล้มเหลว';
+          throw new Error(message);
+        }
+      }
 
       const contentType = response.headers.get('content-type') || '';
 
