@@ -557,6 +557,10 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
   const [enabledYears, setEnabledYears] = useState([]);
   const [enabledPairs, setEnabledPairs] = useState([]);
   const [resolutionError, setResolutionError] = useState('');
+  const [previewPdfUrl, setPreviewPdfUrl] = useState(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewError, setPreviewError] = useState('');
+  const [previewStale, setPreviewStale] = useState(false);
 
   // Form data state
   const [formData, setFormData] = useState({
@@ -627,6 +631,7 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
     main_annoucement: null,
     reward_announcement: null,
   });
+  const previewWatcherInitialized = useRef(false);
   useEffect(() => {
     let ro = false;
 
@@ -727,6 +732,33 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
     loadInitialData();
     checkAndLoadDraft();
   }, [categoryId, yearId]);
+
+  useEffect(() => {
+    return () => {
+      if (previewPdfUrl) {
+        URL.revokeObjectURL(previewPdfUrl);
+      }
+    };
+  }, [previewPdfUrl]);
+
+  useEffect(() => {
+    if (!previewPdfUrl) {
+      previewWatcherInitialized.current = false;
+      if (previewStale) {
+        setPreviewStale(false);
+      }
+      return;
+    }
+
+    if (!previewWatcherInitialized.current) {
+      previewWatcherInitialized.current = true;
+      return;
+    }
+
+    if (!previewStale) {
+      setPreviewStale(true);
+    }
+  }, [formData, uploadedFiles, otherDocuments, externalFundingFiles, externalFundings, previewPdfUrl, previewStale]);
 
   // Reload quartile configs when year changes
   useEffect(() => {
@@ -1257,6 +1289,98 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
   // EVENT HANDLERS
   // =================================================================
 
+  const revokeExistingPreview = () => {
+    if (previewPdfUrl) {
+      URL.revokeObjectURL(previewPdfUrl);
+    }
+    previewWatcherInitialized.current = false;
+    setPreviewPdfUrl(null);
+  };
+
+  const handlePreviewClose = () => {
+    revokeExistingPreview();
+    setPreviewError('');
+  };
+
+  const handlePreviewClick = async () => {
+    if (previewLoading) {
+      return;
+    }
+
+    const requiredFields = [
+      'article_title',
+      'journal_name',
+      'journal_month',
+      'journal_year',
+      'author_status',
+      'journal_quartile',
+      'signature'
+    ];
+
+    const missingFields = requiredFields.filter((fieldKey) => {
+      const value = formData[fieldKey];
+      if (value === 0) {
+        return false;
+      }
+      if (value === undefined || value === null) {
+        return true;
+      }
+      if (typeof value === 'string') {
+        return value.trim() === '';
+      }
+      return false;
+    });
+
+    if (missingFields.length > 0) {
+      const errorList = missingFields.map(fieldKey => {
+        const element = formRef.current?.elements?.namedItem(fieldKey);
+        return {
+          fieldKey,
+          label: getFieldLabel(fieldKey),
+          refOrId: element?.id || `field-${fieldKey}`
+        };
+      });
+      handleValidationErrors(errorList);
+      return;
+    }
+
+    setPreviewLoading(true);
+    setPreviewError('');
+    revokeExistingPreview();
+
+    try {
+      const response = await fetch('/api/v1/publication-rewards/preview', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(buildPreviewPayload())
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => '');
+        console.error('Failed to generate preview:', errorText || response.statusText);
+        setPreviewError('ไม่สามารถสร้างตัวอย่างเอกสารได้');
+        return;
+      }
+
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      setPreviewPdfUrl(url);
+      setPreviewStale(false);
+      setPreviewError('');
+
+      if (typeof window !== 'undefined') {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+    } catch (error) {
+      console.error('Error generating preview:', error);
+      setPreviewError('ไม่สามารถสร้างตัวอย่างเอกสารได้');
+    } finally {
+      setPreviewLoading(false);
+    }
+  };
+
   // Handle form input changes
   const handleInputChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -1433,7 +1557,7 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
   // ฟังก์ชันรวมไฟล์ทั้งหมดเพื่อแสดงผล
   const getAllAttachedFiles = () => {
     const allFiles = [];
-    
+
     // 1. Main document files
     Object.entries(uploadedFiles).forEach(([key, file]) => {
       if (file) {
@@ -1477,7 +1601,7 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
         canDelete: false // ลบผ่าน table external funding แทน
       });
     });
-    
+
     return allFiles;
   };
 
@@ -1496,6 +1620,87 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
       setOtherDocuments(prev => prev.filter((_, idx) => idx !== fileInfo.index));
     }
     // External files ไม่ลบที่นี่ ให้ลบผ่าน external funding table
+  };
+
+  const buildPreviewPayload = () => {
+    const applicantName = `${currentUser?.position_name || ''} ${currentUser?.user_fname || ''} ${currentUser?.user_lname || ''}`
+      .replace(/\s+/g, ' ')
+      .trim();
+    const monthPart = (formData.journal_month || '01').toString().padStart(2, '0');
+    const yearPart = formData.journal_year ? formData.journal_year.toString() : new Date().getFullYear().toString();
+    const documentTypeNameSet = new Set();
+
+    if (uploadedFiles && documentTypes && documentTypes.length > 0) {
+      Object.entries(uploadedFiles).forEach(([key, file]) => {
+        if (!file || key === 'other') {
+          return;
+        }
+
+        const docType = documentTypes.find(dt => String(dt.id ?? dt.document_type_id) === String(key));
+        if (docType?.name) {
+          documentTypeNameSet.add(docType.name);
+        }
+      });
+    }
+
+    if (Array.isArray(otherDocuments) && otherDocuments.length > 0) {
+      documentTypeNameSet.add('เอกสารอื่นๆ');
+    }
+
+    if (Array.isArray(externalFundingFiles) && externalFundingFiles.length > 0) {
+      externalFundingFiles.forEach(doc => {
+        if (!doc) {
+          return;
+        }
+
+        const funding = externalFundings.find(f => f.id === doc.funding_id);
+        const label = doc.description
+          || (funding?.fundName ? `หลักฐานทุนภายนอก - ${funding.fundName}` : 'หลักฐานทุนภายนอก');
+        documentTypeNameSet.add(label);
+      });
+    }
+
+    const payload = {
+      applicant_name: applicantName,
+      total_amount: Number(formData.total_amount || 0),
+      author_name_list: formData.author_name_list || '',
+      paper_title: formData.article_title || '',
+      journal_name: formData.journal_name || '',
+      publication_date: `${yearPart}-${monthPart}-01`,
+      volume_issue: formData.journal_issue || '',
+      page_numbers: formData.journal_pages || '',
+      author_type: formData.author_status,
+      quartile: formData.journal_quartile,
+      signature: formData.signature || ''
+    };
+
+    if (currentUser?.position_name) {
+      payload.position = currentUser.position_name;
+    }
+
+    const employmentDate = currentUser?.date_of_employment
+      || currentUser?.employment_date
+      || currentUser?.date_start
+      || currentUser?.employment_start;
+    if (employmentDate) {
+      payload.date_of_employment = employmentDate;
+    }
+
+    const installmentValue = formData.installment ?? currentUser?.installment;
+    if (installmentValue !== undefined && installmentValue !== null && installmentValue !== '') {
+      payload.installment = installmentValue;
+    }
+
+    const kkuReportYear = formData.kku_report_year ?? currentUser?.kku_report_year;
+    if (kkuReportYear !== undefined && kkuReportYear !== null && kkuReportYear !== '') {
+      payload.kku_report_year = kkuReportYear;
+    }
+
+    if (documentTypeNameSet.size > 0) {
+      payload.document_type_names = Array.from(documentTypeNameSet);
+    }
+
+    return payload;
   };
 
   // =================================================================
@@ -2760,6 +2965,56 @@ const showSubmissionConfirmation = async () => {
         </div>
       )}
       <fieldset disabled={isReadOnly} aria-disabled={isReadOnly} className="space-y-6">
+        {previewError && !previewPdfUrl && (
+          <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+            {previewError}
+          </div>
+        )}
+
+        {previewPdfUrl && (
+          <div className="rounded-lg border p-3 bg-white">
+            <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">ตัวอย่างแบบฟอร์ม (Preview)</h3>
+                <p className="text-sm text-gray-500">นี่เป็นตัวอย่างจากข้อมูลที่คุณกรอกขณะนี้ ยังไม่ได้บันทึกลงระบบ</p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={handlePreviewClick}
+                  disabled={previewLoading}
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-teal-100 text-teal-700 rounded-md hover:bg-teal-200 disabled:opacity-60"
+                >
+                  {previewLoading ? (
+                    <div className="h-4 w-4 border-b-2 border-teal-600 rounded-full animate-spin" />
+                  ) : (
+                    <Eye className="h-4 w-4" />
+                  )}
+                  {previewLoading ? 'กำลังสร้างตัวอย่าง...' : 'รีเฟรชตัวอย่าง'}
+                </button>
+                <button
+                  type="button"
+                  onClick={handlePreviewClose}
+                  className="inline-flex items-center gap-2 px-4 py-2 border border-gray-200 text-gray-600 rounded-md hover:bg-gray-100"
+                >
+                  <X className="h-4 w-4" />
+                  ปิด
+                </button>
+              </div>
+            </div>
+            {previewError && (
+              <p className="mt-3 text-sm text-red-600">{previewError}</p>
+            )}
+            <div className="mt-3">
+              <iframe
+                src={previewPdfUrl}
+                title="ตัวอย่างแบบฟอร์มคำร้อง"
+                className="w-full h-[900px] border rounded"
+              />
+            </div>
+          </div>
+        )}
+
         {/* =================================================================
         // BASIC INFORMATION SECTION
         // ================================================================= */}
@@ -3954,6 +4209,27 @@ const showSubmissionConfirmation = async () => {
             )}
             {saving ? 'กำลังบันทึก...' : 'บันทึกร่าง'}
           </button>
+
+          <div className="flex-1 flex flex-col items-stretch">
+            <button
+              type="button"
+              onClick={handlePreviewClick}
+              disabled={previewLoading}
+              className="flex items-center justify-center gap-2 px-6 py-3 bg-teal-600 text-white rounded-lg hover:bg-teal-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors w-full"
+            >
+              {previewLoading ? (
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+              ) : (
+                <Eye className="h-4 w-4" />
+              )}
+              {previewLoading ? 'กำลังสร้างตัวอย่าง...' : 'ดูตัวอย่าง'}
+            </button>
+            {previewPdfUrl && previewStale && !previewLoading && (
+              <span className="mt-2 inline-flex items-center justify-center self-center rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-800">
+                อัปเดตตัวอย่าง
+              </span>
+            )}
+          </div>
 
           <button
             type="button"
