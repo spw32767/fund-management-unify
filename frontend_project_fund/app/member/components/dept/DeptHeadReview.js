@@ -287,19 +287,19 @@ export default function DeptHeadReview() {
 
   return (
     <PageLayout
-      title="พิจารณาคำร้อง (สาขา)"
+      title="พิจารณาคำร้องของหัวหน้าสาขา"
       subtitle="ตรวจสอบรายละเอียดคำร้องและบันทึกผลการพิจารณา"
       icon={ClipboardList}
       breadcrumbs={[
         { label: "หน้าแรก", href: "/member" },
-        { label: "พิจารณาคำร้อง (สาขา)" },
+        { label: "พิจารณาคำร้องของหัวหน้าสาขา" },
       ]}
     >
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
         <div className="flex items-center justify-between gap-4">
           <div>
             <h3 className="text-lg font-semibold text-gray-800">
-              รายการคำร้องที่รอตรวจสอบ
+              รายการคำร้องที่รอการตรวจสอบ
             </h3>
           </div>
           <div className="flex items-center gap-2">

@@ -88,6 +88,34 @@ export const systemConfigAPI = {
       installment: root?.installment ?? null,
     };
   },
-};
+/** บันทึกเฉพาะ "ปีงบประมาณ + ช่วงเวลา" */
+async updateWindow(payload) {
+  // payload: { current_year, start_date, end_date }
+  return apiClient.put("/admin/system-config", payload);
+},
 
+/** เซ็ตประกาศทีละช่อง: slot = main | reward | activity_support | conference | service */
+async setAnnouncement(slot, announcement_id) {
+  return apiClient.patch(`/admin/system-config/announcements/${slot}`, { announcement_id });
+},
+
+async getCurrentDeptHead() {
+  return apiClient.get("/system-config/dept-head/current");
+},
+async listDeptHeadHistory(params = {}) {
+  return apiClient.get("/admin/system-config/dept-head/history", { params });
+},
+async assignDeptHead(payload) {
+  // { head_user_id, effective_from?, note? }
+  return apiClient.post("/admin/system-config/dept-head/assign", payload);
+},
+
+// ช็อตคัต
+async setMainAnnouncement(id)       { return this.setAnnouncement("main", id ?? null); },
+async setRewardAnnouncement(id)     { return this.setAnnouncement("reward", id ?? null); },
+async setActivitySupportAnn(id)     { return this.setAnnouncement("activity_support", id ?? null); },
+async setConferenceAnnouncement(id) { return this.setAnnouncement("conference", id ?? null); },
+async setServiceAnnouncement(id)    { return this.setAnnouncement("service", id ?? null); },
+
+};
 export default systemConfigAPI;

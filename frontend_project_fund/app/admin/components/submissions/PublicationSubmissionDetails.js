@@ -2087,7 +2087,12 @@ export default function PublicationSubmissionDetails({ submissionId, onBack }) {
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 mb-1">
                               <FileText size={16} className="text-gray-600 flex-shrink-0" />
-
+                              <p className="text-sm text-gray-600">
+                              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-green-100 text-green-700">
+                                {docType}
+                              </span>
+                            </p>
+                            </div>
                               {/* ชื่อไฟล์: ทำเป็นลิงก์สีน้ำเงิน กดแล้วเรียก handleView(fileId) */}
                               {fileId ? (
                                 <a
@@ -2106,12 +2111,6 @@ export default function PublicationSubmissionDetails({ submissionId, onBack }) {
                                   {fileName}
                                 </span>
                               )}
-                            </div>
-                            <p className="text-sm text-gray-600">
-                              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-green-100 text-green-700">
-                                {docType}
-                              </span>
-                            </p>
                           </div>
                         </div>
 

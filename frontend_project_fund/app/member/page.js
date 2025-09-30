@@ -126,7 +126,7 @@ export function MemberPageContent({ initialPage = 'profile' }) {
       'fund-application-detail': 'รายละเอียดคำร้องขอทุน',
       'announcements': 'ประกาศกองทุนวิจัยและนวัตกรรม',
       'notifications': 'การแจ้งเตือน',
-      'dept-review': 'ตรวจคำขอระดับภาควิชา'
+      'dept-review': 'พิจารณาคำร้องของหัวหน้าสาขา',
     };
     return titles[currentPage] || currentPage;
   };

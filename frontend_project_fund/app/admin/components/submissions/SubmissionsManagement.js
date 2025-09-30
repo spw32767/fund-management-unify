@@ -237,6 +237,7 @@ export default function SubmissionsManagement() {
           s?.Subcategory?.subcategory_name ||
           (s?.subcategory_id != null ? subMap[String(s.subcategory_id)] : undefined) ||
           s?.FundApplicationDetail?.Subcategory?.subcategory_name ||
+          dpo?.Subcategory?.subcategory_name ||
           s?.subcategory_name || '';
 
         // article title (row detail if present; detailsMap for visible rows; row title fallback)
@@ -245,6 +246,7 @@ export default function SubmissionsManagement() {
         const article =
           s?.PublicationRewardDetail?.paper_title ||
           dpo?.paper_title ||
+          dpo?.project_title ||
           s?.title || '';
 
         // author display (userMap then row)
@@ -258,7 +260,8 @@ export default function SubmissionsManagement() {
         // amount as plain and formatted string
         const rawAmt = Number(
           (dpo?.total_amount ?? dpo?.total_reward_amount ?? dpo?.net_amount ??
-            (dpo?.reward_amount || 0) + (dpo?.revision_fee || 0) + (dpo?.publication_fee || 0) - (dpo?.external_funding_amount || 0)) ||
+           dpo?.requested_amount ?? dpo?.approved_amount ??
+            ((dpo?.reward_amount || 0) + (dpo?.revision_fee || 0) + (dpo?.publication_fee || 0) - (dpo?.external_funding_amount || 0))) ||
           (s?.approved_amount ?? s?.requested_amount ?? s?.amount ?? 0)
         );
         const amtStr = isFinite(rawAmt) ? rawAmt.toString() : '';
@@ -367,7 +370,8 @@ export default function SubmissionsManagement() {
               const owner =
                 dp?.User || dp?.user ||
                 dp?.submission?.User || dp?.Submission?.User ||
-                dp?.data?.submission?.User || dp?.data?.Submission?.User;
+                dp?.data?.submission?.User || dp?.data?.Submission?.User ||
+                dp?.applicant || dp?.applicant_user || dp?.data?.applicant || dp?.data?.applicant_user;
               if (owner) {
                 const id = String(owner.user_id ?? '');
                 if (id) {
