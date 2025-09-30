@@ -239,15 +239,15 @@ func buildSubmissionPreviewReplacements(submission *models.Submission, detail *m
 	}
 
 	positionName := ""
-	if submission.User.Position != nil {
-		positionName = submission.User.Position.PositionName
+	if name := strings.TrimSpace(submission.User.Position.PositionName); name != "" {
+		positionName = name
 	}
 
 	replacements := map[string]string{
 		"{{date_th}}":            utils.FormatThaiDate(submission.CreatedAt),
 		"{{applicant_name}}":     buildApplicantName(submission.User),
 		"{{date_of_employment}}": utils.FormatThaiDatePtr(submission.User.DateOfEmployment),
-		"{{position}}":           strings.TrimSpace(positionName),
+		"{{position}}":           positionName,
 		"{{installment}}":        formatNullableInt(sysConfig.Installment),
 		"{{total_amount}}":       formatAmount(detail.TotalAmount),
 		"{{total_amount_text}}":  utils.BahtText(detail.TotalAmount),
