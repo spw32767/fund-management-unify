@@ -11,8 +11,8 @@ import {
 import PageLayout from '../common/PageLayout';
 import Card from '../common/Card';
 import StatusBadge from '../common/StatusBadge';
-import { formatCurrency } from '@/app/utils/format';
 import { adminSubmissionAPI } from '@/app/lib/admin_submission_api';
+import { adminAnnouncementAPI } from '@/app/lib/admin_announcement_api'; // <-- fetch announcement
 import apiClient from '@/app/lib/api';
 import { toast } from 'react-hot-toast';
 import Swal from 'sweetalert2';
@@ -65,7 +65,7 @@ const pickApplicant = (submission) => {
   if (applicant) return applicant;
 
   const su = (submission?.submission_users || []).find(
-    (u) => u.is_applicant || u.IsApplicant
+    (u) => u.is_applicant || u.IsApplicant || u.is_owner || u.is_submitter
   );
   return su?.user || su?.User || null;
 };
@@ -76,16 +76,29 @@ const getUserFullName = (u) => {
   return name || (u.email || '-');
 };
 
+// format "0฿" (suffix)
+function baht(value) {
+  const n = Number(value ?? 0);
+  if (!isFinite(n)) return '0฿';
+  const s = n.toLocaleString('th-TH', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+  return `${s}฿`;
+}
+
+// build absolute URL for file paths (like /uploads/...)
+function getFileURL(filePath) {
+  if (!filePath) return '#';
+  if (/^https?:\/\//i.test(filePath)) return filePath;
+  const base = apiClient.baseURL.replace(/\/?api\/v1$/, '');
+  try { return new URL(filePath, base).href; } catch { return filePath; }
+}
+
 /* =========================
  * Approval Panel
- *  - โหมด Pending (status_id=1): ฟอร์มอนุมัติ/ไม่อนุมัติ
- *  - โหมดอื่น: แสดงผลแบบ read-only เพื่อเทียบกับฝั่งซ้าย
  * ========================= */
 function FundApprovalPanel({ submission, fundDetail, onApprove, onReject }) {
   const statusId = Number(submission?.status_id);
   const requested = Number(fundDetail?.requested_amount || 0);
 
-  // ✅ เรียก Hooks เสมอเพื่อไม่ให้ผิดลำดับเมื่อสถานะเปลี่ยน
   const [approved, setApproved] = React.useState(
     Number.isFinite(Number(fundDetail?.approved_amount))
       ? Number(fundDetail?.approved_amount)
@@ -100,7 +113,7 @@ function FundApprovalPanel({ submission, fundDetail, onApprove, onReject }) {
     const a = Number(approved);
     if (!Number.isFinite(a)) e.approved = 'กรุณากรอกจำนวนเงินเป็นตัวเลข';
     else if (a < 0) e.approved = 'จำนวนเงินต้องไม่ติดลบ';
-    else if (a > requested) e.approved = `ต้องไม่เกินจำนวนที่ขอ (฿${formatCurrency(requested)})`;
+    else if (a > requested) e.approved = `ต้องไม่เกินจำนวนที่ขอ (${baht(requested)})`;
     setErrors(e);
     return Object.keys(e).length === 0;
   };
@@ -111,11 +124,11 @@ function FundApprovalPanel({ submission, fundDetail, onApprove, onReject }) {
     const html = `
       <div style="text-align:left;font-size:14px;line-height:1.6;display:grid;row-gap:.6rem;">
         <div style="display:flex;justify-content:space-between;align-items:center;">
-          <span>จำนวนที่ขอ</span><strong>฿${formatCurrency(requested)}</strong>
+          <span>จำนวนที่ขอ</span><strong>${baht(requested)}</strong>
         </div>
         <div style="display:flex;justify-content:space-between;align-items:center;">
           <span style="font-weight:700;">จำนวนที่จะอนุมัติ</span>
-          <span style="font-weight:700;color:#047857;">฿${formatCurrency(Number(approved || 0))}</span>
+          <span style="font-weight:700;color:#047857;">${baht(Number(approved || 0))}</span>
         </div>
         <div style="display:flex;justify-content:space-between;align-items:center;">
           <span>หมายเลขอ้างอิงประกาศผลการพิจารณา</span><strong>${(announceRef || '—').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</strong>
@@ -191,7 +204,7 @@ function FundApprovalPanel({ submission, fundDetail, onApprove, onReject }) {
     }
   };
 
-  // ====== READ-ONLY MODE (status_id !== 1) ======
+  // ====== READ-ONLY MODE ======
   if (statusId !== 1) {
     const approvedAmount =
       statusId === 2
@@ -204,9 +217,6 @@ function FundApprovalPanel({ submission, fundDetail, onApprove, onReject }) {
     const headerTitle = (
       <div className="flex items-center justify-between w-full">
         <span>ผลการพิจารณา (Approval Result)</span>
-        <span className="text-blue-700 font-semibold">
-          {approvedAmount != null ? `฿${formatCurrency(approvedAmount)}` : '—'}
-        </span>
       </div>
     );
 
@@ -225,13 +235,13 @@ function FundApprovalPanel({ submission, fundDetail, onApprove, onReject }) {
 
           <div className="flex items-start justify-between">
             <span className="text-gray-600">จำนวนที่ขอ</span>
-            <span className="font-semibold text-blue-700">฿{formatCurrency(requested)}</span>
+            <span className="font-semibold text-blue-700">{baht(requested)}</span>
           </div>
 
           <div className="flex items-start justify-between">
             <span className="text-gray-600">จำนวนที่อนุมัติ</span>
             <span className="font-semibold text-green-700">
-              {approvedAmount != null ? `฿${formatCurrency(approvedAmount)}` : '—'}
+              {approvedAmount != null ? baht(approvedAmount) : '—'}
             </span>
           </div>
 
@@ -251,13 +261,10 @@ function FundApprovalPanel({ submission, fundDetail, onApprove, onReject }) {
     );
   }
 
-  // ====== PENDING MODE (status_id === 1) ======
+  // ====== PENDING MODE ======
   const headerTitle = (
     <div className="flex items-center justify-between w-full">
       <span>ผลการพิจารณา (Approval Result)</span>
-      <span className="text-blue-700 font-semibold">
-        ฿{formatCurrency(Number(approved || 0))}
-      </span>
     </div>
   );
 
@@ -271,11 +278,11 @@ function FundApprovalPanel({ submission, fundDetail, onApprove, onReject }) {
             <br /><span className="text-xs font-normal text-gray-600">Requested Amount</span>
           </label>
           <div className="text-right font-semibold text-blue-700">
-            ฿{formatCurrency(requested)}
+            {baht(requested)}
           </div>
         </div>
 
-        {/* Approved input - Fixed grid layout */}
+        {/* Approved input - suffix ฿ */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
           <label className="block text-sm font-medium text-gray-700 leading-tight">
             จำนวนเงินที่จะอนุมัติ
@@ -287,7 +294,6 @@ function FundApprovalPanel({ submission, fundDetail, onApprove, onReject }) {
               'focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-blue-500',
               errors.approved ? 'border-red-400' : 'border-gray-300 hover:border-blue-300',
             ].join(' ')}>
-              <span className="px-3 text-gray-500 select-none">฿</span>
               <input
                 type="number"
                 step="0.01"
@@ -295,9 +301,10 @@ function FundApprovalPanel({ submission, fundDetail, onApprove, onReject }) {
                 max={requested}
                 value={approved}
                 onChange={(e) => setApproved(e.target.value)}
-                className="w-full text-right font-mono tabular-nums bg-transparent py-2 pr-3 outline-none border-0"
+                className="w-full text-right font-mono tabular-nums bg-transparent py-2 pl-3 pr-1 outline-none border-0"
                 placeholder="0.00"
               />
+              <span className="px-3 text-gray-500 select-none">฿</span>
             </div>
             <div className="h-5 mt-1">
               {errors.approved ? <p className="text-red-600 text-xs">{errors.approved}</p> : null}
@@ -305,7 +312,7 @@ function FundApprovalPanel({ submission, fundDetail, onApprove, onReject }) {
           </div>
         </div>
 
-        {/* Announcement ref - Fixed grid layout */}
+        {/* Announcement ref */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-center">
           <label className="block text-sm font-medium text-gray-700 leading-tight">
             หมายเลขอ้างอิงประกาศผลการพิจารณา (ถ้ามี)
@@ -322,7 +329,7 @@ function FundApprovalPanel({ submission, fundDetail, onApprove, onReject }) {
           </div>
         </div>
 
-        {/* Comment - Fixed grid layout */}
+        {/* Comment */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
           <label className="block text-sm font-medium text-gray-700 leading-tight pt-2">
             หมายเหตุ / คำอธิบายเพิ่มเติม
@@ -348,9 +355,8 @@ function FundApprovalPanel({ submission, fundDetail, onApprove, onReject }) {
   );
 }
 
-
 /* =========================
- * Request Information (ซ้าย)
+ * Request Information (left card)
  * ========================= */
 function RequestInfoCard({ submission, detail }) {
   const subName =
@@ -381,19 +387,17 @@ function RequestInfoCard({ submission, detail }) {
   return (
     <Card title="ข้อมูลการเงิน (Request Information)" icon={FileText} collapsible={false}>
       <div className="space-y-4 text-sm">
-        {/* Amounts summary on top */}
         <div className="flex items-start justify-between">
           <span className="text-gray-600">จำนวนเงินที่ขอ</span>
-          <span className="font-semibold text-blue-700">฿{formatCurrency(requested)}</span>
+          <span className="font-semibold text-blue-700">{baht(requested)}</span>
         </div>
         {approved != null && (
           <div className="flex items-start justify-between">
             <span className="text-gray-600">จำนวนเงินที่อนุมัติ</span>
-            <span className="font-semibold text-green-700">฿{formatCurrency(approved)}</span>
+            <span className="font-semibold text-green-700">{baht(approved)}</span>
           </div>
         )}
 
-        {/* Basic fields */}
         <div className="h-px bg-gray-200 my-2" />
         {fields.map((f, idx) => (
           <div key={idx} className={f.long ? '' : 'flex items-start justify-between'}>
@@ -411,22 +415,25 @@ function RequestInfoCard({ submission, detail }) {
 }
 
 /* =========================
- * Component หลัก (General)
+ * Main Component
  * ========================= */
 export default function GeneralSubmissionDetails({ submissionId, onBack }) {
-  // ---- States/Refs (คงลำดับ Hooks ให้คงที่) ----
   const [loading, setLoading] = useState(true);
   const [submission, setSubmission] = useState(null);
   const { getCodeById } = useStatusMap();
 
-  // เอกสารแนบ + label ประเภทไฟล์
+  // attachments
   const [attachments, setAttachments] = useState([]);
   const [attachmentsLoading, setAttachmentsLoading] = useState(false);
 
-  // รวมไฟล์ PDF
+  // Merged PDF
   const [merging, setMerging] = useState(false);
   const mergedUrlRef = useRef(null);
   const [creatingMerged, setCreatingMerged] = useState(false);
+
+  // announcements for Status Summary
+  const [mainAnn, setMainAnn] = useState(null);
+  const [activityAnn, setActivityAnn] = useState(null);
 
   const cleanupMergedUrl = () => {
     if (mergedUrlRef.current) {
@@ -436,7 +443,7 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
   };
   useEffect(() => () => cleanupMergedUrl(), []);
 
-  // โหลดรายละเอียดคำร้อง
+  // load submission details
   useEffect(() => {
     if (!submissionId) return;
     (async () => {
@@ -448,9 +455,8 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
         if (res?.submission_users) data.submission_users = res.submission_users;
         if (res?.documents) data.documents = res.documents;
 
-        // map publication detail → เผื่อ reuse
-        if (res?.details?.type === 'publication_reward' && res.details.data) {
-          data.PublicationRewardDetail = res.details.data;
+        if (res?.details?.type === 'fund_application' && res.details.data) {
+          data.FundApplicationDetail = res.details.data; // <-- important for FA pages
         }
 
         const applicant =
@@ -461,6 +467,11 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
         }
         if (res?.applicant_user_id) data.applicant_user_id = res.applicant_user_id;
 
+        console.log('FundApplicationDetail', data?.FundApplicationDetail || data?.details?.data || null);
+
+        // extra logs to help debug FA
+        console.log('[Detail] details.type:', res?.details?.type);
+        console.log('[Detail] FundApplicationDetail (mapped):', data?.FundApplicationDetail || null);
         setSubmission(data);
       } catch (e) {
         console.error('load details failed', e);
@@ -471,7 +482,7 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
     })();
   }, [submissionId]);
 
-  // ผสาน label ประเภทไฟล์ → attachments
+  // load attachments
   useEffect(() => {
     const loadAttachments = async () => {
       if (!submission?.submission_id) return;
@@ -529,6 +540,42 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
     loadAttachments();
   }, [submission?.submission_id]);
 
+  // fetch announcements for Status Summary
+  useEffect(() => {
+    const d =
+      submission?.FundApplicationDetail ||
+      submission?.details?.data ||
+      null;
+    if (!d) { setMainAnn(null); setActivityAnn(null); return; }
+
+    const mainId = d?.main_annoucement;
+    const actId  = d?.activity_support_announcement;
+
+    let cancelled = false;
+    (async () => {
+      try {
+        if (mainId) {
+          const r = await adminAnnouncementAPI.get(mainId);
+          const a = r?.announcement || r?.data || r || null;
+          if (!cancelled) setMainAnn(a);
+        } else {
+          setMainAnn(null);
+        }
+        if (actId) {
+          const r2 = await adminAnnouncementAPI.get(actId);
+          const a2 = r2?.announcement || r2?.data || r2 || null;
+          if (!cancelled) setActivityAnn(a2);
+        } else {
+          setActivityAnn(null);
+        }
+      } catch (e) {
+        console.warn('Load announcements failed:', e);
+        if (!cancelled) { setMainAnn(null); setActivityAnn(null); }
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [submission?.FundApplicationDetail, submission?.details?.data]);
+
   const formType = useMemo(() => {
     const t =
       submission?.form_type ||
@@ -538,7 +585,7 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
     return String(t).toLowerCase();
   }, [submission]);
 
-  // เส้นทางตีพิมพ์ → ใช้หน้าพิเศษเดิม
+  // Redirect to Publication Details page when needed
   if (formType === 'publication_reward') {
     return (
       <PublicationSubmissionDetails submissionId={submissionId} onBack={onBack} />
@@ -599,7 +646,7 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
   const submittedAt =
     submission?.submitted_at || submission?.created_at || submission?.create_at;
 
-  // === API wiring สำหรับอนุมัติ/ไม่อนุมัติแบบ "ทั่วไป" ===
+  // Approve/Reject handlers
   const approve = async (payload) => {
     await adminSubmissionAPI.approveSubmission(submission.submission_id, { ...payload });
     const res = await adminSubmissionAPI.getSubmissionDetails(submission.submission_id);
@@ -624,7 +671,7 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
     setSubmission(data);
   };
 
-  // ===== ดู/โหลดไฟล์เดี่ยว (คงเดิม) =====
+  // file handlers
   const handleView = async (fileId) => {
     try {
       const token = apiClient.getToken();
@@ -652,7 +699,7 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
     }
   };
 
-  // ===== รวมไฟล์แนบเป็น PDF เดียว (คงเดิม) =====
+  // merge attachments to pdf
   const fetchFileAsBlob = async (fileId) => {
     const token = apiClient.getToken();
     const url = `${apiClient.baseURL}/files/managed/${fileId}/download`;
@@ -671,7 +718,7 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
         const pages = await merged.copyPages(src, src.getPageIndices());
         pages.forEach((p) => merged.addPage(p));
       } catch (e) {
-        console.warn('merge: skip', doc?.original_name || doc?.file_name || doc?.file_id, e);
+        console.warn('merge: skip', e);
         skipped.push(doc?.original_name || doc?.file_name || `file-${doc.file_id}.pdf`);
         continue;
       }
@@ -727,6 +774,7 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
     a.remove();
   };
 
+  // ===== Render =====
   return (
     <PageLayout
       title={`รายละเอียดคำร้อง #${submission.submission_number || submission.submission_id}`}
@@ -763,10 +811,13 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
         <div className="flex justify-between items-start">
           <div>
             <div className="flex flex-col gap-3 mt-4 text-sm">
+              {/* ผู้ขอทุน */}
               <div className="flex flex-wrap items-start gap-2">
                 <span className="text-gray-500 shrink-0 min-w-[80px]">ผู้ขอทุน:</span>
                 <span className="font-medium break-words flex-1">{getUserFullName(pickApplicant(submission))}</span>
               </div>
+
+              {/* Info grid */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-3 mt-2">
                 <div className="flex items-start gap-2">
                   <span className="text-gray-500 shrink-0">เลขที่คำร้อง:</span>
@@ -786,19 +837,67 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
                     </span>
                   </div>
                 )}
+
+                {/* Announce Reference */}
+                {detail?.announce_reference_number && (
+                  <div className="flex items-start gap-2">
+                    <span className="text-gray-500 shrink-0">หมายเลขอ้างอิงประกาศผลการพิจารณา:</span>
+                    <span className="font-medium break-all">{detail.announce_reference_number}</span>
+                  </div>
+                )}
+
+                {/* Main announcement */}
+                {(mainAnn || detail?.main_annoucement) && (
+                  <div className="flex items-start gap-2">
+                    <span className="text-gray-500 shrink-0">ประกาศหลักเกณฑ์:</span>
+                    {mainAnn?.file_path ? (
+                      <a
+                        href={getFileURL(mainAnn.file_path)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-blue-600 hover:underline break-all cursor-pointer pointer-events-auto relative z-10"
+                        title={mainAnn?.title || mainAnn?.file_name || 'เปิดไฟล์ประกาศ'}
+                      >
+                        {mainAnn?.title || mainAnn?.file_name || `#${detail?.main_annoucement}`}
+                      </a>
+                    ) : (
+                      <span className="text-gray-400">-</span>
+                    )}
+                  </div>
+                )}
+
+                {/* Activity support announcement */}
+                {(activityAnn || detail?.activity_support_announcement) && (
+                  <div className="flex items-start gap-2">
+                    <span className="text-gray-500 shrink-0">ประกาศสนับสนุนกิจกรรม:</span>
+                    {activityAnn?.file_path ? (
+                      <a
+                        href={getFileURL(activityAnn.file_path)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-blue-600 hover:underline break-all cursor-pointer pointer-events-auto relative z-10"
+                        title={activityAnn?.title || activityAnn?.file_name || 'เปิดไฟล์ประกาศ'}
+                      >
+                        {activityAnn?.title || activityAnn?.file_name || `#${detail?.activity_support_announcement}`}
+                      </a>
+                    ) : (
+                      <span className="text-gray-400">-</span>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
           </div>
 
           <div className="text-right">
             <div className="text-2xl font-bold text-blue-600">
-              {formatCurrency(requestedAmount || 0)}
+              {baht(requestedAmount || 0)}
             </div>
             <div className="text-sm text-gray-500">จำนวนเงินที่ขอ</div>
             {approvedAmount != null && (
               <div className="mt-2">
                 <div className="text-lg font-bold text-green-600">
-                  {formatCurrency(approvedAmount || 0)}
+                  {baht(approvedAmount || 0)}
                 </div>
                 <div className="text-sm text-gray-500">จำนวนเงินที่อนุมัติ</div>
               </div>
@@ -807,7 +906,7 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
         </div>
       </Card>
 
-      {/* ==== ซ้าย–ขวา: Request Information | Approval Result ==== */}
+      {/* Two-column layout */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
         <RequestInfoCard submission={submission} detail={detail} />
         <FundApprovalPanel
@@ -818,7 +917,7 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
         />
       </div>
 
-      {/* ===== เอกสารแนบ (Attachments) — ไม่แตะโค้ดหลักของคุณ ===== */}
+      {/* Attachments */}
       <Card title="เอกสารแนบ (Attachments)" icon={FileText} collapsible={false}>
         <div className="space-y-6">
           {attachmentsLoading ? (
@@ -848,7 +947,6 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
                     className="bg-gray-50/50 rounded-lg p-4 hover:bg-gray-50 transition-colors duration-200"
                   >
                     <div className="flex items-center justify-between">
-                      {/* Left: File Info */}
                       <div className="flex items-center gap-4 flex-1 min-w-0">
                         <div className="flex-shrink-0 w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center">
                           <span className="text-gray-600 font-semibold text-sm">
@@ -857,20 +955,34 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 mb-1">
-                            <FileText size={16} className="text-gray-600 flex-shrink-0" />
-                            <p className="font-medium text-gray-900 truncate" title={fileName}>
-                              {fileName}
-                            </p>
-                          </div>
+                          <FileText size={16} className="text-gray-600 flex-shrink-0" />
                           <p className="text-sm text-gray-600">
-                            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-blue-100 text-blue-700">
+                            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-green-100 text-green-700">
                               {docType}
                             </span>
                           </p>
+                          </div>
+                            {/* ชื่อไฟล์: ทำเป็นลิงก์สีน้ำเงิน กดแล้วเรียก handleView(fileId) */}
+                            {fileId ? (
+                              <a
+                                href="#"
+                                onClick={(e) => { e.preventDefault(); handleView(fileId); }}
+                                className="font-medium text-blue-600 hover:underline truncate cursor-pointer"
+                                title={`เปิดดู: ${fileName}`}
+                              >
+                                {fileName}
+                              </a>
+                            ) : (
+                              <span
+                                className="font-medium text-gray-400 truncate"
+                                title={fileName}
+                              >
+                                {fileName}
+                              </span>
+                            )}
                         </div>
                       </div>
 
-                      {/* Right: Actions */}
                       <div className="flex items-center gap-2 ml-4">
                         <button
                           className="inline-flex items-center gap-1 px-3 py-2 text-sm text-blue-600 hover:bg-blue-100 rounded-md transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
@@ -906,7 +1018,6 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
             </div>
           )}
 
-          {/* ปุ่มรวม PDF (คงเดิม) */}
           {attachments.length > 0 && (
             <div className="flex justify-end gap-3 pt-4 border-t-1 border-gray-300">
               <button

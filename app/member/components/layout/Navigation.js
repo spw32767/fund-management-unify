@@ -84,7 +84,7 @@ export default function Navigation({
       ? [
           {
             id: "dept-review",
-            label: "ตรวจคำขอระดับภาควิชา",
+            label: "พิจารณาคำร้องของหัวหน้าสาขา",
             icon: HandHelping,
             hasSubmenu: false,
           },
