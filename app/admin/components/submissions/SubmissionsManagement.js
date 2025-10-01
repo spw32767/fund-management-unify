@@ -233,21 +233,23 @@ export default function SubmissionsManagement() {
           s?.Category?.category_name ||
           (s?.category_id != null ? catMap[String(s.category_id)] : undefined) ||
           s?.category_name || '';
+
+        // article title (row detail if present; detailsMap for visible rows; row title fallback)
+        const dp = detailsMap[s.submission_id];
+        const dpo = dp?.details?.data || dp?.data || dp || {};
+        const article =
+          s?.FundApplicationDetail?.project_title ||
+          s?.PublicationRewardDetail?.paper_title ||
+          dpo?.project_title ||
+          dpo?.paper_title ||
+          s?.title || '';
+
         const subName =
           s?.Subcategory?.subcategory_name ||
           (s?.subcategory_id != null ? subMap[String(s.subcategory_id)] : undefined) ||
           s?.FundApplicationDetail?.Subcategory?.subcategory_name ||
           dpo?.Subcategory?.subcategory_name ||
           s?.subcategory_name || '';
-
-        // article title (row detail if present; detailsMap for visible rows; row title fallback)
-        const dp = detailsMap[s.submission_id];
-        const dpo = dp?.details?.data || dp?.data || dp || {};
-        const article =
-          s?.PublicationRewardDetail?.paper_title ||
-          dpo?.paper_title ||
-          dpo?.project_title ||
-          s?.title || '';
 
         // author display (userMap then row)
         const listAuthor =
@@ -317,6 +319,24 @@ export default function SubmissionsManagement() {
   // include maps and details so search updates when they arrive
   }, [allSubmissions, filters, catMap, subMap, userMap, detailsMap]);
 
+  // ---------- helper: build display name from mixed casing ----------
+  const nameFromUser = (u) => {
+    if (!u) return '';
+    const display =
+      u.display_name || u.DisplayName || u.full_name || u.FullName || '';
+    const first =
+      u.user_fname || u.first_name || u.given_name ||
+      u.UserFname || u.FirstName || u.GivenName ||
+      u.name_th || u.name || '';
+    const last =
+      u.user_lname || u.last_name || u.family_name ||
+      u.UserLname || u.LastName || u.FamilyName ||
+      u.surname_th || u.surname || '';
+    const email = u.email || u.user_email || u.Email || u.UserEmail || '';
+    const username = u.username || u.UserName || '';
+    return (display || `${first} ${last}`.trim()).trim() || email || username;
+  };
+
   // When year changes → fetch all for that year; reset window
   useEffect(() => {
     if (currentView === 'list' && selectedYear !== undefined) {
@@ -352,42 +372,54 @@ export default function SubmissionsManagement() {
           try {
             const addUsers = {};
             Object.values(add).forEach(dp => {
+              // --- normalize ---
+              const dpo =
+                dp?.details?.data ||
+                dp?.data ||
+                dp?.payload ||
+                dp ||
+                {};
+
+              // 1) submission_users (primary → first)
               const subUsers =
                 dp?.submission_users || dp?.SubmissionUsers ||
-                dp?.data?.submission_users || dp?.data?.SubmissionUsers || [];
+                dpo?.submission_users || dpo?.SubmissionUsers ||
+                dp?.data?.submission_users || dp?.data?.SubmissionUsers ||
+                [];
 
               subUsers.forEach(su => {
                 const u = su?.user || su?.User;
-                const id = String(u?.user_id ?? su?.user_id ?? '');
+                const id = String(u?.user_id ?? u?.UserID ?? su?.user_id ?? '');
                 if (!id) return;
-                const first = u?.user_fname || u?.first_name || '';
-                const last  = u?.user_lname || u?.last_name || '';
-                const email = u?.email || '';
-                const name  = `${first} ${last}`.trim() || email || `User ${id}`;
+                const name  = nameFromUser(u) || `User ${id}`;
                 addUsers[id] = name;
               });
 
+              // 2) owner / applicant (หลายรูปแบบ)
               const owner =
-                dp?.User || dp?.user ||
                 dp?.submission?.User || dp?.Submission?.User ||
-                dp?.data?.submission?.User || dp?.data?.Submission?.User ||
-                dp?.applicant || dp?.applicant_user || dp?.data?.applicant || dp?.data?.applicant_user;
+                dpo?.submission?.User || dpo?.Submission?.User ||
+                dp?.User || dp?.user ||
+                dpo?.User || dpo?.user ||
+                dp?.applicant || dp?.applicant_user ||
+                dpo?.applicant || dpo?.applicant_user;
+
               if (owner) {
-                const id = String(owner.user_id ?? '');
+                const id = String(owner.user_id ?? owner.UserID ?? '');
                 if (id) {
-                  const first = owner.user_fname || owner.first_name || '';
-                  const last  = owner.user_lname || owner.last_name || '';
-                  const email = owner.email || '';
-                  const name  = `${first} ${last}`.trim() || email || `User ${id}`;
+                  const name  = nameFromUser(owner) || `User ${id}`;
                   addUsers[id] = name;
                 }
               }
             });
 
             if (Object.keys(addUsers).length) {
+              console.debug('[UserMap add]', addUsers);
               setUserMap(prev => ({ ...prev, ...addUsers }));
             }
-          } catch {}
+          } catch (e) {
+            console.warn('build addUsers failed:', e);
+          }
         }
       } catch {
         // ignore; leave cells as fallbacks
