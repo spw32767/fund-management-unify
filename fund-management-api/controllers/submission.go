@@ -626,7 +626,7 @@ func buildSubmissionPreviewReplacements(submission *models.Submission, detail *m
 	}
 
 	positionName := ""
-	if submission.User.Position != nil {
+	if submission.User != nil {
 		positionName = strings.TrimSpace(submission.User.Position.PositionName)
 	}
 
