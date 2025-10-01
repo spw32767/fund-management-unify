@@ -242,7 +242,7 @@ export default function DeptHeadReview() {
                 submission_type: row.submission_type,
               });
             }}
-            className="px-3 py-1 text-sm rounded-md border border-gray-200 text-gray-700 hover:bg-gray-50 inline-flex items-center gap-2"
+            className="inline-flex items-center gap-1 px-3 py-1 text-sm text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-md transition-colors"
           >
             <Eye size={16} />
             ดูรายละเอียด

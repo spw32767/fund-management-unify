@@ -34,8 +34,6 @@ export default function SubmissionTable({
     return `฿${n.toLocaleString()}`;
   };
 
-  // ❌ ลบ getStatusBadge เดิมทิ้ง (ใช้ StatusBadge แทน)
-
   const handleSort = (column) => onSort(column);
 
   const getSortIcon = (column) => {
@@ -88,33 +86,72 @@ export default function SubmissionTable({
   };
 
   const getArticleTitle = (s) => {
-    const pr = getPRDetail(s);
-    return (
+    const dpo = getDPO(s);
+
+    // 1) ถ้าเป็น Fund Application ให้ใช้ชื่อโครงการก่อน
+    const faTitle =
+      s?.FundApplicationDetail?.project_title ||
+      dpo?.FundApplicationDetail?.project_title ||
+      dpo?.project_title;
+    if (faTitle) return faTitle;
+
+    // 2) งานตีพิมพ์: รองรับได้ทั้งอยู่ใน PublicationRewardDetail และอยู่แบน ๆ ใน dpo
+    const pr =
+      s?.PublicationRewardDetail ||
+      dpo?.PublicationRewardDetail ||
+      dpo?.publication_reward_detail ||
+      dpo?.submission?.PublicationRewardDetail ||
+      dpo?.Submission?.PublicationRewardDetail ||
+      null;
+
+    const fromPr =
       pr?.paper_title ||
+      pr?.paperTitle ||
+      pr?.article_title ||
       pr?.title_th ||
-      pr?.title ||
-      s?.title ||
-      '-'
-    );
+      pr?.title;
+
+    const fromDpo =
+      dpo?.paper_title ||
+      dpo?.paperTitle ||
+      dpo?.article_title ||
+      dpo?.title_th ||
+      dpo?.title;
+
+    return fromPr || fromDpo || s?.title || '-';
   };
 
+
+  // รองรับทั้ง snake_case, camelCase, PascalCase
   const pickNameFromUserObj = (u) => {
     if (!u || typeof u !== 'object') return '';
-    const first = u.user_fname || u.first_name || u.given_name || '';
-    const last  = u.user_lname || u.last_name || u.family_name || '';
-    const email = u.email || u.user_email || '';
-    const name = `${first} ${last}`.trim();
-    return name || email;
+    const display =
+      u.display_name || u.DisplayName || u.full_name || u.FullName || '';
+    const first =
+      u.user_fname || u.first_name || u.given_name ||
+      u.UserFname || u.FirstName || u.GivenName ||
+      u.name_th || u.name || '';
+    const last =
+      u.user_lname || u.last_name || u.family_name ||
+      u.UserLname || u.LastName || u.FamilyName ||
+      u.surname_th || u.surname || '';
+    const email = u.email || u.user_email || u.Email || u.UserEmail || '';
+    const username = u.username || u.UserName || '';
+    const name = (display || `${first} ${last}`.trim()).trim();
+    return name || email || username;
   };
 
   const getAuthorName = (s) => {
+    // 1) จาก row ตรง ๆ
     const fromList = pickNameFromUserObj(
       s?.User || s?.user || s?.Submitter || s?.submitter || s?.owner || s?.created_by
     );
     if (fromList) return fromList;
 
+    // 2) จาก userMap (เติมโดย effects)
     if (s?.user_id && userMap[String(s.user_id)]) return userMap[String(s.user_id)];
 
+    // 3) จาก submission_users ใน row (ถ้ามี)
     if (Array.isArray(s?.submission_users) && s.submission_users.length) {
       const main = s.submission_users.find(u => u.is_primary) || s.submission_users[0];
       if (main?.user_id && userMap[String(main.user_id)]) return userMap[String(main.user_id)];
@@ -122,15 +159,23 @@ export default function SubmissionTable({
       if (mName) return mName;
     }
 
-    const dp = getDP(s);
+    // 4) จาก payload รายละเอียด
+    const dp  = getDP(s);
     const dpo = getDPO(s);
+
+    // owner ครอบคลุมทั้ง submission.User และ applicant/applicant_user
     const owner =
+      dp?.submission?.User || dp?.Submission?.User ||
       dp?.User || dp?.user ||
+      dpo?.submission?.User || dpo?.Submission?.User ||
       dpo?.User || dpo?.user ||
-      dpo?.submission?.User || dpo?.Submission?.User;
+      dpo?.applicant || dpo?.applicant_user || dp?.applicant || dp?.applicant_user;
+
+    if (owner?.user_id && userMap[String(owner.user_id)]) return userMap[String(owner.user_id)];
     const fromDetails = pickNameFromUserObj(owner);
     if (fromDetails) return fromDetails;
 
+    // 4.2) co-authors จาก details
     const suArr =
       dp?.submission_users || dp?.SubmissionUsers ||
       dpo?.submission_users || dpo?.SubmissionUsers || [];
@@ -141,8 +186,11 @@ export default function SubmissionTable({
       if (mName) return mName;
     }
 
+    // 5) flat fields
     const flat = pickNameFromUserObj({
-      user_fname: s.user_fname, user_lname: s.user_lname, email: s.email || s.user_email
+      user_fname: s.user_fname, user_lname: s.user_lname,
+      email: s.email || s.user_email,
+      UserFname: s.UserFname, UserLname: s.UserLname, Email: s.Email
     });
     if (flat) return flat;
 
