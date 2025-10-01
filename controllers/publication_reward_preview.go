@@ -11,6 +11,7 @@ import (
 	"fund-management-api/models"
 	"fund-management-api/utils"
 	"io"
+	"io/fs"
 	"mime/multipart"
 	"net/http"
 	"os"
@@ -798,12 +799,32 @@ func generatePublicationRewardPDF(replacements map[string]string) ([]byte, error
 		return nil, err
 	}
 
+	fontEnv, err := configureLibreOfficeFonts(tmpDir)
+	if err != nil {
+		return nil, err
+	}
+
 	converter, err := lookupLibreOfficeBinary()
 	if err != nil {
 		return nil, err
 	}
 
-	cmd := exec.Command(converter, "--headless", "--convert-to", "pdf", "--outdir", tmpDir, outputDocx)
+	profileDir := filepath.Join(tmpDir, "lo-profile")
+	if err := os.MkdirAll(profileDir, 0700); err != nil {
+		return nil, fmt.Errorf("failed to prepare libreoffice profile: %w", err)
+	}
+
+	profileArg := fmt.Sprintf("-env:UserInstallation=file://%s", filepath.ToSlash(profileDir))
+	filterArg := "pdf:writer_pdf_Export:EmbedStandardFonts=true;EmbedFonts=true"
+
+	args := []string{profileArg, "--headless", "--convert-to", filterArg, "--outdir", tmpDir, outputDocx}
+	cmd := exec.Command(converter, args...)
+	env := append([]string{}, os.Environ()...)
+	if len(fontEnv) > 0 {
+		env = append(env, fontEnv...)
+	}
+	cmd.Env = env
+
 	if output, err := cmd.CombinedOutput(); err != nil {
 		return nil, fmt.Errorf("failed to convert to pdf: %v", strings.TrimSpace(string(output)))
 	}
@@ -987,4 +1008,135 @@ func derivePublicationYear(date *time.Time, fallback string) string {
 		return value
 	}
 	return strings.TrimSpace(fallback)
+}
+
+func configureLibreOfficeFonts(tmpDir string) ([]string, error) {
+	fontDirs := collectFontDirectories()
+	if len(fontDirs) == 0 {
+		return nil, nil
+	}
+
+	fontConfigDir := filepath.Join(tmpDir, "fontconfig")
+	if err := os.MkdirAll(fontConfigDir, 0700); err != nil {
+		return nil, fmt.Errorf("failed to prepare fontconfig directory: %w", err)
+	}
+
+	configPath := filepath.Join(fontConfigDir, "fonts.conf")
+	var builder strings.Builder
+	builder.WriteString("<?xml version=\"1.0\"?>\n")
+	builder.WriteString("<fontconfig>\n")
+	for _, dir := range fontDirs {
+		builder.WriteString("  <dir>")
+		builder.WriteString(xmlEscape(dir))
+		builder.WriteString("</dir>\n")
+	}
+
+	aliasMap := map[string]string{
+		"Cordia New":      "TH Sarabun New",
+		"Angsana New":     "TH Sarabun New",
+		"AngsanaUPC":      "TH Sarabun New",
+		"Sarabun":         "TH Sarabun New",
+		"Times New Roman": "DejaVu Serif",
+		"Calibri":         "DejaVu Sans",
+		"Calibri Light":   "DejaVu Sans",
+		"Segoe UI Symbol": "DejaVu Sans",
+	}
+
+	aliasKeys := make([]string, 0, len(aliasMap))
+	for from := range aliasMap {
+		aliasKeys = append(aliasKeys, from)
+	}
+	sort.Strings(aliasKeys)
+
+	for _, from := range aliasKeys {
+		to := aliasMap[from]
+		builder.WriteString("  <alias binding=\"strong\">\n")
+		builder.WriteString("    <family>")
+		builder.WriteString(xmlEscape(from))
+		builder.WriteString("</family>\n")
+		builder.WriteString("    <accept>\n")
+		builder.WriteString("      <family>")
+		builder.WriteString(xmlEscape(to))
+		builder.WriteString("</family>\n")
+		builder.WriteString("    </accept>\n")
+		builder.WriteString("  </alias>\n")
+	}
+
+	builder.WriteString("</fontconfig>\n")
+
+	if err := os.WriteFile(configPath, []byte(builder.String()), 0600); err != nil {
+		return nil, fmt.Errorf("failed to write font configuration: %w", err)
+	}
+
+	xdgDataHome := filepath.Join(tmpDir, "xdg-data")
+	if err := os.MkdirAll(xdgDataHome, 0700); err != nil {
+		return nil, fmt.Errorf("failed to prepare font cache directory: %w", err)
+	}
+
+	xdgCacheHome := filepath.Join(tmpDir, "xdg-cache")
+	if err := os.MkdirAll(xdgCacheHome, 0700); err != nil {
+		return nil, fmt.Errorf("failed to prepare font cache directory: %w", err)
+	}
+
+	env := []string{
+		fmt.Sprintf("FONTCONFIG_FILE=%s", configPath),
+		fmt.Sprintf("FONTCONFIG_PATH=%s", fontConfigDir),
+		fmt.Sprintf("XDG_DATA_HOME=%s", xdgDataHome),
+		fmt.Sprintf("XDG_CACHE_HOME=%s", xdgCacheHome),
+	}
+
+	return env, nil
+}
+
+func collectFontDirectories() []string {
+	candidates := []string{
+		filepath.Join("templates", "fonts"),
+		filepath.Join("frontend_project_fund", "public", "font"),
+	}
+
+	seen := make(map[string]struct{})
+	var result []string
+
+	for _, candidate := range candidates {
+		absRoot, err := filepath.Abs(candidate)
+		if err != nil {
+			continue
+		}
+
+		info, err := os.Stat(absRoot)
+		if err != nil || !info.IsDir() {
+			continue
+		}
+
+		_ = filepath.WalkDir(absRoot, func(path string, d fs.DirEntry, err error) error {
+			if err != nil {
+				return nil
+			}
+			if d.IsDir() {
+				return nil
+			}
+
+			name := d.Name()
+			if strings.HasPrefix(name, "._") {
+				return nil
+			}
+
+			ext := strings.ToLower(filepath.Ext(name))
+			if ext != ".ttf" && ext != ".otf" {
+				return nil
+			}
+
+			dir := filepath.Dir(path)
+			if _, exists := seen[dir]; exists {
+				return nil
+			}
+
+			seen[dir] = struct{}{}
+			result = append(result, dir)
+			return nil
+		})
+	}
+
+	sort.Strings(result)
+	return result
 }
