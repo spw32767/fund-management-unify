@@ -459,7 +459,7 @@ func SubmitSubmission(c *gin.Context) {
 			return fmt.Errorf("failed to load publication reward detail: %w", err)
 		}
 
-		sysConfig, err := fetchLatestSystemConfig(tx)
+		sysConfig, err := fetchLatestSystemConfig()
 		if err != nil {
 			return fmt.Errorf("failed to load system configuration: %w", err)
 		}
@@ -599,6 +599,85 @@ func ensurePublicationRewardFormDocumentType(tx *gorm.DB) (*models.DocumentType,
 	}
 
 	return &docType, nil
+}
+
+func buildSubmissionPreviewReplacements(submission *models.Submission, detail *models.PublicationRewardDetail, sysConfig *systemConfigSnapshot, documents []models.SubmissionDocument) (map[string]string, error) {
+	if submission == nil {
+		return nil, fmt.Errorf("submission is required")
+	}
+	if submission.User == nil {
+		return nil, fmt.Errorf("submission missing applicant information")
+	}
+	if detail == nil {
+		return nil, fmt.Errorf("publication reward detail is required")
+	}
+	if sysConfig == nil {
+		sysConfig = &systemConfigSnapshot{}
+	}
+
+	var documentDate time.Time
+	switch {
+	case submission.SubmittedAt != nil:
+		documentDate = *submission.SubmittedAt
+	case !submission.CreatedAt.IsZero():
+		documentDate = submission.CreatedAt
+	default:
+		documentDate = time.Now()
+	}
+
+	positionName := ""
+	if submission.User.Position != nil {
+		positionName = strings.TrimSpace(submission.User.Position.PositionName)
+	}
+
+	replacements := map[string]string{
+		"{{date_th}}":            utils.FormatThaiDate(documentDate),
+		"{{applicant_name}}":     buildApplicantName(submission.User),
+		"{{date_of_employment}}": utils.FormatThaiDatePtr(submission.User.DateOfEmployment),
+		"{{position}}":           positionName,
+		"{{installment}}":        formatNullableInt(sysConfig.Installment),
+		"{{total_amount}}":       formatAmount(detail.TotalAmount),
+		"{{total_amount_text}}":  utils.BahtText(detail.TotalAmount),
+		"{{author_name_list}}":   strings.TrimSpace(detail.AuthorNameList),
+		"{{paper_title}}":        strings.TrimSpace(detail.PaperTitle),
+		"{{journal_name}}":       strings.TrimSpace(detail.JournalName),
+		"{{publication_year}}":   formatThaiYear(detail.PublicationDate),
+		"{{volume_issue}}":       strings.TrimSpace(detail.VolumeIssue),
+		"{{page_number}}":        strings.TrimSpace(detail.PageNumbers),
+		"{{author_role}}":        buildAuthorRole(detail.AuthorType),
+		"{{quartile_line}}":      buildQuartileLine(detail.Quartile),
+		"{{document_line}}":      buildDocumentLine(documents),
+		"{{kku_report_year}}":    formatNullableString(sysConfig.KkuReportYear),
+		"{{signature}}":          strings.TrimSpace(detail.Signature),
+	}
+
+	return replacements, nil
+}
+
+func renderPublicationRewardDocx(outputPath string, replacements map[string]string) error {
+	if strings.TrimSpace(outputPath) == "" {
+		return fmt.Errorf("output path is required")
+	}
+	if replacements == nil {
+		return fmt.Errorf("replacement data is required")
+	}
+
+	templatePath := filepath.Join("templates", "publication_reward_template.docx")
+	if _, err := os.Stat(templatePath); err != nil {
+		if os.IsNotExist(err) {
+			return fmt.Errorf("template file not found")
+		}
+		return fmt.Errorf("failed to access template: %w", err)
+	}
+
+	if err := os.MkdirAll(filepath.Dir(outputPath), 0o755); err != nil {
+		return fmt.Errorf("failed to prepare output directory: %w", err)
+	}
+
+	if err := fillDocxTemplate(templatePath, outputPath, replacements); err != nil {
+		return err
+	}
+	return nil
 }
 
 // ===================== FILE UPLOAD SYSTEM =====================
