@@ -679,7 +679,7 @@ func buildPreviewDocumentLine(meta []PublicationRewardPreviewAttachment, attachm
 			if name == "" {
 				continue
 			}
-			lines = append(lines, name+" — จำนวน 1 ฉบับ")
+			lines = append(lines, buildDocumentQuantityLine(name))
 		}
 		if len(lines) > 0 {
 			return strings.Join(lines, "\n")
@@ -696,7 +696,7 @@ func buildPreviewDocumentLine(meta []PublicationRewardPreviewAttachment, attachm
 		if name == "" {
 			continue
 		}
-		lines = append(lines, name+" — จำนวน 1 ฉบับ")
+		lines = append(lines, buildDocumentQuantityLine(name))
 	}
 	return strings.Join(lines, "\n")
 }
@@ -723,6 +723,8 @@ func fetchSubmissionDocuments(db *gorm.DB, submissionID int) ([]models.Submissio
 
 	var documents []models.SubmissionDocument
 	if err := db.
+		Joins("LEFT JOIN document_types dt ON dt.document_type_id = submission_documents.document_type_id").
+		Select("submission_documents.*, dt.document_type_name").
 		Preload("DocumentType").
 		Preload("File").
 		Where("submission_id = ?", submissionID).
@@ -846,10 +848,32 @@ func buildDocumentLine(documents []models.SubmissionDocument) string {
 		if name == "" {
 			continue
 		}
-		lines = append(lines, name+" — จำนวน 1 ฉบับ")
+		lines = append(lines, buildDocumentQuantityLine(name))
 	}
 
 	return strings.Join(lines, "\n")
+}
+
+func buildDocumentQuantityLine(name string) string {
+	unit := documentUnitForName(name)
+	cleanName := strings.TrimSpace(name)
+	if cleanName == "" {
+		return ""
+	}
+	return fmt.Sprintf("%s จำนวน 1 %s", cleanName, unit)
+}
+
+func documentUnitForName(name string) string {
+	normalized := strings.ToLower(strings.TrimSpace(name))
+	if normalized == "" {
+		return "ฉบับ"
+	}
+
+	if normalized == strings.ToLower("Full Reprint (บทความตีพิมพ์)") || strings.Contains(normalized, "บทความตีพิมพ์") {
+		return "เรื่อง"
+	}
+
+	return "ฉบับ"
 }
 
 func generatePublicationRewardPDF(replacements map[string]string) ([]byte, error) {
