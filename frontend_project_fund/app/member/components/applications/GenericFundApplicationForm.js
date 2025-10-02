@@ -688,16 +688,24 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
     try {
       setSubmitting(true);
 
-      const deptPendingStatusId = await getStatusIdByName('อยู่ระหว่างการพิจารณาจากหัวหน้าสาขา');
-      if (!deptPendingStatusId) {
-        throw new Error('ไม่พบสถานะ "อยู่ระหว่างการพิจารณาจากหัวหน้าสาขา"');
+      const DEFAULT_DEPT_PENDING_STATUS_ID = 6;
+      const DEPT_PENDING_STATUS_NAME = 'อยู่ระหว่างการพิจารณาจากหัวหน้าสาขา';
+
+      let statusId = DEFAULT_DEPT_PENDING_STATUS_ID;
+      try {
+        const resolvedStatusId = await getStatusIdByName(DEPT_PENDING_STATUS_NAME);
+        if (resolvedStatusId) {
+          statusId = resolvedStatusId;
+        }
+      } catch (statusError) {
+        console.warn('ไม่สามารถดึงสถานะจากระบบได้ ใช้ค่าเริ่มต้นแทน', statusError);
       }
 
       // Step 1: Create submission record
       const submissionRes = await submissionAPI.createSubmission({
         submission_type: 'fund_application',
         year_id: subcategoryData?.year_id,
-        status_id: deptPendingStatusId
+        status_id: statusId
       });
       const submissionId = submissionRes?.submission?.submission_id;
 
