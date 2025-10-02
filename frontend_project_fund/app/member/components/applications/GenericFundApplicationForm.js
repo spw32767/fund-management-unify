@@ -7,6 +7,7 @@ import Swal from "sweetalert2";
 import PageLayout from "../common/PageLayout";
 import SimpleCard from "../common/SimpleCard";
 import { authAPI, systemAPI } from '../../../lib/api';
+import { PDFDocument } from "pdf-lib";
 
 // เพิ่ม apiClient สำหรับเรียก API โดยตรง
 import apiClient from '../../../lib/api';
@@ -144,7 +145,12 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
   // Document requirements and uploaded files
   const [documentRequirements, setDocumentRequirements] = useState([]);
   const [uploadedFiles, setUploadedFiles] = useState({});
-  const [fileViewStates, setFileViewStates] = useState({});
+  const [attachmentsPreviewState, setAttachmentsPreviewState] = useState({
+    loading: false,
+    error: null,
+    hasPreviewed: false
+  });
+  const attachmentsPreviewUrlRef = useRef(null);
   
   // Current user data
   const [currentUser, setCurrentUser] = useState(null);
@@ -252,6 +258,35 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
     }
   };
 
+  useEffect(() => {
+    return () => {
+      if (attachmentsPreviewUrlRef.current) {
+        try {
+          URL.revokeObjectURL(attachmentsPreviewUrlRef.current);
+        } catch (error) {
+          console.warn('Failed to revoke attachments preview URL on unmount:', error);
+        }
+      }
+    };
+  }, []);
+
+  const resetAttachmentsPreview = () => {
+    if (attachmentsPreviewUrlRef.current) {
+      try {
+        URL.revokeObjectURL(attachmentsPreviewUrlRef.current);
+      } catch (error) {
+        console.warn('Failed to revoke attachments preview URL:', error);
+      }
+      attachmentsPreviewUrlRef.current = null;
+    }
+
+    setAttachmentsPreviewState({
+      loading: false,
+      error: null,
+      hasPreviewed: false
+    });
+  };
+
   const handleFileUpload = (documentTypeId, files) => {
     if (files && files.length > 0) {
       const file = files[0];
@@ -279,10 +314,7 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
         [documentTypeId]: file
       }));
 
-      setFileViewStates(prev => ({
-        ...prev,
-        [documentTypeId]: false
-      }));
+      resetAttachmentsPreview();
 
       // Clear error
       if (errors[`file_${documentTypeId}`]) {
@@ -298,12 +330,7 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
       return newFiles;
     });
 
-    setFileViewStates(prev => {
-      if (!prev.hasOwnProperty(documentTypeId)) return prev;
-      const updated = { ...prev };
-      delete updated[documentTypeId];
-      return updated;
-    });
+    resetAttachmentsPreview();
   };
 
   const viewFile = (documentTypeId) => {
@@ -328,16 +355,11 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
           }
         }, 10000);
       }
-
-      setFileViewStates(prev => ({
-        ...prev,
-        [documentTypeId]: true
-      }));
     }
   };
 
-  const showSubmissionConfirmation = async () => {
-    const attachments = documentRequirements
+  const buildCurrentAttachments = () => (
+    documentRequirements
       .filter(docType => uploadedFiles[docType.document_type_id])
       .map(docType => {
         const file = uploadedFiles[docType.document_type_id];
@@ -349,13 +371,87 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
           required: docType.required,
           file
         };
-      });
+      })
+  );
 
-    const viewedSet = new Set(
-      attachments
-        .filter(item => fileViewStates[item.id])
-        .map(item => String(item.id))
-    );
+  const generateAttachmentsPreview = async ({ openWindow = false, attachments: attachmentsOverride } = {}) => {
+    const attachments = attachmentsOverride ?? buildCurrentAttachments();
+
+    if (!attachments || attachments.length === 0) {
+      const message = 'กรุณาแนบไฟล์อย่างน้อย 1 ไฟล์ก่อนดูตัวอย่าง';
+      setAttachmentsPreviewState({ loading: false, error: message, hasPreviewed: false });
+      throw new Error(message);
+    }
+
+    setAttachmentsPreviewState({ loading: true, error: null, hasPreviewed: false });
+
+    try {
+      const mergedPdf = await PDFDocument.create();
+
+      for (const attachment of attachments) {
+        const file = attachment.file;
+
+        if (!file) {
+          throw new Error('ไม่พบข้อมูลไฟล์แนบ');
+        }
+
+        if (file.type !== 'application/pdf') {
+          throw new Error('สามารถรวมได้เฉพาะไฟล์ PDF เท่านั้น');
+        }
+
+        const arrayBuffer = await file.arrayBuffer();
+        const pdfDoc = await PDFDocument.load(arrayBuffer);
+        const copiedPages = await mergedPdf.copyPages(pdfDoc, pdfDoc.getPageIndices());
+        copiedPages.forEach(page => mergedPdf.addPage(page));
+      }
+
+      if (mergedPdf.getPageCount() === 0) {
+        throw new Error('ไม่พบหน้าที่จะรวม');
+      }
+
+      const mergedBytes = await mergedPdf.save();
+      const blob = new Blob([mergedBytes], { type: 'application/pdf' });
+
+      if (attachmentsPreviewUrlRef.current) {
+        try {
+          URL.revokeObjectURL(attachmentsPreviewUrlRef.current);
+        } catch (error) {
+          console.warn('Failed to revoke previous attachments preview URL:', error);
+        }
+      }
+
+      const blobUrl = URL.createObjectURL(blob);
+      attachmentsPreviewUrlRef.current = blobUrl;
+
+      setAttachmentsPreviewState({ loading: false, error: null, hasPreviewed: true });
+
+      if (openWindow && typeof window !== 'undefined') {
+        const previewWindow = window.open(blobUrl, '_blank', 'noopener,noreferrer');
+        if (!previewWindow) {
+          setTimeout(() => {
+            try {
+              URL.revokeObjectURL(blobUrl);
+              if (attachmentsPreviewUrlRef.current === blobUrl) {
+                attachmentsPreviewUrlRef.current = null;
+              }
+            } catch (error) {
+              console.warn('Failed to revoke attachments preview URL after popup block:', error);
+            }
+          }, 10000);
+        }
+      }
+
+      return blobUrl;
+    } catch (error) {
+      const message = error?.message || 'ไม่สามารถรวมไฟล์แนบได้';
+      setAttachmentsPreviewState({ loading: false, error: message, hasPreviewed: false });
+      throw new Error(message);
+    }
+  };
+
+  const showSubmissionConfirmation = async () => {
+    const attachments = buildCurrentAttachments();
+    let previewViewed = attachmentsPreviewState.hasPreviewed;
 
     const applicantInfoHTML = `
       <div class="bg-gray-50 p-4 rounded-lg space-y-2">
@@ -381,50 +477,46 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
       `
       : `
         <div class="bg-yellow-50 p-4 rounded-lg space-y-3">
-          <h4 class="font-semibold text-yellow-700">เอกสารแนบ (${attachments.length} ไฟล์)</h4>
+          <div class="flex items-center justify-between gap-3 flex-wrap">
+            <div>
+              <h4 class="font-semibold text-yellow-700">เอกสารแนบ (${attachments.length} ไฟล์)</h4>
+              <p class="text-xs text-yellow-800">กรุณาดูตัวอย่างเอกสารรวมก่อนยืนยันส่งคำร้อง</p>
+            </div>
+            <button
+              id="attachments-preview-btn"
+              type="button"
+              class="${attachmentsPreviewState.hasPreviewed
+                ? 'px-3 py-1 bg-green-500 text-white text-xs rounded hover:bg-green-600 transition-colors'
+                : 'px-3 py-1 bg-blue-500 text-white text-xs rounded hover:bg-blue-600 transition-colors'}"
+            >${attachmentsPreviewState.hasPreviewed ? '✅ ดูแล้ว' : '👀 ดูตัวอย่างเอกสารรวม'}</button>
+          </div>
           <div class="bg-white border border-yellow-200 rounded-lg overflow-hidden">
             <table class="w-full text-sm">
               <thead class="bg-yellow-100">
                 <tr>
-                  <th class="px-3 py-2 text-left font-medium text-yellow-800">ชื่อเอกสาร</th>
+                  <th class="px-3 py-2 text-left font-medium text-yellow-800">ประเภทเอกสาร</th>
                   <th class="px-3 py-2 text-left font-medium text-yellow-800">ไฟล์</th>
-                  <th class="px-3 py-2 text-center font-medium text-yellow-800">ดำเนินการ</th>
                 </tr>
               </thead>
               <tbody class="divide-y">
-                ${attachments.map(item => {
-                  const viewed = viewedSet.has(String(item.id));
-                  const statusClass = viewed ? 'text-green-600' : 'text-red-600';
-                  const statusText = viewed ? '✅ เปิดดูแล้ว' : '⚠️ ยังไม่ได้เปิดดู';
-                  const buttonClass = viewed
-                    ? 'px-3 py-1 bg-green-500 text-white text-xs rounded hover:bg-green-600 transition-colors'
-                    : 'px-3 py-1 bg-blue-500 text-white text-xs rounded hover:bg-blue-600 transition-colors';
-                  const buttonLabel = viewed ? '👀 เปิดอีกครั้ง' : '👀 ดูไฟล์';
-                  return `
-                    <tr>
-                      <td class="px-3 py-2 align-top">
-                        <div class="font-medium text-gray-800">${item.typeLabel}</div>
-                        ${item.required ? '<div class="text-xs text-red-500">เอกสารจำเป็น</div>' : ''}
-                      </td>
-                      <td class="px-3 py-2 align-top">
-                        <div class="font-medium text-gray-800">${item.name}</div>
-                        <div class="text-xs text-gray-500">${formatFileSize(item.size)}</div>
-                      </td>
-                      <td class="px-3 py-2 text-center align-top">
-                        <button
-                          type="button"
-                          class="${buttonClass}"
-                          data-view-doc-id="${item.id}"
-                        >${buttonLabel}</button>
-                        <div id="view-status-${item.id}" class="mt-2 text-xs ${statusClass}">${statusText}</div>
-                      </td>
-                    </tr>
-                  `;
-                }).join('')}
+                ${attachments.map(item => `
+                  <tr>
+                    <td class="px-3 py-2 align-top">
+                      <div class="font-medium text-gray-800">${item.typeLabel}</div>
+                      ${item.required ? '<div class="text-xs text-red-500">เอกสารจำเป็น</div>' : ''}
+                    </td>
+                    <td class="px-3 py-2 align-top">
+                      <div class="font-medium text-gray-800">${item.name}</div>
+                      <div class="text-xs text-gray-500">${formatFileSize(item.size)}</div>
+                    </td>
+                  </tr>
+                `).join('')}
               </tbody>
             </table>
           </div>
-          <p class="text-xs text-yellow-800">ต้องเปิดดูทุกไฟล์ก่อนกดยืนยันส่งคำร้อง</p>
+          <div id="attachments-preview-status" class="text-xs ${attachmentsPreviewState.hasPreviewed ? 'text-green-700' : 'text-yellow-800'}">
+            ${attachmentsPreviewState.hasPreviewed ? '✅ ดูตัวอย่างเอกสารแล้ว' : '⚠️ ยังไม่ได้ดูตัวอย่างเอกสารรวม'}
+          </div>
         </div>
       `;
 
@@ -451,65 +543,54 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
           htmlContainer: 'text-left'
         },
         preConfirm: () => {
-          if (attachments.length > 0 && viewedSet.size !== attachments.length) {
-            Swal.showValidationMessage('กรุณาเปิดดูไฟล์แนบทุกไฟล์ก่อนส่งคำร้อง');
+          if (attachments.length > 0 && !previewViewed) {
+            Swal.showValidationMessage('กรุณาดูตัวอย่างเอกสารรวมก่อนส่งคำร้อง');
             return false;
           }
           return true;
         },
         didOpen: () => {
-          const buttons = Swal.getHtmlContainer()?.querySelectorAll('[data-view-doc-id]');
-          if (!buttons) return;
+          const previewBtn = Swal.getHtmlContainer()?.querySelector('#attachments-preview-btn');
+          const previewStatus = Swal.getHtmlContainer()?.querySelector('#attachments-preview-status');
 
-          buttons.forEach(button => {
-            const docId = button.getAttribute('data-view-doc-id');
-            const attachment = attachments.find(item => String(item.id) === String(docId));
-            if (!attachment) return;
+          if (previewBtn) {
+            const originalLabel = previewBtn.innerHTML;
+            const originalClass = previewBtn.className;
 
-            button.addEventListener('click', () => {
-              const blobUrl = URL.createObjectURL(attachment.file);
-              const previewWindow = window.open(blobUrl, '_blank', 'noopener,noreferrer');
+            previewBtn.addEventListener('click', async () => {
+              previewBtn.disabled = true;
+              previewBtn.innerHTML = '⏳ กำลังรวมไฟล์...';
+              previewBtn.className = originalClass;
 
-              const markAsViewed = () => {
-                viewedSet.add(String(docId));
-                const statusEl = Swal.getHtmlContainer()?.querySelector(`#view-status-${docId}`);
-                if (statusEl) {
-                  statusEl.textContent = '✅ เปิดดูแล้ว';
-                  statusEl.className = 'mt-2 text-xs text-green-600';
+              try {
+                await generateAttachmentsPreview({ openWindow: true, attachments });
+                previewViewed = true;
+
+                if (previewStatus) {
+                  previewStatus.innerHTML = '<span class="text-green-600">✅ ดูตัวอย่างเอกสารแล้ว</span>';
+                  previewStatus.className = 'text-xs text-green-600';
                 }
-                button.textContent = '👀 เปิดอีกครั้ง';
-                button.className = 'px-3 py-1 bg-green-500 text-white text-xs rounded hover:bg-green-600 transition-colors';
+
+                previewBtn.className = 'px-3 py-1 bg-green-500 text-white text-xs rounded hover:bg-green-600 transition-colors';
+                previewBtn.innerHTML = '✅ ดูแล้ว';
+
                 const validationMessage = Swal.getHtmlContainer()?.querySelector('.swal2-validation-message');
                 if (validationMessage) {
                   validationMessage.style.display = 'none';
                 }
-                setFileViewStates(prev => ({
-                  ...prev,
-                  [attachment.id]: true
-                }));
-              };
-
-              markAsViewed();
-
-              if (previewWindow) {
-                previewWindow.onload = () => {
-                  try {
-                    URL.revokeObjectURL(blobUrl);
-                  } catch (error) {
-                    console.warn('Failed to revoke preview URL:', error);
-                  }
-                };
-              } else {
-                setTimeout(() => {
-                  try {
-                    URL.revokeObjectURL(blobUrl);
-                  } catch (error) {
-                    console.warn('Failed to revoke preview URL:', error);
-                  }
-                }, 10000);
+              } catch (error) {
+                const message = error?.message || 'ไม่สามารถเปิดตัวอย่างได้';
+                if (previewStatus) {
+                  previewStatus.innerHTML = `<span class="text-red-600">❌ ${message}</span>`;
+                  previewStatus.className = 'text-xs text-red-600';
+                }
+                previewBtn.className = originalClass;
+                previewBtn.innerHTML = originalLabel;
+              } finally {
+                previewBtn.disabled = false;
               }
             });
-          });
+          }
         }
       });
     };
@@ -842,9 +923,6 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
                               </span>
                               <span className="text-xs text-green-600 whitespace-nowrap">
                                 ({Math.round(uploadedFiles[docType.document_type_id].size / 1024)} KB)
-                              </span>
-                              <span className={`text-xs whitespace-nowrap ${fileViewStates[docType.document_type_id] ? 'text-green-700' : 'text-yellow-700'}`}>
-                                {fileViewStates[docType.document_type_id] ? '✅ เปิดดูแล้ว' : '⚠️ ยังไม่ได้เปิดดู'}
                               </span>
                             </div>
                             <div className="flex items-center gap-2 flex-shrink-0">
