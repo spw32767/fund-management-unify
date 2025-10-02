@@ -35,7 +35,9 @@ func GetSubmissionDetails(c *gin.Context) {
 	// 1) โหลด submission + ความสัมพันธ์หลักแบบกันพลาด
 	q := config.DB.
 		Preload("User"). // เจ้าของคำร้อง
-		Preload("Year").
+		Preload("YearDetail").
+		Joins("LEFT JOIN years ON years.year_id = submissions.year_id").
+		Select("submissions.*, years.year AS year").
 		Preload("Status").
 		Preload("Category").
 		Preload("Subcategory").
@@ -180,7 +182,8 @@ func GetSubmissionDetails(c *gin.Context) {
 			"created_at":            s.CreatedAt,
 			"updated_at":            s.UpdatedAt,
 			"user":                  s.User, // owner object (อาจเป็น nil ได้)
-			"year":                  s.Year,
+			"year":                  s.YearDisplay,
+			"year_detail":           s.YearDetail,
 			"status":                s.Status,
 			"category":              s.Category,
 			"subcategory":           s.Subcategory,

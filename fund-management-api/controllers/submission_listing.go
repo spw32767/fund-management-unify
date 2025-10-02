@@ -60,7 +60,9 @@ func GetAllSubmissions(c *gin.Context) {
 
 	// Build base query
 	var submissions []models.Submission
-	query := config.DB.Preload("User").Preload("Year").Preload("Status").
+	query := config.DB.Preload("User").Preload("YearDetail").Preload("Status").
+		Joins("LEFT JOIN years ON years.year_id = submissions.year_id").
+		Select("submissions.*, years.year AS year").
 		Where("deleted_at IS NULL")
 
 	// Permission-based filtering
@@ -158,10 +160,11 @@ func GetTeacherSubmissions(c *gin.Context) {
 
 	// Build query for teacher's submissions
 	var submissions []models.Submission
-	query := config.DB.Preload("Year").Preload("Status").Preload("Category").
+	query := config.DB.Preload("YearDetail").Preload("Status").Preload("Category").
+		Joins("LEFT JOIN years ON years.year_id = submissions.year_id").
 		Joins("LEFT JOIN fund_categories ON submissions.category_id = fund_categories.category_id").
 		Joins("LEFT JOIN fund_subcategories ON fund_subcategories.subcategory_id = submissions.subcategory_id AND fund_subcategories.category_id = submissions.category_id").
-		Select("submissions.*, fund_categories.category_name AS category_name, CASE WHEN fund_subcategories.subcategory_id IS NULL THEN NULL ELSE submissions.subcategory_id END AS subcategory_id, fund_subcategories.subcategory_name AS subcategory_name").
+		Select("submissions.*, years.year AS year, fund_categories.category_name AS category_name, CASE WHEN fund_subcategories.subcategory_id IS NULL THEN NULL ELSE submissions.subcategory_id END AS subcategory_id, fund_subcategories.subcategory_name AS subcategory_name").
 		Where("submissions.user_id = ? AND submissions.deleted_at IS NULL", userID)
 
 	// Apply filters
@@ -249,7 +252,9 @@ func GetStaffSubmissions(c *gin.Context) {
 
 	// Build query for submissions that need staff review
 	var submissions []models.Submission
-	query := config.DB.Preload("User").Preload("Year").Preload("Status").Preload("Category").Preload("Subcategory").
+	query := config.DB.Preload("User").Preload("YearDetail").Preload("Status").Preload("Category").Preload("Subcategory").
+		Joins("LEFT JOIN years ON years.year_id = submissions.year_id").
+		Select("submissions.*, years.year AS year").
 		Where("deleted_at IS NULL AND submitted_at IS NOT NULL") // Only submitted submissions
 
 	// Apply filters
@@ -344,7 +349,9 @@ func GetAdminSubmissions(c *gin.Context) {
 
 	// ---------- Base list query (with preloads) ----------
 	var submissions []models.Submission
-	listQ := config.DB.Preload("User").Preload("Year").Preload("Status").Preload("Category").Preload("Subcategory").
+	listQ := config.DB.Preload("User").Preload("YearDetail").Preload("Status").Preload("Category").Preload("Subcategory").
+		Joins("LEFT JOIN years ON years.year_id = submissions.year_id").
+		Select("submissions.*, years.year AS year").
 		Where("submissions.deleted_at IS NULL")
 
 	// Apply filters (identical set used later for stats)
@@ -524,7 +531,9 @@ func SearchSubmissions(c *gin.Context) {
 	var submissions []models.Submission
 	searchTerm := "%" + keyword + "%"
 
-	query := config.DB.Preload("User").Preload("Year").Preload("Status").
+	query := config.DB.Preload("User").Preload("YearDetail").Preload("Status").
+		Joins("LEFT JOIN years ON years.year_id = submissions.year_id").
+		Select("submissions.*, years.year AS year").
 		Where("deleted_at IS NULL")
 
 	// Permission-based filtering

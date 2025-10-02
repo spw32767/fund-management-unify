@@ -39,7 +39,9 @@ func GetSubmissions(c *gin.Context) {
 
 	var submissions []models.Submission
 	query := config.DB.Preload("User").
-		Preload("Year").
+		Preload("YearDetail").
+		Joins("LEFT JOIN years ON years.year_id = submissions.year_id").
+		Select("submissions.*, years.year AS year").
 		Preload("Status").
 		Preload("Category").
 		Preload("Subcategory").
@@ -108,11 +110,12 @@ func GetSubmission(c *gin.Context) {
 
 	var submission models.Submission
 	query := config.DB.Model(&models.Submission{}).
+		Joins("LEFT JOIN years ON years.year_id = submissions.year_id").
 		Joins("LEFT JOIN fund_categories ON submissions.category_id = fund_categories.category_id").
 		Joins("LEFT JOIN fund_subcategories ON fund_subcategories.subcategory_id = submissions.subcategory_id AND fund_subcategories.category_id = submissions.category_id").
-		Select("submissions.*, fund_categories.category_name AS category_name, CASE WHEN fund_subcategories.subcategory_id IS NULL THEN NULL ELSE submissions.subcategory_id END AS subcategory_id, fund_subcategories.subcategory_name AS subcategory_name").
+		Select("submissions.*, years.year AS year, fund_categories.category_name AS category_name, CASE WHEN fund_subcategories.subcategory_id IS NULL THEN NULL ELSE submissions.subcategory_id END AS subcategory_id, fund_subcategories.subcategory_name AS subcategory_name").
 		Preload("User").
-		Preload("Year").
+		Preload("YearDetail").
 		Preload("Status").
 		Preload("Documents", func(db *gorm.DB) *gorm.DB {
 			return db.Joins("LEFT JOIN document_types dt ON dt.document_type_id = submission_documents.document_type_id").
@@ -282,7 +285,11 @@ func CreateSubmission(c *gin.Context) {
 		return
 	}
 
-	config.DB.Preload("User").Preload("Year").Preload("Status").First(&submission, submission.SubmissionID)
+	config.DB.Preload("User").Preload("YearDetail").
+		Joins("LEFT JOIN years ON years.year_id = submissions.year_id").
+		Select("submissions.*, years.year AS year").
+		Preload("Status").
+		First(&submission, submission.SubmissionID)
 	c.JSON(http.StatusCreated, gin.H{
 		"success":    true,
 		"message":    "Submission created successfully",

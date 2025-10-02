@@ -86,6 +86,17 @@ export default function ApplicationList({ onNavigate }) {
               ? getLabelById(statusId)
               : undefined);
 
+          const resolvedYear =
+            (typeof sub.year === 'object' ? sub.year?.year : sub.year) ??
+            sub.year_detail?.year ??
+            (typeof sub.Year === 'object' ? sub.Year?.year : sub.Year);
+
+          const resolvedYearId =
+            sub.year_id ??
+            sub.year_detail?.year_id ??
+            (typeof sub.year === 'object' ? sub.year?.year_id : undefined) ??
+            (typeof sub.Year === 'object' ? sub.Year?.year_id : undefined);
+
           const transformed = {
             application_id: sub.submission_id,
             application_number: sub.submission_number,
@@ -99,8 +110,8 @@ export default function ApplicationList({ onNavigate }) {
             status_id: statusId,
             status_fallback: fallbackStatusName,
             submitted_at: sub.created_at,
-            year: sub.year?.year || sub.Year?.year || '2568',
-            year_id: sub.year_id || sub.Year?.year_id,
+            year: resolvedYear ?? '-',
+            year_id: resolvedYearId,
             // Keep original data for reference
             _original: sub
           };

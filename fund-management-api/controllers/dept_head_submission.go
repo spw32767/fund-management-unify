@@ -378,7 +378,9 @@ func DeptHeadRejectSubmission(c *gin.Context) {
 func buildSubmissionDetailPayload(submissionID int) (gin.H, error) {
 	var submission models.Submission
 	query := config.DB.Preload("User").
-		Preload("Year").
+		Preload("YearDetail").
+		Joins("LEFT JOIN years ON years.year_id = submissions.year_id").
+		Select("submissions.*, years.year AS year").
 		Preload("Status").
 		Preload("FundApplicationDetail.Subcategory.Category").
 		Preload("PublicationRewardDetail")
@@ -416,7 +418,8 @@ func buildSubmissionDetailPayload(submissionID int) (gin.H, error) {
 			"created_at":            submission.CreatedAt,
 			"updated_at":            submission.UpdatedAt,
 			"user":                  submission.User,
-			"year":                  submission.Year,
+			"year":                  submission.YearDisplay,
+			"year_detail":           submission.YearDetail,
 			"status":                submission.Status,
 		},
 		"details":          nil,
