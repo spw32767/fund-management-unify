@@ -694,6 +694,7 @@ func fetchSubmissionDocuments(db *gorm.DB, submissionID int) ([]models.Submissio
 	var documents []models.SubmissionDocument
 	if err := db.
 		Preload("DocumentType").
+		Preload("File").
 		Where("submission_id = ?", submissionID).
 		Order("display_order ASC, document_id ASC").
 		Find(&documents).Error; err != nil {
@@ -805,6 +806,12 @@ func buildDocumentLine(documents []models.SubmissionDocument) string {
 		name := strings.TrimSpace(doc.DocumentTypeName)
 		if name == "" {
 			name = strings.TrimSpace(doc.DocumentType.DocumentTypeName)
+		}
+		if name == "" {
+			name = strings.TrimSpace(doc.Description)
+		}
+		if name == "" {
+			name = strings.TrimSpace(doc.File.OriginalName)
 		}
 		if name == "" {
 			continue
