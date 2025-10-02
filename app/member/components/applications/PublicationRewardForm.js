@@ -1654,7 +1654,7 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
   };
 
   const attachedFiles = useMemo(() => getAllAttachedFiles(), [attachmentSignature, documentTypes, externalFundings]);
-  const latestPreviewUrl = previewState.blobUrl || previewState.signedUrl;
+  const previewUrl = previewState.blobUrl || previewState.signedUrl;
 
   const buildPublicationDate = () => {
     if (formData.publication_date) {
@@ -1676,7 +1676,7 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
     return `${rawYear}-${monthString}-01`;
   };
 
-  const generatePreview = async ({ openWindow = true } = {}) => {
+  const generatePreview = async ({ openWindow = false } = {}) => {
     const attachments = attachedFiles;
 
     if (!attachments || attachments.length === 0) {
@@ -1791,6 +1791,27 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
       previewWindow = window.open('', '_blank');
     }
 
+    const readErrorMessage = async (resp, fallbackMessage) => {
+      if (!resp) {
+        return fallbackMessage;
+      }
+
+      const fallback = fallbackMessage || 'ไม่สามารถสร้างตัวอย่างได้';
+      const contentType = resp.headers.get('content-type') || '';
+      const text = await resp.text().catch(() => '');
+
+      if (contentType.includes('application/json')) {
+        try {
+          const data = JSON.parse(text || '{}');
+          return data?.error || data?.message || fallback;
+        } catch (err) {
+          return text.trim() || fallback;
+        }
+      }
+
+      return text.trim() || fallback;
+    };
+
     try {
       const response = await fetch(`${apiClient.baseURL}/publication-summary/preview`, {
         method: 'POST',
@@ -1801,50 +1822,25 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
       const contentType = response.headers.get('content-type') || '';
 
       if (!response.ok) {
-        let errorMessage = 'ไม่สามารถสร้างตัวอย่างได้';
-        if (contentType.includes('application/json')) {
-          const errorData = await response.json().catch(() => ({}));
-          errorMessage = errorData.error || errorData.message || errorMessage;
-        }
-        throw new Error(errorMessage);
+        const errorMessage = await readErrorMessage(response, 'ไม่สามารถสร้างตัวอย่างได้');
+        throw new Error(errorMessage || 'ไม่สามารถสร้างตัวอย่างได้');
       }
 
-      if (contentType.includes('application/json')) {
-        const data = await response.json();
-        const previewUrl = data.url || data.preview_url || data.link;
-        if (!previewUrl) {
-          throw new Error('ไม่มี URL สำหรับดูตัวอย่าง');
-        }
+      const isPdfResponse =
+        !contentType ||
+        contentType.includes('application/pdf') ||
+        contentType.includes('application/octet-stream');
 
-        if (previewUrlRef.current) {
-          try {
-            URL.revokeObjectURL(previewUrlRef.current);
-          } catch (error) {
-            console.warn('Failed to revoke previous preview blob URL:', error);
-          }
-          previewUrlRef.current = null;
-        }
-
-        setPreviewState({
-          loading: false,
-          error: null,
-          blobUrl: null,
-          signedUrl: previewUrl,
-          hasPreviewed: true,
-          timestamp: Date.now(),
-        });
-
-        if (previewWindow) {
-          previewWindow.location = previewUrl;
-        } else if (openWindow && typeof window !== 'undefined') {
-          window.open(previewUrl, '_blank', 'noopener,noreferrer');
-        }
-
-        Toast.fire({ icon: 'success', title: 'สร้างตัวอย่างเอกสารสำเร็จ' });
-        return { type: 'url', url: previewUrl };
+      if (!isPdfResponse) {
+        const errorMessage = await readErrorMessage(response, 'ไม่สามารถสร้างตัวอย่างได้');
+        throw new Error(errorMessage || 'ไม่สามารถสร้างตัวอย่างได้');
       }
 
       const blob = await response.blob();
+      if (!blob || blob.size === 0) {
+        throw new Error('ไฟล์ตัวอย่างว่างเปล่า');
+      }
+
       const blobUrl = URL.createObjectURL(blob);
 
       if (previewUrlRef.current) {
@@ -1868,6 +1864,11 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
 
       if (previewWindow) {
         previewWindow.location = blobUrl;
+        try {
+          previewWindow.focus();
+        } catch (err) {
+          // ignore focus errors in browsers that disallow it
+        }
       } else if (openWindow && typeof window !== 'undefined') {
         window.open(blobUrl, '_blank', 'noopener,noreferrer');
       }
@@ -2295,7 +2296,7 @@ const showSubmissionConfirmation = async () => {
     return false;
   }
 
-  const previewAvailable = previewState.hasPreviewed && !!latestPreviewUrl;
+  const previewAvailable = previewState.hasPreviewed && !!previewUrl;
   let previewViewed = previewAvailable;
   const previewButtonInitialLabel = previewAvailable ? '👀 เปิดอีกครั้ง' : '👀 ดูตัวอย่าง';
   const previewStatusMarkup = previewAvailable
@@ -4116,7 +4117,7 @@ const showSubmissionConfirmation = async () => {
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                 <button
                   type="button"
-                  onClick={() => generatePreview({ openWindow: true })}
+                  onClick={() => generatePreview()}
                   disabled={previewState.loading || attachedFiles.length === 0}
                   className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
                 >
@@ -4147,7 +4148,7 @@ const showSubmissionConfirmation = async () => {
                 </p>
               )}
 
-              {previewState.hasPreviewed && latestPreviewUrl && (
+              {previewState.hasPreviewed && previewUrl && (
                 <div className="mt-3 bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-800">
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <div>
@@ -4158,8 +4159,8 @@ const showSubmissionConfirmation = async () => {
                       <button
                         type="button"
                         onClick={() => {
-                          if (latestPreviewUrl) {
-                            window.open(latestPreviewUrl, '_blank', 'noopener,noreferrer');
+                          if (previewUrl) {
+                            window.open(previewUrl, '_blank', 'noopener,noreferrer');
                           }
                         }}
                         className="inline-flex items-center gap-2 px-3 py-1.5 rounded-md bg-blue-600 text-white hover:bg-blue-700"
@@ -4168,7 +4169,7 @@ const showSubmissionConfirmation = async () => {
                         เปิดอีกครั้ง
                       </button>
                       <a
-                        href={latestPreviewUrl}
+                        href={previewUrl}
                         target="_blank"
                         rel="noopener noreferrer"
                         download={previewState.blobUrl ? 'publication_reward_preview.pdf' : undefined}
@@ -4181,16 +4182,16 @@ const showSubmissionConfirmation = async () => {
                 </div>
               )}
 
-              {previewState.hasPreviewed && latestPreviewUrl && (
+              {previewState.hasPreviewed && previewUrl && (
                 <div className="mt-4">
-                  <div className="border border-gray-200 rounded-lg overflow-hidden bg-white shadow-sm">
+                  <div className="mb-6">
                     <iframe
-                      src={latestPreviewUrl}
-                      title="ตัวอย่างเอกสารเบิกค่าตีพิมพ์"
-                      className="w-full h-[600px]"
+                      title="Publication Reward Preview"
+                      src={previewUrl}
+                      className="w-full h-[85vh] border rounded"
                     />
                   </div>
-                  <p className="mt-2 text-xs text-gray-500">
+                  <p className="text-xs text-gray-500">
                     หากเอกสารไม่แสดงผล กรุณาใช้ปุ่มเปิดหรือดาวน์โหลดด้านบน
                   </p>
                 </div>
