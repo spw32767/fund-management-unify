@@ -1771,14 +1771,18 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
       })),
     };
 
-    const formDataPayload = new FormData();
-    formDataPayload.append('data', JSON.stringify(payload));
+    const buildFormDataPayload = () => {
+      const formDataPayload = new FormData();
+      formDataPayload.append('data', JSON.stringify(payload));
 
-    attachments.forEach((item) => {
-      if (item?.file) {
-        formDataPayload.append('attachments', item.file, item.name || 'attachment.pdf');
-      }
-    });
+      attachments.forEach((item) => {
+        if (item?.file) {
+          formDataPayload.append('attachments', item.file, item.name || 'attachment.pdf');
+        }
+      });
+
+      return formDataPayload;
+    };
 
     const headers = {};
     const token = apiClient.getToken();
@@ -1792,22 +1796,52 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
     }
 
     try {
-      const response = await fetch(`${apiClient.baseURL}/publication-summary/preview`, {
-        method: 'POST',
-        headers,
-        body: formDataPayload,
-      });
+      const previewEndpoints = [
+        '/publication-summary/preview',
+        '/publication-rewards/preview',
+      ];
+
+      let response = null;
+      let lastError = null;
+
+      for (const endpoint of previewEndpoints) {
+        try {
+          const attempt = await fetch(`${apiClient.baseURL}${endpoint}`, {
+            method: 'POST',
+            headers,
+            body: buildFormDataPayload(),
+          });
+
+          if (attempt.ok) {
+            response = attempt;
+            break;
+          }
+
+          const attemptContentType = attempt.headers.get('content-type') || '';
+
+          if (attempt.status === 404) {
+            lastError = new Error('ไม่พบ endpoint สำหรับสร้างตัวอย่าง');
+            console.warn(`Preview endpoint ${endpoint} returned 404 - trying fallback endpoint.`);
+            continue;
+          }
+
+          if (attemptContentType.includes('application/json')) {
+            const errorData = await attempt.json().catch(() => ({}));
+            throw new Error(errorData.error || errorData.message || 'ไม่สามารถสร้างตัวอย่างได้');
+          }
+
+          throw new Error('ไม่สามารถสร้างตัวอย่างได้');
+        } catch (error) {
+          lastError = error;
+          console.error(`Preview endpoint ${endpoint} failed:`, error);
+        }
+      }
+
+      if (!response) {
+        throw lastError || new Error('ไม่สามารถสร้างตัวอย่างได้');
+      }
 
       const contentType = response.headers.get('content-type') || '';
-
-      if (!response.ok) {
-        let errorMessage = 'ไม่สามารถสร้างตัวอย่างได้';
-        if (contentType.includes('application/json')) {
-          const errorData = await response.json().catch(() => ({}));
-          errorMessage = errorData.error || errorData.message || errorMessage;
-        }
-        throw new Error(errorMessage);
-      }
 
       if (contentType.includes('application/json')) {
         const data = await response.json();
