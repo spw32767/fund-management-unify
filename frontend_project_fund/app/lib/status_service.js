@@ -93,6 +93,17 @@ export async function getStatusIdByName(statusName) {
   return match ? match.application_status_id : undefined;
 }
 
+export async function getStatusIdByCode(statusCode) {
+  if (statusCode == null) {
+    return undefined;
+  }
+
+  const statuses = await statusService.fetchAll();
+  const normalizedCode = String(statusCode);
+  const match = statuses.find((status) => String(status.status_code) === normalizedCode);
+  return match ? match.application_status_id : undefined;
+}
+
 export function buildStatusMaps(statuses = []) {
   const byId = {};
   const byName = {};
