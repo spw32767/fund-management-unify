@@ -3,6 +3,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { FileText, Upload, Save, Send, X, Eye, ArrowLeft, AlertCircle, DollarSign } from "lucide-react";
+import Swal from "sweetalert2";
 import PageLayout from "../common/PageLayout";
 import SimpleCard from "../common/SimpleCard";
 import { authAPI, systemAPI } from '../../../lib/api';
@@ -104,6 +105,23 @@ const formatPhoneNumber = (value) => {
   return `${numbers.slice(0, 3)}-${numbers.slice(3, 6)}-${numbers.slice(6, 10)}`;
 };
 
+const formatCurrency = (value) => {
+  const num = parseFloat(value);
+  if (Number.isNaN(num)) {
+    return "0.00";
+  }
+  return num.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+};
+
+const formatFileSize = (bytes) => {
+  if (!bytes && bytes !== 0) return "-";
+  if (bytes === 0) return "0 B";
+  const sizes = ['B', 'KB', 'MB', 'GB'];
+  const i = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), sizes.length - 1);
+  const value = bytes / Math.pow(1024, i);
+  return `${value.toFixed(i === 0 ? 0 : 2)} ${sizes[i]}`;
+};
+
 // =================================================================
 // MAIN COMPONENT
 // =================================================================
@@ -126,6 +144,7 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
   // Document requirements and uploaded files
   const [documentRequirements, setDocumentRequirements] = useState([]);
   const [uploadedFiles, setUploadedFiles] = useState({});
+  const [fileViewStates, setFileViewStates] = useState({});
   
   // Current user data
   const [currentUser, setCurrentUser] = useState(null);
@@ -255,9 +274,14 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
         return;
       }
 
-      setUploadedFiles(prev => ({ 
-        ...prev, 
-        [documentTypeId]: file 
+      setUploadedFiles(prev => ({
+        ...prev,
+        [documentTypeId]: file
+      }));
+
+      setFileViewStates(prev => ({
+        ...prev,
+        [documentTypeId]: false
       }));
 
       // Clear error
@@ -273,14 +297,225 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
       delete newFiles[documentTypeId];
       return newFiles;
     });
+
+    setFileViewStates(prev => {
+      if (!prev.hasOwnProperty(documentTypeId)) return prev;
+      const updated = { ...prev };
+      delete updated[documentTypeId];
+      return updated;
+    });
   };
 
   const viewFile = (documentTypeId) => {
     const file = uploadedFiles[documentTypeId];
     if (file) {
       const fileURL = URL.createObjectURL(file);
-      window.open(fileURL, '_blank');
+      const viewer = window.open(fileURL, '_blank', 'noopener,noreferrer');
+      if (viewer) {
+        viewer.onload = () => {
+          try {
+            URL.revokeObjectURL(fileURL);
+          } catch (error) {
+            console.warn('Failed to revoke object URL:', error);
+          }
+        };
+      } else {
+        setTimeout(() => {
+          try {
+            URL.revokeObjectURL(fileURL);
+          } catch (error) {
+            console.warn('Failed to revoke object URL:', error);
+          }
+        }, 10000);
+      }
+
+      setFileViewStates(prev => ({
+        ...prev,
+        [documentTypeId]: true
+      }));
     }
+  };
+
+  const showSubmissionConfirmation = async () => {
+    const attachments = documentRequirements
+      .filter(docType => uploadedFiles[docType.document_type_id])
+      .map(docType => {
+        const file = uploadedFiles[docType.document_type_id];
+        return {
+          id: docType.document_type_id,
+          name: file.name,
+          size: file.size,
+          typeLabel: docType.document_type_name,
+          required: docType.required,
+          file
+        };
+      });
+
+    const viewedSet = new Set(
+      attachments
+        .filter(item => fileViewStates[item.id])
+        .map(item => String(item.id))
+    );
+
+    const applicantInfoHTML = `
+      <div class="bg-gray-50 p-4 rounded-lg space-y-2">
+        <h4 class="font-semibold text-gray-700">ข้อมูลผู้ยื่นขอ</h4>
+        <p class="text-sm"><span class="font-medium">ชื่อผู้ยื่น:</span> ${formData.name || '-'}</p>
+        <p class="text-sm"><span class="font-medium">เบอร์โทรศัพท์:</span> ${formData.phone || '-'}</p>
+      </div>
+    `;
+
+    const amountHTML = `
+      <div class="bg-green-50 p-4 rounded-lg space-y-2">
+        <h4 class="font-semibold text-green-700">จำนวนเงินที่ขอ</h4>
+        <p class="text-sm"><span class="font-medium">จำนวนเงิน:</span> ${formatCurrency(formData.requested_amount || 0)} บาท</p>
+      </div>
+    `;
+
+    const attachmentsHTML = attachments.length === 0
+      ? `
+        <div class="bg-yellow-50 p-4 rounded-lg">
+          <h4 class="font-semibold text-yellow-700 mb-2">เอกสารแนบ</h4>
+          <p class="text-sm text-yellow-800">ไม่มีไฟล์แนบ</p>
+        </div>
+      `
+      : `
+        <div class="bg-yellow-50 p-4 rounded-lg space-y-3">
+          <h4 class="font-semibold text-yellow-700">เอกสารแนบ (${attachments.length} ไฟล์)</h4>
+          <div class="bg-white border border-yellow-200 rounded-lg overflow-hidden">
+            <table class="w-full text-sm">
+              <thead class="bg-yellow-100">
+                <tr>
+                  <th class="px-3 py-2 text-left font-medium text-yellow-800">ชื่อเอกสาร</th>
+                  <th class="px-3 py-2 text-left font-medium text-yellow-800">ไฟล์</th>
+                  <th class="px-3 py-2 text-center font-medium text-yellow-800">ดำเนินการ</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y">
+                ${attachments.map(item => {
+                  const viewed = viewedSet.has(String(item.id));
+                  const statusClass = viewed ? 'text-green-600' : 'text-red-600';
+                  const statusText = viewed ? '✅ เปิดดูแล้ว' : '⚠️ ยังไม่ได้เปิดดู';
+                  const buttonClass = viewed
+                    ? 'px-3 py-1 bg-green-500 text-white text-xs rounded hover:bg-green-600 transition-colors'
+                    : 'px-3 py-1 bg-blue-500 text-white text-xs rounded hover:bg-blue-600 transition-colors';
+                  const buttonLabel = viewed ? '👀 เปิดอีกครั้ง' : '👀 ดูไฟล์';
+                  return `
+                    <tr>
+                      <td class="px-3 py-2 align-top">
+                        <div class="font-medium text-gray-800">${item.typeLabel}</div>
+                        ${item.required ? '<div class="text-xs text-red-500">เอกสารจำเป็น</div>' : ''}
+                      </td>
+                      <td class="px-3 py-2 align-top">
+                        <div class="font-medium text-gray-800">${item.name}</div>
+                        <div class="text-xs text-gray-500">${formatFileSize(item.size)}</div>
+                      </td>
+                      <td class="px-3 py-2 text-center align-top">
+                        <button
+                          type="button"
+                          class="${buttonClass}"
+                          data-view-doc-id="${item.id}"
+                        >${buttonLabel}</button>
+                        <div id="view-status-${item.id}" class="mt-2 text-xs ${statusClass}">${statusText}</div>
+                      </td>
+                    </tr>
+                  `;
+                }).join('')}
+              </tbody>
+            </table>
+          </div>
+          <p class="text-xs text-yellow-800">ต้องเปิดดูทุกไฟล์ก่อนกดยืนยันส่งคำร้อง</p>
+        </div>
+      `;
+
+    const summaryHTML = `
+      <div class="space-y-4 text-left">
+        ${applicantInfoHTML}
+        ${amountHTML}
+        ${attachmentsHTML}
+      </div>
+    `;
+
+    const showDialog = () => {
+      return Swal.fire({
+        title: 'ตรวจสอบข้อมูลก่อนส่งคำร้อง',
+        html: summaryHTML,
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonColor: '#3085d6',
+        cancelButtonColor: '#d33',
+        confirmButtonText: 'ยืนยันส่งคำร้อง',
+        cancelButtonText: 'ยกเลิก',
+        width: '640px',
+        customClass: {
+          htmlContainer: 'text-left'
+        },
+        preConfirm: () => {
+          if (attachments.length > 0 && viewedSet.size !== attachments.length) {
+            Swal.showValidationMessage('กรุณาเปิดดูไฟล์แนบทุกไฟล์ก่อนส่งคำร้อง');
+            return false;
+          }
+          return true;
+        },
+        didOpen: () => {
+          const buttons = Swal.getHtmlContainer()?.querySelectorAll('[data-view-doc-id]');
+          if (!buttons) return;
+
+          buttons.forEach(button => {
+            const docId = button.getAttribute('data-view-doc-id');
+            const attachment = attachments.find(item => String(item.id) === String(docId));
+            if (!attachment) return;
+
+            button.addEventListener('click', () => {
+              const blobUrl = URL.createObjectURL(attachment.file);
+              const previewWindow = window.open(blobUrl, '_blank', 'noopener,noreferrer');
+
+              const markAsViewed = () => {
+                viewedSet.add(String(docId));
+                const statusEl = Swal.getHtmlContainer()?.querySelector(`#view-status-${docId}`);
+                if (statusEl) {
+                  statusEl.textContent = '✅ เปิดดูแล้ว';
+                  statusEl.className = 'mt-2 text-xs text-green-600';
+                }
+                button.textContent = '👀 เปิดอีกครั้ง';
+                button.className = 'px-3 py-1 bg-green-500 text-white text-xs rounded hover:bg-green-600 transition-colors';
+                const validationMessage = Swal.getHtmlContainer()?.querySelector('.swal2-validation-message');
+                if (validationMessage) {
+                  validationMessage.style.display = 'none';
+                }
+                setFileViewStates(prev => ({
+                  ...prev,
+                  [attachment.id]: true
+                }));
+              };
+
+              markAsViewed();
+
+              if (previewWindow) {
+                previewWindow.onload = () => {
+                  try {
+                    URL.revokeObjectURL(blobUrl);
+                  } catch (error) {
+                    console.warn('Failed to revoke preview URL:', error);
+                  }
+                };
+              } else {
+                setTimeout(() => {
+                  try {
+                    URL.revokeObjectURL(blobUrl);
+                  } catch (error) {
+                    console.warn('Failed to revoke preview URL:', error);
+                  }
+                }, 10000);
+              }
+            });
+          });
+        }
+      });
+    };
+
+    const result = await showDialog();
+    return result.isConfirmed;
   };
 
   // =================================================================
@@ -355,13 +590,22 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
   };
 
   const submitApplication = async () => {
+    if (submitting) {
+      return;
+    }
+
+    const isValid = validateForm();
+    if (!isValid) {
+      return;
+    }
+
+    const confirmed = await showSubmissionConfirmation();
+    if (!confirmed) {
+      return;
+    }
+
     try {
       setSubmitting(true);
-      
-      // Validate form
-      if (!validateForm()) {
-        return;
-      }
 
       const deptPendingStatusId = await getStatusIdByName('อยู่ระหว่างการพิจารณาจากหัวหน้าสาขา');
       if (!deptPendingStatusId) {
@@ -598,6 +842,9 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
                               </span>
                               <span className="text-xs text-green-600 whitespace-nowrap">
                                 ({Math.round(uploadedFiles[docType.document_type_id].size / 1024)} KB)
+                              </span>
+                              <span className={`text-xs whitespace-nowrap ${fileViewStates[docType.document_type_id] ? 'text-green-700' : 'text-yellow-700'}`}>
+                                {fileViewStates[docType.document_type_id] ? '✅ เปิดดูแล้ว' : '⚠️ ยังไม่ได้เปิดดู'}
                               </span>
                             </div>
                             <div className="flex items-center gap-2 flex-shrink-0">
