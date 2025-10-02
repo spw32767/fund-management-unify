@@ -13,6 +13,7 @@ type Submission struct {
 	SubmissionType          string     `gorm:"column:submission_type" json:"submission_type"`
 	UserID                  int        `gorm:"column:user_id" json:"user_id"`
 	YearID                  int        `gorm:"column:year_id" json:"year_id"`
+	YearDisplay             *string    `gorm:"column:year;->" json:"year,omitempty"`
 	CategoryID              *int       `gorm:"column:category_id" json:"category_id"`                     // ✅ เพิ่มใหม่
 	CategoryName            *string    `gorm:"column:category_name;->" json:"category_name"`              // ✅ เพิ่มใหม่ (read-only, มาจาก join)
 	SubcategoryID           *int       `gorm:"column:subcategory_id" json:"subcategory_id"`               // ✅ เพิ่มใหม่
@@ -29,7 +30,7 @@ type Submission struct {
 
 	// Relations
 	User                    *User                    `gorm:"foreignKey:UserID" json:"user,omitempty"`
-	Year                    Year                     `gorm:"foreignKey:YearID" json:"year,omitempty"`
+	YearDetail              *Year                    `gorm:"foreignKey:YearID" json:"year_detail,omitempty"`
 	Status                  ApplicationStatus        `gorm:"foreignKey:StatusID" json:"status,omitempty"`
 	Category                *FundCategory            `gorm:"foreignKey:CategoryID" json:"category,omitempty"`
 	Subcategory             *FundSubcategory         `gorm:"foreignKey:SubcategoryID" json:"subcategory,omitempty"`

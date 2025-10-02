@@ -27,19 +27,25 @@ export default function ReceivedFundsList({ onNavigate }) {
     try {
       const response = await submissionAPI.getSubmissions({ status: 2, limit: 1000 });
       if (response.success && Array.isArray(response.submissions)) {
-        const transformed = response.submissions.map((sub) => ({
-          submission_id: sub.submission_id,
-          submission_number: sub.submission_number,
-          category_name: sub.category_name || sub.category?.category_name || "-",
-          subcategory_name: sub.subcategory_name || sub.subcategory?.subcategory_name || "-",
-          year:
-            (typeof sub.year === "object" ? sub.year?.year : sub.year) ||
-            (typeof sub.Year === "object" ? sub.Year?.year : sub.Year) ||
-            "-",
-          year_id:
-            sub.year_id ||
-            sub.Year?.year_id ||
-            (typeof sub.year === "object" ? sub.year?.year_id : undefined),
+        const transformed = response.submissions.map((sub) => {
+          const resolvedYear =
+            (typeof sub.year === "object" ? sub.year?.year : sub.year) ??
+            sub.year_detail?.year ??
+            (typeof sub.Year === "object" ? sub.Year?.year : sub.Year);
+
+          const resolvedYearId =
+            sub.year_id ??
+            sub.year_detail?.year_id ??
+            (typeof sub.year === "object" ? sub.year?.year_id : undefined) ??
+            (typeof sub.Year === "object" ? sub.Year?.year_id : undefined);
+
+          return {
+            submission_id: sub.submission_id,
+            submission_number: sub.submission_number,
+            category_name: sub.category_name || sub.category?.category_name || "-",
+            subcategory_name: sub.subcategory_name || sub.subcategory?.subcategory_name || "-",
+            year: resolvedYear ?? "-",
+            year_id: resolvedYearId,
           approved_amount:
             sub.approved_amount ??
             sub.fund_application_detail?.approved_amount ??
@@ -48,7 +54,8 @@ export default function ReceivedFundsList({ onNavigate }) {
           status: sub.status?.status_name || "-",
           status_id: sub.status_id,
           _original: sub,
-        }));
+          };
+        });
         // Sort newest first by created_at
         transformed.sort(
           (a, b) =>
