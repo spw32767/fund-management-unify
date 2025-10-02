@@ -12,7 +12,10 @@ import { PDFDocument } from "pdf-lib";
 // เพิ่ม apiClient สำหรับเรียก API โดยตรง
 import apiClient from '../../../lib/api';
 import { submissionAPI, documentAPI, fileAPI} from '../../../lib/member_api';
-import { getStatusIdByName } from '../../../lib/status_service';
+import { getStatusIdByCode } from '../../../lib/status_service';
+
+// Match backend utils.StatusCodeDeptHeadPending for initial submission status
+const DEPT_HEAD_PENDING_STATUS_CODE = '5';
 
 // =================================================================
 // FILE UPLOAD COMPONENT
@@ -688,9 +691,9 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
     try {
       setSubmitting(true);
 
-      const deptPendingStatusId = await getStatusIdByName('อยู่ระหว่างการพิจารณาจากหัวหน้าสาขา');
+      const deptPendingStatusId = await getStatusIdByCode(DEPT_HEAD_PENDING_STATUS_CODE);
       if (!deptPendingStatusId) {
-        throw new Error('ไม่พบสถานะ "อยู่ระหว่างการพิจารณาจากหัวหน้าสาขา"');
+        throw new Error('ไม่พบสถานะสำหรับการพิจารณาของหัวหน้าสาขา');
       }
 
       // Step 1: Create submission record
