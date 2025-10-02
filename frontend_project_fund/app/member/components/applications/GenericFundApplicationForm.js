@@ -12,6 +12,7 @@ import { PDFDocument } from "pdf-lib";
 // เพิ่ม apiClient สำหรับเรียก API โดยตรง
 import apiClient from '../../../lib/api';
 import { submissionAPI, documentAPI, fileAPI} from '../../../lib/member_api';
+import { getStatusIdByName } from '../../../lib/status_service';
 
 // =================================================================
 // FILE UPLOAD COMPONENT
@@ -687,10 +688,24 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
     try {
       setSubmitting(true);
 
+      const DEFAULT_DEPT_PENDING_STATUS_ID = 6;
+      const DEPT_PENDING_STATUS_NAME = 'อยู่ระหว่างการพิจารณาจากหัวหน้าสาขา';
+
+      let statusId = DEFAULT_DEPT_PENDING_STATUS_ID;
+      try {
+        const resolvedStatusId = await getStatusIdByName(DEPT_PENDING_STATUS_NAME);
+        if (resolvedStatusId) {
+          statusId = resolvedStatusId;
+        }
+      } catch (statusError) {
+        console.warn('ไม่สามารถดึงสถานะจากระบบได้ ใช้ค่าเริ่มต้นแทน', statusError);
+      }
+
       // Step 1: Create submission record
       const submissionRes = await submissionAPI.createSubmission({
         submission_type: 'fund_application',
-        year_id: subcategoryData?.year_id
+        year_id: subcategoryData?.year_id,
+        status_id: statusId
       });
       const submissionId = submissionRes?.submission?.submission_id;
 
