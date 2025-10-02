@@ -12,7 +12,6 @@ import { PDFDocument } from "pdf-lib";
 // เพิ่ม apiClient สำหรับเรียก API โดยตรง
 import apiClient from '../../../lib/api';
 import { submissionAPI, documentAPI, fileAPI} from '../../../lib/member_api';
-import { statusService } from '../../../lib/status_service';
 
 // =================================================================
 // FILE UPLOAD COMPONENT
@@ -688,36 +687,10 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
     try {
       setSubmitting(true);
 
-      const DEPT_HEAD_PENDING_STATUS_CODE = '5';
-      const DEPT_HEAD_PENDING_FALLBACK_ID = 6;
-
-      let deptPendingStatusId = null;
-
-      try {
-        const statuses = await statusService.fetchAll();
-        const pendingStatus = statuses?.find((status) => {
-          const code = status?.status_code ?? status?.code;
-          return code != null && String(code) === DEPT_HEAD_PENDING_STATUS_CODE;
-        });
-
-        if (pendingStatus?.application_status_id != null) {
-          deptPendingStatusId = pendingStatus.application_status_id;
-        } else if (pendingStatus?.status_id != null) {
-          deptPendingStatusId = pendingStatus.status_id;
-        }
-      } catch (statusError) {
-        console.error('Error resolving department pending status:', statusError);
-      }
-
-      if (!deptPendingStatusId) {
-        deptPendingStatusId = DEPT_HEAD_PENDING_FALLBACK_ID;
-      }
-
       // Step 1: Create submission record
       const submissionRes = await submissionAPI.createSubmission({
         submission_type: 'fund_application',
-        year_id: subcategoryData?.year_id,
-        status_id: deptPendingStatusId
+        year_id: subcategoryData?.year_id
       });
       const submissionId = submissionRes?.submission?.submission_id;
 
