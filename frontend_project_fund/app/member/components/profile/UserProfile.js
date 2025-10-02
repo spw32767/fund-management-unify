@@ -863,6 +863,9 @@ export default function ProfileContent() {
                       <table className="min-w-full divide-y divide-gray-200 text-sm">
                         <thead className="bg-gray-50">
                           <tr>
+                            <th className="w-14 px-4 py-2 text-center font-medium text-gray-700">
+                              ลำดับ
+                            </th>
                             <th
                               className="cursor-pointer px-4 py-2 text-left font-medium text-gray-700"
                               onClick={() => handleSort("title")}
@@ -920,8 +923,11 @@ export default function ProfileContent() {
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-200">
-                          {paginatedPublications.map((pub) => (
+                          {paginatedPublications.map((pub, index) => (
                             <tr key={pub.id} className="hover:bg-gray-50">
+                              <td className="px-4 py-2 text-center text-gray-700">
+                                {(currentPage - 1) * rowsPerPage + index + 1}
+                              </td>
                               <td className="max-w-xs px-4 py-2 lg:max-w-md">
                                 {pub.url ? (
                                   <a
@@ -1048,6 +1054,9 @@ export default function ProfileContent() {
                       <table className="min-w-full divide-y divide-gray-200 text-sm">
                         <thead className="bg-gray-50">
                           <tr>
+                            <th className="w-14 px-4 py-2 text-center font-medium text-gray-700">
+                              ลำดับ
+                            </th>
                             <th
                               className="cursor-pointer px-4 py-2 text-left font-medium text-gray-700"
                               onClick={() => handleInnovSort("title")}
@@ -1105,8 +1114,11 @@ export default function ProfileContent() {
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-200">
-                          {paginatedInnovations.map((inv) => (
+                          {paginatedInnovations.map((inv, index) => (
                             <tr key={inv.id} className="hover:bg-gray-50">
+                              <td className="px-4 py-2 text-center text-gray-700">
+                                {(innovPage - 1) * innovRowsPerPage + index + 1}
+                              </td>
                               <td className="max-w-xs px-4 py-2 lg:max-w-md">
                                 <span className="block truncate" title={inv.title}>
                                   {inv.title}
