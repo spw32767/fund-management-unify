@@ -830,12 +830,7 @@ func buildDocumentLine(documents []models.SubmissionDocument) string {
 
 	lines := make([]string, 0, len(documents))
 	for _, doc := range documents {
-		name := selectCleanDocumentName(
-			doc.File.OriginalName,
-			doc.DocumentTypeName,
-			doc.DocumentType.DocumentTypeName,
-			doc.Description,
-		)
+		name := strings.TrimSpace(selectDocumentTypeName(doc))
 		if name == "" {
 			continue
 		}
@@ -845,48 +840,14 @@ func buildDocumentLine(documents []models.SubmissionDocument) string {
 	return strings.Join(lines, "\n")
 }
 
-func selectCleanDocumentName(candidates ...string) string {
-	for _, candidate := range candidates {
-		cleaned := cleanDocumentDisplayName(candidate)
-		if cleaned != "" {
-			return cleaned
-		}
+func selectDocumentTypeName(doc models.SubmissionDocument) string {
+	if doc.DocumentTypeName != "" {
+		return doc.DocumentTypeName
+	}
+	if doc.DocumentType.DocumentTypeName != "" {
+		return doc.DocumentType.DocumentTypeName
 	}
 	return ""
-}
-
-func cleanDocumentDisplayName(name string) string {
-	trimmed := strings.TrimSpace(name)
-	if trimmed == "" {
-		return ""
-	}
-
-	unwantedSuffixes := []string{
-		"(ประเภททุน)",
-		"(ประเภททุน )",
-		" ประเภททุน",
-		"- ประเภททุน",
-		"– ประเภททุน",
-		"— ประเภททุน",
-		": ประเภททุน",
-	}
-
-	for _, suffix := range unwantedSuffixes {
-		if strings.HasSuffix(trimmed, suffix) {
-			trimmed = strings.TrimSpace(strings.TrimSuffix(trimmed, suffix))
-		}
-	}
-
-	// Handle cases where the label is wrapped in parentheses with leading space.
-	if idx := strings.LastIndex(trimmed, " (ประเภททุน)"); idx != -1 && idx+len(" (ประเภททุน)") == len(trimmed) {
-		trimmed = strings.TrimSpace(trimmed[:idx])
-	}
-
-	// Remove any trailing connectors left after trimming the unwanted suffix.
-	trimmed = strings.TrimRight(trimmed, "-–—:() ")
-	trimmed = strings.TrimSpace(trimmed)
-
-	return trimmed
 }
 
 func generatePublicationRewardPDF(replacements map[string]string) ([]byte, error) {
