@@ -1,37 +1,102 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://github.com/vercel/next.js/tree/canary/packages/create-next-app).
+# Frontend Deployment Guide
 
-## Getting Started
+This document explains how to deploy and update the Next.js frontend for the fund management platform.
 
-First, run the development server:
+## 1. Prerequisites
+
+Install the following packages on the target server:
+
+- `git`
+- Build tools (`build-essential` on Debian/Ubuntu)
+- SSL libraries (`libssl-dev`)
+- Node.js **LTS** (18.x or newer) and either `npm` or `yarn`
+
+```bash
+# Debian / Ubuntu example
+sudo apt update
+sudo apt install -y git build-essential libssl-dev
+curl -fsSL https://deb.nodesource.com/setup_lts.x | sudo -E bash -
+sudo apt install -y nodejs
+```
+
+## 2. Initial Deployment
+
+```bash
+# Clone the repository
+cd /opt
+sudo git clone https://<your-git-host>/fund-management-unify.git
+sudo chown -R $USER:$USER fund-management-unify
+
+# Enter the frontend project
+cd fund-management-unify/frontend_project_fund
+
+# Install dependencies
+npm install
+# or
+# yarn install
+```
+
+## 3. Environment Configuration
+
+Create an `.env.local` file in `frontend_project_fund` with the required environment variables:
+
+```bash
+cp .env.local.example .env.local  # if you maintain an example file
+```
+
+Define at least the following variables (values will depend on your backend deployment):
+
+```bash
+NEXT_PUBLIC_API_URL=https://api.example.com/api/v1
+BACKEND_URL=https://api.example.com
+```
+
+Add any other secrets the application expects. Never commit real credentials to Git.
+
+## 4. Build and Run (Production)
+
+```bash
+# Build optimized assets
+npm run build
+# or
+# yarn build
+
+# Start the production server
+npm run start
+# or use your process manager, e.g.:
+# npx pm2 start npm --name fund-frontend -- run start
+```
+
+Run the start command inside a process manager (PM2, systemd, etc.) when deploying permanently.
+
+## 5. Optional: Development Mode
+
+For debugging on a staging environment:
 
 ```bash
 npm run dev
 # or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+# yarn dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Development mode should not be used on the public server.
 
-You can start editing the page by modifying `app/page.js`. The page auto-updates as you edit the file.
+## 6. Updating an Existing Deployment
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+cd /opt/fund-management-unify/frontend_project_fund
 
-## Learn More
+# Pull latest changes
+git pull
 
-To learn more about Next.js, take a look at the following resources:
+# Install updated dependencies
+npm install
+# or
+# yarn install
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+# Rebuild and restart the service
+npm run build
+npm run start  # replace with your process manager command
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
-# frontend_project_plan
+Ensure any new environment variables introduced in updates are applied to `.env.local` before restarting the service.
