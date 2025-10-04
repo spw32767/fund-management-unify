@@ -141,52 +141,27 @@ export default function SubmissionTable({
     return name || email || username;
   };
 
+  // REPLACE this entire function in SubmissionTable.js
   const getAuthorName = (s) => {
-    // 1) จาก row ตรง ๆ
-    const fromList = pickNameFromUserObj(
-      s?.User || s?.user || s?.Submitter || s?.submitter || s?.owner || s?.created_by
-    );
-    if (fromList) return fromList;
+    // 1) จากแถวที่ join มาโดยตรง (backend ให้ User/user/applicant มา)
+    const uRow = s?.User || s?.user || s?.applicant;
+    const rowName = pickNameFromUserObj(uRow);
+    if (rowName) return rowName;
 
-    // 2) จาก userMap (เติมโดย effects)
-    if (s?.user_id && userMap[String(s.user_id)]) return userMap[String(s.user_id)];
-
-    // 3) จาก submission_users ใน row (ถ้ามี)
-    if (Array.isArray(s?.submission_users) && s.submission_users.length) {
-      const main = s.submission_users.find(u => u.is_primary) || s.submission_users[0];
-      if (main?.user_id && userMap[String(main.user_id)]) return userMap[String(main.user_id)];
-      const mName = pickNameFromUserObj(main?.User || main?.user);
-      if (mName) return mName;
-    }
-
-    // 4) จาก payload รายละเอียด
+    // 2) จากรายละเอียดที่โหลดเฉพาะแถว (detailsMap)
     const dp  = getDP(s);
     const dpo = getDPO(s);
+    const uDetails =
+      dpo?.submission?.user || dpo?.submission?.User ||
+      dpo?.user || dp?.applicant || dpo?.applicant || null;
 
-    // owner ครอบคลุมทั้ง submission.User และ applicant/applicant_user
-    const owner =
-      dp?.submission?.User || dp?.Submission?.User ||
-      dp?.User || dp?.user ||
-      dpo?.submission?.User || dpo?.Submission?.User ||
-      dpo?.User || dpo?.user ||
-      dpo?.applicant || dpo?.applicant_user || dp?.applicant || dp?.applicant_user;
+    const nameFromDetails = pickNameFromUserObj(uDetails);
+    if (nameFromDetails) return nameFromDetails;
 
-    if (owner?.user_id && userMap[String(owner.user_id)]) return userMap[String(owner.user_id)];
-    const fromDetails = pickNameFromUserObj(owner);
-    if (fromDetails) return fromDetails;
+    // 3) จาก userMap (key = submissions.user_id) ที่ parent เตรียมไว้
+    if (s?.user_id && userMap[String(s.user_id)]) return userMap[String(s.user_id)];
 
-    // 4.2) co-authors จาก details
-    const suArr =
-      dp?.submission_users || dp?.SubmissionUsers ||
-      dpo?.submission_users || dpo?.SubmissionUsers || [];
-    if (Array.isArray(suArr) && suArr.length) {
-      const main = suArr.find(u => u.is_primary) || suArr[0];
-      if (main?.user_id && userMap[String(main.user_id)]) return userMap[String(main.user_id)];
-      const mName = pickNameFromUserObj(main?.user || main?.User);
-      if (mName) return mName;
-    }
-
-    // 5) flat fields
+    // 4) flat fields เผื่อ backend ยิงแบน ๆ มา
     const flat = pickNameFromUserObj({
       user_fname: s.user_fname, user_lname: s.user_lname,
       email: s.email || s.user_email,
@@ -194,7 +169,8 @@ export default function SubmissionTable({
     });
     if (flat) return flat;
 
-    return s?.user_id ? `ID ${s.user_id}` : 'ไม่ระบุผู้ยื่น';
+    // 5) สุดท้ายจริง ๆ ก็ไม่แสดงเป็น ID แล้ว
+    return 'ไม่ระบุผู้ยื่น';
   };
 
   const getAmount = (s) => {
