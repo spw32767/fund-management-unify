@@ -29,6 +29,39 @@ export default function PromotionFundContent() {
   const [selectedCondition, setSelectedCondition] = useState({ title: "", content: "" });
   const modalRef = useRef(null);
 
+  const parseBudgetValue = (value) => {
+    if (value === null || value === undefined || value === "") return 0;
+    if (typeof value === "number") {
+      return Number.isFinite(value) ? value : 0;
+    }
+
+    const cleaned = String(value).replace(/,/g, "").trim();
+    if (cleaned === "") return 0;
+
+    const numeric = Number.parseFloat(cleaned);
+    return Number.isNaN(numeric) ? 0 : numeric;
+  };
+
+  const normalizeSubcategoryBudgets = (subcategory) => {
+    if (!subcategory) return subcategory;
+
+    const normalizedLevels = Array.isArray(subcategory.budget_levels)
+      ? subcategory.budget_levels.map((level) => ({
+          ...level,
+          remaining_budget: parseBudgetValue(level?.remaining_budget),
+          total_budget: parseBudgetValue(level?.total_budget),
+        }))
+      : subcategory.budget_levels;
+
+    return {
+      ...subcategory,
+      remaining_budget: parseBudgetValue(subcategory.remaining_budget),
+      total_budget: parseBudgetValue(subcategory.total_budget),
+      allocated_budget: parseBudgetValue(subcategory.allocated_budget),
+      budget_levels: normalizedLevels,
+    };
+  };
+
   useEffect(() => {
     if (showConditionModal && modalRef.current) {
       modalRef.current.focus();
@@ -232,9 +265,12 @@ export default function PromotionFundContent() {
         roleContext?.role_id ?? roleContext?.role_name ?? roleContext
       );
 
-      const promotionFunds = visibleCategories.filter(
-        (category) => category.category_id === 2
-      );
+      const promotionFunds = visibleCategories
+        .filter((category) => category.category_id === 2)
+        .map((category) => ({
+          ...category,
+          subcategories: category.subcategories?.map(normalizeSubcategoryBudgets) || [],
+        }));
 
       const mergedPromotionFunds = promotionFunds.map((category) => {
         if (!Array.isArray(category.subcategories)) return category;
@@ -249,7 +285,7 @@ export default function PromotionFundContent() {
             category_id: category.category_id,
             subcategory_name: "เงินรางวัลการตีพิมพ์เผยแพร่ผลงานวิจัย",
             remaining_budget: publicationSubs.reduce(
-              (sum, s) => sum + (s.remaining_budget || 0),
+              (sum, s) => sum + parseBudgetValue(s.remaining_budget),
               0
             ),
             has_multiple_levels: publicationSubs.some((s) => s.has_multiple_levels),
@@ -316,7 +352,8 @@ export default function PromotionFundContent() {
         .map((category) => ({
           ...category,
           subcategories: category.subcategories?.filter((sub) => {
-            const isAvailable = sub.remaining_budget > 0;
+            const remaining = parseBudgetValue(sub.remaining_budget);
+            const isAvailable = remaining > 0;
             return statusFilter === "available" ? isAvailable : !isAvailable;
           }) || [],
         }))
@@ -331,8 +368,23 @@ export default function PromotionFundContent() {
   };
 
   const formatAmount = (amount) => {
-    if (!amount && amount !== 0) return "ไม่ระบุ";
-    return new Intl.NumberFormat("th-TH").format(amount) + " บาท";
+    if (amount === null || amount === undefined || amount === "") {
+      return "ไม่ระบุ";
+    }
+
+    const numeric = parseBudgetValue(amount);
+    if (!Number.isFinite(numeric)) {
+      return "ไม่ระบุ";
+    }
+
+    const hasDecimal = Math.abs(numeric % 1) > 1e-6;
+
+    return (
+      new Intl.NumberFormat("th-TH", {
+        minimumFractionDigits: hasDecimal ? 2 : 0,
+        maximumFractionDigits: 2,
+      }).format(numeric) + " บาท"
+    );
   };
 
   const showCondition = (fundName, condition) => {
@@ -430,7 +482,7 @@ export default function PromotionFundContent() {
 
   const renderFundRow = (fund) => {
     const fundName = fund.subcategory_name || "ไม่ระบุ";
-    const remainingBudget = fund.remaining_budget ?? 0;
+    const remainingBudget = parseBudgetValue(fund.remaining_budget);
 
     return (
       <tr key={fund.subcategory_id} className={!isWithinApplicationPeriod ? "bg-gray-50" : ""}>
@@ -548,7 +600,8 @@ export default function PromotionFundContent() {
             <div className="text-2xl font-semibold text-green-600">
               {filteredFunds.reduce(
                 (sum, cat) =>
-                  sum + (cat.subcategories?.filter((s) => s.remaining_budget > 0).length || 0),
+                  sum +
+                  (cat.subcategories?.filter((s) => parseBudgetValue(s.remaining_budget) > 0).length || 0),
                 0
               )}
             </div>
@@ -561,7 +614,7 @@ export default function PromotionFundContent() {
                   (sum, cat) =>
                     sum +
                     (cat.subcategories?.reduce(
-                      (subSum, sub) => subSum + (sub.remaining_budget || 0),
+                      (subSum, sub) => subSum + parseBudgetValue(sub.remaining_budget),
                       0
                     ) || 0),
                   0
