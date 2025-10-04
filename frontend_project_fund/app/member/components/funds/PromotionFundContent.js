@@ -10,7 +10,7 @@ import { FORM_TYPE_CONFIG } from '../../../lib/form_type_config';
 import systemConfigAPI from '../../../lib/system_config_api';
 
 export default function PromotionFundContent({ onNavigate }) {
-  const [selectedYear, setSelectedYear] = useState("2568");
+  const [selectedYear, setSelectedYear] = useState("");
   const [fundCategories, setFundCategories] = useState([]);
   const [filteredFunds, setFilteredFunds] = useState([]);
   const [years, setYears] = useState([]);
@@ -91,15 +91,36 @@ export default function PromotionFundContent({ onNavigate }) {
       setLoading(true);
       setError(null);
 
-      const [roleInfo, yearsData, configData] = await Promise.all([
+      const [roleInfo, yearsData, configData, currentYearRes] = await Promise.all([
         targetRolesUtils.getCurrentUserRole(),
         loadAvailableYears(),
-        loadSystemConfig()
+        loadSystemConfig(),
+        systemConfigAPI.getCurrentYear().catch((err) => {
+          console.warn('Failed to fetch current year:', err);
+          return null;
+        }),
       ]);
 
       setUserRole(roleInfo);
       setYears(yearsData);
-      setSystemConfig(configData);
+      if (configData) {
+        setSystemConfig(configData);
+      }
+
+      const derivedYear = (() => {
+        if (currentYearRes?.current_year) return String(currentYearRes.current_year);
+        if (configData?.current_year) return String(configData.current_year);
+        if (Array.isArray(yearsData) && yearsData.length > 0) {
+          const first = yearsData[0];
+          if (first?.year) return String(first.year);
+          if (first?.year_id) return String(first.year_id);
+        }
+        return '';
+      })();
+
+      if (derivedYear) {
+        setSelectedYear(derivedYear);
+      }
 
       // funds will reload via selectedYear effect
     } catch (err) {
@@ -188,7 +209,14 @@ export default function PromotionFundContent({ onNavigate }) {
         now: win.now,
       });
 
-      return { start_date, end_date, is_open_effective: open };
+      return {
+        start_date,
+        end_date,
+        is_open_effective: open,
+        current_year: win.current_year ?? null,
+        last_updated: win.last_updated ?? null,
+        now: win.now ?? null,
+      };
     } catch (e) {
       console.warn('loadSystemConfig failed:', e);
       // อย่าบล็อกหน้า ถ้าโหลดไม่ได้ให้ถือว่าเปิดไว้ก่อน

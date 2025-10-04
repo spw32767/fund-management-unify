@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { Search, Filter, Eye, Download, FileText, ClipboardList, Plus } from "lucide-react";
 import { submissionAPI, teacherAPI } from "@/app/lib/member_api";
+import systemConfigAPI from "@/app/lib/system_config_api";
 import { statusService } from "@/app/lib/status_service";
 import { useStatusMap } from "@/app/hooks/useStatusMap";
 import StatusBadge from "../common/StatusBadge";
@@ -17,16 +18,79 @@ export default function ApplicationList({ onNavigate }) {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [yearFilter, setYearFilter] = useState("all");
+  const [yearOptions, setYearOptions] = useState([]);
+  const [yearIdMap, setYearIdMap] = useState({});
+  const [defaultYear, setDefaultYear] = useState("all");
   const [loading, setLoading] = useState(false);
   const { statuses: statusOptions, getLabelById, isLoading: statusLoading } = useStatusMap();
-  
-  // Map display year to year_id used by API
-  const YEAR_ID_MAP = { "2566": 1, "2567": 2, "2568": 3 };
+
+  useEffect(() => {
+    const loadYearOptions = async () => {
+      try {
+        const [yearsData, currentYearRes] = await Promise.all([
+          fetch("/api/years")
+            .then((res) => {
+              if (!res.ok) throw new Error("Failed to load years");
+              return res.json();
+            })
+            .then((data) => {
+              if (data?.success) {
+                const list = data.years || data.data || [];
+                return list.filter((year) => year && year.year && year.year_id);
+              }
+              return [];
+            })
+            .catch((error) => {
+              console.error("Error fetching year options:", error);
+              return [];
+            }),
+          systemConfigAPI.getCurrentYear().catch((err) => {
+            console.warn("Failed to fetch current year for applications:", err);
+            return null;
+          }),
+        ]);
+
+        const sortedYears = yearsData
+          .map((year) => ({
+            year: String(year.year),
+            year_id: year.year_id,
+          }))
+          .filter((year) => year.year && year.year_id != null)
+          .sort((a, b) => Number(b.year) - Number(a.year));
+
+        const map = {};
+        const optionList = sortedYears.map((item) => {
+          map[item.year] = item.year_id;
+          return item.year;
+        });
+
+        setYearIdMap(map);
+        setYearOptions(optionList);
+
+        const resolvedYear = (() => {
+          if (currentYearRes?.current_year) return String(currentYearRes.current_year);
+          if (optionList.length > 0) return optionList[0];
+          return "";
+        })();
+
+        if (resolvedYear) {
+          setDefaultYear(resolvedYear);
+          setYearFilter((prev) => (prev === resolvedYear ? prev : resolvedYear));
+        } else {
+          setDefaultYear("all");
+        }
+      } catch (error) {
+        console.error("Error loading year options:", error);
+      }
+    };
+
+    loadYearOptions();
+  }, []);
 
   // Load applications on mount and when year filter changes
   useEffect(() => {
     loadApplications();
-  }, [yearFilter]);
+  }, [yearFilter, yearIdMap]);
 
   useEffect(() => {
     filterApplications();
@@ -39,8 +103,12 @@ export default function ApplicationList({ onNavigate }) {
       // Build query params for API
       const params = { limit: 100 };
       if (yearFilter !== "all") {
-        const yearId = YEAR_ID_MAP[yearFilter];
-        if (yearId) params.year_id = yearId;
+        const yearId = yearIdMap[yearFilter];
+        if (yearId) {
+          params.year_id = yearId;
+        } else {
+          params.year = yearFilter;
+        }
       }
 
       const [response, subRes] = await Promise.all([
@@ -369,9 +437,11 @@ export default function ApplicationList({ onNavigate }) {
             onChange={(e) => setYearFilter(e.target.value)}
           >
             <option value="all">ปีทั้งหมด</option>
-            <option value="2568">2568</option>
-            <option value="2567">2567</option>
-            <option value="2566">2566</option>
+            {yearOptions.map((year) => (
+              <option key={year} value={year}>
+                {year}
+              </option>
+            ))}
           </select>
         </div>
 
@@ -397,7 +467,7 @@ export default function ApplicationList({ onNavigate }) {
                   onClick={() => {
                     setSearchTerm('');
                     setStatusFilter('all');
-                    setYearFilter('all');
+                    setYearFilter(defaultYear !== 'all' ? defaultYear : 'all');
                   }}
                   className="btn btn-secondary"
                 >
