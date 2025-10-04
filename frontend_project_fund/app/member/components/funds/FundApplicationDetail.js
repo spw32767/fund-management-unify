@@ -168,43 +168,6 @@ export default function FundApplicationDetail({ submissionId, onNavigate }) {
     return applicantEntry?.user || applicantEntry?.User || null;
   };
 
-  if (loading) {
-    return (
-      <PageLayout
-        title="รายละเอียดคำร้อง"
-        subtitle="กำลังโหลดข้อมูล..."
-        icon={FileText}
-      >
-        <div className="flex justify-center items-center py-12">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-            <p className="mt-4 text-gray-600">กำลังโหลดข้อมูล...</p>
-          </div>
-        </div>
-      </PageLayout>
-    );
-  }
-
-  if (!submission) {
-    return (
-      <PageLayout
-        title="ไม่พบข้อมูล"
-        subtitle="ไม่พบข้อมูลคำร้องที่ต้องการ"
-        icon={AlertCircle}
-      >
-        <Card collapsible={false}>
-          <div className="text-center py-12">
-            <AlertCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
-            <p className="text-gray-600">ไม่พบข้อมูลคำร้องที่ต้องการ</p>
-            <button onClick={handleBack} className="btn btn-primary mt-4">
-              กลับไปหน้ารายการ
-            </button>
-          </div>
-        </Card>
-      </PageLayout>
-    );
-  }
-
   const detail = useMemo(() => {
     return (
       submission?.fund_application_detail ||
@@ -214,16 +177,6 @@ export default function FundApplicationDetail({ submissionId, onNavigate }) {
       {}
     );
   }, [submission]);
-  const documents =
-    submission.documents || submission.submission_documents || [];
-  const applicant = getApplicant();
-
-  const statusCode =
-    getCodeById(submission.status_id) || submission.Status?.status_code;
-  const StatusIcon = getColoredStatusIcon(statusCode);
-  const submittedAt = submission.submitted_at || submission.created_at;
-  const announceReference =
-    submission.announce_reference_number || detail.announce_reference_number;
   const mainAnnouncementId = detail.main_annoucement || detail.main_announcement;
   const activityAnnouncementId =
     detail.activity_support_announcement || detail.activity_announcement;
@@ -297,6 +250,54 @@ export default function FundApplicationDetail({ submissionId, onNavigate }) {
       cancelled = true;
     };
   }, [mainAnnouncementId, activityAnnouncementId]);
+
+  if (loading) {
+    return (
+      <PageLayout
+        title="รายละเอียดคำร้อง"
+        subtitle="กำลังโหลดข้อมูล..."
+        icon={FileText}
+      >
+        <div className="flex justify-center items-center py-12">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+            <p className="mt-4 text-gray-600">กำลังโหลดข้อมูล...</p>
+          </div>
+        </div>
+      </PageLayout>
+    );
+  }
+
+  if (!submission) {
+    return (
+      <PageLayout
+        title="ไม่พบข้อมูล"
+        subtitle="ไม่พบข้อมูลคำร้องที่ต้องการ"
+        icon={AlertCircle}
+      >
+        <Card collapsible={false}>
+          <div className="text-center py-12">
+            <AlertCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
+            <p className="text-gray-600">ไม่พบข้อมูลคำร้องที่ต้องการ</p>
+            <button onClick={handleBack} className="btn btn-primary mt-4">
+              กลับไปหน้ารายการ
+            </button>
+          </div>
+        </Card>
+      </PageLayout>
+    );
+  }
+
+  const documents =
+    submission.documents || submission.submission_documents || [];
+  const applicant = getApplicant();
+
+  const statusCode =
+    getCodeById(submission.status_id) || submission.Status?.status_code;
+  const StatusIcon = getColoredStatusIcon(statusCode);
+  const submittedAt = submission.submitted_at || submission.created_at;
+  const announceReference =
+    submission.announce_reference_number || detail.announce_reference_number;
 
   return (
     <PageLayout
