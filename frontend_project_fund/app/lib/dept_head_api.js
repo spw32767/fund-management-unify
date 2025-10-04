@@ -89,22 +89,15 @@ export const deptHeadAPI = {
     return { submission, details, submission_users, documents, success: true };
   },
 
-  // เอกสารของคำร้อง (endpoint กลาง ใช้ได้ทุก role)
+  // app/lib/dept_head_api.js
   async getSubmissionDocuments(submissionId, params = {}) {
-    return apiClient.get(`/submissions/${submissionId}/documents`, { params });
+    // เดิม: return apiClient.get(`/submissions/${submissionId}/documents`, { params });
+    return apiClient.get(`/submissions/${submissionId}/documents`, params);
   },
 
-  // ประเภทเอกสาร (endpoint กลาง legacy)
   async getDocumentTypes(params = {}) {
-    // มีทั้ง /document-types และ /documents/types ในระบบ — เลือกตัวแรกก่อน
-    try {
-      return await apiClient.get('/document-types', { params });
-    } catch (e) {
-      if (String(e?.status) === '404') {
-        return await apiClient.get('/documents/types', { params });
-      }
-      throw e;
-    }
+    // เดิม: return apiClient.get('/document-types', { params });
+    return apiClient.get('/document-types', params);
   },
 
   // การดำเนินการของหัวหน้าสาขา
