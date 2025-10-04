@@ -1,15 +1,14 @@
 // app/teacher/components/funds/PromotionFundContent.js - ทุนอุดหนุนกิจกรรม (Using New API)
 "use client";
 
-import { useState, useEffect, useRef } from "react";
-import { TrendingUp, Search, Download, X, Info, Clock, AlertTriangle } from "lucide-react";
+import { useState, useEffect } from "react";
+import { TrendingUp, Search, Info, Clock, AlertTriangle } from "lucide-react";
 import PageLayout from "../common/PageLayout";
 import { teacherAPI } from '../../../lib/member_api';
 import { targetRolesUtils, filterFundsByRole } from '../../../lib/target_roles_utils';
-import { FORM_TYPE_CONFIG } from '../../../lib/form_type_config';
 import systemConfigAPI from '../../../lib/system_config_api';
 
-export default function PromotionFundContent({ onNavigate }) {
+export default function PromotionFundContent() {
   const [selectedYear, setSelectedYear] = useState("2568");
   const [fundCategories, setFundCategories] = useState([]);
   const [filteredFunds, setFilteredFunds] = useState([]);
@@ -27,16 +26,6 @@ export default function PromotionFundContent({ onNavigate }) {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   
-  // Modal state for fund condition
-  const [showConditionModal, setShowConditionModal] = useState(false);
-  const [selectedCondition, setSelectedCondition] = useState({ title: '', content: '' });
-  const modalRef = useRef(null);
-
-  useEffect(() => {
-    if (showConditionModal && modalRef.current) {
-      modalRef.current.focus();
-    }
-  }, [showConditionModal]);
 
   useEffect(() => {
     loadInitialData();
@@ -382,49 +371,6 @@ export default function PromotionFundContent({ onNavigate }) {
     loadFundData(selectedYear);
   };
 
-  const findParentCategoryId = (subcategoryId) => {
-    const parent = fundCategories.find(cat =>
-      cat.subcategories?.some(sub => {
-        const currentId = sub.subcategory_id ?? sub.subcategorie_id;
-        return currentId === subcategoryId;
-      })
-    );
-    return parent?.category_id;
-  };
-
-  const handleViewDetails = (subcategory) => {
-    const formType = subcategory.form_type || 'download';
-    const formConfig = FORM_TYPE_CONFIG[formType] || {};
-    if (formConfig.isOnlineForm && onNavigate) {
-      const subcategoryId = subcategory.subcategory_id ?? subcategory.subcategorie_id;
-      const categoryId = findParentCategoryId(subcategoryId);
-      const yearObj = years.find(y => y.year === selectedYear);
-      const yearId = yearObj?.year_id;
-
-      try { sessionStorage.setItem('fund_form_readonly', '1'); } catch {}
-
-      // จะใส่ query ย้ำด้วยก็ได้: `${formConfig.route}?readonly=1`
-      onNavigate(formConfig.route, {
-        category_id: categoryId,
-        year_id: yearId,
-        subcategory,
-      });
-    } else {
-      const docUrl = subcategory.form_url || '/documents/default-fund-form.docx';
-      window.open(docUrl, '_blank');
-    }
-  };
-
-  const formatAmount = (amount) => {
-    if (!amount && amount !== 0) return 'ไม่ระบุ';
-    return new Intl.NumberFormat('th-TH').format(amount) + ' บาท';
-  };
-
-  const showCondition = (fundName, condition) => {
-    setSelectedCondition({ title: fundName, content: condition });
-    setShowConditionModal(true);
-  };
-
   const renderApplicationPeriodInfo = () => {
     if (!systemConfig) return null;
 
@@ -513,78 +459,16 @@ export default function PromotionFundContent({ onNavigate }) {
     );
   }
 
-  const renderFundRow = (fund, isAvailable) => {
+  const renderFundRow = (fund) => {
     const fundName = fund.subcategory_name || fund.subcategorie_name || 'ไม่ระบุ';
-    const remainingBudget = fund.remaining_budget ?? 0;
-    const formType = fund.form_type || 'download';
-    const formConfig = FORM_TYPE_CONFIG[formType] || {};
-    const isOnlineForm = !!formConfig.isOnlineForm;
-
-    const fundId = fund.subcategory_id ?? fund.subcategorie_id ?? `${fundName}-${formType}`;
+    const fundId = fund.subcategory_id ?? fund.subcategorie_id ?? fundName;
 
     return (
-      <tr key={fundId} className={!isWithinApplicationPeriod || !isAvailable ? 'bg-gray-50' : ''}>
+      <tr key={fundId}>
         <td className="px-6 py-4">
           <div className="text-sm font-medium text-gray-900 max-w-lg break-words leading-relaxed">
             {fundName}
           </div>
-          {fund.has_multiple_levels && (
-            <div className="text-xs text-gray-500 mt-1">
-              (มี {fund.budget_count} ระดับ)
-            </div>
-          )}
-          {(isOnlineForm || fund.form_url) && (
-            <div className="mt-3 flex flex-wrap gap-2 text-sm">
-              {isOnlineForm ? (
-                <button
-                  onClick={() => handleViewDetails(fund)}
-                  className="inline-flex items-center gap-2 px-3 py-1.5 font-medium text-blue-600 hover:text-blue-700"
-                  title="เปิดดูรายละเอียดแบบฟอร์ม (อ่านอย่างเดียว)"
-                >
-                  <Search size={16} />
-                  ดูรายละเอียดแบบฟอร์ม
-                </button>
-              ) : (
-                <button
-                  onClick={() => {
-                    const docUrl = fund.form_url || "/documents/default-fund-form.docx";
-                    window.open(docUrl, "_blank");
-                  }}
-                  className="inline-flex items-center gap-2 px-3 py-1.5 font-medium text-blue-600 hover:text-blue-700"
-                  title="ดาวน์โหลดแบบฟอร์ม"
-                >
-                  <Download size={16} />
-                  ดาวน์โหลดฟอร์ม
-                </button>
-              )}
-            </div>
-          )}
-        </td>
-        <td className="px-6 py-4">
-          <div className="text-sm text-gray-900">
-            {fund.fund_condition ? (
-              <button
-                onClick={() => showCondition(fundName, fund.fund_condition)}
-                className="text-blue-600 hover:text-blue-800 underline flex items-center gap-1"
-              >
-                <Info className="w-4 h-4" />
-                ดูเงื่อนไข
-              </button>
-            ) : (
-              <span className="text-gray-500">ไม่มีเงื่อนไขเฉพาะ</span>
-            )}
-          </div>
-        </td>
-        <td className="px-6 py-4">
-          <div className="text-sm font-medium text-gray-900">
-            {formatAmount(remainingBudget)}
-          </div>
-
-          {isWithinApplicationPeriod && remainingBudget === 0 ? (
-            <div className="text-xs text-red-600 mt-1">งบประมาณหมด</div>
-          ) : !isWithinApplicationPeriod ? (
-            <div className="text-xs text-gray-500 mt-1">ปิดรับคำขอ</div>
-          ) : null}
         </td>
       </tr>
     );
@@ -665,37 +549,6 @@ export default function PromotionFundContent({ onNavigate }) {
         </div>
       </div>
 
-      {/* Summary Stats (Optional) */}
-      {filteredFunds.length > 0 && (
-        <div className="mb-4 grid grid-cols-3 gap-4">
-          <div className="bg-white p-4 rounded-lg shadow-sm">
-            <div className="text-sm text-gray-500">จำนวนทุนทั้งหมด</div>
-            <div className="text-2xl font-semibold text-gray-900">
-              {filteredFunds.reduce((sum, cat) => sum + (cat.subcategories?.length || 0), 0)}
-            </div>
-          </div>
-          <div className="bg-white p-4 rounded-lg shadow-sm">
-            <div className="text-sm text-gray-500">ทุนที่มีงบประมาณ</div>
-            <div className="text-2xl font-semibold text-green-600">
-              {filteredFunds.reduce((sum, cat) => 
-                sum + (cat.subcategories?.filter(s => s.remaining_budget > 0).length || 0), 0
-              )}
-            </div>
-          </div>
-          <div className="bg-white p-4 rounded-lg shadow-sm">
-            <div className="text-sm text-gray-500">งบประมาณรวมคงเหลือ</div>
-            <div className="text-xl font-semibold text-blue-600">
-              {formatAmount(
-                filteredFunds.reduce((sum, cat) => 
-                  sum + (cat.subcategories?.reduce((subSum, sub) => 
-                    subSum + (sub.remaining_budget || 0), 0) || 0), 0
-                )
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* Funds Table */}
       {filteredFunds.length === 0 ? (
         <div className="bg-white rounded-lg shadow-sm p-8 text-center">
@@ -715,33 +568,24 @@ export default function PromotionFundContent({ onNavigate }) {
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-2/5">
-                    ชื่อทุน
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-1/4">
-                    เงื่อนไขทุน
-                  </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    งบประมาณคงเหลือ
+                    ชื่อทุน
                   </th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
                 {filteredFunds.map((category) => {
                   if (category.subcategories && category.subcategories.length > 0) {
-                    return category.subcategories.map((fund) => {
-                      const isAvailable = fund.remaining_budget > 0;
-                      return renderFundRow(fund, isAvailable);
-                    });
-                  } else {
-                    return (
-                      <tr key={category.category_id}>
-                        <td colSpan="3" className="px-6 py-4 text-center text-gray-500">
-                          ไม่มีทุนย่อยในหมวด {category.category_name}
-                        </td>
-                      </tr>
-                    );
+                    return category.subcategories.map((fund) => renderFundRow(fund));
                   }
+
+                  return (
+                    <tr key={category.category_id}>
+                      <td className="px-6 py-4 text-center text-gray-500">
+                        ไม่มีทุนย่อยในหมวด {category.category_name}
+                      </td>
+                    </tr>
+                  );
                 })}
               </tbody>
             </table>
@@ -749,63 +593,6 @@ export default function PromotionFundContent({ onNavigate }) {
         </div>
       )}
 
-      {/* Condition Modal */}
-      {showConditionModal && (
-        <div 
-          className="fixed inset-0 z-50 flex items-center justify-center p-4"
-          onClick={(e) => {
-            if (e.target === e.currentTarget) {
-              setShowConditionModal(false);
-            }
-          }}
-        >
-          <div
-            className="fixed inset-0 bg-gray-500 opacity-75 transition-opacity duration-300 ease-in-out"
-            onClick={() => setShowConditionModal(false)}
-            aria-hidden="true"
-          ></div>
-
-          <div 
-            ref={modalRef}
-            className="relative bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all duration-300 ease-in-out max-w-2xl w-full max-h-[90vh] flex flex-col"
-            role="dialog"
-            aria-labelledby="modal-title"
-            aria-describedby="modal-description"
-            tabIndex={-1}
-          >
-            <div className="bg-white px-4 pt-5 pb-4 sm:p-6 border-b border-gray-200 flex-shrink-0">
-              <div className="flex justify-between items-start">
-                <h3 className="text-lg leading-6 font-medium text-gray-900 pr-4" id="modal-title">
-                  เงื่อนไขทุน: {selectedCondition.title}
-                </h3>
-                <button
-                  type="button"
-                  className="text-gray-400 hover:text-gray-500 flex-shrink-0"
-                  onClick={() => setShowConditionModal(false)}
-                >
-                  <X size={20} />
-                </button>
-              </div>
-            </div>
-            
-            <div className="flex-1 overflow-y-auto px-4 py-4 sm:px-6">
-              <div className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed" id="modal-description">
-                {selectedCondition.content}
-              </div>
-            </div>
-            
-            <div className="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse border-t border-gray-200 flex-shrink-0">
-              <button
-                type="button"
-                className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-blue-600 text-base font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:ml-3 sm:w-auto sm:text-sm"
-                onClick={() => setShowConditionModal(false)}
-              >
-                ปิด
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </PageLayout>
   );
 }
