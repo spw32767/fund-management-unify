@@ -744,27 +744,6 @@ export default function PublicationRewardDetail({ submissionId, onNavigate }) {
         </div>
       </Card>
 
-      {/* Applicant Info */}
-      <Card
-        title="ข้อมูลผู้ยื่นคำร้อง (Applicant Details)"
-        icon={User}
-        collapsible={false}
-        className="mb-6"
-      >
-        <div className="space-y-4">
-          <div>
-            <label className="text-sm text-gray-500">ชื่อผู้ยื่นคำร้อง (Applicant)</label>
-            <p className="font-medium">{getUserFullName(applicant)}</p>
-          </div>
-          {getUserEmail(applicant) && (
-            <div>
-              <label className="text-sm text-gray-500">อีเมล (Email)</label>
-              <p className="font-medium">{getUserEmail(applicant)}</p>
-            </div>
-          )}
-        </div>
-      </Card>
-
       {/* Tabs */}
       <div className="border-b border-gray-200 mb-6">
         <nav className="-mb-px flex space-x-8">
