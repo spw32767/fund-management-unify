@@ -6,7 +6,6 @@
 import { useState, useEffect, useRef } from "react";
 import {
   DollarSign,
-  Search,
   X,
   Info,
   Clock,
@@ -355,21 +354,6 @@ export default function ResearchFundContent({ onNavigate }) {
     return y?.year_id ?? yearId ?? null;
   };
 
-  const handleViewDetails = (subcategory) => {
-    // ผู้ดูแลระบบสามารถดูรายละเอียดได้แบบอ่านอย่างเดียวเท่านั้น
-    try {
-      sessionStorage.setItem("fund_form_readonly", "1");
-    } catch {}
-    if (onNavigate) {
-      onNavigate("generic-fund-application", {
-        subcategory_id: subcategory.subcategory_id || subcategory.subcategorie_id,
-        subcategory_name: subcategory.subcategory_name || subcategory.subcategorie_name,
-        year_id: yearIdFromSelectedYear(),
-        subcategory,
-      });
-    }
-  };
-
   const renderApplicationPeriodInfo = () => {
     if (!systemConfig) return null;
 
@@ -475,16 +459,8 @@ export default function ResearchFundContent({ onNavigate }) {
           {fund.has_multiple_levels && (
             <div className="text-xs text-gray-500 mt-1">(มี {fund.budget_count} ระดับ)</div>
           )}
-          <div className="mt-2 inline-flex flex-wrap items-center gap-3 text-sm">
-            <button
-              onClick={() => handleViewDetails(fund)}
-              className="inline-flex items-center gap-2 px-1 py-2 font-medium text-blue-600 hover:text-blue-700"
-              title="เปิดดูรายละเอียดแบบอ่านอย่างเดียว"
-            >
-              <Search size={16} />
-              ดูรายละเอียด
-            </button>
-            <span className="text-xs text-gray-500 italic">ผู้ดูแลไม่สามารถยื่นขอทุน</span>
+          <div className="mt-2 text-xs text-gray-500 italic">
+            ผู้ดูแลสามารถดูรายการทุนเท่านั้นและไม่สามารถเปิดรายละเอียดหรือยื่นขอทุนได้
           </div>
         </td>
 
