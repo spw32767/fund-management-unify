@@ -533,6 +533,32 @@ export default function PromotionFundContent({ onNavigate }) {
               (มี {fund.budget_count} ระดับ)
             </div>
           )}
+          {(isOnlineForm || fund.form_url) && (
+            <div className="mt-3 flex flex-wrap gap-2 text-sm">
+              {isOnlineForm ? (
+                <button
+                  onClick={() => handleViewDetails(fund)}
+                  className="inline-flex items-center gap-2 px-3 py-1.5 font-medium text-blue-600 hover:text-blue-700"
+                  title="เปิดดูรายละเอียดแบบฟอร์ม (อ่านอย่างเดียว)"
+                >
+                  <Search size={16} />
+                  ดูรายละเอียดแบบฟอร์ม
+                </button>
+              ) : (
+                <button
+                  onClick={() => {
+                    const docUrl = fund.form_url || "/documents/default-fund-form.docx";
+                    window.open(docUrl, "_blank");
+                  }}
+                  className="inline-flex items-center gap-2 px-3 py-1.5 font-medium text-blue-600 hover:text-blue-700"
+                  title="ดาวน์โหลดแบบฟอร์ม"
+                >
+                  <Download size={16} />
+                  ดาวน์โหลดฟอร์ม
+                </button>
+              )}
+            </div>
+          )}
         </td>
         <td className="px-6 py-4">
           <div className="text-sm text-gray-900">
@@ -559,30 +585,6 @@ export default function PromotionFundContent({ onNavigate }) {
           ) : !isWithinApplicationPeriod ? (
             <div className="text-xs text-gray-500 mt-1">ปิดรับคำขอ</div>
           ) : null}
-        </td>
-        <td className="px-6 py-4 text-center">
-          {isOnlineForm ? (
-            <button
-              onClick={() => handleViewDetails(fund)}
-              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-blue-600 hover:text-blue-700"
-              title="เปิดดูรายละเอียดแบบฟอร์ม (อ่านอย่างเดียว)"
-            >
-              <Search size={16} />
-              ดูรายละเอียด
-            </button>
-          ) : (
-            <button
-              onClick={() => {
-                const docUrl = fund.form_url || "/documents/default-fund-form.docx";
-                window.open(docUrl, "_blank");
-              }}
-              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-blue-600 hover:text-blue-700"
-              title="ดาวน์โหลดแบบฟอร์ม"
-            >
-              <Download size={16} />
-              ดาวน์โหลดฟอร์ม
-            </button>
-          )}
         </td>
       </tr>
     );
@@ -722,9 +724,6 @@ export default function PromotionFundContent({ onNavigate }) {
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     งบประมาณคงเหลือ
                   </th>
-                  <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    แบบฟอร์มขอทุน
-                  </th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
@@ -737,7 +736,7 @@ export default function PromotionFundContent({ onNavigate }) {
                   } else {
                     return (
                       <tr key={category.category_id}>
-                        <td colSpan="4" className="px-6 py-4 text-center text-gray-500">
+                        <td colSpan="3" className="px-6 py-4 text-center text-gray-500">
                           ไม่มีทุนย่อยในหมวด {category.category_name}
                         </td>
                       </tr>
