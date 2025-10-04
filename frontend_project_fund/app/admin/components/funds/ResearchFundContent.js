@@ -475,6 +475,17 @@ export default function ResearchFundContent({ onNavigate }) {
           {fund.has_multiple_levels && (
             <div className="text-xs text-gray-500 mt-1">(มี {fund.budget_count} ระดับ)</div>
           )}
+          <div className="mt-2 inline-flex flex-wrap items-center gap-3 text-sm">
+            <button
+              onClick={() => handleViewDetails(fund)}
+              className="inline-flex items-center gap-2 px-1 py-2 font-medium text-blue-600 hover:text-blue-700"
+              title="เปิดดูรายละเอียดแบบอ่านอย่างเดียว"
+            >
+              <Search size={16} />
+              ดูรายละเอียด
+            </button>
+            <span className="text-xs text-gray-500 italic">ผู้ดูแลไม่สามารถยื่นขอทุน</span>
+          </div>
         </td>
 
         <td className="px-6 py-4">
@@ -503,22 +514,6 @@ export default function ResearchFundContent({ onNavigate }) {
           ) : !isWithinApplicationPeriod ? (
             <div className="text-xs text-gray-500 mt-1">ปิดรับคำขอ</div>
           ) : null}
-        </td>
-
-        <td className="px-6 py-4 text-center">
-          <div className="inline-flex items-center gap-3">
-            <button
-              onClick={() => handleViewDetails(fund)}
-              className="inline-flex items-center gap-2 px-1 py-2 text-sm font-medium text-blue-600 hover:text-blue-700"
-              title="เปิดดูรายละเอียดแบบอ่านอย่างเดียว"
-            >
-              <Search size={16} />
-              ดูรายละเอียด
-            </button>
-            <span className="text-xs text-gray-500 italic">
-              ผู้ดูแลไม่สามารถยื่นขอทุน
-            </span>
-          </div>
         </td>
       </tr>
     );
@@ -660,9 +655,6 @@ export default function ResearchFundContent({ onNavigate }) {
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     งบประมาณคงเหลือ
                   </th>
-                  <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    แบบฟอร์มขอทุน
-                  </th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
@@ -672,7 +664,7 @@ export default function ResearchFundContent({ onNavigate }) {
                   } else {
                     return (
                       <tr key={category.category_id}>
-                        <td colSpan="4" className="px-6 py-4 text-center text-gray-500">
+                        <td colSpan="3" className="px-6 py-4 text-center text-gray-500">
                           ไม่มีทุนย่อยในหมวด {category.category_name}
                         </td>
                       </tr>
