@@ -24,7 +24,7 @@ import {
   FileCheck,
 } from "lucide-react";
 import { submissionAPI, submissionUsersAPI } from "@/app/lib/member_api";
-import apiClient from "@/app/lib/api";
+import apiClient, { announcementAPI } from "@/app/lib/api";
 import PageLayout from "../common/PageLayout";
 import Card from "../common/Card";
 import StatusBadge from "../common/StatusBadge";
@@ -204,6 +204,8 @@ export default function PublicationRewardDetail({ submissionId, onNavigate }) {
   const [submission, setSubmission] = useState(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("details");
+  const [mainAnnouncementDetail, setMainAnnouncementDetail] = useState(null);
+  const [rewardAnnouncementDetail, setRewardAnnouncementDetail] = useState(null);
   const { getLabelById, getCodeById } = useStatusMap();
 
   const getUserFullName = (user) => {
@@ -279,6 +281,82 @@ export default function PublicationRewardDetail({ submissionId, onNavigate }) {
       loadSubmissionDetail();
     }
   }, [submissionId]);
+
+  useEffect(() => {
+    if (!submission) {
+      setMainAnnouncementDetail(null);
+      setRewardAnnouncementDetail(null);
+      return;
+    }
+
+    const detail =
+      submission?.PublicationRewardDetail ||
+      submission?.publication_reward_detail ||
+      submission?.details?.data?.publication_reward_detail ||
+      submission?.details?.data ||
+      null;
+
+    if (!detail) {
+      setMainAnnouncementDetail(null);
+      setRewardAnnouncementDetail(null);
+      return;
+    }
+
+    const mainId = detail?.main_annoucement ?? detail?.main_announcement ?? null;
+    const rewardId = detail?.reward_announcement ?? null;
+
+    if (!mainId && !rewardId) {
+      setMainAnnouncementDetail(null);
+      setRewardAnnouncementDetail(null);
+      return;
+    }
+
+    let cancelled = false;
+
+    (async () => {
+      try {
+        if (mainId) {
+          const response = await announcementAPI.getAnnouncement(mainId);
+          if (!cancelled) {
+            const parsed =
+              response?.announcement ||
+              response?.data?.announcement ||
+              response?.data ||
+              response ||
+              null;
+            setMainAnnouncementDetail(parsed || null);
+          }
+        } else if (!cancelled) {
+          setMainAnnouncementDetail(null);
+        }
+
+        if (rewardId) {
+          const response = await announcementAPI.getAnnouncement(rewardId);
+          if (!cancelled) {
+            const parsed =
+              response?.announcement ||
+              response?.data?.announcement ||
+              response?.data ||
+              response ||
+              null;
+            setRewardAnnouncementDetail(parsed || null);
+          }
+        } else if (!cancelled) {
+          setRewardAnnouncementDetail(null);
+        }
+      } catch (error) {
+        console.warn("Unable to load announcement detail", error);
+        if (!cancelled) {
+          setMainAnnouncementDetail(null);
+          setRewardAnnouncementDetail(null);
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [submission]);
 
   const loadSubmissionDetail = async () => {
     setLoading(true);
@@ -496,6 +574,7 @@ export default function PublicationRewardDetail({ submissionId, onNavigate }) {
   };
 
   const mainAnnouncementRaw =
+    mainAnnouncementDetail ??
     pubDetail?.main_announcement_detail ??
     pubDetail?.main_annoucement_detail ??
     pubDetail?.main_announcement ??
@@ -503,6 +582,7 @@ export default function PublicationRewardDetail({ submissionId, onNavigate }) {
     null;
 
   const rewardAnnouncementRaw =
+    rewardAnnouncementDetail ??
     pubDetail?.reward_announcement_detail ??
     pubDetail?.reward_announcement_obj ??
     pubDetail?.reward_announcement ??
