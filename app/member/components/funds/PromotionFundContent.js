@@ -592,37 +592,39 @@ export default function PromotionFundContent({ onNavigate }) {
         </td>
         <td className="px-6 py-4 text-center">
           {(() => {
-            const isOnlineForm = (FORM_TYPE_CONFIG[fund.form_type] || FORM_TYPE_CONFIG['download'])?.isOnlineForm === true;
+            const isOnlineForm =
+              (FORM_TYPE_CONFIG[fund.form_type] || FORM_TYPE_CONFIG["download"])
+                ?.isOnlineForm === true;
             const applyDisabled = !isWithinApplicationPeriod || remainingBudget === 0;
 
-            // ถ้าเป็น online form → แสดงปุ่มคู่ "ดูรายละเอียด / กรอกแบบฟอร์ม"
             if (isOnlineForm) {
               return (
-                <div className="inline-flex items-center gap-2">
+                <div className="inline-flex items-center gap-3">
                   {/* ดูรายละเอียด (อ่านอย่างเดียวเสมอ) */}
                   <button
                     onClick={() => handleViewDetails(fund)}
                     className="inline-flex items-center gap-2 px-1 py-2 text-sm font-medium text-blue-600 hover:text-blue-700"
                     title="เปิดดูรายละเอียด (อ่านอย่างเดียว)"
                   >
-                    <ButtonIcon size={16} />
+                    <Search size={16} />
                     ดูรายละเอียด
                   </button>
 
-                  {/* ตัวคั่น "/" */}
-                  <span className="text-gray-300 select-none">/</span>
-
-                  {/* กรอกแบบฟอร์ม (ปิด/เทา ถ้านอกช่วงเวลา หรือ งบหมด) */}
+                  {/* ปุ่มหลัก: กรอกแบบฟอร์ม */}
                   <button
                     onClick={() => handleApplyForm(fund)}
-                    className={`inline-flex items-center gap-2 px-1 py-2 text-sm font-medium ${
-                      applyDisabled ? 'text-gray-400 cursor-not-allowed' : 'text-blue-600 hover:text-blue-700'
+                    className={`inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg ${
+                      applyDisabled
+                        ? "bg-gray-200 text-gray-500 cursor-not-allowed"
+                        : "bg-blue-600 text-white hover:bg-blue-700"
                     }`}
                     disabled={applyDisabled}
                     title={
                       !isWithinApplicationPeriod
-                        ? 'อยู่นอกช่วงเวลายื่นขอ'
-                        : (remainingBudget === 0 ? 'งบประมาณหมดแล้ว' : 'กรอกแบบฟอร์ม')
+                        ? "อยู่นอกช่วงเวลายื่นขอ"
+                        : remainingBudget === 0
+                        ? "งบประมาณหมดแล้ว"
+                        : "กรอกแบบฟอร์ม"
                     }
                   >
                     <ButtonIcon size={16} />
@@ -632,12 +634,13 @@ export default function PromotionFundContent({ onNavigate }) {
               );
             }
 
-            // ถ้าเป็นแบบ download → ใช้ปุ่มเดิม (ดาวน์โหลดฟอร์ม)
+            // แบบ download: คงพฤติกรรมเดิม
             return (
               <button
                 onClick={() => {
-                  const docUrl = fund.form_url || '/documents/default-fund-form.docx';
-                  window.open(docUrl, '_blank');
+                  const docUrl =
+                    fund.form_url || "/documents/default-fund-form.docx";
+                  window.open(docUrl, "_blank");
                 }}
                 className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-blue-600 hover:text-blue-700"
                 title="ดาวน์โหลดแบบฟอร์ม"
@@ -648,7 +651,6 @@ export default function PromotionFundContent({ onNavigate }) {
             );
           })()}
         </td>
-
       </tr>
     );
   };

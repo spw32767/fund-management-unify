@@ -105,8 +105,9 @@ function FundApprovalPanel({ submission, fundDetail, onApprove, onReject }) {
       : requested
   );
   const [announceRef, setAnnounceRef] = React.useState(fundDetail?.announce_reference_number || '');
-  const [comment, setComment] = React.useState(fundDetail?.comment || '');
-  const [errors, setErrors] = React.useState({});
+  const [comment, setComment] = React.useState(
+    submission?.admin_comment ?? submission?.comment ?? ''
+  );  const [errors, setErrors] = React.useState({});
 
   const validate = () => {
     const e = {};
@@ -153,7 +154,8 @@ function FundApprovalPanel({ submission, fundDetail, onApprove, onReject }) {
           await onApprove({
             approved_amount: Number(approved),
             announce_reference_number: announceRef?.trim() || null,
-            comment: comment?.trim() || null,
+            approval_comment: comment?.trim() || null,
+            admin_comment: comment?.trim() || null,
           });
         } catch (e) {
           Swal.showValidationMessage(e?.message || 'อนุมัติไม่สำเร็จ');

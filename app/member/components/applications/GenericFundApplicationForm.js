@@ -12,10 +12,41 @@ import { PDFDocument } from "pdf-lib";
 // เพิ่ม apiClient สำหรับเรียก API โดยตรง
 import apiClient from '../../../lib/api';
 import { submissionAPI, documentAPI, fileAPI} from '../../../lib/member_api';
-import { getStatusIdByCode } from '../../../lib/status_service';
+import { getStatusIdByCode, statusService } from '../../../lib/status_service';
 
 // Match backend utils.StatusCodeDeptHeadPending for initial submission status
 const DEPT_HEAD_PENDING_STATUS_CODE = '5';
+
+const resolveDeptHeadPendingStatusId = async () => {
+  try {
+    const statusId = await getStatusIdByCode(DEPT_HEAD_PENDING_STATUS_CODE);
+    if (statusId) {
+      return Number(statusId);
+    }
+  } catch (error) {
+    console.warn('Unable to resolve status via code lookup', error);
+  }
+
+  try {
+    const statuses = await statusService.fetchAll({ force: true });
+    const targetStatus = statuses.find((status) => {
+      if (!status) return false;
+
+      const codeMatches = String(status.status_code) === DEPT_HEAD_PENDING_STATUS_CODE;
+      const nameMatches = status.status_name?.toLowerCase?.().includes('หัวหน้าสาขา');
+
+      return codeMatches || nameMatches;
+    });
+
+    if (targetStatus?.application_status_id != null) {
+      return Number(targetStatus.application_status_id);
+    }
+  } catch (error) {
+    console.warn('Unable to resolve status via status service cache', error);
+  }
+
+  return null;
+};
 
 // =================================================================
 // FILE UPLOAD COMPONENT
@@ -691,7 +722,7 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
     try {
       setSubmitting(true);
 
-      const deptPendingStatusId = await getStatusIdByCode(DEPT_HEAD_PENDING_STATUS_CODE);
+      const deptPendingStatusId = await resolveDeptHeadPendingStatusId();
       if (!deptPendingStatusId) {
         throw new Error('ไม่พบสถานะสำหรับการพิจารณาของหัวหน้าสาขา');
       }

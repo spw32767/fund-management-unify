@@ -121,13 +121,15 @@ const firstNonEmpty = (...vals) => {
 };
 
 const getSubcategoryName = (submission, pubDetail) => {
-  // 1) จากรายละเอียดบทความ
+  // 1) จากรายละเอียดบทความ (ลองหลายชื่อ key)
   const fromDetail = firstNonEmpty(
     pubDetail?.subcategory_name_th,
     pubDetail?.subcategory_name,
     pubDetail?.fund_subcategory_name,
     pubDetail?.subcategory_label,
-    pubDetail?.fund_subcategory_label
+    pubDetail?.fund_subcategory_label,
+    pubDetail?.fund_name_th,
+    pubDetail?.fund_name
   );
   if (fromDetail) return fromDetail;
 
@@ -141,15 +143,17 @@ const getSubcategoryName = (submission, pubDetail) => {
   );
   if (fromSubmissionFlat) return fromSubmissionFlat;
 
-  // 3) จากอ็อบเจ็กต์ย่อย
+  // 3) จาก object ย่อยที่อาจแนบมา (ลองได้ทั้งเคสตัวพิมพ์ใหญ่เล็ก)
   const subcatObj =
     submission?.subcategory ||
-    submission?.fund_subcategory ||
     submission?.Subcategory ||
+    submission?.fund_subcategory ||
     submission?.FundSubcategory ||
     submission?.fundSubcategory;
 
   const fromObj = firstNonEmpty(
+    subcatObj?.subcategory_name_th,
+    subcatObj?.subcategory_name,
     subcatObj?.name_th,
     subcatObj?.title_th,
     subcatObj?.label_th,
@@ -162,6 +166,7 @@ const getSubcategoryName = (submission, pubDetail) => {
   );
   return fromObj || '-';
 };
+
 
 // ---------- Add: helpers for resolving names via adminAPI ----------
 const pickCategoryName = (cat) => {
@@ -187,41 +192,47 @@ const pickSubcategoryName = (sub) => {
   return cands[0] || null;
 };
 
+const asId = (v) => (v == null ? null : String(v));
+const pickAnyId = (o, keys) => {
+  for (const k of keys) {
+    if (o && o[k] != null) return asId(o[k]);
+  }
+  return null;
+};
+
 async function fetchFundNamesWithDeptAPI({ categoryId, subcategoryId, yearId }) {
   const result = { category: null, subcategory: null };
   try {
     // ---- Categories ----
-    if (categoryId != null) {
-      const catsResp =
-        (deptHeadAPI.getCategories ? await deptHeadAPI.getCategories(yearId) : []) || [];
-      const catList = Array.isArray(catsResp)
-        ? catsResp
-        : (catsResp?.data || catsResp?.categories || []);
-      const hit = (catList || []).find(
-        (c) => String(c.category_id ?? c.id) === String(categoryId)
-      );
+    if (categoryId != null && deptHeadAPI.getCategories) {
+      const catsResp = (await deptHeadAPI.getCategories(yearId)) || [];
+      const catList = Array.isArray(catsResp) ? catsResp : (catsResp?.data || catsResp?.categories || []);
+      const hit = (catList || []).find((c) => {
+        const cid = pickAnyId(c, ['category_id', 'id', 'CategoryID', 'CategoryId']);
+        return cid === asId(categoryId);
+      });
       result.category = pickCategoryName(hit);
     }
 
     // ---- Subcategories ----
     if (subcategoryId != null) {
       let subList = [];
-      if (categoryId != null) {
-        const resp =
-          (deptHeadAPI.getSubcategories
-            ? await deptHeadAPI.getSubcategories(categoryId)
-            : []) || [];
+      if (deptHeadAPI.getSubcategories && categoryId != null) {
+        const resp = (await deptHeadAPI.getSubcategories(categoryId)) || [];
         subList = Array.isArray(resp) ? resp : (resp?.data || resp?.subcategories || []);
-      } else {
-        const resp =
-          (deptHeadAPI.getAllSubcategories
-            ? await deptHeadAPI.getAllSubcategories(null, yearId)
-            : []) || [];
+      } else if (deptHeadAPI.getAllSubcategories) {
+        const resp = (await deptHeadAPI.getAllSubcategories(null, yearId)) || [];
         subList = Array.isArray(resp) ? resp : (resp?.data || resp?.subcategories || []);
       }
-      const subHit = (subList || []).find(
-        (s) => String(s.subcategory_id ?? s.id) === String(subcategoryId)
-      );
+
+      // แมตช์ id ให้ทนชื่อคีย์ที่ต่างกัน
+      const subHit = (subList || []).find((s) => {
+        const sid = pickAnyId(s, [
+          'subcategory_id', 'id', 'SubcategoryID', 'SubcategoryId', 'subCategoryId', 'subcategoryId'
+        ]);
+        return sid === asId(subcategoryId);
+      });
+
       result.subcategory = pickSubcategoryName(subHit);
     }
   } catch (e) {
@@ -229,6 +240,7 @@ async function fetchFundNamesWithDeptAPI({ categoryId, subcategoryId, yearId }) 
   }
   return result;
 }
+
 
 /* ===== Reusable money inputs ===== */
 function MoneyInput({
@@ -323,9 +335,166 @@ function ReadonlyMoney({ value, aria }) {
   );
 }
 
+function DeptDecisionPanel({ submission, onApprove, onReject }) {
+  const [comment, setComment] = useState(
+    submission?.head_comment ?? submission?.comment ?? ''
+  );  
+  const [saving, setSaving] = useState(false);
+
+  const canAct = true;
+
+  const handleApprove = async () => {
+    const html = `
+      <div style="text-align:left;font-size:14px;line-height:1.6;">
+        ${comment?.trim()
+          ? `<div style="font-weight:500;margin-bottom:.25rem;">หมายเหตุจากหัวหน้าสาขา</div>
+            <div style="border:1px solid #e5e7eb;background:#f9fafb;padding:.5rem;border-radius:.5rem;">${comment.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</div>`
+          : `<div style="font-size:12px;color:#6b7280;">(ไม่มีหมายเหตุ)</div>`
+        }
+      </div>
+    `;
+
+    const result = await Swal.fire({
+      title: 'ยืนยันการอนุมัติ',
+      html,
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonText: 'ยืนยันอนุมัติ',
+      cancelButtonText: 'ยกเลิก',
+      showLoaderOnConfirm: true,
+      allowOutsideClick: () => !Swal.isLoading(),
+      preConfirm: async () => {
+        try {
+          setSaving(true);
+          // ส่งหมายเหตุ (comment/head_comment) ไปเก็บที่ submissions เท่านั้น
+          await onApprove(comment?.trim() || '');
+        } catch (e) {
+          Swal.showValidationMessage(e?.message || 'อนุมัติไม่สำเร็จ');
+          throw e;
+        } finally {
+          setSaving(false);
+        }
+      },
+    });
+
+    if (result.isConfirmed) {
+      await Swal.fire({ icon: 'success', title: 'อนุมัติแล้ว', timer: 1400, showConfirmButton: false });
+    }
+  };
+
+
+  const handleReject = async () => {
+    // Step 1: กล่องกรอกเหตุผล
+    const { value: reason } = await Swal.fire({
+      title: 'เหตุผลการไม่อนุมัติ',
+      input: 'textarea',
+      inputPlaceholder: 'โปรดระบุเหตุผล...',
+      inputAttributes: { 'aria-label': 'เหตุผลการไม่อนุมัติ' },
+      showCancelButton: true,
+      confirmButtonText: 'ถัดไป',
+      cancelButtonText: 'ยกเลิก',
+      inputValidator: (v) => (!v?.trim() ? 'กรุณาระบุเหตุผล' : undefined),
+    });
+    if (!reason) return;
+
+    // Step 2: กล่องยืนยัน + preConfirm เรียก onReject
+    const res2 = await Swal.fire({
+      title: 'ยืนยันการไม่อนุมัติ',
+      html: `
+        <div style="text-align:left;font-size:14px;">
+          <div style="font-weight:500;margin-bottom:.25rem;">เหตุผลการไม่อนุมัติ</div>
+          <div style="border:1px solid #e5e7eb;background:#f9fafb;padding:.75rem;border-radius:.5rem;white-space:pre-wrap;">
+            ${String(reason).replace(/</g,'&lt;').replace(/>/g,'&gt;')}
+          </div>
+          <p style="font-size:12px;color:#6b7280;margin-top:.5rem;">
+            ระบบจะบันทึกเหตุผลและเปลี่ยนสถานะคำร้องเป็น “ไม่อนุมัติ”
+          </p>
+        </div>
+      `,
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonText: 'ยืนยันไม่อนุมัติ',
+      cancelButtonText: 'ยกเลิก',
+      showLoaderOnConfirm: true,
+      allowOutsideClick: () => !Swal.isLoading(),
+      preConfirm: async () => {
+        try {
+          setSaving(true);
+          // ส่งเหตุผล + หมายเหตุหัวหน้าสาขา (comment) ไปหลังบ้าน (เก็บที่ submissions เท่านั้น)
+          await onReject(String(reason).trim(), comment?.trim() || '');
+        } catch (e) {
+          Swal.showValidationMessage(e?.message || 'ไม่อนุมัติไม่สำเร็จ');
+          throw e;
+        } finally {
+          setSaving(false);
+        }
+      },
+    });
+
+    if (res2.isConfirmed) {
+      await Swal.fire({ icon: 'success', title: 'ดำเนินการแล้ว', timer: 1200, showConfirmButton: false });
+    }
+  };
+
+
+  return (
+    <Card title="ผลการพิจารณา (หัวหน้าสาขา)" icon={DollarSign} collapsible={false}>
+      <div className="space-y-4">
+        {/* ช่องคอมเมนต์ */}
+        <div>
+          <label className="text-sm text-gray-600">หมายเหตุของหัวหน้าสาขา</label>
+          <textarea
+            className="w-full min-h-[100px] rounded-lg border border-gray-300 p-3 outline-none focus:ring-2 focus:ring-blue-500"
+            placeholder="เขียนหมายเหตุของหัวหน้าสาขาหรือบันทึกหมายเหตุ (ถ้ามี)"
+            value={comment}
+            onChange={(e) => setComment(e.target.value)}
+            disabled={saving}
+          />
+        </div>
+
+        <div className="flex items-center gap-3">
+          <button
+            className="btn btn-primary inline-flex items-center gap-2 disabled:opacity-60"
+            onClick={handleApprove}
+            disabled={saving}
+            title="อนุมัติและส่งต่อให้ Admin พิจารณาต่อ"
+          >
+            อนุมัติ
+          </button>
+
+          <button
+            className="btn btn-danger inline-flex items-center gap-2 disabled:opacity-60"
+            onClick={handleReject}
+            disabled={saving}
+            title="ปฏิเสธคำร้อง"
+          >
+            ปฏิเสธ
+          </button>
+
+          {saving && <span className="text-sm text-gray-500">กำลังดำเนินการ…</span>}
+        </div>
+      </div>
+    </Card>
+  );
+}
+
 /* =========================
  * Main Component
  * ========================= */
+  // ---- DEBUG switch & helpers ----
+  const DEBUG = (typeof window !== 'undefined') && (
+    new URLSearchParams(window.location.search).has('debug') ||
+    localStorage.getItem('dept_debug') === '1'
+  );
+  const dlog = (...args) => { if (DEBUG) console.log(...args); };
+  const dwarn = (...args) => { if (DEBUG) console.warn(...args); };
+  const dgroup = (label, obj) => {
+    if (DEBUG) {
+      try { console.groupCollapsed(label); if (obj !== undefined) console.log(obj); }
+      finally { console.groupEnd(); }
+    }
+  };
+
 export default function PublicationSubmissionDetailsDept({ submissionId, onBack }) {
   const [loading, setLoading] = useState(true);
   const [submission, setSubmission] = useState(null);
@@ -347,9 +516,12 @@ export default function PublicationSubmissionDetailsDept({ submissionId, onBack 
   const [rejectReason, setRejectReason] = useState("");
   const [saving, setSaving] = useState(false);
 
+  
   // โหลดรายละเอียดสดหลังดำเนินการ
   async function reloadDetails() {
+    // DEBUG: reloadDetails()
     const res = await deptHeadAPI.getSubmissionDetails(submission.submission_id);
+    dgroup(`[Dept DEBUG] reloadDetails raw`, res);
     let data = res?.submission || res;
     if (res?.submission_users) data.submission_users = res.submission_users;
     if (res?.documents) data.documents = res.documents;
@@ -427,6 +599,7 @@ export default function PublicationSubmissionDetailsDept({ submissionId, onBack 
       setLoading(true);
       try {
         const res = await deptHeadAPI.getSubmissionDetails(submissionId);
+        dgroup(`[Dept DEBUG] GET /dept-head/submissions/${submissionId}/details — raw`, res);
         let data = res?.submission || res;
 
         // Normalize arrays
@@ -452,6 +625,7 @@ export default function PublicationSubmissionDetailsDept({ submissionId, onBack 
           data.applicant_user_id = res.applicant_user_id;
         }
 
+        dgroup('[Dept DEBUG] normalized for UI', data);
         setSubmission(data);
         setAttachments(data?.documents || data?.submission_documents || []);
       } catch (err) {
@@ -835,15 +1009,14 @@ export default function PublicationSubmissionDetailsDept({ submissionId, onBack 
     return () => cleanupMergedUrl();
   }, []);
 
+  // ==== PATCH: handlers ภายใน component หลัก PublicationSubmissionDetailsDept ====
+  const approve = async (headComment) => {
+    const body = headComment ? { head_comment: headComment, comment: headComment } : {};
+    await deptHeadAPI.recommendSubmission(submission.submission_id, body);
 
-  // Admin actions → API wiring
-  const approve = async (payload) => {
-    // ส่งตัวเลขอนุมัติ + หมายเลขอ้างอิงประกาศ ไปในคำสั่งอนุมัติครั้งเดียว
-    await deptHeadAPI.approveSubmission(submission.submission_id, payload);
-
-    // reload รายละเอียดเพื่อให้ได้ approved_at / approved_by / announce_reference_number ล่าสุด
+    // reload details หลังบันทึก
     const res = await deptHeadAPI.getSubmissionDetails(submission.submission_id);
-    let data = res?.submission || res;
+    const data = res?.submission || res || {};
     if (res?.submission_users) data.submission_users = res.submission_users;
     if (res?.documents) data.documents = res.documents;
     if (res?.details?.type === 'publication_reward' && res.details.data) {
@@ -852,11 +1025,17 @@ export default function PublicationSubmissionDetailsDept({ submissionId, onBack 
     setSubmission(data);
   };
 
-  const reject = async (reason) => {
-    await deptHeadAPI.rejectSubmission(submission.submission_id, { rejection_reason: reason });
-    // reload
+  const reject = async (reason, headComment) => {
+    const payload = { rejection_reason: reason };
+    if (headComment) {
+      payload.head_comment = headComment;
+      payload.comment = headComment; // เผื่อจุดเก่าอ่านจาก comment
+    }
+    await deptHeadAPI.rejectSubmission(submission.submission_id, payload);
+
+    // reload details หลังบันทึก
     const res = await deptHeadAPI.getSubmissionDetails(submission.submission_id);
-    let data = res?.submission || res;
+    const data = res?.submission || res || {};
     if (res?.submission_users) data.submission_users = res.submission_users;
     if (res?.documents) data.documents = res.documents;
     if (res?.details?.type === 'publication_reward' && res.details.data) {
@@ -869,10 +1048,34 @@ export default function PublicationSubmissionDetailsDept({ submissionId, onBack 
   useEffect(() => {
     if (!submission) return;
 
-    const catId = submission?.category_id;
-    const subId = submission?.subcategory_id;
+    // ดึง id จากหลายที่ (ทั้งบน submission และ detail)
+    const catId =
+      submission?.category_id ??
+      pubDetail?.category_id ??
+      submission?.Category?.category_id ??
+      submission?.category?.id ??
+      null;
 
-    // ถ้า payload มีชื่ออยู่แล้ว ก็ไม่ต้องยิงเพิ่ม
+    const subId =
+      submission?.subcategory_id ??
+      pubDetail?.subcategory_id ??
+      pubDetail?.fund_subcategory_id ??
+      submission?.Subcategory?.subcategory_id ??
+      submission?.fund_subcategory_id ??
+      null;
+
+    // --- TEMP fallback (frontend-only, no backend change) ---
+    // กรณี payload ไม่มี category_id/subcategory_id เลย ให้ fallback สำหรับ publication_reward ใช้ subcategory_id=1
+    // (ตามเคสของคุณที่บอกว่าอยู่ใน fund_subcategories (1))
+    let _catId = catId;
+    let _subId = subId;
+    if ((_catId == null && _subId == null) && (submission?.submission_type === 'publication_reward')) {
+      _subId = 1;
+      if (DEBUG) console.warn('[Dept DEBUG] Fallback subcategory_id=1 (frontend-only) — no ids in payload');
+    }
+
+
+    // ถ้า payload มีชื่ออยู่แล้ว ไม่ต้องยิงเพิ่ม
     const payloadSubName = getSubcategoryName(submission, pubDetail);
     const hasPayloadSubName = payloadSubName && payloadSubName !== '-';
 
@@ -881,11 +1084,16 @@ export default function PublicationSubmissionDetailsDept({ submissionId, onBack 
         try {
           setFundNamesLoading(true);
           const names = await fetchFundNamesWithDeptAPI({
-            categoryId: catId,
-            subcategoryId: subId,
+            categoryId: _catId,
+            subcategoryId: _subId,
             yearId: submission?.year_id,
           });
           setFundNames((prev) => ({ ...prev, ...names }));
+
+          // debug ช่วยไล่ว่าจับชื่อได้หรือยัง
+          if (DEBUG) console.debug('[Dept] resolve fund', {
+            _catId, _subId, payloadSubName, names
+          });
         } catch (e) {
           console.warn('Resolve fund names failed:', e);
         } finally {
@@ -894,6 +1102,7 @@ export default function PublicationSubmissionDetailsDept({ submissionId, onBack 
       })();
     }
   }, [submission, pubDetail, fundNames.subcategory, fundNamesLoading]);
+
 
   useEffect(() => {
     const detail =
@@ -966,6 +1175,12 @@ export default function PublicationSubmissionDetailsDept({ submissionId, onBack 
     submission?.details?.data,
   ]);
 
+  const displaySubName = fundNames?.subcategory || getSubcategoryName(submission, pubDetail);
+  console.debug('[Dept] displaySubName =', displaySubName, {
+    raw_subcategory_id: submission?.subcategory_id,
+    fromDetail_subcategory_id: pubDetail?.subcategory_id,
+  });
+  
   if (loading) {
     return (
       <PageLayout
@@ -1024,6 +1239,7 @@ export default function PublicationSubmissionDetailsDept({ submissionId, onBack 
         { label: submission.submission_number },
       ]}
     >
+
     {/* Status Summary */}
     <Card
       icon={getColoredStatusIcon(getCodeById(submission?.status_id) || submission?.status?.status_code)}
@@ -1046,7 +1262,7 @@ export default function PublicationSubmissionDetailsDept({ submissionId, onBack 
             <div className="flex flex-wrap items-start gap-2">
               <span className="text-gray-500 shrink-0 min-w-[80px]">ชื่อทุน:</span>
               <span className="font-bold text-gray-700 break-words flex-1">
-                {fundNames?.subcategory || getSubcategoryName(submission, pubDetail)}
+                {displaySubName}
               </span>
             </div>
 
@@ -1429,42 +1645,11 @@ export default function PublicationSubmissionDetailsDept({ submissionId, onBack 
             </div>
           </Card>
 
-          {/* แผงการตัดสินใจของหัวหน้าสาขา (แสดงตลอด) */}
-          <Card title="ผลการพิจารณา (หัวหน้าสาขา)" icon={DollarSign} collapsible={false}>
-            <div className="space-y-4">
-              <div>
-                <label className="text-sm text-gray-600">เหตุผลการไม่อนุมัติ (ถ้าปฏิเสธ)</label>
-                <textarea
-                  className="w-full min-h-[100px] rounded-lg border border-gray-300 p-3 outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="กรุณาระบุเหตุผล หากเลือกปฏิเสธ"
-                  value={rejectReason}
-                  onChange={(e) => setRejectReason(e.target.value)}
-                />
-              </div>
-
-              <div className="flex items-center gap-3">
-                <button
-                  className="btn btn-primary inline-flex items-center gap-2 disabled:opacity-60"
-                  onClick={handleApprove}
-                  disabled={saving}
-                  title="อนุมัติและส่งต่อให้ Admin พิจารณาต่อ"
-                >
-                  อนุมัติ
-                </button>
-
-                <button
-                  className="btn btn-danger inline-flex items-center gap-2 disabled:opacity-60"
-                  onClick={handleReject}
-                  disabled={saving}
-                  title="ปฏิเสธคำร้อง"
-                >
-                  ปฏิเสธ
-                </button>
-
-                {saving && <span className="text-sm text-gray-500">กำลังดำเนินการ…</span>}
-              </div>
-            </div>
-          </Card>
+          <DeptDecisionPanel
+            submission={submission}
+            onApprove={approve}
+            onReject={reject}
+          />
         </div>
       )}
 
