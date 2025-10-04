@@ -24,7 +24,7 @@ import {
   FileCheck,
 } from "lucide-react";
 import { submissionAPI, submissionUsersAPI } from "@/app/lib/member_api";
-import apiClient from "@/app/lib/api";
+import apiClient, { announcementAPI } from "@/app/lib/api";
 import PageLayout from "../common/PageLayout";
 import Card from "../common/Card";
 import StatusBadge from "../common/StatusBadge";
@@ -34,22 +34,178 @@ import { useStatusMap } from "@/app/hooks/useStatusMap";
 const getStatusIcon = (statusCode) => {
   switch (statusCode) {
     case "approved":
-      return <CheckCircle className="h-5 w-5 text-green-600" />;
+      return CheckCircle;
     case "rejected":
-      return <XCircle className="h-5 w-5 text-red-600" />;
+      return XCircle;
     case "revision":
-      return <AlertCircle className="h-5 w-5 text-orange-600" />;
+      return AlertCircle;
     case "draft":
-      return <Clock className="h-5 w-5 text-gray-600" />;
+      return Clock;
     default:
-      return <Clock className="h-5 w-5 text-yellow-600" />;
+      return Clock;
   }
+};
+
+const getStatusIconColor = (statusCode) => {
+  switch (statusCode) {
+    case "approved":
+      return "text-green-600";
+    case "rejected":
+      return "text-red-600";
+    case "revision":
+      return "text-orange-600";
+    case "draft":
+      return "text-gray-600";
+    default:
+      return "text-yellow-600";
+  }
+};
+
+const getColoredStatusIcon = (statusCode) => {
+  const Icon = getStatusIcon(statusCode);
+  const color = getStatusIconColor(statusCode);
+
+  return function ColoredStatusIcon(props) {
+    return <Icon {...props} className={`${props.className || ""} ${color}`} />;
+  };
+};
+
+const renderStatusIcon = (statusCode, className = "") => {
+  const Icon = getStatusIcon(statusCode);
+  if (!Icon) return null;
+  return <Icon className={className} />;
+};
+
+const formatDate = (value) => {
+  if (!value) return "-";
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date?.getTime?.())) return "-";
+  return date.toLocaleDateString("th-TH", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+};
+
+const firstNonEmpty = (...vals) => {
+  for (const v of vals) {
+    if (typeof v === "string" && v.trim() !== "") {
+      return v.trim();
+    }
+  }
+  return null;
+};
+
+const getSubcategoryName = (submission, pubDetail) => {
+  const fromDetail = firstNonEmpty(
+    pubDetail?.subcategory_name_th,
+    pubDetail?.subcategory_name,
+    pubDetail?.fund_subcategory_name,
+    pubDetail?.subcategory_label,
+    pubDetail?.fund_subcategory_label,
+  );
+  if (fromDetail) return fromDetail;
+
+  const fromSubmissionFlat = firstNonEmpty(
+    submission?.subcategory_name_th,
+    submission?.subcategory_name,
+    submission?.fund_subcategory_name,
+    submission?.subcategory_label,
+    submission?.fund_subcategory_label,
+  );
+  if (fromSubmissionFlat) return fromSubmissionFlat;
+
+  const subcatObj =
+    submission?.subcategory ||
+    submission?.fund_subcategory ||
+    submission?.Subcategory ||
+    submission?.FundSubcategory ||
+    submission?.fundSubcategory;
+
+  const fromObj = firstNonEmpty(
+    subcatObj?.name_th,
+    subcatObj?.title_th,
+    subcatObj?.label_th,
+    subcatObj?.name_en,
+    subcatObj?.title_en,
+    subcatObj?.label_en,
+    subcatObj?.name,
+    subcatObj?.title,
+    subcatObj?.label,
+  );
+
+  return fromObj || "-";
+};
+
+const getFileURL = (filePath) => {
+  if (!filePath) return "#";
+  if (/^https?:\/\//i.test(filePath)) return filePath;
+
+  const base = (apiClient?.baseURL || "").replace(/\/?api\/v1$/, "");
+
+  try {
+    return new URL(filePath, base || (typeof window !== "undefined" ? window.location.origin : undefined)).href;
+  } catch (error) {
+    return filePath;
+  }
+};
+
+const resolveAnnouncementInfo = (value, fallbackLabel) => {
+  const fallback =
+    typeof fallbackLabel === "string"
+      ? fallbackLabel
+      : fallbackLabel != null
+      ? String(fallbackLabel)
+      : null;
+
+  if (!value) {
+    return fallback ? { label: fallback, href: null } : null;
+  }
+
+  if (typeof value === "object") {
+    const label =
+      firstNonEmpty(
+        value.title,
+        value.file_name,
+        value.name,
+        value.announcement_title,
+        value.original_name,
+        value.label,
+        value.title_th,
+        value.title_en,
+        value.name_th,
+        value.name_en,
+        value.reference_code,
+        value.reference_number,
+        value.id != null ? `#${value.id}` : null,
+        value.announcement_id != null ? `#${value.announcement_id}` : null,
+        fallback,
+      ) || "-";
+
+    const filePath =
+      value.file_path ||
+      value.path ||
+      value.url ||
+      value.file?.file_path ||
+      value.announcement_file_path ||
+      null;
+
+    return {
+      label,
+      href: filePath ? getFileURL(filePath) : null,
+    };
+  }
+
+  const label = typeof value === "string" && value.trim() !== "" ? value.trim() : String(value);
+  return { label, href: null };
 };
 
 export default function PublicationRewardDetail({ submissionId, onNavigate }) {
   const [submission, setSubmission] = useState(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("details");
+  const [mainAnnouncementDetail, setMainAnnouncementDetail] = useState(null);
+  const [rewardAnnouncementDetail, setRewardAnnouncementDetail] = useState(null);
   const { getLabelById, getCodeById } = useStatusMap();
 
   const getUserFullName = (user) => {
@@ -125,6 +281,82 @@ export default function PublicationRewardDetail({ submissionId, onNavigate }) {
       loadSubmissionDetail();
     }
   }, [submissionId]);
+
+  useEffect(() => {
+    if (!submission) {
+      setMainAnnouncementDetail(null);
+      setRewardAnnouncementDetail(null);
+      return;
+    }
+
+    const detail =
+      submission?.PublicationRewardDetail ||
+      submission?.publication_reward_detail ||
+      submission?.details?.data?.publication_reward_detail ||
+      submission?.details?.data ||
+      null;
+
+    if (!detail) {
+      setMainAnnouncementDetail(null);
+      setRewardAnnouncementDetail(null);
+      return;
+    }
+
+    const mainId = detail?.main_annoucement ?? detail?.main_announcement ?? null;
+    const rewardId = detail?.reward_announcement ?? null;
+
+    if (!mainId && !rewardId) {
+      setMainAnnouncementDetail(null);
+      setRewardAnnouncementDetail(null);
+      return;
+    }
+
+    let cancelled = false;
+
+    (async () => {
+      try {
+        if (mainId) {
+          const response = await announcementAPI.getAnnouncement(mainId);
+          if (!cancelled) {
+            const parsed =
+              response?.announcement ||
+              response?.data?.announcement ||
+              response?.data ||
+              response ||
+              null;
+            setMainAnnouncementDetail(parsed || null);
+          }
+        } else if (!cancelled) {
+          setMainAnnouncementDetail(null);
+        }
+
+        if (rewardId) {
+          const response = await announcementAPI.getAnnouncement(rewardId);
+          if (!cancelled) {
+            const parsed =
+              response?.announcement ||
+              response?.data?.announcement ||
+              response?.data ||
+              response ||
+              null;
+            setRewardAnnouncementDetail(parsed || null);
+          }
+        } else if (!cancelled) {
+          setRewardAnnouncementDetail(null);
+        }
+      } catch (error) {
+        console.warn("Unable to load announcement detail", error);
+        if (!cancelled) {
+          setMainAnnouncementDetail(null);
+          setRewardAnnouncementDetail(null);
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [submission]);
 
   const loadSubmissionDetail = async () => {
     setLoading(true);
@@ -309,6 +541,69 @@ export default function PublicationRewardDetail({ submissionId, onNavigate }) {
   const documents =
     submission.documents || submission.submission_documents || [];
   const applicant = getApplicant();
+
+  const statusCode =
+    getCodeById(submission.status_id) ||
+    submission.Status?.status_code ||
+    submission.status?.status_code;
+
+  const statusName =
+    getLabelById(submission.status_id) ||
+    submission.Status?.status_name ||
+    submission.status?.status_name;
+
+  const subcategoryDisplay = getSubcategoryName(submission, pubDetail);
+
+  const submittedAt =
+    submission.submitted_at ??
+    pubDetail.submitted_at ??
+    submission.submitted_date ??
+    null;
+
+  const approvedAt =
+    pubDetail.approved_at ??
+    pubDetail.approval_date ??
+    submission.approved_at ??
+    submission.approval_date ??
+    null;
+
+  const formatAnnouncementId = (value) => {
+    if (value == null || value === "") return null;
+    const text = String(value);
+    return text.startsWith("#") ? text : `#${text}`;
+  };
+
+  const mainAnnouncementRaw =
+    mainAnnouncementDetail ??
+    pubDetail?.main_announcement_detail ??
+    pubDetail?.main_annoucement_detail ??
+    pubDetail?.main_announcement ??
+    pubDetail?.main_annoucement ??
+    null;
+
+  const rewardAnnouncementRaw =
+    rewardAnnouncementDetail ??
+    pubDetail?.reward_announcement_detail ??
+    pubDetail?.reward_announcement_obj ??
+    pubDetail?.reward_announcement ??
+    null;
+
+  const mainAnnouncement = resolveAnnouncementInfo(
+    mainAnnouncementRaw,
+    formatAnnouncementId(
+      pubDetail?.main_annoucement ?? pubDetail?.main_announcement ?? null,
+    ),
+  );
+
+  const rewardAnnouncement = resolveAnnouncementInfo(
+    rewardAnnouncementRaw,
+    formatAnnouncementId(pubDetail?.reward_announcement ?? null),
+  );
+
+  const announceReference =
+    pubDetail?.announce_reference_number ??
+    submission.announce_reference_number ??
+    null;
   
   return (
     <PageLayout
@@ -336,90 +631,103 @@ export default function PublicationRewardDetail({ submissionId, onNavigate }) {
       ]}
     >
       {/* Status Summary Card */}
-      <Card className="mb-6 border-l-4 border-blue-500" collapsible={false}>
-        <div className="flex justify-between items-start">
-          <div>
-            <div className="flex flex-wrap items-center gap-3 mb-2">
-              {getStatusIcon(getCodeById(submission.status_id) || submission.Status?.status_code)}
-              <h3 className="text-lg font-semibold">
-                สถานะคำร้อง (Submission Status)
-              </h3>
-              <div className="flex-shrink-0">
-                <StatusBadge
-                  statusId={submission.status_id}
-                  fallbackLabel={submission.Status?.status_name}
-                />
-              </div>
-              <h3 className="text-lg font-semibold w-full">
-                ชื่อทุน: {submission?.subcategory_name && ` ${submission.subcategory_name}`}
-              </h3>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4 text-sm">
-              <div>
-                <span className="text-gray-500">
-                  วันที่สร้างคำร้อง (Created Date):
-                </span>
-                <span className="ml-2 font-medium">
-                  {new Date(submission.created_at).toLocaleDateString('th-TH', {
-                    year: 'numeric',
-                    month: 'long',
-                    day: 'numeric'
-                  })}
+      <Card
+        icon={getColoredStatusIcon(statusCode)}
+        collapsible={false}
+        headerClassName="items-center"
+        className="mb-6"
+        title={
+          <span className="flex items-center gap-2">
+            <span>สถานะคำร้อง (Submission Status)</span>
+            <StatusBadge
+              statusId={submission.status_id}
+              fallbackLabel={statusName}
+            />
+          </span>
+        }
+      >
+        <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-6">
+          <div className="flex-1">
+            <div className="flex flex-col gap-3 mt-4 text-sm">
+              <div className="flex flex-wrap items-start gap-2">
+                <span className="text-gray-500 shrink-0 min-w-[80px]">ชื่อทุน:</span>
+                <span className="font-bold text-gray-700 break-words flex-1">
+                  {subcategoryDisplay}
                 </span>
               </div>
-              {submission.submitted_at && (
-                <div>
-                  <span className="text-gray-500">
-                    วันที่ส่งคำร้อง (Submitted Date):
-                  </span>
-                  <span className="ml-2 font-medium">
-                    {new Date(submission.submitted_at).toLocaleDateString('th-TH', {
-                      year: 'numeric',
-                      month: 'long',
-                      day: 'numeric'
-                    })}
-                  </span>
-                </div>
-              )}
-              {submission.status_id === 2 && submission.announce_reference_number && (
-                <div className="md:col-span-3">
-                  <span className="text-gray-500">
-                    เลขอ้างอิงประกาศ (Announcement Reference):
-                  </span>
-                  <span className="ml-2 font-medium">
-                    {submission.announce_reference_number}
-                  </span>
-                </div>
-              )}
-              {submission.approved_at && (
-                <div>
-                  <span className="text-gray-500">
-                    วันที่อนุมัติ (Approval Date):
-                  </span>
-                  <span className="ml-2 font-medium">
-                    {new Date(submission.approved_at).toLocaleDateString(
-                      "th-TH",
-                      {
-                        year: "numeric",
-                        month: "long",
-                        day: "numeric",
-                      },
-                    )}
-                  </span>
-                </div>
-              )}
-              {submission.status_id === 2 &&
-                pubDetail.announce_reference_number && (
-                  <div className="md:col-span-3">
-                    <span className="text-gray-500">เลขอ้างอิงประกาศ:</span>
-                    <span className="ml-2 font-medium">
-                      {pubDetail.announce_reference_number}
+              <div className="flex flex-wrap items-start gap-2">
+                <span className="text-gray-500 shrink-0 min-w-[80px]">ผู้ขอทุน:</span>
+                <span className="font-bold text-gray-700 break-words flex-1">
+                  {getUserFullName(applicant)}
+                </span>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-3 mt-2">
+                {submission.created_at && (
+                  <div className="flex items-start gap-2">
+                    <span className="text-gray-500 shrink-0">วันที่สร้างคำร้อง:</span>
+                    <span className="font-medium">
+                      {formatDate(submission.created_at)}
                     </span>
                   </div>
                 )}
+                {submittedAt && (
+                  <div className="flex items-start gap-2">
+                    <span className="text-gray-500 shrink-0">วันที่ส่งคำร้อง:</span>
+                    <span className="font-medium">{formatDate(submittedAt)}</span>
+                  </div>
+                )}
+                {approvedAt && (
+                  <div className="flex items-start gap-2">
+                    <span className="text-gray-500 shrink-0">วันที่อนุมัติ:</span>
+                    <span className="font-medium">{formatDate(approvedAt)}</span>
+                  </div>
+                )}
+                {announceReference && (
+                  <div className="flex items-start gap-2 lg:col-span-3">
+                    <span className="text-gray-500 shrink-0">หมายเลขอ้างอิงประกาศผลการพิจารณา:</span>
+                    <span className="font-medium break-all">{announceReference}</span>
+                  </div>
+                )}
+                {mainAnnouncement && (
+                  <div className="flex items-start gap-2 lg:col-span-3">
+                    <span className="text-gray-500 shrink-0">ประกาศหลักเกณฑ์:</span>
+                    {mainAnnouncement.href ? (
+                      <a
+                        href={mainAnnouncement.href}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-blue-600 hover:underline break-all cursor-pointer pointer-events-auto relative z-10"
+                        title={mainAnnouncement.label}
+                      >
+                        {mainAnnouncement.label}
+                      </a>
+                    ) : (
+                      <span className="text-gray-400">{mainAnnouncement.label || "-"}</span>
+                    )}
+                  </div>
+                )}
+                {rewardAnnouncement && (
+                  <div className="flex items-start gap-2 lg:col-span-3">
+                    <span className="text-gray-500 shrink-0">ประกาศเงินรางวัล:</span>
+                    {rewardAnnouncement.href ? (
+                      <a
+                        href={rewardAnnouncement.href}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-blue-600 hover:underline break-all cursor-pointer pointer-events-auto relative z-10"
+                        title={rewardAnnouncement.label}
+                      >
+                        {rewardAnnouncement.label}
+                      </a>
+                    ) : (
+                      <span className="text-gray-400">{rewardAnnouncement.label || "-"}</span>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
-          <div className="text-right">
+          <div className="text-right lg:text-right min-w-[200px]">
             <div className="text-2xl font-bold text-blue-600">
               {formatCurrency(pubDetail.reward_amount || 0)}
             </div>
@@ -922,7 +1230,7 @@ export default function PublicationRewardDetail({ submissionId, onNavigate }) {
                               ? 'bg-red-500'
                               : 'bg-orange-500'
                           }`}>
-                            {getStatusIcon(getCodeById(submission.status_id) || submission.Status?.status_code)}
+                            {renderStatusIcon(statusCode, "h-4 w-4 text-white")}
                           </span>
                         </div>
                         <div className="flex-1 min-w-0">
