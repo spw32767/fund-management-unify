@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
   ArrowLeft,
   FileText,
@@ -13,7 +13,7 @@ import {
   Download,
 } from "lucide-react";
 import { submissionAPI, submissionUsersAPI } from "@/app/lib/member_api";
-import apiClient from "@/app/lib/api";
+import apiClient, { announcementAPI } from "@/app/lib/api";
 import PageLayout from "../common/PageLayout";
 import Card from "../common/Card";
 import StatusBadge from "../common/StatusBadge";
@@ -63,6 +63,10 @@ const getColoredStatusIcon = (statusCode) => {
 export default function FundApplicationDetail({ submissionId, onNavigate }) {
   const [submission, setSubmission] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [mainAnnouncementDetail, setMainAnnouncementDetail] = useState(null);
+  const [activityAnnouncementDetail, setActivityAnnouncementDetail] = useState(
+    null
+  );
   const { getCodeById } = useStatusMap();
 
   useEffect(() => {
@@ -201,8 +205,15 @@ export default function FundApplicationDetail({ submissionId, onNavigate }) {
     );
   }
 
-  const detail =
-    submission.fund_application_detail || submission.FundApplicationDetail || {};
+  const detail = useMemo(() => {
+    return (
+      submission?.fund_application_detail ||
+      submission?.FundApplicationDetail ||
+      submission?.details?.data?.fund_application_detail ||
+      submission?.details?.data ||
+      {}
+    );
+  }, [submission]);
   const documents =
     submission.documents || submission.submission_documents || [];
   const applicant = getApplicant();
@@ -213,8 +224,79 @@ export default function FundApplicationDetail({ submissionId, onNavigate }) {
   const submittedAt = submission.submitted_at || submission.created_at;
   const announceReference =
     submission.announce_reference_number || detail.announce_reference_number;
-  const mainAnnouncement = detail.main_annoucement;
-  const activityAnnouncement = detail.activity_support_announcement;
+  const mainAnnouncementId = detail.main_annoucement || detail.main_announcement;
+  const activityAnnouncementId =
+    detail.activity_support_announcement || detail.activity_announcement;
+
+  const getFileURL = (filePath) => {
+    if (!filePath) return "#";
+    if (/^https?:\/\//i.test(filePath)) return filePath;
+    const base = apiClient.baseURL.replace(/\/?api\/v1$/, "");
+    try {
+      return new URL(filePath, base).href;
+    } catch {
+      return filePath;
+    }
+  };
+
+  useEffect(() => {
+    const hasAnnouncementIds =
+      mainAnnouncementId != null || activityAnnouncementId != null;
+    if (!hasAnnouncementIds) {
+      setMainAnnouncementDetail(null);
+      setActivityAnnouncementDetail(null);
+      return;
+    }
+
+    let cancelled = false;
+    (async () => {
+      try {
+        if (mainAnnouncementId) {
+          const response = await announcementAPI.getAnnouncement(
+            mainAnnouncementId
+          );
+          const parsed =
+            response?.announcement ||
+            response?.data?.announcement ||
+            response?.data ||
+            response ||
+            null;
+          if (!cancelled) {
+            setMainAnnouncementDetail(parsed);
+          }
+        } else if (!cancelled) {
+          setMainAnnouncementDetail(null);
+        }
+
+        if (activityAnnouncementId) {
+          const response = await announcementAPI.getAnnouncement(
+            activityAnnouncementId
+          );
+          const parsed =
+            response?.announcement ||
+            response?.data?.announcement ||
+            response?.data ||
+            response ||
+            null;
+          if (!cancelled) {
+            setActivityAnnouncementDetail(parsed);
+          }
+        } else if (!cancelled) {
+          setActivityAnnouncementDetail(null);
+        }
+      } catch (error) {
+        console.warn("Unable to load announcement detail", error);
+        if (!cancelled) {
+          setMainAnnouncementDetail(null);
+          setActivityAnnouncementDetail(null);
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [mainAnnouncementId, activityAnnouncementId]);
 
   return (
     <PageLayout
@@ -267,18 +349,6 @@ export default function FundApplicationDetail({ submissionId, onNavigate }) {
                     {submission.submission_number || "-"}
                   </span>
                 </div>
-                {submission.created_at && (
-                  <div className="flex items-start gap-2">
-                    <span className="text-gray-500 shrink-0">วันที่สร้างคำร้อง:</span>
-                    <span className="font-medium">
-                      {new Date(submission.created_at).toLocaleDateString("th-TH", {
-                        year: "numeric",
-                        month: "long",
-                        day: "numeric",
-                      })}
-                    </span>
-                  </div>
-                )}
                 {submittedAt && (
                   <div className="flex items-start gap-2">
                     <span className="text-gray-500 shrink-0">วันที่ส่งคำร้อง:</span>
@@ -291,8 +361,23 @@ export default function FundApplicationDetail({ submissionId, onNavigate }) {
                     </span>
                   </div>
                 )}
+                {submission.approved_at && (
+                  <div className="flex items-start gap-2">
+                    <span className="text-gray-500 shrink-0">วันที่อนุมัติ:</span>
+                    <span className="font-medium">
+                      {new Date(submission.approved_at).toLocaleDateString(
+                        "th-TH",
+                        {
+                          year: "numeric",
+                          month: "long",
+                          day: "numeric",
+                        }
+                      )}
+                    </span>
+                  </div>
+                )}
                 {announceReference && (
-                  <div className="flex items-start gap-2 lg:col-span-3">
+                  <div className="flex items-start gap-2 lg:col-span-2 xl:col-span-3">
                     <span className="text-gray-500 shrink-0">
                       หมายเลขอ้างอิงประกาศผลการพิจารณา:
                     </span>
@@ -302,39 +387,63 @@ export default function FundApplicationDetail({ submissionId, onNavigate }) {
                   </div>
                 )}
                 {submission.subcategory_name && (
-                  <div className="flex items-start gap-2 lg:col-span-3">
+                  <div className="flex items-start gap-2 lg:col-span-2 xl:col-span-3">
                     <span className="text-gray-500 shrink-0">ชื่อทุน:</span>
                     <span className="font-medium break-words">
                       {submission.subcategory_name}
                     </span>
                   </div>
                 )}
-                {mainAnnouncement && (
-                  <div className="flex items-start gap-2 lg:col-span-3">
+                {(mainAnnouncementDetail || mainAnnouncementId) && (
+                  <div className="flex items-start gap-2 lg:col-span-2 xl:col-span-3">
                     <span className="text-gray-500 shrink-0">ประกาศหลักเกณฑ์:</span>
-                    <span className="font-medium break-all">
-                      {mainAnnouncement}
-                    </span>
+                    {mainAnnouncementDetail?.file_path ? (
+                      <a
+                        href={getFileURL(mainAnnouncementDetail.file_path)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-blue-600 hover:underline break-all cursor-pointer pointer-events-auto relative z-10"
+                        title={
+                          mainAnnouncementDetail?.title ||
+                          mainAnnouncementDetail?.file_name ||
+                          `#${mainAnnouncementId}`
+                        }
+                      >
+                        {mainAnnouncementDetail?.title ||
+                          mainAnnouncementDetail?.file_name ||
+                          `#${mainAnnouncementId}`}
+                      </a>
+                    ) : mainAnnouncementId ? (
+                      <span className="font-medium break-all">{`#${mainAnnouncementId}`}</span>
+                    ) : (
+                      <span className="text-gray-400">-</span>
+                    )}
                   </div>
                 )}
-                {activityAnnouncement && (
-                  <div className="flex items-start gap-2 lg:col-span-3">
+                {(activityAnnouncementDetail || activityAnnouncementId) && (
+                  <div className="flex items-start gap-2 lg:col-span-2 xl:col-span-3">
                     <span className="text-gray-500 shrink-0">ประกาศสนับสนุนกิจกรรม:</span>
-                    <span className="font-medium break-all">
-                      {activityAnnouncement}
-                    </span>
-                  </div>
-                )}
-                {submission.approved_at && (
-                  <div className="flex items-start gap-2">
-                    <span className="text-gray-500 shrink-0">วันที่อนุมัติ:</span>
-                    <span className="font-medium">
-                      {new Date(submission.approved_at).toLocaleDateString("th-TH", {
-                        year: "numeric",
-                        month: "long",
-                        day: "numeric",
-                      })}
-                    </span>
+                    {activityAnnouncementDetail?.file_path ? (
+                      <a
+                        href={getFileURL(activityAnnouncementDetail.file_path)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-blue-600 hover:underline break-all cursor-pointer pointer-events-auto relative z-10"
+                        title={
+                          activityAnnouncementDetail?.title ||
+                          activityAnnouncementDetail?.file_name ||
+                          `#${activityAnnouncementId}`
+                        }
+                      >
+                        {activityAnnouncementDetail?.title ||
+                          activityAnnouncementDetail?.file_name ||
+                          `#${activityAnnouncementId}`}
+                      </a>
+                    ) : activityAnnouncementId ? (
+                      <span className="font-medium break-all">{`#${activityAnnouncementId}`}</span>
+                    ) : (
+                      <span className="text-gray-400">-</span>
+                    )}
                   </div>
                 )}
               </div>
@@ -345,7 +454,7 @@ export default function FundApplicationDetail({ submissionId, onNavigate }) {
               {formatCurrency(detail.requested_amount || 0)}
             </div>
             <div className="text-sm text-gray-500">จำนวนเงินที่ขอ</div>
-            {submission.status_id === 2 && detail.approved_amount != null && (
+            {detail.approved_amount != null && (
               <div className="mt-2">
                 <div className="text-lg font-bold text-green-600">
                   {formatCurrency(detail.approved_amount || 0)}
