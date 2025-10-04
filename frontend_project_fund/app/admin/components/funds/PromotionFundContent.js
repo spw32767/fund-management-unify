@@ -262,6 +262,40 @@ export default function PromotionFundContent() {
     }
   };
 
+  const resolveRoleKey = (role) => {
+    if (!role) return null;
+
+    if (typeof role === "object") {
+      if (role.role_id != null) return resolveRoleKey(role.role_id);
+      if (role.role != null) return resolveRoleKey(role.role);
+      if (role.role_name != null) return resolveRoleKey(role.role_name);
+      if (role.name != null) return resolveRoleKey(role.name);
+    }
+
+    const raw = String(role).trim();
+    if (!raw) return null;
+
+    const lower = raw.toLowerCase();
+    if (/^\d+$/.test(lower)) {
+      return String(Number(lower));
+    }
+
+    return lower;
+  };
+
+  const isAdminRole = (role) => {
+    const key = resolveRoleKey(role);
+    if (!key) return false;
+
+    if (key === "admin") return true;
+
+    if (/^\d+$/.test(key)) {
+      return Number(key) === 3;
+    }
+
+    return false;
+  };
+
   const loadFundData = async (year, roleContext = userRole) => {
     try {
       setLoading(true);
@@ -276,10 +310,15 @@ export default function PromotionFundContent() {
         return;
       }
 
-      const visibleCategories = filterFundsByRole(
-        response.categories,
-        roleContext?.role_id ?? roleContext?.role_name ?? roleContext
-      );
+      const allCategories = response.categories;
+      const shouldBypassRoleFilter = isAdminRole(roleContext);
+
+      const visibleCategories = shouldBypassRoleFilter
+        ? allCategories
+        : filterFundsByRole(
+            allCategories,
+            roleContext?.role_id ?? roleContext?.role_name ?? roleContext
+          );
 
       const promotionFunds = visibleCategories
         .filter((category) => category.category_id === 2)
