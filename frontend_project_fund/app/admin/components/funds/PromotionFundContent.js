@@ -42,6 +42,19 @@ export default function PromotionFundContent() {
     return Number.isNaN(numeric) ? 0 : numeric;
   };
 
+  const parseCountValue = (value) => {
+    if (value === null || value === undefined || value === "") return 0;
+    if (typeof value === "number") {
+      return Number.isFinite(value) ? value : 0;
+    }
+
+    const cleaned = String(value).replace(/,/g, "").trim();
+    if (cleaned === "") return 0;
+
+    const numeric = Number.parseInt(cleaned, 10);
+    return Number.isNaN(numeric) ? 0 : numeric;
+  };
+
   const normalizeSubcategoryBudgets = (subcategory) => {
     if (!subcategory) return subcategory;
 
@@ -52,6 +65,7 @@ export default function PromotionFundContent() {
           total_budget: parseBudgetValue(level?.total_budget),
         }))
       : subcategory.budget_levels;
+    const normalizedCount = parseCountValue(subcategory.budget_count);
 
     return {
       ...subcategory,
@@ -59,6 +73,8 @@ export default function PromotionFundContent() {
       total_budget: parseBudgetValue(subcategory.total_budget),
       allocated_budget: parseBudgetValue(subcategory.allocated_budget),
       budget_levels: normalizedLevels,
+      budget_count:
+        normalizedCount || (Array.isArray(normalizedLevels) ? normalizedLevels.length : 0),
     };
   };
 
@@ -280,19 +296,40 @@ export default function PromotionFundContent() {
         );
 
         if (publicationSubs.length > 1) {
+          const combinedLevels = publicationSubs.flatMap((sub) =>
+            Array.isArray(sub.budget_levels) ? sub.budget_levels : []
+          );
+          const remainingBudgetTotal = publicationSubs.reduce(
+            (sum, s) => sum + parseBudgetValue(s.remaining_budget),
+            0
+          );
+          const totalBudgetTotal = publicationSubs.reduce(
+            (sum, s) => sum + parseBudgetValue(s.total_budget),
+            0
+          );
+          const allocatedBudgetTotal = publicationSubs.reduce(
+            (sum, s) => sum + parseBudgetValue(s.allocated_budget),
+            0
+          );
+          const combinedCount =
+            (Array.isArray(combinedLevels) && combinedLevels.length > 0
+              ? combinedLevels.length
+              : publicationSubs.reduce(
+                  (sum, s) => sum + parseCountValue(s.budget_count),
+                  0
+                )) || 0;
+
           const merged = {
             ...publicationSubs[0],
             category_id: category.category_id,
             subcategory_name: "เงินรางวัลการตีพิมพ์เผยแพร่ผลงานวิจัย",
-            remaining_budget: publicationSubs.reduce(
-              (sum, s) => sum + parseBudgetValue(s.remaining_budget),
-              0
-            ),
-            has_multiple_levels: publicationSubs.some((s) => s.has_multiple_levels),
-            budget_count: publicationSubs.reduce(
-              (sum, s) => sum + (s.budget_count || 0),
-              0
-            ),
+            remaining_budget: remainingBudgetTotal,
+            total_budget: totalBudgetTotal,
+            allocated_budget: allocatedBudgetTotal,
+            has_multiple_levels:
+              combinedLevels.length > 0 || publicationSubs.some((s) => s.has_multiple_levels),
+            budget_levels: combinedLevels,
+            budget_count: combinedCount,
             merged_subcategories: publicationSubs,
           };
 
@@ -492,7 +529,7 @@ export default function PromotionFundContent() {
           </div>
           {fund.has_multiple_levels && (
             <div className="text-xs text-gray-500 mt-1">
-              (มี {fund.budget_count} ระดับ)
+              (มี {fund.budget_count || fund.budget_levels?.length || 0} ระดับ)
             </div>
           )}
         </td>
