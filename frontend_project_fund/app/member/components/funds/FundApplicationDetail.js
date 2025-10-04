@@ -20,19 +20,44 @@ import StatusBadge from "../common/StatusBadge";
 import { formatCurrency } from "@/app/utils/format";
 import { useStatusMap } from "@/app/hooks/useStatusMap";
 
-const getStatusIcon = (statusCode) => {
+const statusIconOf = (statusCode) => {
   switch (statusCode) {
     case "approved":
-      return <CheckCircle className="h-5 w-5 text-green-600" />;
+      return CheckCircle;
     case "rejected":
-      return <XCircle className="h-5 w-5 text-red-600" />;
+      return XCircle;
     case "revision":
-      return <AlertCircle className="h-5 w-5 text-orange-600" />;
+      return AlertCircle;
     case "draft":
-      return <Clock className="h-5 w-5 text-gray-600" />;
+      return FileText;
+    case "pending":
     default:
-      return <Clock className="h-5 w-5 text-yellow-600" />;
+      return Clock;
   }
+};
+
+const statusIconColor = (statusCode) => {
+  switch (statusCode) {
+    case "approved":
+      return "text-green-600";
+    case "rejected":
+      return "text-red-600";
+    case "revision":
+      return "text-orange-600";
+    case "draft":
+      return "text-gray-500";
+    case "pending":
+    default:
+      return "text-yellow-600";
+  }
+};
+
+const getColoredStatusIcon = (statusCode) => {
+  const Icon = statusIconOf(statusCode);
+  const color = statusIconColor(statusCode);
+  return function ColoredStatusIcon(props) {
+    return <Icon {...props} className={`${props.className || ""} ${color}`} />;
+  };
 };
 
 export default function FundApplicationDetail({ submissionId, onNavigate }) {
@@ -182,6 +207,15 @@ export default function FundApplicationDetail({ submissionId, onNavigate }) {
     submission.documents || submission.submission_documents || [];
   const applicant = getApplicant();
 
+  const statusCode =
+    getCodeById(submission.status_id) || submission.Status?.status_code;
+  const StatusIcon = getColoredStatusIcon(statusCode);
+  const submittedAt = submission.submitted_at || submission.created_at;
+  const announceReference =
+    submission.announce_reference_number || detail.announce_reference_number;
+  const mainAnnouncement = detail.main_annoucement;
+  const activityAnnouncement = detail.activity_support_announcement;
+
   return (
     <PageLayout
       title={`คำร้องขอทุน #${submission.submission_number}`}
@@ -200,78 +234,110 @@ export default function FundApplicationDetail({ submissionId, onNavigate }) {
       ]}
     >
       {/* Status Summary */}
-      <Card className="mb-6 border-l-4 border-blue-500" collapsible={false}>
-        <div className="flex justify-between items-start">
-          <div>
-            <div className="flex flex-wrap items-center gap-3 mb-2">
-              {getStatusIcon(getCodeById(submission.status_id) || submission.Status?.status_code)}
-              <h3 className="text-lg font-semibold">
-                สถานะคำร้อง (Submission Status)
-              </h3>
-              <div className="flex-shrink-0">
-                <StatusBadge
-                  statusId={submission.status_id}
-                  fallbackLabel={submission.Status?.status_name}
-                />
-              </div>
-              <h3 className="text-lg font-semibold w-full">
-                ชื่อทุน: {submission?.subcategory_name && ` ${submission.subcategory_name}`}
-              </h3>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4 text-sm">
-              <div>
-                <span className="text-gray-500">วันที่สร้างคำร้อง (Created Date):</span>
-                <span className="ml-2 font-medium">
-                  {new Date(submission.created_at).toLocaleDateString("th-TH", {
-                    year: "numeric",
-                    month: "long",
-                    day: "numeric",
-                  })}
+      <Card
+        icon={StatusIcon}
+        collapsible={false}
+        headerClassName="items-center"
+        title={
+          <div className="flex items-center gap-2">
+            <span>สถานะคำร้อง (Submission Status)</span>
+            <StatusBadge
+              statusId={submission.status_id}
+              fallbackLabel={submission.Status?.status_name}
+            />
+          </div>
+        }
+        className="mb-6"
+      >
+        <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
+          <div className="flex-1">
+            <div className="flex flex-col gap-3 mt-4 text-sm">
+              <div className="flex flex-wrap items-start gap-2">
+                <span className="text-gray-500 shrink-0 min-w-[80px]">
+                  ผู้ขอทุน:
+                </span>
+                <span className="font-medium break-words flex-1">
+                  {getUserFullName(applicant)}
                 </span>
               </div>
-              {submission.submitted_at && (
-                <div>
-                  <span className="text-gray-500">วันที่ส่งคำร้อง (Submitted Date):</span>
-                  <span className="ml-2 font-medium">
-                    {new Date(submission.submitted_at).toLocaleDateString(
-                      "th-TH",
-                      {
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-3 mt-2">
+                <div className="flex items-start gap-2">
+                  <span className="text-gray-500 shrink-0">เลขที่คำร้อง:</span>
+                  <span className="font-medium">
+                    {submission.submission_number || "-"}
+                  </span>
+                </div>
+                {submission.created_at && (
+                  <div className="flex items-start gap-2">
+                    <span className="text-gray-500 shrink-0">วันที่สร้างคำร้อง:</span>
+                    <span className="font-medium">
+                      {new Date(submission.created_at).toLocaleDateString("th-TH", {
                         year: "numeric",
                         month: "long",
                         day: "numeric",
-                      }
-                    )}
-                  </span>
-                </div>
-              )}
-              {submission.status_id === 2 &&
-                (submission.announce_reference_number ||
-                  detail.announce_reference_number) && (
-                  <div className="md:col-span-3">
-                    <span className="text-gray-500">
-                      เลขอ้างอิงประกาศ (Announcement Reference):
-                    </span>
-                    <span className="ml-2 font-medium">
-                      {submission.announce_reference_number ||
-                        detail.announce_reference_number}
+                      })}
                     </span>
                   </div>
                 )}
-              {submission.approved_at && (
-                <div>
-                  <span className="text-gray-500">วันที่อนุมัติ (Approval Date):</span>
-                  <span className="ml-2 font-medium">
-                    {new Date(submission.approved_at).toLocaleDateString(
-                      "th-TH",
-                      {
+                {submittedAt && (
+                  <div className="flex items-start gap-2">
+                    <span className="text-gray-500 shrink-0">วันที่ส่งคำร้อง:</span>
+                    <span className="font-medium">
+                      {new Date(submittedAt).toLocaleDateString("th-TH", {
                         year: "numeric",
                         month: "long",
                         day: "numeric",
-                      }
-                    )}
-                  </span>
-                </div>
-              )}
+                      })}
+                    </span>
+                  </div>
+                )}
+                {announceReference && (
+                  <div className="flex items-start gap-2 lg:col-span-3">
+                    <span className="text-gray-500 shrink-0">
+                      หมายเลขอ้างอิงประกาศผลการพิจารณา:
+                    </span>
+                    <span className="font-medium break-all">
+                      {announceReference}
+                    </span>
+                  </div>
+                )}
+                {submission.subcategory_name && (
+                  <div className="flex items-start gap-2 lg:col-span-3">
+                    <span className="text-gray-500 shrink-0">ชื่อทุน:</span>
+                    <span className="font-medium break-words">
+                      {submission.subcategory_name}
+                    </span>
+                  </div>
+                )}
+                {mainAnnouncement && (
+                  <div className="flex items-start gap-2 lg:col-span-3">
+                    <span className="text-gray-500 shrink-0">ประกาศหลักเกณฑ์:</span>
+                    <span className="font-medium break-all">
+                      {mainAnnouncement}
+                    </span>
+                  </div>
+                )}
+                {activityAnnouncement && (
+                  <div className="flex items-start gap-2 lg:col-span-3">
+                    <span className="text-gray-500 shrink-0">ประกาศสนับสนุนกิจกรรม:</span>
+                    <span className="font-medium break-all">
+                      {activityAnnouncement}
+                    </span>
+                  </div>
+                )}
+                {submission.approved_at && (
+                  <div className="flex items-start gap-2">
+                    <span className="text-gray-500 shrink-0">วันที่อนุมัติ:</span>
+                    <span className="font-medium">
+                      {new Date(submission.approved_at).toLocaleDateString("th-TH", {
+                        year: "numeric",
+                        month: "long",
+                        day: "numeric",
+                      })}
+                    </span>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
           <div className="text-right">
