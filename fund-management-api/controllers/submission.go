@@ -1232,19 +1232,15 @@ func onlyDigits(s string) string {
 // Global mutex for submission number generation
 var submissionNumberMutex sync.Mutex
 
-// REPLACE: generateSubmissionNumber creates a unique submission number (prefix-BEYYYYMMDD-RUNNING)
+// REPLACE: generateSubmissionNumber creates a unique submission number (prefix-BEYYYY-RUNNING)
 // - ปีใช้ พ.ศ. จาก system_config.current_year (ถ้าไม่มีค่อย fallback เป็น ปีปัจจุบัน+543)
 // - running number รีเซ็ต "เมื่อปี พ.ศ. เปลี่ยน" (นับรวมทั้งปี ไม่รีเซ็ตรายวัน)
 func generateSubmissionNumber(submissionType string) string {
 	submissionNumberMutex.Lock()
 	defer submissionNumberMutex.Unlock()
 
-	now := time.Now()
 	// ปี พ.ศ. จาก system_config (หรือ fallback)
 	beYear := getCurrentBEYearStr()
-
-	// เดือน/วัน ใช้ของวันนี้
-	dateStr := fmt.Sprintf("%s%02d%02d", beYear, int(now.Month()), now.Day())
 
 	var prefix string
 	switch submissionType {
@@ -1271,7 +1267,7 @@ func generateSubmissionNumber(submissionType string) string {
 
 	// พยายามจองเลขลำดับ + ตรวจซ้ำ
 	for i := int64(1); i <= 10; i++ {
-		potentialNumber := fmt.Sprintf("%s-%s-%04d", prefix, dateStr, count+i)
+		potentialNumber := fmt.Sprintf("%s-%s-%04d", prefix, beYear, count+i)
 
 		var existing int64
 		config.DB.Model(&models.Submission{}).
@@ -1287,7 +1283,7 @@ func generateSubmissionNumber(submissionType string) string {
 	bytes := make([]byte, 3)
 	rand.Read(bytes)
 	randomSuffix := strings.ToUpper(hex.EncodeToString(bytes))
-	return fmt.Sprintf("%s-%s-R-%s", prefix, dateStr, randomSuffix)
+	return fmt.Sprintf("%s-%s-R-%s", prefix, beYear, randomSuffix)
 }
 
 // isValidFileType checks if file type is allowed

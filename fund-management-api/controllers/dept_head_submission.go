@@ -92,6 +92,8 @@ func GetDeptHeadSubmissions(c *gin.Context) {
 	})
 }
 
+// controllers/dept_head_submission.go
+
 func GetDeptHeadSubmissionDetails(c *gin.Context) {
 	submissionIDStr := c.Param("id")
 	submissionID, err := strconv.Atoi(submissionIDStr)
@@ -227,6 +229,7 @@ func DeptHeadRecommendSubmission(c *gin.Context) {
 	c.JSON(http.StatusOK, payload)
 }
 
+// ===== REPLACE WHOLE FUNCTION =====
 func DeptHeadRejectSubmission(c *gin.Context) {
 	submissionIDStr := c.Param("id")
 	submissionID, err := strconv.Atoi(submissionIDStr)
@@ -239,19 +242,9 @@ func DeptHeadRejectSubmission(c *gin.Context) {
 		RejectionReason string `json:"rejection_reason" binding:"required"`
 		Comment         string `json:"comment"`
 	}
-	if err := c.ShouldBindJSON(&req); err != nil {
+	if err := c.ShouldBindJSON(&req); err != nil || strings.TrimSpace(req.RejectionReason) == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Rejection reason is required"})
 		return
-	}
-
-	reason := strings.TrimSpace(req.RejectionReason)
-	if reason == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Rejection reason is required"})
-		return
-	}
-	comment := strings.TrimSpace(req.Comment)
-	if comment == "" {
-		comment = reason
 	}
 
 	userIDVal, _ := c.Get("userID")
@@ -264,23 +257,14 @@ func DeptHeadRejectSubmission(c *gin.Context) {
 	}
 
 	var submission models.Submission
-	if err := tx.Preload("Status").First(&submission, submissionID).Error; err != nil {
+	if err := tx.First(&submission, submissionID).Error; err != nil {
 		tx.Rollback()
-		if err == gorm.ErrRecordNotFound {
-			c.JSON(http.StatusNotFound, gin.H{"error": "Submission not found"})
-		} else {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to load submission"})
-		}
+		c.JSON(http.StatusNotFound, gin.H{"error": "Submission not found"})
 		return
 	}
 
 	allowed, err := utils.StatusMatchesCodes(submission.StatusID, utils.StatusCodeDeptHeadPending)
-	if err != nil {
-		tx.Rollback()
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to verify submission status"})
-		return
-	}
-	if !allowed {
+	if err != nil || !allowed {
 		tx.Rollback()
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Submission is not awaiting department review"})
 		return
@@ -295,13 +279,18 @@ func DeptHeadRejectSubmission(c *gin.Context) {
 
 	now := time.Now()
 	updates := map[string]interface{}{
-		"status_id":        rejectStatus.ApplicationStatusID,
-		"updated_at":       now,
-		"reviewed_at":      now,
-		"head_approved_at": now,
-		"head_approved_by": userID,
-		"closed_at":        now,
-		"comment":          comment,
+		"status_id":             rejectStatus.ApplicationStatusID,
+		"updated_at":            now,
+		"reviewed_at":           now,
+		"head_approved_at":      now, // ตัดสินใจแล้ว
+		"head_approved_by":      userID,
+		"closed_at":             now,
+		"head_rejected_by":      userID,
+		"head_rejected_at":      now,
+		"head_rejection_reason": strings.TrimSpace(req.RejectionReason),
+	}
+	if strings.TrimSpace(req.Comment) != "" {
+		updates["head_comment"] = strings.TrimSpace(req.Comment)
 	}
 
 	if err := tx.Model(&models.Submission{}).
@@ -312,39 +301,11 @@ func DeptHeadRejectSubmission(c *gin.Context) {
 		return
 	}
 
-	switch submission.SubmissionType {
-	case "publication_reward":
-		detailUpdates := map[string]interface{}{
-			"rejection_reason": reason,
-			"rejected_by":      userID,
-			"rejected_at":      now,
-			"update_at":        now,
-		}
-		if err := tx.Model(&models.PublicationRewardDetail{}).
-			Where("submission_id = ?", submissionID).
-			Updates(detailUpdates).Error; err != nil {
-			tx.Rollback()
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to record rejection details"})
-			return
-		}
-	case "fund_application":
-		detailUpdates := map[string]interface{}{
-			"comment":     comment,
-			"rejected_by": userID,
-			"rejected_at": now,
-			"closed_at":   now,
-		}
-		if err := tx.Model(&models.FundApplicationDetail{}).
-			Where("submission_id = ?", submissionID).
-			Updates(detailUpdates).Error; err != nil {
-			tx.Rollback()
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to record rejection details"})
-			return
-		}
-	}
+	// (ไม่อัปเดตตารางรายละเอียดอีกต่อไป)
 
-	desc := reason
-	auditLog := models.AuditLog{
+	// Audit
+	desc := req.RejectionReason
+	if err := tx.Create(&models.AuditLog{
 		UserID:       userID,
 		Action:       "reject",
 		EntityType:   "submission",
@@ -353,8 +314,7 @@ func DeptHeadRejectSubmission(c *gin.Context) {
 		Description:  &desc,
 		IPAddress:    c.ClientIP(),
 		CreatedAt:    now,
-	}
-	if err := tx.Create(&auditLog).Error; err != nil {
+	}).Error; err != nil {
 		tx.Rollback()
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to record audit log"})
 		return
@@ -365,131 +325,204 @@ func DeptHeadRejectSubmission(c *gin.Context) {
 		return
 	}
 
+	// payload (ตามพฤติกรรมเดิม)
 	payload, err := buildSubmissionDetailPayload(submissionID)
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{"success": true})
 		return
 	}
-
 	payload["success"] = true
 	c.JSON(http.StatusOK, payload)
 }
 
+// controllers/dept_head_submission.go
+
+// controllers/dept_head_submission.go
+
 func buildSubmissionDetailPayload(submissionID int) (gin.H, error) {
+	// โหลด submission พร้อมความสัมพันธ์ที่จำเป็น (ตามของเดิม)
 	var submission models.Submission
-	query := config.DB.Preload("User").
+	if err := config.DB.
+		Preload("User").
 		Preload("Year").
 		Preload("Status").
+		Preload("Category").
+		Preload("Subcategory").
+		Preload("SubmissionUsers.User").
+		Preload("PublicationRewardDetail").
+		Preload("FundApplicationDetail").
+		Preload("FundApplicationDetail.Subcategory").
 		Preload("FundApplicationDetail.Subcategory.Category").
-		Preload("PublicationRewardDetail")
-
-	if err := query.First(&submission, submissionID).Error; err != nil {
+		Where("submission_id = ? AND deleted_at IS NULL", submissionID).
+		First(&submission).Error; err != nil {
 		return nil, err
 	}
 
-	var submissionUsers []models.SubmissionUser
-	if err := config.DB.Where("submission_id = ?", submissionID).
-		Preload("User").
-		Order("display_order ASC").
-		Find(&submissionUsers).Error; err != nil {
-		submissionUsers = []models.SubmissionUser{}
-	}
-
-	var documents []models.SubmissionDocument
-	config.DB.Where("submission_id = ?", submissionID).
-		Preload("DocumentType").
-		Preload("File").
-		Find(&documents)
-
-	response := gin.H{
-		"submission": gin.H{
-			"submission_id":         submission.SubmissionID,
-			"submission_number":     submission.SubmissionNumber,
-			"submission_type":       submission.SubmissionType,
-			"user_id":               submission.UserID,
-			"year_id":               submission.YearID,
-			"category_id":           submission.CategoryID,
-			"subcategory_id":        submission.SubcategoryID,
-			"subcategory_budget_id": submission.SubcategoryBudgetID,
-			"status_id":             submission.StatusID,
-			"submitted_at":          submission.SubmittedAt,
-			"created_at":            submission.CreatedAt,
-			"updated_at":            submission.UpdatedAt,
-			"user":                  submission.User,
-			"year":                  submission.Year,
-			"status":                submission.Status,
-		},
-		"details":          nil,
-		"submission_users": []gin.H{},
-		"documents":        []gin.H{},
-	}
-
-	if submission.SubmissionType == "publication_reward" && submission.PublicationRewardDetail != nil {
-		response["details"] = gin.H{
-			"type": "publication_reward",
-			"data": submission.PublicationRewardDetail,
+	// ---- applicant (เหมือนเดิม) ----
+	var applicant map[string]any
+	if submission.User != nil && submission.User.UserID > 0 {
+		applicant = map[string]any{
+			"user_id":    submission.User.UserID,
+			"user_fname": submission.User.UserFname,
+			"user_lname": submission.User.UserLname,
+			"email":      submission.User.Email,
 		}
-	} else if submission.SubmissionType == "fund_application" && submission.FundApplicationDetail != nil {
-		response["details"] = gin.H{
-			"type": "fund_application",
-			"data": submission.FundApplicationDetail,
+	} else if submission.UserID > 0 {
+		var u models.User
+		if err := config.DB.
+			Select("user_id, user_fname, user_lname, email").
+			Where("user_id = ?", submission.UserID).
+			First(&u).Error; err == nil && u.UserID > 0 {
+			applicant = map[string]any{
+				"user_id":    u.UserID,
+				"user_fname": u.UserFname,
+				"user_lname": u.UserLname,
+				"email":      u.Email,
+			}
+			submission.User = &u
 		}
 	}
 
-	for _, su := range submissionUsers {
-		if su.User == nil {
-			var user models.User
-			if err := config.DB.Where("user_id = ?", su.UserID).First(&user).Error; err == nil {
-				su.User = &user
-			} else {
-				continue
+	// ---- details (ใส่ประกาศสำหรับ fund_application ให้แน่ใจว่ามี) ----
+	var detailsData any = nil
+	switch submission.SubmissionType {
+	case "publication_reward":
+		detailsData = submission.PublicationRewardDetail
+
+	case "fund_application":
+		// ดึงสองคอลัมน์ที่ struct ไม่มี เพื่อ inject เข้า response
+		var extra struct {
+			MainAnnoucement             *int `gorm:"column:main_annoucement"`
+			ActivitySupportAnnouncement *int `gorm:"column:activity_support_announcement"`
+		}
+		_ = config.DB.
+			Table("fund_application_details").
+			Select("main_annoucement, activity_support_announcement").
+			Where("submission_id = ?", submissionID).
+			Take(&extra).Error // ถ้าไม่เจอ / nil ก็ปล่อยให้เป็น nil
+
+		if submission.FundApplicationDetail != nil {
+			fad := submission.FundApplicationDetail
+			// สร้าง map ตอบกลับพร้อมประกาศ 2 ตัว
+			detailsData = gin.H{
+				"detail_id":                 fad.DetailID,
+				"submission_id":             fad.SubmissionID,
+				"subcategory_id":            fad.SubcategoryID,
+				"project_title":             fad.ProjectTitle,
+				"project_description":       fad.ProjectDescription,
+				"requested_amount":          fad.RequestedAmount,
+				"approved_amount":           fad.ApprovedAmount,
+				"closed_at":                 fad.ClosedAt,
+				"comment":                   fad.Comment,
+				"announce_reference_number": fad.AnnounceReferenceNumber,
+				"approved_by":               fad.ApprovedBy,
+				"approved_at":               fad.ApprovedAt,
+				"rejected_by":               fad.RejectedBy,
+				"rejected_at":               fad.RejectedAt,
+				"subcategory":               fad.Subcategory,
+
+				// >>> ประกาศที่ต้องการ <<<
+				"main_annoucement":              extra.MainAnnoucement,
+				"activity_support_announcement": extra.ActivitySupportAnnouncement,
+			}
+		} else {
+			// กันเคสไม่ preload detail ด้วย
+			detailsData = gin.H{
+				"main_annoucement":              extra.MainAnnoucement,
+				"activity_support_announcement": extra.ActivitySupportAnnouncement,
 			}
 		}
-		response["submission_users"] = append(response["submission_users"].([]gin.H), gin.H{
-			"user_id":       su.UserID,
-			"role":          su.Role,
-			"display_order": su.DisplayOrder,
-			"is_primary":    su.IsPrimary,
-			"created_at":    su.CreatedAt,
-			"user": gin.H{
+	}
+
+	details := gin.H{"type": submission.SubmissionType, "data": detailsData}
+
+	// ---- submission_users (เหมือนเดิม) ----
+	submissionUsers := make([]gin.H, 0, len(submission.SubmissionUsers))
+	for _, su := range submission.SubmissionUsers {
+		if su.User != nil && su.User.UserID > 0 {
+			submissionUsers = append(submissionUsers, gin.H{
 				"user_id":    su.User.UserID,
 				"user_fname": su.User.UserFname,
 				"user_lname": su.User.UserLname,
 				"email":      su.User.Email,
-			},
-		})
+			})
+		}
 	}
 
-	for _, doc := range documents {
-		docInfo := gin.H{
-			"document_id":      doc.DocumentID,
-			"submission_id":    doc.SubmissionID,
-			"file_id":          doc.FileID,
-			"document_type_id": doc.DocumentTypeID,
-			"description":      doc.Description,
-			"display_order":    doc.DisplayOrder,
-			"is_required":      doc.IsRequired,
-			"created_at":       doc.CreatedAt,
-		}
-		if doc.DocumentType.DocumentTypeID != 0 {
-			docInfo["document_type"] = gin.H{
-				"document_type_id":   doc.DocumentType.DocumentTypeID,
-				"document_type_name": doc.DocumentType.DocumentTypeName,
+	// ---- documents (ถ้ามีระบบเอกสาร ค่อยเติม) ----
+	documents := []gin.H{}
+
+	// ---- payload หลัก (เหมือนเดิม) ----
+	submissionPayload := gin.H{
+		"submission_id":     submission.SubmissionID,
+		"submission_number": submission.SubmissionNumber,
+		"submission_type":   submission.SubmissionType,
+		"user_id":           submission.UserID,
+		"year_id":           submission.YearID,
+		"status_id":         submission.StatusID,
+
+		"created_at":   submission.CreatedAt,
+		"updated_at":   submission.UpdatedAt,
+		"submitted_at": submission.SubmittedAt,
+		"reviewed_at":  submission.ReviewedAt,
+
+		"head_approved_by":       submission.HeadApprovedBy,
+		"head_approved_at":       submission.HeadApprovedAt,
+		"head_rejected_by":       submission.HeadRejectedBy,
+		"head_rejected_at":       submission.HeadRejectedAt,
+		"head_rejection_reason":  submission.HeadRejectionReason,
+		"head_comment":           submission.HeadComment,
+		"admin_approved_by":      submission.AdminApprovedBy,
+		"admin_approved_at":      submission.AdminApprovedAt,
+		"admin_rejected_by":      submission.AdminRejectedBy,
+		"admin_rejected_at":      submission.AdminRejectedAt,
+		"admin_rejection_reason": submission.AdminRejectionReason,
+		"admin_comment":          submission.AdminComment,
+
+		"rejected_by":      submission.RejectedBy,
+		"rejected_at":      submission.RejectedAt,
+		"rejection_reason": submission.RejectionReason,
+		"comment":          submission.Comment,
+
+		"category_id":           submission.CategoryID,
+		"subcategory_id":        submission.SubcategoryID,
+		"subcategory_budget_id": submission.SubcategoryBudgetID,
+		"category":              submission.Category,
+		"subcategory":           submission.Subcategory,
+		"category_name": func() string {
+			if submission.Category != nil {
+				return submission.Category.CategoryName
 			}
-		}
-		if doc.File.FileID != 0 {
-			docInfo["file"] = gin.H{
-				"file_id":       doc.File.FileID,
-				"original_name": doc.File.OriginalName,
-				"file_size":     doc.File.FileSize,
-				"mime_type":     doc.File.MimeType,
-				"uploaded_at":   doc.File.UploadedAt,
+			return ""
+		}(),
+		"subcategory_name": func() string {
+			if submission.Subcategory != nil && submission.Subcategory.SubcategoryName != "" {
+				return submission.Subcategory.SubcategoryName
 			}
-		}
-		response["documents"] = append(response["documents"].([]gin.H), docInfo)
+			if submission.FundApplicationDetail != nil &&
+				submission.FundApplicationDetail.Subcategory != nil &&
+				submission.FundApplicationDetail.Subcategory.SubcategoryName != "" {
+				return submission.FundApplicationDetail.Subcategory.SubcategoryName
+			}
+			return ""
+		}(),
+
+		"user":   submission.User,
+		"year":   submission.Year,
+		"status": submission.Status,
 	}
 
-	return response, nil
+	// ---- response ครบชุด ----
+	resp := gin.H{
+		"submission":        submissionPayload,
+		"details":           details,
+		"submission_users":  submissionUsers,
+		"documents":         documents,
+		"applicant":         applicant,
+		"applicant_user_id": submission.UserID,
+		"success":           true,
+	}
+	return resp, nil
 }
 
 func extractApplicantUser(submission *models.Submission) *models.User {
