@@ -10,7 +10,7 @@ import PublicationSubmissionDetails from './PublicationSubmissionDetails';
 import GeneralSubmissionDetails from './GeneralSubmissionDetails';
 import { submissionsListingAPI, adminSubmissionAPI, commonAPI } from '../../../lib/admin_submission_api';
 import { toast } from 'react-hot-toast';
-import systemConfigAPI from '../../../lib/system_config_api'
+import systemConfigAPI from '../../../lib/system_config_api';
 import { useStatusMap } from '@/app/hooks/useStatusMap';
 
 // ----------- CONFIG -----------
@@ -144,6 +144,32 @@ export default function SubmissionsManagement() {
       console.log('[FetchAll] total fetched:', aggregate.length, 'after year filter:', filteredByYear.length);
 
       setAllSubmissions(filteredByYear);
+
+      // Prime userMap from rows that already include User/applicant on the list rows
+      try {
+        const initial = {};
+        const pickName = (u) => {
+          if (!u) return '';
+          const display = u.display_name || u.DisplayName || u.full_name || u.FullName || '';
+          const first = u.user_fname || u.first_name || u.given_name || u.UserFname || u.FirstName || u.GivenName || u.name_th || u.name || '';
+          const last  = u.user_lname || u.last_name || u.family_name || u.UserLname || u.LastName || u.FamilyName || u.surname_th || u.surname || '';
+          const email = u.email || u.user_email || u.Email || u.UserEmail || '';
+          const username = u.username || u.UserName || '';
+          return (display || `${first} ${last}`.trim()).trim() || email || username;
+        };
+        filteredByYear.forEach(r => {
+          const u = r?.User || r?.user || r?.applicant;
+          const id = String(r?.user_id || u?.user_id || '');
+          const name = pickName(u);
+          if (id && name) initial[id] = name;
+        });
+        if (Object.keys(initial).length) {
+          setUserMap(prev => ({ ...initial, ...prev }));
+        }
+      } catch (e) {
+        console.warn('prime userMap failed:', e);
+      }
+
       setCurrentPage(1); // เริ่มที่หน้าแรก
       setCursor(0);
 
@@ -371,54 +397,47 @@ export default function SubmissionsManagement() {
           setDetailsMap(prev => ({ ...prev, ...add }));
           try {
             const addUsers = {};
-            Object.values(add).forEach(dp => {
-              // --- normalize ---
+            Object.entries(add).forEach(([submId, dp]) => {
               const dpo =
                 dp?.details?.data ||
                 dp?.data ||
                 dp?.payload ||
-                dp ||
-                {};
+                dp || {};
 
-              // 1) submission_users (primary → first)
-              const subUsers =
-                dp?.submission_users || dp?.SubmissionUsers ||
-                dpo?.submission_users || dpo?.SubmissionUsers ||
-                dp?.data?.submission_users || dp?.data?.SubmissionUsers ||
-                [];
+              // ดึง canonical applicant_id ของคำร้องนี้จาก details (ถ้ามี)
+              const applicantId =
+                dpo?.submission?.user_id ??
+                dpo?.Submission?.user_id ??
+                dp?.submission?.user_id ??
+                dp?.Submission?.user_id ?? null;
 
-              subUsers.forEach(su => {
-                const u = su?.user || su?.User;
-                const id = String(u?.user_id ?? u?.UserID ?? su?.user_id ?? '');
-                if (!id) return;
-                const name  = nameFromUser(u) || `User ${id}`;
-                addUsers[id] = name;
-              });
-
-              // 2) owner / applicant (หลายรูปแบบ)
-              const owner =
-                dp?.submission?.User || dp?.Submission?.User ||
+              // ดึงข้อมูล user ของเจ้าของ (ถ้ามี object)
+              const ownerObj =
                 dpo?.submission?.User || dpo?.Submission?.User ||
-                dp?.User || dp?.user ||
-                dpo?.User || dpo?.user ||
-                dp?.applicant || dp?.applicant_user ||
-                dpo?.applicant || dpo?.applicant_user;
+                dp?.submission?.User || dp?.Submission?.User ||
+                dpo?.User || dp?.User || null;
 
-              if (owner) {
-                const id = String(owner.user_id ?? owner.UserID ?? '');
-                if (id) {
-                  const name  = nameFromUser(owner) || `User ${id}`;
-                  addUsers[id] = name;
+              if (applicantId) {
+                const idStr = String(applicantId);
+               // prefer ownerObj from submission join; fallback to applicant object if available
+                const applicantObj = dpo?.applicant || dp?.applicant || null;
+                let name = ownerObj ? nameFromUser(ownerObj) : '';
+                if (!name && applicantObj) {
+                  name = nameFromUser(applicantObj);
                 }
+                // map เฉพาะผู้ยื่น (applicant) → ชื่อ
+                if (name) {
+                  addUsers[idStr] = name;
+                }
+                // ไม่เติมชื่อจาก submission_users / co-authors / approvers
               }
             });
 
             if (Object.keys(addUsers).length) {
-              console.debug('[UserMap add]', addUsers);
               setUserMap(prev => ({ ...prev, ...addUsers }));
             }
           } catch (e) {
-            console.warn('build addUsers failed:', e);
+            console.warn('build addUsers (applicant-only) failed:', e);
           }
         }
       } catch {
