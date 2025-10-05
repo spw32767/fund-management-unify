@@ -19,6 +19,7 @@ const (
 	StatusCodeDeptHeadPending        = "5"
 	StatusCodeDeptHeadRecommended    = "6"
 	StatusCodeDeptHeadNotRecommended = "7"
+	StatusCodeAdminClosed            = "8"
 )
 
 type statusCache struct {
@@ -127,4 +128,24 @@ func StatusMatchesCodes(statusID int, codes ...string) (bool, error) {
 		}
 	}
 	return false, nil
+}
+
+// IsSubmissionClosed reports whether the provided status represents an admin closed submission.
+func IsSubmissionClosed(statusID int) (bool, error) {
+	return StatusMatchesCodes(statusID, StatusCodeAdminClosed)
+}
+
+// EnsureStatusIn verifies a status matches at least one of the provided codes.
+func EnsureStatusIn(statusID int, codes ...string) error {
+	if len(codes) == 0 {
+		return fmt.Errorf("no status codes provided")
+	}
+	ok, err := StatusMatchesCodes(statusID, codes...)
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return fmt.Errorf("status %d is not in allowed codes %v", statusID, codes)
+	}
+	return nil
 }
