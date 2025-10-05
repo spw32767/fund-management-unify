@@ -684,13 +684,33 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
       const options = resp.options || resp.data || [];
       const pairs = options.map(o => ({ author_status: o.author_status, journal_quartile: o.journal_quartile }));
       const meta = options.reduce((acc, option) => {
-        if (!option?.author_status) return acc;
-        if (!acc[option.author_status]) {
-          acc[option.author_status] = {
-            subcategory_id: option?.subcategory_id ?? null,
-            subcategory_budget_id: option?.subcategory_budget_id ?? null,
+        const status = option?.author_status;
+        if (!status) return acc;
+
+        const quartile = option?.journal_quartile;
+        const subcategoryId = option?.subcategory_id ?? null;
+        const subcategoryBudgetId = option?.subcategory_budget_id ?? null;
+
+        if (!acc[status]) {
+          acc[status] = {
+            defaultSubcategoryId: subcategoryId,
+            defaultSubcategoryBudgetId: subcategoryBudgetId,
+            byQuartile: {}
           };
         }
+
+        if (quartile) {
+          acc[status].byQuartile[quartile] = {
+            subcategory_id: subcategoryId,
+            subcategory_budget_id: subcategoryBudgetId,
+          };
+        }
+
+        if (subcategoryId && !acc[status].defaultSubcategoryId) {
+          acc[status].defaultSubcategoryId = subcategoryId;
+          acc[status].defaultSubcategoryBudgetId = subcategoryBudgetId;
+        }
+
         return acc;
       }, {});
       return { pairs, meta };
@@ -919,7 +939,7 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
       setFormData(prev => ({
         ...prev,
         journal_quartile: '',
-        subcategory_id: statusMeta.subcategory_id ?? null,
+        subcategory_id: statusMeta.defaultSubcategoryId ?? null,
         subcategory_budget_id: null
       }));
       if (sorted.length === 0) {
@@ -943,11 +963,13 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
           });
           if (result) {
             const statusMeta = authorStatusMeta[formData.author_status] || {};
-            const resolvedSubcategoryId = result?.subcategory_id ?? statusMeta.subcategory_id ?? null;
+            const statusQuartileMeta = statusMeta.byQuartile?.[formData.journal_quartile] || {};
+            const resolvedSubcategoryId = result?.subcategory_id ?? statusQuartileMeta.subcategory_id ?? statusMeta.defaultSubcategoryId ?? null;
+            const resolvedSubcategoryBudgetId = result?.subcategory_budget_id ?? statusQuartileMeta.subcategory_budget_id ?? statusMeta.defaultSubcategoryBudgetId ?? null;
             setFormData(prev => ({
               ...prev,
               subcategory_id: resolvedSubcategoryId,
-              subcategory_budget_id: result.subcategory_budget_id,
+              subcategory_budget_id: resolvedSubcategoryBudgetId,
               publication_reward: result.reward_amount,
               reward_amount: result.reward_amount,
             }));
@@ -2640,11 +2662,13 @@ const showSubmissionConfirmation = async () => {
         });
 
         const statusMeta = authorStatusMeta[formData.author_status] || {};
-        const submissionSubcategoryId = formData.subcategory_id ?? statusMeta.subcategory_id ?? null;
+        const statusQuartileMeta = statusMeta.byQuartile?.[formData.journal_quartile] || {};
+        const submissionSubcategoryId = formData.subcategory_id ?? statusQuartileMeta.subcategory_id ?? statusMeta.defaultSubcategoryId ?? null;
+        const submissionSubcategoryBudgetId = formData.subcategory_budget_id ?? statusQuartileMeta.subcategory_budget_id ?? statusMeta.defaultSubcategoryBudgetId ?? null;
 
         console.log('Before POST:', {
           subcategory_id: submissionSubcategoryId,
-          subcategory_budget_id: formData.subcategory_budget_id
+          subcategory_budget_id: submissionSubcategoryBudgetId
         });
 
         const submissionResponse = await submissionAPI.create({
@@ -2652,7 +2676,7 @@ const showSubmissionConfirmation = async () => {
           year_id: formData.year_id,
           category_id: formData.category_id || categoryId,
           subcategory_id: submissionSubcategoryId,        // Dynamic resolved
-          subcategory_budget_id: formData.subcategory_budget_id,  // Dynamic resolved
+          subcategory_budget_id: submissionSubcategoryBudgetId,  // Dynamic resolved
         });
         
         submissionId = submissionResponse.submission.submission_id;
