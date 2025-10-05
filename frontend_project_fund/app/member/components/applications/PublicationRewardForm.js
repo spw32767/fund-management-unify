@@ -952,9 +952,9 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
               option.author_status === formData.author_status &&
               option.journal_quartile === formData.journal_quartile
             );
-            const resolvedSubcategoryId = fallbackOption?.subcategory_id ?? result?.subcategory_id ?? null;
-            const resolvedBudgetId = fallbackOption?.subcategory_budget_id ?? result?.subcategory_budget_id ?? null;
-            const resolvedRewardAmount = fallbackOption?.reward_amount ?? result?.reward_amount ?? 0;
+            const resolvedSubcategoryId = result?.subcategory_id ?? fallbackOption?.subcategory_id ?? null;
+            const resolvedBudgetId = result?.subcategory_budget_id ?? fallbackOption?.subcategory_budget_id ?? null;
+            const resolvedRewardAmount = result?.reward_amount ?? fallbackOption?.reward_amount ?? 0;
             setFormData(prev => ({
               ...prev,
               subcategory_id: resolvedSubcategoryId,
