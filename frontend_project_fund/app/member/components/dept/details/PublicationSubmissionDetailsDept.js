@@ -641,7 +641,9 @@ export default function PublicationSubmissionDetailsDept({ submissionId, onBack 
           data?.documents?.items,
           data?.documents?.results
         );
-        setAttachments(normalizedDocs);
+        if (normalizedDocs.length) {
+          setAttachments(normalizedDocs);
+        }
       } catch (err) {
         console.error('Error loading submission details:', err);
         toast.error('โหลดข้อมูลล้มเหลว');
@@ -760,6 +762,129 @@ export default function PublicationSubmissionDetailsDept({ submissionId, onBack 
     pubDetail?.submitted_at ??
     submission?.submitted_date ??
     null;
+
+  useEffect(() => {
+    if (!submission?.submission_id) return;
+
+    let ignore = false;
+
+    const loadAttachments = async () => {
+      setAttachmentsLoading(true);
+      try {
+        const [docRes, typeRes] = await Promise.all([
+          deptHeadAPI.getSubmissionDocuments
+            ? deptHeadAPI.getSubmissionDocuments(submission.submission_id)
+            : Promise.resolve(submission.documents || submission.submission_documents || []),
+          deptHeadAPI.getDocumentTypes ? deptHeadAPI.getDocumentTypes() : Promise.resolve([]),
+        ]);
+
+        if (ignore) return;
+
+        const docsApi = pickArray(
+          docRes?.documents,
+          docRes?.data?.documents,
+          docRes?.data?.documents?.data,
+          docRes?.data?.documents?.items,
+          docRes?.data?.documents?.results,
+          docRes?.data?.items,
+          docRes?.data?.results,
+          docRes?.data,
+          docRes?.items,
+          docRes?.results,
+          docRes?.documents?.data,
+          docRes?.documents?.items,
+          docRes?.documents?.results,
+          docRes
+        );
+
+        const typesArr = pickArray(
+          typeRes?.document_types,
+          typeRes?.data?.document_types,
+          typeRes?.data?.document_types?.data,
+          typeRes?.data?.document_types?.items,
+          typeRes?.data?.document_types?.results,
+          typeRes?.data?.items,
+          typeRes?.data?.results,
+          typeRes?.data,
+          typeRes?.items,
+          typeRes?.results,
+          typeRes
+        );
+
+        const typeMap = {};
+        for (const t of typesArr) {
+          const id = t?.document_type_id ?? t?.id;
+          if (id != null) {
+            typeMap[String(id)] =
+              t?.document_type_name || t?.name || t?.code || t?.label || 'ไม่ระบุประเภท';
+          }
+        }
+
+        const docsFallback = pickArray(
+          submission?.documents,
+          submission?.submission_documents,
+          submission?.documents?.data,
+          submission?.documents?.items,
+          submission?.documents?.results
+        );
+
+        const rawDocs = docsApi.length > 0 ? docsApi : docsFallback;
+
+        const merged = (rawDocs || []).map((d, index) => {
+          const docTypeId =
+            d?.document_type_id ??
+            d?.document_type ??
+            d?.DocumentTypeID ??
+            d?.document_type_code ??
+            d?.document_type_key ??
+            d?.document_typeid ??
+            d?.DocumentType?.document_type_id ??
+            d?.DocumentType?.id ??
+            d?.document_type_obj?.document_type_id ??
+            d?.document_type_obj?.id ??
+            null;
+
+          const docTypeName =
+            (typeof d?.document_type_name === 'string' && d.document_type_name.trim()
+              ? d.document_type_name.trim()
+              : null) ??
+            (typeof d?.DocumentType?.document_type_name === 'string' &&
+            d.DocumentType.document_type_name.trim()
+              ? d.DocumentType.document_type_name.trim()
+              : null) ??
+            (docTypeId != null ? typeMap[String(docTypeId)] : null) ??
+            (typeof d?.document_type_code === 'string' && d.document_type_code.trim()
+              ? d.document_type_code.trim()
+              : null) ??
+            'ไม่ระบุประเภท';
+
+          return {
+            ...d,
+            document_type_id: docTypeId ?? d?.document_type_id ?? null,
+            document_type_name: docTypeName,
+            _index: index,
+          };
+        });
+
+        setAttachments(merged);
+      } catch (error) {
+        if (!ignore) {
+          console.error('Error loading attachments:', error);
+          toast.error('โหลดเอกสารแนบไม่สำเร็จ');
+        }
+      } finally {
+        if (!ignore) {
+          setAttachmentsLoading(false);
+        }
+      }
+    };
+
+    loadAttachments();
+
+    return () => {
+      ignore = true;
+    };
+  }, [submission]);
 
   const approvedAt =
     pubDetail?.approved_at ??
