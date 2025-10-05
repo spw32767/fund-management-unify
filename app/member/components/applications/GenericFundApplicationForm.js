@@ -905,7 +905,7 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
               min="0"
               value={formData.requested_amount}
               onChange={(e) => handleInputChange('requested_amount', e.target.value)}
-              placeholder="Request Amount"
+              placeholder="0.00"
               className={`w-full bg-gray-50 rounded-lg p-3 text-2xl font-semibold text-gray-800 border ${errors.requested_amount ? 'border-red-500' : 'border-gray-200'}`}
             />
             {errors.requested_amount && (

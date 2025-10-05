@@ -6,6 +6,7 @@ import { FileText, Upload, Plus, X, Save, Send, AlertCircle } from "lucide-react
 import PageLayout from "../common/PageLayout";
 import SimpleCard from "../common/SimpleCard";
 import { fundApplicationAPI, submissionAPI, fileAPI } from '../../../lib/member_api';
+import { notificationsAPI } from '../../../lib/notifications_api';
 
 // File upload component with drag & drop
 const FileUpload = ({ onFileSelect, accept, multiple = false, error }) => {
@@ -315,9 +316,15 @@ export default function ApplicationForm({ selectedFund }) {
 
       // Submit the application
       await fundApplicationAPI.submitApplication(submissionId);
-      
+
+      // Fire-and-forget notification to applicant + current dept head
+      try {
+        await notificationsAPI.notifySubmissionSubmitted(submissionId);
+      } catch (e) {
+        console.warn('notifySubmissionSubmitted failed:', e);
+      }
+
       alert('ส่งคำร้องเรียบร้อยแล้ว');
-      
       // Reset form or redirect
       resetForm();
       

@@ -3,8 +3,13 @@ import apiClient from './api';
 
 /**
  * Notifications API (frontend client)
- * - ไม่แตะ UX; ใช้เรียก endpoint ฝั่ง Go ที่คุณเพิ่งเพิ่มไว้
- * - สไตล์เดียวกับ admin_submission_api.js
+ * Flow ใหม่:
+ * - เมื่อส่งคำร้อง: แจ้งผู้ยื่น + หัวหน้าสาขา
+ * - เมื่อหัวหน้าสาขาเห็นควร/ไม่เห็นควร:
+ *   - แจ้งผู้ยื่น
+ *   - แจ้งแอดมิน "เฉพาะกรณีเห็นควรพิจารณา"
+ * - เมื่อแอดมินอนุมัติ/ไม่อนุมัติ:
+ *   - แจ้งผู้ยื่น (กรณีอนุมัติ backend จะดึงจำนวนเงินจากตาราง detail)
  */
 export const notificationsAPI = {
   /** ดึงรายการของผู้ใช้ปัจจุบัน */
@@ -32,12 +37,39 @@ export const notificationsAPI = {
   /**
    * อีเวนต์: ผู้ใช้ส่งคำร้องสำเร็จ
    * (เรียกหลัง submitSubmission(submissionId) สำเร็จ)
+   * -> แจ้ง ผู้ยื่น + หัวหน้าสาขาปัจจุบัน
    */
   async notifySubmissionSubmitted(submissionId) {
     return apiClient.post(`/notifications/events/submissions/${submissionId}/submitted`);
   },
 
-  /* แจ้งเตือนเมื่อ "อนุมัติ" */
+  /**
+   * อีเวนต์: หัวหน้าสาขา “เห็นควรพิจารณา”
+   * -> แจ้งผู้ยื่น + แจ้งแอดมิน
+   */
+  async notifyDeptHeadRecommended(submissionId, { comment } = {}) {
+    return apiClient.post(
+      `/notifications/events/submissions/${submissionId}/dept-head/recommended`,
+      { comment: comment || '' }
+    );
+  },
+
+  /**
+   * อีเวนต์: หัวหน้าสาขา “ไม่เห็นควรพิจารณา”
+   * -> แจ้งผู้ยื่นเท่านั้น (ไม่แจ้งแอดมิน)
+   */
+  async notifyDeptHeadNotRecommended(submissionId, { reason, comment } = {}) {
+    return apiClient.post(
+      `/notifications/events/submissions/${submissionId}/dept-head/not-recommended`,
+      { reason: reason || '', comment: comment || '' }
+    );
+  },
+
+  /**
+   * อีเวนต์: แอดมิน “อนุมัติ”
+   * -> แจ้งผู้ยื่น พร้อม “จำนวนเงินที่อนุมัติ” (backend ดึงจากตาราง detail)
+   *    (ถ้ามี) ส่งเลขอ้างอิงประกาศไปด้วย
+   */
   async notifySubmissionApproved(submissionId, { announce_reference_number } = {}) {
     return apiClient.post(
       `/notifications/events/submissions/${submissionId}/approved`,
@@ -45,7 +77,10 @@ export const notificationsAPI = {
     );
   },
 
-  /* แจ้งเตือนเมื่อ "ไม่อนุมัติ" */
+  /**
+   * อีเวนต์: แอดมิน “ไม่อนุมัติ”
+   * -> แจ้งผู้ยื่น พร้อมเหตุผล (ถ้าไม่ส่ง reason มาที่ backend จะอ่านจาก submissions เอง)
+   */
   async notifySubmissionRejected(submissionId, { reason } = {}) {
     return apiClient.post(
       `/notifications/events/submissions/${submissionId}/rejected`,
@@ -53,11 +88,10 @@ export const notificationsAPI = {
     );
   },
 
+  /** สร้างแจ้งเตือนแบบ manual (ถ้าจำเป็น) */
   async create(payload) {
     return apiClient.post('/notifications', payload);
   },
-
-  
 };
 
 export default notificationsAPI;

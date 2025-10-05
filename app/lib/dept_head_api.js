@@ -91,8 +91,16 @@ export const deptHeadAPI = {
 
   // app/lib/dept_head_api.js
   async getSubmissionDocuments(submissionId, params = {}) {
-    // เดิม: return apiClient.get(`/submissions/${submissionId}/documents`, { params });
-    return apiClient.get(`/submissions/${submissionId}/documents`, params);
+    if (!submissionId) throw new Error('submission id is required');
+
+    try {
+      return await apiClient.get(`/dept-head/submissions/${submissionId}/documents`, params);
+    } catch (error) {
+      if (error?.status === 404 || error?.status === 403 || String(error?.status) === '404' || String(error?.status) === '403') {
+        return apiClient.get(`/submissions/${submissionId}/documents`, params);
+      }
+      throw error;
+    }
   },
 
   async getDocumentTypes(params = {}) {
