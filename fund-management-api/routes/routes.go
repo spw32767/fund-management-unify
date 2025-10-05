@@ -5,6 +5,7 @@ import (
 	"fund-management-api/controllers"
 	"fund-management-api/middleware"
 	"fund-management-api/monitor"
+	"fund-management-api/utils"
 	"log"
 	"net/http"
 	"net/url"
@@ -548,7 +549,19 @@ func RegisterUploadRoutes(rg *gin.RouterGroup) {
 			return
 		}
 
-		dst := fmt.Sprintf("./uploads/%s", file.Filename)
+		uploadRoot := os.Getenv("UPLOAD_PATH")
+		if uploadRoot == "" {
+			uploadRoot = "./uploads"
+		}
+
+		if err := utils.EnsureDirectoryExists(uploadRoot); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to prepare upload directory"})
+			return
+		}
+
+		safeFilename := utils.GenerateUniqueFilename(uploadRoot, file.Filename)
+		dst := filepath.Join(uploadRoot, safeFilename)
+
 		if err := c.SaveUploadedFile(file, dst); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save file"})
 			return
@@ -556,7 +569,11 @@ func RegisterUploadRoutes(rg *gin.RouterGroup) {
 
 		c.JSON(http.StatusOK, gin.H{
 			"message": "File uploaded successfully",
-			"url":     "/uploads/" + file.Filename,
+			"file": gin.H{
+				"original_name": file.Filename,
+				"stored_name":   safeFilename,
+				"url":           fmt.Sprintf("/uploads/%s", safeFilename),
+			},
 		})
 	})
 }
