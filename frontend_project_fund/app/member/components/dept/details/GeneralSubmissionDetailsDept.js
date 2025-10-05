@@ -1,7 +1,7 @@
 // app/admin/components/submissions/GeneralSubmissionDetailsDept.js
 'use client';
 
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowLeft, FileText,
     User,
@@ -325,6 +325,13 @@ export default function GeneralSubmissionDetailsDept({ submissionId, onBack }) {
   const [attachments, setAttachments] = useState([]);
   const [attachmentsLoading, setAttachmentsLoading] = useState(false);
 
+  const pickArray = useCallback((...candidates) => {
+    for (const candidate of candidates) {
+      if (Array.isArray(candidate)) return candidate;
+    }
+    return [];
+  }, []);
+
   // Merged PDF
   const [merging, setMerging] = useState(false);
   const mergedUrlRef = useRef(null);
@@ -404,13 +411,36 @@ export default function GeneralSubmissionDetailsDept({ submissionId, onBack }) {
         ]);
         console.log('[DeptHead] docRes:', docRes);
         console.log('[DeptHead] typeRes:', typeRes);
-        const docsApi = Array.isArray(docRes?.documents) ? docRes.documents
-          : Array.isArray(docRes) ? docRes
-          : [];
+        const docsApi = pickArray(
+          docRes?.documents,
+          docRes?.data?.documents,
+          docRes?.data?.documents?.data,
+          docRes?.data?.documents?.items,
+          docRes?.data?.documents?.results,
+          docRes?.data?.items,
+          docRes?.data?.results,
+          docRes?.data,
+          docRes?.items,
+          docRes?.results,
+          docRes?.documents?.data,
+          docRes?.documents?.items,
+          docRes?.documents?.results,
+          docRes
+        );
 
-        const typesArr = Array.isArray(typeRes?.document_types) ? typeRes.document_types
-          : Array.isArray(typeRes) ? typeRes
-          : [];
+        const typesArr = pickArray(
+          typeRes?.document_types,
+          typeRes?.data?.document_types,
+          typeRes?.data?.document_types?.data,
+          typeRes?.data?.document_types?.items,
+          typeRes?.data?.document_types?.results,
+          typeRes?.data?.items,
+          typeRes?.data?.results,
+          typeRes?.data,
+          typeRes?.items,
+          typeRes?.results,
+          typeRes
+        );
 
         const typeMap = {};
         for (const t of typesArr) {

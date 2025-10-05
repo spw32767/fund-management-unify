@@ -38,6 +38,13 @@ import { notificationsAPI } from '@/app/lib/notifications_api';
 import Swal from 'sweetalert2';
 import 'sweetalert2/dist/sweetalert2.min.css';
 
+const pickArray = (...candidates) => {
+  for (const candidate of candidates) {
+    if (Array.isArray(candidate)) return candidate;
+  }
+  return [];
+};
+
 import { PDFDocument } from 'pdf-lib';
 
 /* =========================
@@ -627,7 +634,14 @@ export default function PublicationSubmissionDetailsDept({ submissionId, onBack 
 
         dgroup('[Dept DEBUG] normalized for UI', data);
         setSubmission(data);
-        setAttachments(data?.documents || data?.submission_documents || []);
+        const normalizedDocs = pickArray(
+          data?.documents,
+          data?.submission_documents,
+          data?.documents?.data,
+          data?.documents?.items,
+          data?.documents?.results
+        );
+        setAttachments(normalizedDocs);
       } catch (err) {
         console.error('Error loading submission details:', err);
         toast.error('โหลดข้อมูลล้มเหลว');
