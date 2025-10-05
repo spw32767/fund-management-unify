@@ -3242,18 +3242,28 @@ const showSubmissionConfirmation = async () => {
               )}
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                รายชื่อผู้แต่ง (Author Name List)
+            <div id="field-author_name_list">
+              <label htmlFor="author_name_list" className="block text-sm font-medium text-gray-700 mb-2">
+                รายชื่อผู้แต่ง (Author Name List) <span className="text-red-500">*</span>
               </label>
               <textarea
+                id="author_name_list"
                 name="author_name_list"
                 value={formData.author_name_list}
                 onChange={handleInputChange}
                 rows={3}
                 placeholder="กรอกรายชื่อผู้แต่งตามลำดับ (Enter author names in order)"
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
+                required
+                aria-required="true"
+                aria-invalid={errors.author_name_list ? 'true' : 'false'}
+                aria-describedby={errors.author_name_list ? 'error-author_name_list' : undefined}
+                className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:border-blue-500 ${
+                  errors.author_name_list ? 'border-red-500' : 'border-gray-300'
+                }`}
               />
+              {errors.author_name_list && (
+                <p id="error-author_name_list" className="text-red-500 text-sm mt-1">{errors.author_name_list}</p>
+              )}
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
