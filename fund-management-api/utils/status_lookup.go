@@ -2,6 +2,7 @@ package utils
 
 import (
 	"fmt"
+	"strings"
 	"sync"
 
 	"fund-management-api/config"
@@ -11,16 +12,90 @@ import (
 )
 
 const (
-	StatusCodePending                = "0"
-	StatusCodeApproved               = "1"
-	StatusCodeRejected               = "2"
-	StatusCodeNeedsMoreInfo          = "3"
-	StatusCodeDraft                  = "4"
-	StatusCodeDeptHeadPending        = "5"
-	StatusCodeDeptHeadRecommended    = "6"
-	StatusCodeDeptHeadNotRecommended = "7"
-	StatusCodeAdminClosed            = "8"
+	// Canonical status codes based on application_status.status_code.
+	StatusCodePending                = "pending"
+	StatusCodeApproved               = "approved"
+	StatusCodeRejected               = "rejected"
+	StatusCodeNeedsMoreInfo          = "revision"
+	StatusCodeDraft                  = "draft"
+	StatusCodeDeptHeadPending        = "dept_head_pending"
+	StatusCodeDeptHeadRecommended    = "dept_head_recommended"
+	StatusCodeDeptHeadNotRecommended = "dept_head_rejected"
+	StatusCodeAdminClosed            = "admin_closed"
 )
+
+var (
+	statusCodeSynonyms = map[string][]string{
+		StatusCodePending:                {"pending", "0"},
+		StatusCodeApproved:               {"approved", "1"},
+		StatusCodeRejected:               {"rejected", "2"},
+		StatusCodeNeedsMoreInfo:          {"revision", "needs_more_info", "3"},
+		StatusCodeDraft:                  {"draft", "4"},
+		StatusCodeDeptHeadPending:        {"dept_head_pending", "department_pending", "5"},
+		StatusCodeDeptHeadRecommended:    {"dept_head_recommended", "dept_head_recommend", "6"},
+		StatusCodeDeptHeadNotRecommended: {"dept_head_rejected", "dept_head_not_recommended", "7"},
+		StatusCodeAdminClosed:            {"admin_closed", "closed", "8"},
+	}
+	statusAliasToCanonical = buildStatusAliasMap()
+)
+
+func buildStatusAliasMap() map[string]string {
+	aliasMap := make(map[string]string)
+	for canonical, synonyms := range statusCodeSynonyms {
+		canonicalKey := normalizeStatusCode(canonical)
+		if canonicalKey != "" {
+			aliasMap[canonicalKey] = canonical
+		}
+		for _, alias := range synonyms {
+			if normalized := normalizeStatusCode(alias); normalized != "" {
+				aliasMap[normalized] = canonical
+			}
+		}
+	}
+	return aliasMap
+}
+
+func normalizeStatusCode(code string) string {
+	return strings.ToLower(strings.TrimSpace(code))
+}
+
+func canonicalStatusCode(code string) string {
+	normalized := normalizeStatusCode(code)
+	if canonical, ok := statusAliasToCanonical[normalized]; ok {
+		return canonical
+	}
+	return normalized
+}
+
+func codeCandidates(code string) []string {
+	canonical := canonicalStatusCode(code)
+	seen := make(map[string]struct{})
+	candidates := make([]string, 0, 1)
+
+	add := func(value string) {
+		key := normalizeStatusCode(value)
+		if key == "" {
+			return
+		}
+		if _, exists := seen[key]; exists {
+			return
+		}
+		seen[key] = struct{}{}
+		candidates = append(candidates, value)
+	}
+
+	add(canonical)
+
+	if synonyms, ok := statusCodeSynonyms[canonical]; ok {
+		for _, alias := range synonyms {
+			add(alias)
+		}
+	} else if normalized := normalizeStatusCode(code); normalized != canonical {
+		add(code)
+	}
+
+	return candidates
+}
 
 type statusCache struct {
 	sync.RWMutex
@@ -40,16 +115,26 @@ func cacheStatus(status models.ApplicationStatus) {
 	if status.ApplicationStatusID != 0 {
 		applicationStatusCache.byID[status.ApplicationStatusID] = status
 	}
-	if status.StatusCode != "" {
-		applicationStatusCache.byCode[status.StatusCode] = status
+
+	for _, candidate := range codeCandidates(status.StatusCode) {
+		key := normalizeStatusCode(candidate)
+		if key == "" {
+			continue
+		}
+		applicationStatusCache.byCode[key] = status
 	}
 }
 
 func getCachedStatusByCode(code string) (models.ApplicationStatus, bool) {
+	key := normalizeStatusCode(code)
+	if key == "" {
+		return models.ApplicationStatus{}, false
+	}
+
 	applicationStatusCache.RLock()
 	defer applicationStatusCache.RUnlock()
 
-	status, ok := applicationStatusCache.byCode[code]
+	status, ok := applicationStatusCache.byCode[key]
 	return status, ok && status.ApplicationStatusID != 0
 }
 
@@ -62,21 +147,34 @@ func getCachedStatusByID(id int) (models.ApplicationStatus, bool) {
 }
 
 func GetApplicationStatusByCode(code string) (models.ApplicationStatus, error) {
-	if status, ok := getCachedStatusByCode(code); ok {
+	candidates := codeCandidates(code)
+	for _, candidate := range candidates {
+		if status, ok := getCachedStatusByCode(candidate); ok {
+			return status, nil
+		}
+	}
+
+	var lastNotFound error
+	for _, candidate := range candidates {
+		var status models.ApplicationStatus
+		err := config.DB.Where("status_code = ? AND (delete_at IS NULL)", candidate).First(&status).Error
+		if err != nil {
+			if err == gorm.ErrRecordNotFound {
+				lastNotFound = err
+				continue
+			}
+			return models.ApplicationStatus{}, err
+		}
+
+		cacheStatus(status)
 		return status, nil
 	}
 
-	var status models.ApplicationStatus
-	err := config.DB.Where("status_code = ? AND (delete_at IS NULL)", code).First(&status).Error
-	if err != nil {
-		if err == gorm.ErrRecordNotFound {
-			return models.ApplicationStatus{}, fmt.Errorf("application status with code %s not found", code)
-		}
-		return models.ApplicationStatus{}, err
+	if lastNotFound != nil {
+		return models.ApplicationStatus{}, fmt.Errorf("application status with code %s not found", code)
 	}
 
-	cacheStatus(status)
-	return status, nil
+	return models.ApplicationStatus{}, fmt.Errorf("application status with code %s not found", code)
 }
 
 func GetApplicationStatusByID(id int) (models.ApplicationStatus, error) {
@@ -107,11 +205,16 @@ func GetStatusIDByCode(code string) (int, error) {
 
 func GetStatusIDsByCodes(codes ...string) ([]int, error) {
 	ids := make([]int, 0, len(codes))
+	seen := make(map[int]struct{})
 	for _, code := range codes {
 		id, err := GetStatusIDByCode(code)
 		if err != nil {
 			return nil, err
 		}
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
 		ids = append(ids, id)
 	}
 	return ids, nil
@@ -122,9 +225,13 @@ func StatusMatchesCodes(statusID int, codes ...string) (bool, error) {
 	if err != nil {
 		return false, err
 	}
+	statusKey := normalizeStatusCode(status.StatusCode)
+
 	for _, code := range codes {
-		if status.StatusCode == code {
-			return true, nil
+		for _, candidate := range codeCandidates(code) {
+			if statusKey == normalizeStatusCode(candidate) {
+				return true, nil
+			}
 		}
 	}
 	return false, nil
