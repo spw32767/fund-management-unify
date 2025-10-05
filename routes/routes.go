@@ -5,12 +5,14 @@ import (
 	"fund-management-api/controllers"
 	"fund-management-api/middleware"
 	"fund-management-api/monitor"
+	"fund-management-api/utils"
 	"log"
 	"net/http"
 	"net/url"
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -115,8 +117,13 @@ func SetupRoutes(router *gin.Engine) {
 				notifications.PATCH("/:id/read", controllers.MarkNotificationRead)                                       // อ่าน 1 รายการ
 				notifications.POST("/mark-all-read", controllers.MarkAllNotificationsRead)                               // อ่านทั้งหมด
 				notifications.POST("/events/submissions/:submissionId/submitted", controllers.NotifySubmissionSubmitted) // อีเวนต์: ส่งคำร้องสำเร็จ
-				notifications.POST("/events/submissions/:submissionId/approved", controllers.NotifySubmissionApproved)
-				notifications.POST("/events/submissions/:submissionId/rejected", controllers.NotifySubmissionRejected)
+				// Dept Head stage (เห็นควร/ไม่เห็นควร)
+				notifications.POST("/events/submissions/:submissionId/dept-head/recommended", controllers.NotifyDeptHeadRecommended)
+				notifications.POST("/events/submissions/:submissionId/dept-head/not-recommended", controllers.NotifyDeptHeadNotRecommended)
+
+				// Admin stage (อนุมัติ/ไม่อนุมัติ)
+				notifications.POST("/events/submissions/:submissionId/approved", controllers.NotifyAdminApproved)
+				notifications.POST("/events/submissions/:submissionId/rejected", controllers.NotifyAdminRejected)
 			}
 
 			// Common endpoints (all authenticated users)
@@ -125,6 +132,7 @@ func SetupRoutes(router *gin.Engine) {
 			protected.GET("/application-status", controllers.GetApplicationStatuses)
 			protected.GET("/system-config/current-year", controllers.GetSystemConfigCurrentYear)
 			protected.GET("/system-config/window", controllers.GetSystemConfigWindow)
+			protected.GET("/system-config/dept-head/eligible-roles", controllers.GetDeptHeadEligibleRoles)
 
 			protected.GET("/system-config/dept-head/current", controllers.GetCurrentDeptHead)
 			// General submissions listing (all users)
@@ -470,6 +478,7 @@ func SetupRoutes(router *gin.Engine) {
 					systemConfig.GET("", controllers.GetSystemConfigAdmin)
 					systemConfig.PUT("", controllers.UpdateSystemConfigWindow)
 					systemConfig.PATCH("/announcements/:slot", controllers.UpdateSystemConfigAnnouncement)
+					systemConfig.GET("/announcements/:slot/history", controllers.ListAnnouncementHistory)
 					systemConfig.GET("/dept-head/history", controllers.ListDeptHeadHistory)
 					systemConfig.POST("/dept-head/assign", controllers.AssignDeptHead)
 				}
@@ -548,15 +557,51 @@ func RegisterUploadRoutes(rg *gin.RouterGroup) {
 			return
 		}
 
-		dst := fmt.Sprintf("./uploads/%s", file.Filename)
+		uploadRoot := os.Getenv("UPLOAD_PATH")
+		if uploadRoot == "" {
+			uploadRoot = "./uploads"
+		}
+
+		if err := utils.EnsureDirectoryExists(uploadRoot); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to prepare upload directory"})
+			return
+		}
+
+		sanitizedFilename := utils.SanitizeForFilename(file.Filename)
+		safeFilename := utils.GenerateUniqueFilename(uploadRoot, file.Filename)
+
+		duplicateIndex := 0
+		if safeFilename != sanitizedFilename {
+			ext := filepath.Ext(sanitizedFilename)
+			nameWithoutExt := sanitizedFilename[:len(sanitizedFilename)-len(ext)]
+			suffix := strings.TrimSuffix(strings.TrimPrefix(safeFilename, nameWithoutExt+"_"), ext)
+			if suffix != safeFilename {
+				if n, err := strconv.Atoi(suffix); err == nil {
+					duplicateIndex = n
+				}
+			}
+		}
+		dst := filepath.Join(uploadRoot, safeFilename)
 		if err := c.SaveUploadedFile(file, dst); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save file"})
 			return
 		}
 
+		filePayload := gin.H{
+			"original_name":   file.Filename,
+			"sanitized_name":  sanitizedFilename,
+			"stored_name":     safeFilename,
+			"url":             fmt.Sprintf("/uploads/%s", safeFilename),
+			"was_renamed":     safeFilename != sanitizedFilename,
+			"duplicate_index": duplicateIndex,
+		}
+		if duplicateIndex == 0 {
+			delete(filePayload, "duplicate_index")
+		}
+
 		c.JSON(http.StatusOK, gin.H{
 			"message": "File uploaded successfully",
-			"url":     "/uploads/" + file.Filename,
+			"file":    filePayload,
 		})
 	})
 }
