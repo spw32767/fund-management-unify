@@ -731,28 +731,166 @@ export default function GeneralSubmissionDetailsDept({ submissionId, onBack }) {
   const statusCode = getCodeById(submission.status_id);
   const ColoredIcon = getColoredStatusIcon(statusCode);
 
+  const resolveFileId = (doc) =>
+    doc?.file_id ??
+    doc?.File?.file_id ??
+    doc?.file?.file_id ??
+    doc?.file?.id ??
+    doc?.File?.id ??
+    null;
+
+  const resolveFilePath = (doc) => {
+    const candidates = [
+      doc?.file_path,
+      doc?.File?.file_path,
+      doc?.file?.file_path,
+      doc?.File?.stored_path,
+      doc?.file?.stored_path,
+      doc?.download_url,
+      doc?.url,
+      doc?.File?.url,
+      doc?.file?.url,
+      doc?.path,
+      doc?.File?.path,
+      doc?.file?.path,
+    ];
+    for (const candidate of candidates) {
+      if (typeof candidate === 'string' && candidate.trim() !== '') {
+        return candidate;
+      }
+    }
+    return null;
+  };
+
+  const resolveFileName = (doc, fallback = 'document') => {
+    const candidates = [
+      doc?.original_name,
+      doc?.original_filename,
+      doc?.file_name,
+      doc?.File?.original_name,
+      doc?.file?.original_name,
+      doc?.File?.file_name,
+      doc?.file?.file_name,
+      doc?.name,
+      doc?.title,
+    ];
+    for (const candidate of candidates) {
+      if (typeof candidate === 'string' && candidate.trim() !== '') {
+        return candidate;
+      }
+    }
+    return fallback;
+  };
+
+  const fetchManagedFileBlob = async (fileId) => {
+    const token = apiClient.getToken();
+    const url = `${apiClient.baseURL}/files/managed/${fileId}/download`;
+    const resp = await fetch(url, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+    if (!resp.ok) {
+      const err = new Error('File not found');
+      err.status = resp.status;
+      throw err;
+    }
+    return await resp.blob();
+  };
+
+  const fetchBlobByPath = async (filePath) => {
+    if (!filePath) throw new Error('missing file path');
+    const token = apiClient.getToken();
+    const url = getFileURL(filePath);
+    const resp = await fetch(url, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+    if (!resp.ok) {
+      const err = new Error('File not found');
+      err.status = resp.status;
+      throw err;
+    }
+    return await resp.blob();
+  };
+
+  const fetchAttachmentBlob = async (doc) => {
+    if (!doc) throw new Error('missing document');
+    const fileId = resolveFileId(doc);
+    if (fileId != null) {
+      try {
+        return await fetchManagedFileBlob(fileId);
+      } catch (err) {
+        console.warn('Managed file fetch failed, try path fallback', fileId, err);
+      }
+    }
+
+    const filePath = resolveFilePath(doc);
+    if (filePath) {
+      return await fetchBlobByPath(filePath);
+    }
+
+    throw new Error('File not accessible');
+  };
+
+  const openBlobInNewTab = (blob) => {
+    const fileURL = window.URL.createObjectURL(blob);
+    window.open(fileURL, '_blank');
+    setTimeout(() => {
+      try {
+        window.URL.revokeObjectURL(fileURL);
+      } catch (err) {
+        console.warn('revokeObjectURL failed', err);
+      }
+    }, 1000);
+  };
+
+  const triggerBlobDownload = (blob, fileName) => {
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = fileName;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => {
+      try {
+        window.URL.revokeObjectURL(url);
+      } catch (err) {
+        console.warn('revokeObjectURL failed', err);
+      }
+    }, 1000);
+  };
+
   // ===== File handlers =====
-  const handleView = async (fileId) => {
+  const handleView = async (doc) => {
+    if (!doc) {
+      toast.error('ไม่พบไฟล์');
+      return;
+    }
     try {
-      const token = apiClient.getToken();
-      const url = `${apiClient.baseURL}/files/managed/${fileId}/download`;
-      const res = await fetch(url, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      });
-      if (!res.ok) throw new Error('File not found');
-      const blob = await res.blob();
-      const fileURL = window.URL.createObjectURL(blob);
-      window.open(fileURL, '_blank');
-      window.URL.revokeObjectURL(fileURL);
+      const blob = await fetchAttachmentBlob(doc);
+      openBlobInNewTab(blob);
     } catch (e) {
       console.error('Error viewing document:', e);
       toast.error('ไม่สามารถเปิดไฟล์ได้');
     }
   };
 
-  const handleDownload = async (fileId, fileName = 'document') => {
+  const handleDownload = async (doc, fallbackName = 'document') => {
+    if (!doc) {
+      toast.error('ไม่พบไฟล์');
+      return;
+    }
+
+    const fileId = resolveFileId(doc);
+    const fileName = resolveFileName(doc, fallbackName);
+
+    if (fileId != null) {
+      try {
+        await apiClient.downloadFile(`/files/managed/${fileId}/download`, fileName);
+        return;
+      } catch (err) {
+        console.warn('Managed download failed, fallback to path', fileId, err);
+      }
+    }
+
     try {
-      await apiClient.downloadFile(`/files/managed/${fileId}/download`, fileName);
+      const blob = await fetchAttachmentBlob(doc);
+      triggerBlobDownload(blob, fileName);
     } catch (e) {
       console.error('Error downloading document:', e);
       toast.error('ไม่สามารถดาวน์โหลดไฟล์ได้');
@@ -760,26 +898,20 @@ export default function GeneralSubmissionDetailsDept({ submissionId, onBack }) {
   };
 
   // ===== Merge attachments to pdf =====
-  const fetchFileAsBlob = async (fileId) => {
-    const token = apiClient.getToken();
-    const url = `${apiClient.baseURL}/files/managed/${fileId}/download`;
-    const resp = await fetch(url, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
-    if (!resp.ok) throw new Error('File not found');
-    return await resp.blob();
-  };
 
   const mergeAttachmentsToPdf = async (list) => {
     const merged = await PDFDocument.create();
     const skipped = [];
     for (const doc of list) {
       try {
-        const blob = await fetchFileAsBlob(doc.file_id);
+        const blob = await fetchAttachmentBlob(doc);
         const src = await PDFDocument.load(await blob.arrayBuffer(), { ignoreEncryption: true });
         const pages = await merged.copyPages(src, src.getPageIndices());
         pages.forEach((p) => merged.addPage(p));
       } catch (e) {
-        console.warn('merge: skip', e);
-        skipped.push(doc?.original_name || doc?.file_name || `file-${doc.file_id}.pdf`);
+        const skippedName = resolveFileName(doc, doc?.file_id ? `file-${doc.file_id}.pdf` : 'unknown.pdf');
+        console.warn('merge: skip', skippedName, e);
+        skipped.push(skippedName);
         continue;
       }
     }
@@ -1028,6 +1160,8 @@ export default function GeneralSubmissionDetailsDept({ submissionId, onBack }) {
                   `เอกสารที่ ${index + 1}`;
                 const docType = (doc.document_type_name || '').trim() || 'ไม่ระบุประเภท';
 
+                const canOpen = fileId != null || !!resolveFilePath(doc);
+
                 return (
                   <div
                     key={doc.document_id || fileId || index}
@@ -1049,11 +1183,11 @@ export default function GeneralSubmissionDetailsDept({ submissionId, onBack }) {
                               </span>
                             </p>
                           </div>
-                          {/* ชื่อไฟล์: ทำเป็นลิงก์สีน้ำเงิน กดแล้วเรียก handleView(fileId) */}
-                          {fileId ? (
+                          {/* ชื่อไฟล์: ทำเป็นลิงก์สีน้ำเงิน กดแล้วเรียก handleView(doc) */}
+                          {canOpen ? (
                             <a
                               href="#"
-                              onClick={(e) => { e.preventDefault(); handleView(fileId); }}
+                              onClick={(e) => { e.preventDefault(); handleView(doc); }}
                               className="font-medium text-blue-600 hover:underline truncate cursor-pointer"
                               title={`เปิดดู: ${fileName}`}
                             >
@@ -1073,8 +1207,8 @@ export default function GeneralSubmissionDetailsDept({ submissionId, onBack }) {
                       <div className="flex items-center gap-2 ml-4">
                         <button
                           className="inline-flex items-center gap-1 px-3 py-2 text-sm text-blue-600 hover:bg-blue-100 rounded-md transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-                          onClick={() => handleView(fileId)}
-                          disabled={!fileId}
+                          onClick={() => handleView(doc)}
+                          disabled={!canOpen}
                           title="เปิดดูไฟล์"
                         >
                           <Eye size={14} />
@@ -1082,8 +1216,8 @@ export default function GeneralSubmissionDetailsDept({ submissionId, onBack }) {
                         </button>
                         <button
                           className="inline-flex items-center gap-1 px-3 py-2 text-sm text-green-600 hover:bg-green-100 rounded-md transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-                          onClick={() => handleDownload(fileId, fileName)}
-                          disabled={!fileId}
+                          onClick={() => handleDownload(doc, fileName)}
+                          disabled={!canOpen}
                           title="ดาวน์โหลดไฟล์"
                         >
                           <Download size={14} />
