@@ -2583,17 +2583,15 @@ const showSubmissionConfirmation = async () => {
 
       let submissionId = currentSubmissionId;
       const allFiles = [];
-      const processedFiles = new Set(); // ป้องกันไฟล์ซ้ำ
 
       // 1. Add main document files (document_type_id 1-10)
       Object.entries(uploadedFiles).forEach(([docTypeId, file]) => {
-        if (file && !processedFiles.has(file.name)) {
+        if (file) {
           allFiles.push({
             file: file,
             document_type_id: parseInt(docTypeId),
             description: `${file.name} (ประเภท ${docTypeId})`
           });
-          processedFiles.add(file.name);
         }
       });
 
@@ -2601,13 +2599,12 @@ const showSubmissionConfirmation = async () => {
       if (otherDocuments && otherDocuments.length > 0) {
         otherDocuments.forEach((doc, index) => {
           const file = doc.file || doc;
-          if (file && !processedFiles.has(file.name)) {
+          if (file) {
             allFiles.push({
               file: file,
               document_type_id: 11,
               description: doc.description || `เอกสารอื่นๆ ${index + 1}: ${file.name}`
             });
-            processedFiles.add(file.name);
           }
         });
       }
@@ -2616,14 +2613,13 @@ const showSubmissionConfirmation = async () => {
       if (externalFundingFiles && externalFundingFiles.length > 0) {
         externalFundingFiles.forEach(doc => {
           const funding = externalFundings.find(f => f.id === doc.funding_id);
-          if (doc.file && !processedFiles.has(doc.file.name)) {
+          if (doc.file) {
             allFiles.push({
               file: doc.file,
               document_type_id: 12,
               description: `เอกสารเบิกจ่ายภายนอก: ${funding?.fundName || 'ไม่ระบุ'}`,
               external_funding_id: doc.funding_id
             });
-            processedFiles.add(doc.file.name);
           }
         });
       }
