@@ -12,29 +12,64 @@ import (
 )
 
 const (
-	// Canonical status codes based on application_status.status_code.
-	StatusCodePending                = "pending"
-	StatusCodeApproved               = "approved"
-	StatusCodeRejected               = "rejected"
-	StatusCodeNeedsMoreInfo          = "revision"
-	StatusCodeDraft                  = "draft"
-	StatusCodeDeptHeadPending        = "dept_head_pending"
-	StatusCodeDeptHeadRecommended    = "dept_head_recommended"
-	StatusCodeDeptHeadNotRecommended = "dept_head_rejected"
-	StatusCodeAdminClosed            = "admin_closed"
+	// Canonical status codes mirror application_status.status_code.
+	StatusCodePending         = "0" // อยู่ระหว่างการพิจารณา
+	StatusCodeApproved        = "1" // อนุมัติ
+	StatusCodeRejected        = "2" // ปฏิเสธ
+	StatusCodeNeedsMoreInfo   = "3" // ต้องการข้อมูลเพิ่มเติม
+	StatusCodeDraft           = "4" // ร่าง
+	StatusCodeDeptHeadPending = "5" // อยู่ระหว่างการพิจารณาจากหัวหน้าสาขา
+	StatusCodeAdminClosed     = "6" // ปิดทุน
+
+	// Legacy aliases kept for backwards compatibility with existing controller logic.
+	StatusCodeDeptHeadRecommended    = StatusCodeDeptHeadPending
+	StatusCodeDeptHeadNotRecommended = StatusCodeRejected
 )
 
 var (
 	statusCodeSynonyms = map[string][]string{
-		StatusCodePending:                {"pending", "0"},
-		StatusCodeApproved:               {"approved", "1"},
-		StatusCodeRejected:               {"rejected", "2"},
-		StatusCodeNeedsMoreInfo:          {"revision", "needs_more_info", "3"},
-		StatusCodeDraft:                  {"draft", "4"},
-		StatusCodeDeptHeadPending:        {"dept_head_pending", "department_pending", "5"},
-		StatusCodeDeptHeadRecommended:    {"dept_head_recommended", "dept_head_recommend", "6"},
-		StatusCodeDeptHeadNotRecommended: {"dept_head_rejected", "dept_head_not_recommended", "7"},
-		StatusCodeAdminClosed:            {"admin_closed", "closed", "8"},
+		StatusCodePending: {
+			"0",
+			"pending",
+			"อยู่ระหว่างการพิจารณา",
+		},
+		StatusCodeApproved: {
+			"1",
+			"approved",
+			"อนุมัติ",
+		},
+		StatusCodeRejected: {
+			"2",
+			"rejected",
+			"ปฏิเสธ",
+			"dept_head_rejected",
+			"dept_head_not_recommended",
+		},
+		StatusCodeNeedsMoreInfo: {
+			"3",
+			"revision",
+			"needs_more_info",
+			"ต้องการข้อมูลเพิ่มเติม",
+		},
+		StatusCodeDraft: {
+			"4",
+			"draft",
+			"ร่าง",
+		},
+		StatusCodeDeptHeadPending: {
+			"5",
+			"dept_head_pending",
+			"department_pending",
+			"อยู่ระหว่างการพิจารณาจากหัวหน้าสาขา",
+			"dept_head_recommended",
+			"dept_head_recommend",
+		},
+		StatusCodeAdminClosed: {
+			"6",
+			"admin_closed",
+			"closed",
+			"ปิดทุน",
+		},
 	}
 	statusAliasToCanonical = buildStatusAliasMap()
 )
