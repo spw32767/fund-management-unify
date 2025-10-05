@@ -38,6 +38,13 @@ import { notificationsAPI } from '@/app/lib/notifications_api';
 import Swal from 'sweetalert2';
 import 'sweetalert2/dist/sweetalert2.min.css';
 
+const pickArray = (...candidates) => {
+  for (const candidate of candidates) {
+    if (Array.isArray(candidate)) return candidate;
+  }
+  return [];
+};
+
 import { PDFDocument } from 'pdf-lib';
 
 /* =========================
@@ -627,7 +634,16 @@ export default function PublicationSubmissionDetailsDept({ submissionId, onBack 
 
         dgroup('[Dept DEBUG] normalized for UI', data);
         setSubmission(data);
-        setAttachments(data?.documents || data?.submission_documents || []);
+        const normalizedDocs = pickArray(
+          data?.documents,
+          data?.submission_documents,
+          data?.documents?.data,
+          data?.documents?.items,
+          data?.documents?.results
+        );
+        if (normalizedDocs.length) {
+          setAttachments(normalizedDocs);
+        }
       } catch (err) {
         console.error('Error loading submission details:', err);
         toast.error('โหลดข้อมูลล้มเหลว');
@@ -746,6 +762,129 @@ export default function PublicationSubmissionDetailsDept({ submissionId, onBack 
     pubDetail?.submitted_at ??
     submission?.submitted_date ??
     null;
+
+  useEffect(() => {
+    if (!submission?.submission_id) return;
+
+    let ignore = false;
+
+    const loadAttachments = async () => {
+      setAttachmentsLoading(true);
+      try {
+        const [docRes, typeRes] = await Promise.all([
+          deptHeadAPI.getSubmissionDocuments
+            ? deptHeadAPI.getSubmissionDocuments(submission.submission_id)
+            : Promise.resolve(submission.documents || submission.submission_documents || []),
+          deptHeadAPI.getDocumentTypes ? deptHeadAPI.getDocumentTypes() : Promise.resolve([]),
+        ]);
+
+        if (ignore) return;
+
+        const docsApi = pickArray(
+          docRes?.documents,
+          docRes?.data?.documents,
+          docRes?.data?.documents?.data,
+          docRes?.data?.documents?.items,
+          docRes?.data?.documents?.results,
+          docRes?.data?.items,
+          docRes?.data?.results,
+          docRes?.data,
+          docRes?.items,
+          docRes?.results,
+          docRes?.documents?.data,
+          docRes?.documents?.items,
+          docRes?.documents?.results,
+          docRes
+        );
+
+        const typesArr = pickArray(
+          typeRes?.document_types,
+          typeRes?.data?.document_types,
+          typeRes?.data?.document_types?.data,
+          typeRes?.data?.document_types?.items,
+          typeRes?.data?.document_types?.results,
+          typeRes?.data?.items,
+          typeRes?.data?.results,
+          typeRes?.data,
+          typeRes?.items,
+          typeRes?.results,
+          typeRes
+        );
+
+        const typeMap = {};
+        for (const t of typesArr) {
+          const id = t?.document_type_id ?? t?.id;
+          if (id != null) {
+            typeMap[String(id)] =
+              t?.document_type_name || t?.name || t?.code || t?.label || 'ไม่ระบุประเภท';
+          }
+        }
+
+        const docsFallback = pickArray(
+          submission?.documents,
+          submission?.submission_documents,
+          submission?.documents?.data,
+          submission?.documents?.items,
+          submission?.documents?.results
+        );
+
+        const rawDocs = docsApi.length > 0 ? docsApi : docsFallback;
+
+        const merged = (rawDocs || []).map((d, index) => {
+          const docTypeId =
+            d?.document_type_id ??
+            d?.document_type ??
+            d?.DocumentTypeID ??
+            d?.document_type_code ??
+            d?.document_type_key ??
+            d?.document_typeid ??
+            d?.DocumentType?.document_type_id ??
+            d?.DocumentType?.id ??
+            d?.document_type_obj?.document_type_id ??
+            d?.document_type_obj?.id ??
+            null;
+
+          const docTypeName =
+            (typeof d?.document_type_name === 'string' && d.document_type_name.trim()
+              ? d.document_type_name.trim()
+              : null) ??
+            (typeof d?.DocumentType?.document_type_name === 'string' &&
+            d.DocumentType.document_type_name.trim()
+              ? d.DocumentType.document_type_name.trim()
+              : null) ??
+            (docTypeId != null ? typeMap[String(docTypeId)] : null) ??
+            (typeof d?.document_type_code === 'string' && d.document_type_code.trim()
+              ? d.document_type_code.trim()
+              : null) ??
+            'ไม่ระบุประเภท';
+
+          return {
+            ...d,
+            document_type_id: docTypeId ?? d?.document_type_id ?? null,
+            document_type_name: docTypeName,
+            _index: index,
+          };
+        });
+
+        setAttachments(merged);
+      } catch (error) {
+        if (!ignore) {
+          console.error('Error loading attachments:', error);
+          toast.error('โหลดเอกสารแนบไม่สำเร็จ');
+        }
+      } finally {
+        if (!ignore) {
+          setAttachmentsLoading(false);
+        }
+      }
+    };
+
+    loadAttachments();
+
+    return () => {
+      ignore = true;
+    };
+  }, [submission]);
 
   const approvedAt =
     pubDetail?.approved_at ??
@@ -884,26 +1023,166 @@ export default function PublicationSubmissionDetailsDept({ submissionId, onBack 
 
 
 
+  const resolveFileId = (doc) =>
+    doc?.file_id ??
+    doc?.File?.file_id ??
+    doc?.file?.file_id ??
+    doc?.file?.id ??
+    doc?.File?.id ??
+    null;
+
+  const resolveFilePath = (doc) => {
+    const candidates = [
+      doc?.file_path,
+      doc?.File?.file_path,
+      doc?.file?.file_path,
+      doc?.File?.stored_path,
+      doc?.file?.stored_path,
+      doc?.download_url,
+      doc?.url,
+      doc?.File?.url,
+      doc?.file?.url,
+      doc?.path,
+      doc?.File?.path,
+      doc?.file?.path,
+    ];
+    for (const candidate of candidates) {
+      if (typeof candidate === 'string' && candidate.trim() !== '') {
+        return candidate;
+      }
+    }
+    return null;
+  };
+
+  const resolveFileName = (doc, fallback = 'document') => {
+    const candidates = [
+      doc?.original_name,
+      doc?.original_filename,
+      doc?.file_name,
+      doc?.File?.original_name,
+      doc?.file?.original_name,
+      doc?.File?.file_name,
+      doc?.file?.file_name,
+      doc?.name,
+      doc?.title,
+    ];
+    for (const candidate of candidates) {
+      if (typeof candidate === 'string' && candidate.trim() !== '') {
+        return candidate;
+      }
+    }
+    return fallback;
+  };
+
+  const fetchManagedFileBlob = async (fileId) => {
+    const token = apiClient.getToken();
+    const url = `${apiClient.baseURL}/files/managed/${fileId}/download`;
+    const resp = await fetch(url, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+    if (!resp.ok) {
+      const err = new Error('File not found');
+      err.status = resp.status;
+      throw err;
+    }
+    return await resp.blob();
+  };
+
+  const fetchBlobByPath = async (filePath) => {
+    if (!filePath) throw new Error('missing file path');
+    const token = apiClient.getToken();
+    const url = getFileURL(filePath);
+    const resp = await fetch(url, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+    if (!resp.ok) {
+      const err = new Error('File not found');
+      err.status = resp.status;
+      throw err;
+    }
+    return await resp.blob();
+  };
+
+  const fetchAttachmentBlob = async (doc) => {
+    if (!doc) throw new Error('missing document');
+    const fileId = resolveFileId(doc);
+    if (fileId != null) {
+      try {
+        return await fetchManagedFileBlob(fileId);
+      } catch (err) {
+        console.warn('Managed file fetch failed, try path fallback', fileId, err);
+      }
+    }
+
+    const filePath = resolveFilePath(doc);
+    if (filePath) {
+      return await fetchBlobByPath(filePath);
+    }
+
+    throw new Error('File not accessible');
+  };
+
+  const openBlobInNewTab = (blob) => {
+    const fileURL = window.URL.createObjectURL(blob);
+    window.open(fileURL, '_blank');
+    setTimeout(() => {
+      try {
+        window.URL.revokeObjectURL(fileURL);
+      } catch (err) {
+        console.warn('revokeObjectURL failed', err);
+      }
+    }, 1000);
+  };
+
+  const triggerBlobDownload = (blob, fileName) => {
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = fileName;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => {
+      try {
+        window.URL.revokeObjectURL(url);
+      } catch (err) {
+        console.warn('revokeObjectURL failed', err);
+      }
+    }, 1000);
+  };
+
   // File actions
-  const handleView = async (fileId) => {
+  const handleView = async (doc) => {
+    if (!doc) {
+      toast.error('ไม่พบไฟล์');
+      return;
+    }
     try {
-      const token = apiClient.getToken();
-      const url = `${apiClient.baseURL}/files/managed/${fileId}/download`;
-      const resp = await fetch(url, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
-      if (!resp.ok) throw new Error('File not found');
-      const blob = await resp.blob();
-      const fileURL = window.URL.createObjectURL(blob);
-      window.open(fileURL, '_blank');
-      window.URL.revokeObjectURL(fileURL);
+      const blob = await fetchAttachmentBlob(doc);
+      openBlobInNewTab(blob);
     } catch (e) {
       console.error('Error viewing document:', e);
       toast.error('ไม่สามารถเปิดเอกสารได้');
     }
   };
 
-  const handleDownload = async (fileId, fileName = 'document') => {
+  const handleDownload = async (doc, fallbackName = 'document') => {
+    if (!doc) {
+      toast.error('ไม่พบไฟล์');
+      return;
+    }
+
+    const fileId = resolveFileId(doc);
+    const fileName = resolveFileName(doc, fallbackName);
+
+    if (fileId != null) {
+      try {
+        await apiClient.downloadFile(`/files/managed/${fileId}/download`, fileName);
+        return;
+      } catch (err) {
+        console.warn('Managed download failed, fallback to path', fileId, err);
+      }
+    }
+
     try {
-      await apiClient.downloadFile(`/files/managed/${fileId}/download`, fileName);
+      const blob = await fetchAttachmentBlob(doc);
+      triggerBlobDownload(blob, fileName);
     } catch (e) {
       console.error('Error downloading:', e);
       toast.error('ดาวน์โหลดเอกสารล้มเหลว');
@@ -921,14 +1200,6 @@ export default function PublicationSubmissionDetailsDept({ submissionId, onBack 
     }
   };
 
-  const fetchFileAsBlob = async (fileId) => {
-    const token = apiClient.getToken();
-    const url = `${apiClient.baseURL}/files/managed/${fileId}/download`;
-    const resp = await fetch(url, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
-    if (!resp.ok) throw new Error('File not found');
-    return await resp.blob();
-  };
-
   // รวม PDF จากรายการ attachments (ข้ามไฟล์ที่โหลด/แปลงไม่สำเร็จ)
   const mergeAttachmentsToPdf = async (list) => {
     const merged = await PDFDocument.create();
@@ -936,13 +1207,14 @@ export default function PublicationSubmissionDetailsDept({ submissionId, onBack 
 
     for (const doc of list) {
       try {
-        const blob = await fetchFileAsBlob(doc.file_id);
+        const blob = await fetchAttachmentBlob(doc);
         const src = await PDFDocument.load(await blob.arrayBuffer(), { ignoreEncryption: true });
         const pages = await merged.copyPages(src, src.getPageIndices());
         pages.forEach(p => merged.addPage(p));
       } catch (e) {
-        console.warn('merge: skip', doc?.original_name || doc?.file_name || doc?.file_id, e);
-        skipped.push(doc?.original_name || doc?.file_name || `file-${doc.file_id}.pdf`);
+        const skippedName = resolveFileName(doc, doc?.file_id ? `file-${doc.file_id}.pdf` : 'unknown.pdf');
+        console.warn('merge: skip', skippedName, e);
+        skipped.push(skippedName);
         continue;
       }
     }
@@ -1715,16 +1987,10 @@ export default function PublicationSubmissionDetailsDept({ submissionId, onBack 
             ) : attachments.length > 0 ? (
               <div className="space-y-4">
                 {attachments.map((doc, index) => {
-                  const fileId = doc.file_id || doc.File?.file_id || doc.file?.file_id;
-                  const fileName =
-                    doc.original_name ||
-                    doc.File?.original_name ||
-                    doc.file?.original_name ||
-                    doc.original_filename ||
-                    doc.file_name ||
-                    doc.name ||
-                    `เอกสารที่ ${index + 1}`;
+                  const fileId = resolveFileId(doc);
+                  const fileName = resolveFileName(doc, `เอกสารที่ ${index + 1}`);
                   const docType = (doc.document_type_name || '').trim() || 'ไม่ระบุประเภท';
+                  const canOpen = fileId != null || !!resolveFilePath(doc);
 
                   return (
                     <div
@@ -1743,11 +2009,11 @@ export default function PublicationSubmissionDetailsDept({ submissionId, onBack 
                             <div className="flex items-center gap-2 mb-1">
                               <FileText size={16} className="text-gray-600 flex-shrink-0" />
 
-                              {/* ชื่อไฟล์: ทำเป็นลิงก์สีน้ำเงิน กดแล้วเรียก handleView(fileId) */}
-                              {fileId ? (
+                              {/* ชื่อไฟล์: ทำเป็นลิงก์สีน้ำเงิน กดแล้วเรียก handleView(doc) */}
+                              {canOpen ? (
                                 <a
                                   href="#"
-                                  onClick={(e) => { e.preventDefault(); handleView(fileId); }}
+                                  onClick={(e) => { e.preventDefault(); handleView(doc); }}
                                   className="font-medium text-blue-600 hover:underline truncate cursor-pointer"
                                   title={`เปิดดู: ${fileName}`}
                                 >
@@ -1774,8 +2040,8 @@ export default function PublicationSubmissionDetailsDept({ submissionId, onBack 
                         <div className="flex items-center gap-2 ml-4">
                           <button
                             className="inline-flex items-center gap-1 px-3 py-2 text-sm text-blue-600 hover:bg-blue-100 rounded-md transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-                            onClick={() => handleView(fileId)}
-                            disabled={!fileId}
+                            onClick={() => handleView(doc)}
+                            disabled={!canOpen}
                             title="เปิดดูไฟล์"
                           >
                             <Eye size={14} />
@@ -1783,8 +2049,8 @@ export default function PublicationSubmissionDetailsDept({ submissionId, onBack 
                           </button>
                           <button
                             className="inline-flex items-center gap-1 px-3 py-2 text-sm text-green-600 hover:bg-green-100 rounded-md transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-                            onClick={() => handleDownload(fileId, fileName)}
-                            disabled={!fileId}
+                            onClick={() => handleDownload(doc, fileName)}
+                            disabled={!canOpen}
                             title="ดาวน์โหลดไฟล์"
                           >
                             <Download size={14} />

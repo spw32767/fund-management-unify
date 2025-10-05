@@ -1,66 +1,121 @@
 // app/lib/system_config_api.js
-// Thin wrapper สำหรับ System Config ให้ใช้ apiClient รูปแบบเดียวกับไฟล์ตัวอย่าง
+import apiClient from "./api";
 
-import apiClient from "./api"; // ใช้ฐานเดียวกับ api.js
+// ===== helpers =====
+function pickFirst(obj, keys = []) {
+  for (const k of keys) {
+    if (obj && Object.prototype.hasOwnProperty.call(obj, k) && obj[k] != null) {
+      return obj[k];
+    }
+  }
+  return null;
+}
+
+/**
+ * แปลงค่าวันเวลาให้เป็น ISO string (UTC) ที่ new Date(...) อ่านได้แน่ ๆ
+ * รองรับรูปแบบ:
+ *  - Date instance
+ *  - ISO เดิม
+ *  - MySQL DATETIME "YYYY-MM-DD HH:mm:ss" หรือ "YYYY-MM-DD HH:mm"
+ *  - "YYYY-MM-DDTHH:mm:ss" (ไม่มี timezone) -> treat เป็น UTC
+ */
+function toISOorNull(v) {
+  if (!v) return null;
+
+  if (v instanceof Date) {
+    const t = v.getTime();
+    return Number.isNaN(t) ? null : v.toISOString();
+  }
+
+  let s = String(v).trim();
+  if (!s) return null;
+
+  // "YYYY-MM-DD HH:mm(:ss)?" -> ทำเป็น UTC ISO
+  let m = s.match(/^(\d{4}-\d{2}-\d{2})[ T](\d{2}):(\d{2})(?::(\d{2}))?$/);
+  if (m) {
+    const sec = m[4] ?? "00";
+    const iso = `${m[1]}T${m[2]}:${m[3]}:${sec}Z`;
+    const d = new Date(iso);
+    return Number.isNaN(d.getTime()) ? null : d.toISOString();
+  }
+
+  // "YYYY-MM-DDTHH:mm(:ss)?" (ไม่มี timezone) -> treat เป็น UTC
+  m = s.match(/^(\d{4}-\d{2}-\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?$/);
+  if (m) {
+    const sec = m[4] ?? "00";
+    const iso = `${m[1]}T${m[2]}:${m[3]}:${sec}Z`;
+    const d = new Date(iso);
+    return Number.isNaN(d.getTime()) ? null : d.toISOString();
+  }
+
+  // พยายามให้ JS parse ตรง ๆ (รองรับกรณี ISO พร้อม timezone อยู่แล้ว)
+  const d = new Date(s);
+  return Number.isNaN(d.getTime()) ? null : d.toISOString();
+}
+
+// แผนที่คีย์ช่วงเวลาแต่ละ slot (รองรับสะกดหลายแบบจาก BE)
+const SLOT_TIME_KEYS = {
+  main: {
+    start: ["main_start_date", "main_announcement_start", "main_annoucement_start", "main_start_at"],
+    end: ["main_end_date", "main_announcement_end", "main_annoucement_end", "main_end_at"],
+    id: ["main_annoucement", "main_announcement", "main_ann_id"],
+  },
+  reward: {
+    start: ["reward_start_date", "reward_announcement_start", "reward_start_at"],
+    end: ["reward_end_date", "reward_announcement_end", "reward_end_at"],
+    id: ["reward_announcement", "reward_ann_id"],
+  },
+  activity_support: {
+    start: ["activity_support_start_date", "activity_support_announcement_start", "activity_support_start_at"],
+    end: ["activity_support_end_date", "activity_support_announcement_end", "activity_support_end_at"],
+    id: ["activity_support_announcement", "activity_support_ann_id"],
+  },
+  conference: {
+    start: ["conference_start_date", "conference_announcement_start", "conference_start_at"],
+    end: ["conference_end_date", "conference_announcement_end", "conference_end_at"],
+    id: ["conference_announcement", "conference_ann_id"],
+  },
+  service: {
+    start: ["service_start_date", "service_announcement_start", "service_start_at"],
+    end: ["service_end_date", "service_announcement_end", "service_end_at"],
+    id: ["service_announcement", "service_ann_id"],
+  },
+};
+
+const SLOTS = ["main", "reward", "activity_support", "conference", "service"];
 
 export const systemConfigAPI = {
-  /** ดึง config (public window shape) */
+  // ===== GETs =====
   async getWindow() {
-    // GET /api/v1/system-config/window
     return apiClient.get("/system-config/window");
   },
-
-  /** ดึง config (admin shape: { success, data }) */
   async getAdmin() {
-    // GET /api/v1/admin/system-config
     return apiClient.get("/admin/system-config");
   },
-
-  /** บันทึก config (admin) — รองรับ 5 คอลัมน์ประกาศด้วย */
-  async updateAdmin(payload) {
-    // PUT /api/v1/admin/system-config
-    // payload ตัวอย่าง:
-    // {
-    //   current_year: "2568",
-    //   start_date: "2025-09-06T23:01:58.000Z",
-    //   end_date: "2025-09-30T16:59:00.000Z",
-    //   main_annoucement: 1,
-    //   reward_announcement: 2,
-    //   activity_support_announcement: 3,
-    //   conference_announcement: 4,
-    //   service_announcement: 5
-    // }
-    return apiClient.put("/admin/system-config", payload);
-  },
-
-  /** ดึงปีงบประมาณปัจจุบัน (ถ้ามี endpoint แยก) */
   async getCurrentYear() {
-    // GET /api/v1/system-config/current-year
     return apiClient.get("/system-config/current-year");
   },
-
-  /** ดึงรายการประกาศ (ไว้ไปเติม dropdown) */
   async listAnnouncements(params = {}) {
-    // GET /api/v1/announcements
-    // คุณจะใช้ announcementAPI.getAnnouncements(...) จากไฟล์ api.js ก็ได้เช่นกัน
     return apiClient.get("/announcements", params);
   },
 
-  /** ทำให้ shape ของ getWindow() / getAdmin() เป็นอ็อบเจ็กต์เดียวกัน */
+  /**
+   * ทำให้ shape ของ getWindow()/getAdmin() เป็นแบบเดียวกัน
+   * และ "บังคับ" แปลงวันที่ทั้งหมดเป็น ISO (UTC) เพื่อให้ toLocalInput() ทำงานได้เสมอ
+   */
   normalizeWindow(raw) {
-    // ฝั่ง admin มักเป็น { success, data }, ฝั่ง public มักเป็น flat object
     const root =
       raw?.data && (raw.success === true || typeof raw.success === "boolean")
         ? raw.data
         : raw ?? {};
 
-    return {
-      // window core
-      start_date: root?.start_date ?? null,
-      end_date: root?.end_date ?? null,
-      last_updated: root?.last_updated ?? null,
+    const normalized = {
+      // window core (global เดิม) — แปลงเป็น ISO
+      start_date: toISOorNull(root?.start_date),
+      end_date: toISOorNull(root?.end_date),
+      last_updated: toISOorNull(root?.last_updated),
       current_year: root?.current_year ?? null,
-      now: root?.now ?? new Date().toISOString(),
+      now: toISOorNull(root?.now) ?? new Date().toISOString(),
 
       // flags
       is_open_effective:
@@ -69,53 +124,140 @@ export const systemConfigAPI = {
           : typeof root?.is_open_raw === "boolean"
           ? root.is_open_raw
           : null,
-      is_open_raw:
-        typeof root?.is_open_raw === "boolean" ? root.is_open_raw : null,
+      is_open_raw: typeof root?.is_open_raw === "boolean" ? root.is_open_raw : null,
 
       // identifiers
       config_id: root?.config_id ?? null,
       system_version: root?.system_version ?? null,
       updated_by: root?.updated_by ?? null,
 
-      // announcement ids (สะกดให้ตรง DB: main_annoucement)
+      // ids ของประกาศใน system_config (compat เดิม)
       main_annoucement: root?.main_annoucement ?? null,
       reward_announcement: root?.reward_announcement ?? null,
       activity_support_announcement: root?.activity_support_announcement ?? null,
       conference_announcement: root?.conference_announcement ?? null,
       service_announcement: root?.service_announcement ?? null,
-      // additional fields used in member forms
+
+      // อื่น ๆ
       kku_report_year: root?.kku_report_year ?? null,
       installment: root?.installment ?? null,
     };
+
+    // เติม “เวลาเริ่ม/สิ้นสุดรายช่อง” ให้เป็น ISO เสมอ
+    for (const slot of Object.keys(SLOT_TIME_KEYS)) {
+      const startVal = pickFirst(root, SLOT_TIME_KEYS[slot].start);
+      const endVal = pickFirst(root, SLOT_TIME_KEYS[slot].end);
+      const idVal =
+        normalized[slot === "main" ? "main_annoucement" : `${slot}_announcement`] ??
+        pickFirst(root, SLOT_TIME_KEYS[slot].id);
+
+      const startISO = toISOorNull(startVal);
+      const endISO = toISOorNull(endVal);
+
+      // flat
+      normalized[`${slot}_start_date`] = startISO;
+      normalized[`${slot}_end_date`] = endISO;
+
+      // object
+      normalized[`${slot}_window`] = {
+        id: idVal ?? null,
+        start_date: startISO,
+        end_date: endISO,
+      };
+    }
+
+    return normalized;
   },
-/** บันทึกเฉพาะ "ปีงบประมาณ + ช่วงเวลา" */
-async updateWindow(payload) {
-  // payload: { current_year, start_date, end_date }
-  return apiClient.put("/admin/system-config", payload);
-},
 
-/** เซ็ตประกาศทีละช่อง: slot = main | reward | activity_support | conference | service */
-async setAnnouncement(slot, announcement_id) {
-  return apiClient.patch(`/admin/system-config/announcements/${slot}`, { announcement_id });
-},
+  // ===== UPDATEs =====
+  async updateAdmin(payload) {
+    return apiClient.put("/admin/system-config", payload);
+  },
+  async updateWindow(payload) {
+    return apiClient.put("/admin/system-config", payload);
+  },
 
-async getCurrentDeptHead() {
-  return apiClient.get("/system-config/dept-head/current");
-},
-async listDeptHeadHistory(params = {}) {
-  return apiClient.get("/admin/system-config/dept-head/history", { params });
-},
-async assignDeptHead(payload) {
-  // { head_user_id, effective_from?, note? }
-  return apiClient.post("/admin/system-config/dept-head/assign", payload);
-},
+  /**
+   * เซ็ตประกาศทีละช่อง: slot = main|reward|activity_support|conference|service
+   * รองรับทั้งรูปแบบเก่า (ส่ง id ตรง ๆ) และใหม่ (ระบุ start/end)
+   */
+  async setAnnouncement(slot, data) {
+    let payload;
+    if (data && typeof data === "object" && !Array.isArray(data)) {
+      const { announcement_id = null, start_date = null, end_date = null } = data;
+      payload = {
+        announcement_id: announcement_id ?? null,
+        start_date: toISOorNull(start_date),
+        end_date: toISOorNull(end_date),
+      };
+    } else {
+      payload = { announcement_id: data ?? null };
+    }
+    return apiClient.patch(`/admin/system-config/announcements/${slot}`, payload);
+  },
 
-// ช็อตคัต
-async setMainAnnouncement(id)       { return this.setAnnouncement("main", id ?? null); },
-async setRewardAnnouncement(id)     { return this.setAnnouncement("reward", id ?? null); },
-async setActivitySupportAnn(id)     { return this.setAnnouncement("activity_support", id ?? null); },
-async setConferenceAnnouncement(id) { return this.setAnnouncement("conference", id ?? null); },
-async setServiceAnnouncement(id)    { return this.setAnnouncement("service", id ?? null); },
+  async setAnnouncementWindow(slot, announcement_id, startISO, endISO) {
+    return this.setAnnouncement(slot, {
+      announcement_id: announcement_id ?? null,
+      start_date: startISO ?? null,
+      end_date: endISO ?? null,
+    });
+  },
 
+  // ===== HISTORY =====
+  async listAnnouncementHistory(slot, params = {}) {
+    return apiClient.get(`/admin/system-config/announcements/${slot}/history`, params);
+  },
+  async listAnnouncementHistoryAll(params = {}) {
+    const res = {};
+    await Promise.all(
+      SLOTS.map(async (slot) => {
+        try {
+          const r = await this.listAnnouncementHistory(slot, params);
+          const items = Array.isArray(r) ? r : r?.items ?? r?.data ?? [];
+          res[slot] = Array.isArray(items) ? items : [];
+        } catch {
+          res[slot] = [];
+        }
+      })
+    );
+    return res;
+  },
+
+  // ===== Dept Head =====
+  async getCurrentDeptHead() {
+    return apiClient.get("/system-config/dept-head/current");
+  },
+  async listDeptHeadHistory(params = {}) {
+    return apiClient.get("/admin/system-config/dept-head/history", params);
+  },
+  async assignDeptHead(input) {
+    const payload = { ...input };
+    if (!payload.start_date && payload.effective_from) payload.start_date = payload.effective_from;
+    if (!payload.end_date && payload.effective_to) payload.end_date = payload.effective_to;
+    delete payload.effective_from;
+    delete payload.effective_to;
+    if (payload.start_date) payload.start_date = toISOorNull(payload.start_date);
+    if (payload.end_date) payload.end_date = toISOorNull(payload.end_date);
+    return apiClient.post("/admin/system-config/dept-head/assign", payload);
+  },
+
+  // ===== Shortcuts (compat เดิม) =====
+  async setMainAnnouncement(id) {
+    return this.setAnnouncement("main", id ?? null);
+  },
+  async setRewardAnnouncement(id) {
+    return this.setAnnouncement("reward", id ?? null);
+  },
+  async setActivitySupportAnn(id) {
+    return this.setAnnouncement("activity_support", id ?? null);
+  },
+  async setConferenceAnnouncement(id) {
+    return this.setAnnouncement("conference", id ?? null);
+  },
+  async setServiceAnnouncement(id) {
+    return this.setAnnouncement("service", id ?? null);
+  },
 };
+
 export default systemConfigAPI;

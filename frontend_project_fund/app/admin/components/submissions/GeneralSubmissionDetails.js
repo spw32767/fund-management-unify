@@ -13,6 +13,7 @@ import Card from '../common/Card';
 import StatusBadge from '../common/StatusBadge';
 import { adminSubmissionAPI } from '@/app/lib/admin_submission_api';
 import { adminAnnouncementAPI } from '@/app/lib/admin_announcement_api'; // <-- fetch announcement
+import { notificationsAPI } from '@/app/lib/notifications_api';
 import apiClient from '@/app/lib/api';
 import { toast } from 'react-hot-toast';
 import Swal from 'sweetalert2';
@@ -651,6 +652,15 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
   // Approve/Reject handlers
   const approve = async (payload) => {
     await adminSubmissionAPI.approveSubmission(submission.submission_id, { ...payload });
+    // แจ้งเตือนผู้ยื่น: อนุมัติ (backend จะดึงจำนวนเงินจากตาราง detail เอง)
+    try {
+      await notificationsAPI.notifySubmissionApproved(
+        submission.submission_id,
+        { announce_reference_number: payload?.announce_reference_number || '' }
+      );
+    } catch (e) {
+      console.warn('notifySubmissionApproved failed:', e);
+    }
     const res = await adminSubmissionAPI.getSubmissionDetails(submission.submission_id);
     let data = res?.submission || res;
     if (res?.submission_users) data.submission_users = res.submission_users;
@@ -663,6 +673,15 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
 
   const reject = async (reason) => {
     await adminSubmissionAPI.rejectSubmission(submission.submission_id, { rejection_reason: reason });
+    // แจ้งเตือนผู้ยื่น: ไม่อนุมัติ
+    try {
+      await notificationsAPI.notifySubmissionRejected(
+        submission.submission_id,
+        { reason: String(reason || '') }
+      );
+    } catch (e) {
+      console.warn('notifySubmissionRejected failed:', e);
+    }
     const res = await adminSubmissionAPI.getSubmissionDetails(submission.submission_id);
     let data = res?.submission || res;
     if (res?.submission_users) data.submission_users = res.submission_users;
