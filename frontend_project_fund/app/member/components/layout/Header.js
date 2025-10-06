@@ -1,11 +1,13 @@
 "use client";
 
+import Image from "next/image";
 import { useMemo, useState } from "react";
 import { ChevronDown, LogOut } from "lucide-react";
 import { HiMenu } from "react-icons/hi";
 import { RxCross2 } from "react-icons/rx";
 import { useRouter } from "next/navigation";
 import { useAuth } from "../../../contexts/AuthContext";
+import { BRANDING } from "../../../config/branding";
 
 const roleLabels = {
   teacher: "อาจารย์",
@@ -85,6 +87,46 @@ export default function Header({
   const router = useRouter();
   const [showUserMenu, setShowUserMenu] = useState(false);
 
+  const {
+    appName,
+    appAcronym,
+    subtitles = {},
+    logo: {
+      text: logoText,
+      imageSrc: logoImageSrc,
+      imageAlt: logoImageAlt,
+      backgroundClass: logoBackgroundClass,
+    } = {},
+  } = BRANDING;
+
+  const logoContainerClass = [
+    "w-10 h-10 rounded-lg flex items-center justify-center",
+    logoBackgroundClass ?? "bg-gradient-to-br from-blue-500 to-purple-600",
+  ]
+    .filter(Boolean)
+    .join(" ");
+
+  const renderLogoContent = () => {
+    if (logoImageSrc) {
+      return (
+        <Image
+          src={logoImageSrc}
+          alt={logoImageAlt || appName || "Application logo"}
+          width={32}
+          height={32}
+          className="w-8 h-8 object-contain"
+          priority
+        />
+      );
+    }
+
+    return (
+      <span className="text-white font-bold text-xl">
+        {logoText || appAcronym || "F"}
+      </span>
+    );
+  };
+
   const displayName = useMemo(() => getDisplayName(user), [user]);
   const roleLabel = useMemo(() => resolveRoleLabel(user), [user]);
   const initials = useMemo(() => getInitials(displayName), [displayName]);
@@ -130,12 +172,14 @@ export default function Header({
             <HiMenu className="w-5 h-5 text-gray-700" />
           </button>
 
-          <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center">
-            <span className="text-white font-bold text-xl">F</span>
-          </div>
+          <div className={logoContainerClass}>{renderLogoContent()}</div>
           <div>
-            <h1 className="text-xl font-bold text-gray-800">Fund Management</h1>
-            <p className="text-xs text-gray-600">ระบบบริหารจัดการทุน - Member</p>
+            <h1 className="text-xl font-bold text-gray-800">
+              {appName || "Fund Management"}
+            </h1>
+            <p className="text-xs text-gray-600">
+              {subtitles.member || "ระบบบริหารจัดการทุน - Member"}
+            </p>
             <p className="text-xs text-gray-500 mt-1">{currentPageTitle}</p>
           </div>
         </div>
