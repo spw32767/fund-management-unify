@@ -345,7 +345,8 @@ function ReadonlyMoney({ value, aria }) {
 function DeptDecisionPanel({ submission, onApprove, onReject }) {
   const [comment, setComment] = useState(
     submission?.head_comment ?? submission?.comment ?? ''
-  );  
+  );
+  const [signature, setSignature] = useState(submission?.head_signature ?? '');
   const [saving, setSaving] = useState(false);
 
   const canAct = true;
@@ -374,7 +375,9 @@ function DeptDecisionPanel({ submission, onApprove, onReject }) {
         try {
           setSaving(true);
           // ส่งหมายเหตุ (comment/head_comment) ไปเก็บที่ submissions เท่านั้น
-          await onApprove(comment?.trim() || '');
+          const trimmedComment = comment?.trim() ?? '';
+          const trimmedSignature = signature?.trim() ?? '';
+          await onApprove(trimmedComment, trimmedSignature);
         } catch (e) {
           Swal.showValidationMessage(e?.message || 'อนุมัติไม่สำเร็จ');
           throw e;
@@ -428,7 +431,9 @@ function DeptDecisionPanel({ submission, onApprove, onReject }) {
         try {
           setSaving(true);
           // ส่งเหตุผล + หมายเหตุหัวหน้าสาขา (comment) ไปหลังบ้าน (เก็บที่ submissions เท่านั้น)
-          await onReject(String(reason).trim(), comment?.trim() || '');
+          const trimmedComment = comment?.trim() ?? '';
+          const trimmedSignature = signature?.trim() ?? '';
+          await onReject(String(reason).trim(), trimmedComment, trimmedSignature);
         } catch (e) {
           Swal.showValidationMessage(e?.message || 'ไม่อนุมัติไม่สำเร็จ');
           throw e;
@@ -455,6 +460,18 @@ function DeptDecisionPanel({ submission, onApprove, onReject }) {
             placeholder="เขียนหมายเหตุของหัวหน้าสาขาหรือบันทึกหมายเหตุ (ถ้ามี)"
             value={comment}
             onChange={(e) => setComment(e.target.value)}
+            disabled={saving}
+          />
+        </div>
+
+        <div>
+          <label className="text-sm text-gray-600">ลายเซ็นหัวหน้าสาขา (พิมพ์ชื่อเต็ม)</label>
+          <input
+            type="text"
+            className="w-full rounded-lg border border-gray-300 p-3 outline-none focus:ring-2 focus:ring-blue-500"
+            placeholder="พิมพ์ชื่อ-นามสกุลหัวหน้าสาขา"
+            value={signature}
+            onChange={(e) => setSignature(e.target.value)}
             disabled={saving}
           />
         </div>
@@ -1282,8 +1299,15 @@ export default function PublicationSubmissionDetailsDept({ submissionId, onBack 
   }, []);
 
   // ==== PATCH: handlers ภายใน component หลัก PublicationSubmissionDetailsDept ====
-  const approve = async (headComment) => {
-    const body = headComment ? { head_comment: headComment, comment: headComment } : {};
+  const approve = async (headComment, headSignature) => {
+    const body = {};
+    if (headComment) {
+      body.head_comment = headComment;
+      body.comment = headComment;
+    }
+    if (headSignature !== undefined) {
+      body.head_signature = headSignature;
+    }
     await deptHeadAPI.recommendSubmission(submission.submission_id, body);
 
     // reload details หลังบันทึก
@@ -1297,11 +1321,14 @@ export default function PublicationSubmissionDetailsDept({ submissionId, onBack 
     setSubmission(data);
   };
 
-  const reject = async (reason, headComment) => {
+  const reject = async (reason, headComment, headSignature) => {
     const payload = { rejection_reason: reason };
     if (headComment) {
       payload.head_comment = headComment;
       payload.comment = headComment; // เผื่อจุดเก่าอ่านจาก comment
+    }
+    if (headSignature !== undefined) {
+      payload.head_signature = headSignature;
     }
     await deptHeadAPI.rejectSubmission(submission.submission_id, payload);
 
