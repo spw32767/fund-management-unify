@@ -644,7 +644,8 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
       const date = new Date(value);
       return Number.isNaN(date.getTime()) ? 0 : date.getTime();
     };
-    return [...list].sort((a, b) => toTimestamp(b.created_at) - toTimestamp(a.created_at));
+    const sorted = [...list].sort((a, b) => toTimestamp(a.created_at) - toTimestamp(b.created_at));
+    return sorted;
   }, []);
 
   const loadResearchEvents = useCallback(
@@ -655,8 +656,19 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
       setResearchLoading(true);
       setResearchError(null);
       try {
-        const { events = [], totals } = await adminSubmissionAPI.getResearchFundEvents(id);
+        const { events = [], totals, meta } = await adminSubmissionAPI.getResearchFundEvents(id);
         const sorted = sortEventsByCreatedAt(events);
+        console.groupCollapsed(
+          '[GeneralSubmissionDetails] Research fund events fetched',
+          `submission:${id}`
+        );
+        console.log('Raw events from API', events);
+        console.log('Sorted events (oldest first)', sorted);
+        console.log('Totals payload', totals);
+        if (meta !== undefined) {
+          console.log('Meta payload', meta);
+        }
+        console.groupEnd();
         setResearchEvents(sorted);
         setResearchTotals(totals || null);
         setIsFundClosed(Boolean(totals?.is_closed));
@@ -797,6 +809,31 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
     };
     loadAttachments();
   }, [submission?.submission_id]);
+
+  useEffect(() => {
+    if (!submission) return;
+    console.groupCollapsed('[GeneralSubmissionDetails] Submission data debug');
+    console.log('Submission ID', submission?.submission_id);
+    console.log('Admin comment', submission?.admin_comment ?? submission?.approval_comment ?? submission?.comment);
+    console.log('Head comment', submission?.head_comment ?? submission?.HeadComment ?? submission?.headComment);
+    console.log('Raw submission object', submission);
+    console.groupEnd();
+  }, [submission]);
+
+  useEffect(() => {
+    if (attachmentsLoading) return;
+    console.groupCollapsed('[GeneralSubmissionDetails] Submission attachments debug');
+    console.log('Attachments list', attachments);
+    console.groupEnd();
+  }, [attachments, attachmentsLoading]);
+
+  useEffect(() => {
+    if (researchLoading) return;
+    console.groupCollapsed('[GeneralSubmissionDetails] Research fund events debug');
+    console.log('Normalized research events', researchEvents);
+    console.log('Research totals', researchTotals);
+    console.groupEnd();
+  }, [researchEvents, researchTotals, researchLoading]);
 
   // fetch announcements for Status Summary
   useEffect(() => {
@@ -1575,21 +1612,46 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
                           </td>
                           <td className="px-4 py-3">
                             {(() => {
-                              const attachmentList = Array.isArray(event.attachments) && event.attachments.length > 0
-                                ? event.attachments
-                                : event.file_id || event.file_path || event.file_name
-                                  ? [
-                                      {
-                                        file_id: event.file_id,
-                                        file_path: event.file_path,
-                                        file_name: event.file_name,
-                                      },
-                                    ]
-                                  : [];
+                              let attachmentList = [];
+                              if (Array.isArray(event.attachments) && event.attachments.length > 0) {
+                                attachmentList = event.attachments;
+                              } else if (event.attachments && typeof event.attachments === 'object') {
+                                attachmentList = Object.values(event.attachments).filter(Boolean);
+                              } else if (event.files && typeof event.files === 'object' && !Array.isArray(event.files)) {
+                                attachmentList = Object.values(event.files).filter(Boolean);
+                              }
+
+                              if (!attachmentList.length && Array.isArray(event.files) && event.files.length > 0) {
+                                attachmentList = event.files;
+                              }
+
+                              if (
+                                !attachmentList.length &&
+                                (event.file_id || event.file_path || event.file_name)
+                              ) {
+                                attachmentList = [
+                                  {
+                                    file_id: event.file_id,
+                                    file_path: event.file_path,
+                                    file_name: event.file_name,
+                                  },
+                                ];
+                              }
+
+                              if (!attachmentList.length && event.attachment) {
+                                attachmentList = [event.attachment];
+                              }
 
                               if (!attachmentList.length) {
                                 return <span className="text-xs text-gray-400">ไม่มีไฟล์แนบ</span>;
                               }
+
+                              console.groupCollapsed(
+                                '[GeneralSubmissionDetails] Render research attachments',
+                                event.id ?? event.created_at ?? 'unknown-event'
+                              );
+                              console.log('Attachment list', attachmentList);
+                              console.groupEnd();
 
                               return (
                                 <div className="space-y-2">
