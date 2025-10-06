@@ -3,15 +3,21 @@
 
 import { BarChart3, TrendingUp } from "lucide-react";
 
-export default function MonthlyChart({ data }) {
-  // Find max value for scaling
-  const maxValue = Math.max(...data.map(d => d.applications));
+export default function MonthlyChart({ data = [] }) {
+  const normalizedData = (Array.isArray(data) ? data : []).map((item) => ({
+    month: item?.month ?? "",
+    applications: Number(item?.applications ?? item?.total_applications ?? 0),
+    approved: Number(item?.approved ?? 0),
+  }));
+
+  const maxValue = normalizedData.length > 0
+    ? Math.max(...normalizedData.map((d) => d.applications))
+    : 0;
   const scale = maxValue > 0 ? 200 / maxValue : 1;
 
-  // Calculate statistics
-  const totalApplications = data.reduce((sum, item) => sum + item.applications, 0);
-  const totalApproved = data.reduce((sum, item) => sum + item.approved, 0);
-  const approvalRate = totalApplications > 0 
+  const totalApplications = normalizedData.reduce((sum, item) => sum + item.applications, 0);
+  const totalApproved = normalizedData.reduce((sum, item) => sum + item.approved, 0);
+  const approvalRate = totalApplications > 0
     ? ((totalApproved / totalApplications) * 100).toFixed(1)
     : 0;
 
@@ -36,7 +42,7 @@ export default function MonthlyChart({ data }) {
       {/* Bar Chart */}
       <div className="relative h-64">
         <div className="absolute inset-0 flex items-end justify-around px-2">
-          {data.map((stat, index) => (
+          {normalizedData.map((stat, index) => (
             <div key={index} className="flex flex-col items-center flex-1 mx-1">
               {/* Values on top of bars */}
               <div className="mb-2 text-center">
