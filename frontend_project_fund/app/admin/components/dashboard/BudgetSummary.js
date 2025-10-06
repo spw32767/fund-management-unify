@@ -4,26 +4,36 @@
 import { DollarSign, TrendingUp, TrendingDown, PieChart } from "lucide-react";
 
 export default function BudgetSummary({ budget }) {
+  const total = Number(budget?.total ?? budget?.total_budget ?? 0);
+  const used = Number(budget?.thisYear ?? budget?.used ?? budget?.used_budget ?? 0);
+  const remaining = Number.isFinite(Number(budget?.remaining))
+    ? Number(budget?.remaining)
+    : Math.max(total - used, 0);
+
+  const safeTotal = total >= 0 ? total : 0;
+  const safeUsed = used >= 0 ? used : 0;
+  const safeRemaining = remaining >= 0 ? remaining : 0;
+
   const formatCurrency = (amount) => {
-    return new Intl.NumberFormat('th-TH', {
-      style: 'currency',
-      currency: 'THB',
-      minimumFractionDigits: 0
-    }).format(amount);
+    return new Intl.NumberFormat("th-TH", {
+      style: "currency",
+      currency: "THB",
+      minimumFractionDigits: 0,
+    }).format(Number.isFinite(amount) ? amount : 0);
   };
 
-  const percentageUsed = budget.total > 0 
-    ? ((budget.thisYear / budget.total) * 100).toFixed(1)
+  const percentageUsed = safeTotal > 0
+    ? ((safeUsed / safeTotal) * 100).toFixed(1)
     : 0;
 
-  const percentageRemaining = budget.total > 0
-    ? ((budget.remaining / budget.total) * 100).toFixed(1)
+  const percentageRemaining = safeTotal > 0
+    ? ((safeRemaining / safeTotal) * 100).toFixed(1)
     : 0;
 
   const budgetItems = [
     {
       label: "งบประมาณที่ได้รับทั้งหมด",
-      value: formatCurrency(budget.total),
+      value: formatCurrency(safeTotal),
       icon: DollarSign,
       bgColor: "bg-gray-50",
       textColor: "text-gray-700",
@@ -31,7 +41,7 @@ export default function BudgetSummary({ budget }) {
     },
     {
       label: "ใช้ไปในปีนี้",
-      value: formatCurrency(budget.thisYear),
+      value: formatCurrency(safeUsed),
       icon: TrendingDown,
       bgColor: "bg-blue-50",
       textColor: "text-blue-700",
@@ -40,7 +50,7 @@ export default function BudgetSummary({ budget }) {
     },
     {
       label: "คงเหลือสำหรับปีนี้",
-      value: formatCurrency(budget.remaining),
+      value: formatCurrency(safeRemaining),
       icon: TrendingUp,
       bgColor: "bg-green-50",
       textColor: "text-green-700",
