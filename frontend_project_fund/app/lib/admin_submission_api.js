@@ -93,6 +93,16 @@ const toUserId = (value) => {
   return null;
 };
 
+const normalizeUserDisplayName = (...candidates) => {
+  for (const candidate of candidates) {
+    const name = toUserName(candidate);
+    if (name) {
+      return name;
+    }
+  }
+  return null;
+};
+
 const normalizeResearchFundEvent = (event = {}) => {
   const attachment = normalizeEventAttachment(event);
   const amount = toNumberOrNull(
@@ -138,14 +148,14 @@ const normalizeResearchFundEvent = (event = {}) => {
         event?.creator_id
       ) ?? null,
     created_by_name:
-      pickFirst(
-        toUserName(event?.created_by_name),
-        toUserName(creatorCandidate),
+      normalizeUserDisplayName(
+        event?.created_by_name,
+        creatorCandidate,
         event?.creator_name,
         event?.created_by_full_name,
         event?.creator,
         event?.user_name
-      ) || null,
+      ),
     attachment,
     file_id: attachment?.file_id ?? null,
     file_name: attachment?.file_name ?? null,
