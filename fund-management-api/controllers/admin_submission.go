@@ -69,6 +69,7 @@ func GetSubmissionDetails(c *gin.Context) {
 			return db.Order("created_at ASC")
 		}).
 		Preload("ResearchFundEvents.Creator").
+		Preload("ResearchFundEvents.StatusAfter").
 		Preload("ResearchFundEvents.Files").
 		Preload("ResearchFundEvents.Files.File")
 
@@ -693,10 +694,14 @@ func CreateResearchFundEvent(c *gin.Context) {
 		return
 	}
 
+	amountStr := strings.TrimSpace(c.PostForm("amount"))
 	eventType := strings.TrimSpace(c.PostForm("event_type"))
 	if eventType == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "event_type is required"})
-		return
+		if amountStr != "" {
+			eventType = models.ResearchFundEventTypePayment
+		} else {
+			eventType = models.ResearchFundEventTypeNote
+		}
 	}
 	if !isValidResearchFundEventType(eventType) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "unsupported event type"})
@@ -706,7 +711,6 @@ func CreateResearchFundEvent(c *gin.Context) {
 	comment := strings.TrimSpace(c.PostForm("comment"))
 
 	var amountPtr *float64
-	amountStr := strings.TrimSpace(c.PostForm("amount"))
 	if eventType == models.ResearchFundEventTypePayment {
 		if amountStr == "" {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "amount is required for payment events"})
@@ -757,7 +761,7 @@ func CreateResearchFundEvent(c *gin.Context) {
 				return errMissingFundDetail
 			}
 			if err := tx.Model(&models.ResearchFundAdminEvent{}).
-				Where("submission_id = ? AND event_type = ?", submission.SubmissionID, models.ResearchFundEventTypePayment).
+				Where("submission_id = ? AND amount IS NOT NULL", submission.SubmissionID).
 				Select("COALESCE(SUM(amount),0)").Scan(&totalPaid).Error; err != nil {
 				return err
 			}
@@ -769,12 +773,10 @@ func CreateResearchFundEvent(c *gin.Context) {
 
 		event := models.ResearchFundAdminEvent{
 			SubmissionID: submission.SubmissionID,
-			EventType:    eventType,
 			Comment:      comment,
 			Amount:       amountPtr,
 			CreatedBy:    userID,
 			CreatedAt:    now,
-			UpdatedAt:    now,
 		}
 		if err := tx.Create(&event).Error; err != nil {
 			return err
@@ -853,7 +855,6 @@ func CreateResearchFundEvent(c *gin.Context) {
 				EventID:   event.EventID,
 				FileID:    fileUpload.FileID,
 				CreatedAt: now,
-				UpdatedAt: now,
 			}
 			if err := tx.Create(&link).Error; err != nil {
 				return err
@@ -954,7 +955,7 @@ func ToggleResearchFundClosure(c *gin.Context) {
 			}
 		}
 
-		submissionUpdates, detailUpdates, eventComment, err := applyClosureTransition(submission, closed, approvedStatusID, closedStatusID, now, req.Comment, closingAllowed)
+		submissionUpdates, detailUpdates, eventComment, statusAfterID, err := applyClosureTransition(submission, closed, approvedStatusID, closedStatusID, now, req.Comment, closingAllowed)
 		if err != nil {
 			return err
 		}
@@ -971,12 +972,11 @@ func ToggleResearchFundClosure(c *gin.Context) {
 		}
 
 		event := models.ResearchFundAdminEvent{
-			SubmissionID: submission.SubmissionID,
-			EventType:    models.ResearchFundEventTypeClosure,
-			Comment:      eventComment,
-			CreatedBy:    userID,
-			CreatedAt:    now,
-			UpdatedAt:    now,
+			SubmissionID:  submission.SubmissionID,
+			StatusAfterID: statusAfterID,
+			Comment:       eventComment,
+			CreatedBy:     userID,
+			CreatedAt:     now,
 		}
 		if err := tx.Create(&event).Error; err != nil {
 			return err
@@ -1024,6 +1024,7 @@ func loadResearchFundSubmissionByID(submissionID int, preloadEvents bool) (*mode
 				return db.Order("created_at ASC")
 			}).
 			Preload("ResearchFundEvents.Creator").
+			Preload("ResearchFundEvents.StatusAfter").
 			Preload("ResearchFundEvents.Files").
 			Preload("ResearchFundEvents.Files.File")
 	}
@@ -1101,12 +1102,12 @@ func validateResearchFundEvent(submission *models.Submission, eventType string, 
 	return nil
 }
 
-func applyClosureTransition(submission *models.Submission, currentlyClosed bool, approvedStatusID, closedStatusID int, now time.Time, comment string, closingAllowed bool) (map[string]any, map[string]any, string, error) {
+func applyClosureTransition(submission *models.Submission, currentlyClosed bool, approvedStatusID, closedStatusID int, now time.Time, comment string, closingAllowed bool) (map[string]any, map[string]any, string, *int, error) {
 	if submission == nil {
-		return nil, nil, "", fmt.Errorf("submission is required")
+		return nil, nil, "", nil, fmt.Errorf("submission is required")
 	}
 	if !isResearchFundSubmission(submission) {
-		return nil, nil, "", errSubmissionNotResearchFund
+		return nil, nil, "", nil, errSubmissionNotResearchFund
 	}
 
 	if currentlyClosed {
@@ -1115,11 +1116,12 @@ func applyClosureTransition(submission *models.Submission, currentlyClosed bool,
 			"closed_at": nil,
 		}
 		detailUpdates := map[string]any{"closed_at": nil}
-		return submissionUpdates, detailUpdates, buildClosureComment(comment, false), nil
+		statusAfter := approvedStatusID
+		return submissionUpdates, detailUpdates, buildClosureComment(comment, false), &statusAfter, nil
 	}
 
 	if !closingAllowed {
-		return nil, nil, "", fmt.Errorf("submission must be approved before closure")
+		return nil, nil, "", nil, fmt.Errorf("submission must be approved before closure")
 	}
 
 	submissionUpdates := map[string]any{
@@ -1127,7 +1129,8 @@ func applyClosureTransition(submission *models.Submission, currentlyClosed bool,
 		"closed_at": now,
 	}
 	detailUpdates := map[string]any{"closed_at": now}
-	return submissionUpdates, detailUpdates, buildClosureComment(comment, true), nil
+	statusAfter := closedStatusID
+	return submissionUpdates, detailUpdates, buildClosureComment(comment, true), &statusAfter, nil
 }
 
 func buildResearchFundEventsPayload(events []models.ResearchFundAdminEvent) []gin.H {
@@ -1140,14 +1143,23 @@ func buildResearchFundEventsPayload(events []models.ResearchFundAdminEvent) []gi
 		payload := gin.H{
 			"event_id":      evt.EventID,
 			"submission_id": evt.SubmissionID,
-			"event_type":    evt.EventType,
+			"event_type":    deriveResearchFundEventType(evt),
 			"comment":       evt.Comment,
 			"created_by":    evt.CreatedBy,
 			"created_at":    evt.CreatedAt,
-			"updated_at":    evt.UpdatedAt,
 		}
 		if evt.Amount != nil {
 			payload["amount"] = *evt.Amount
+		}
+		if evt.StatusAfterID != nil {
+			payload["status_after_id"] = *evt.StatusAfterID
+		}
+		if evt.StatusAfter != nil && evt.StatusAfter.ApplicationStatusID != 0 {
+			payload["status_after"] = gin.H{
+				"application_status_id": evt.StatusAfter.ApplicationStatusID,
+				"status_code":           evt.StatusAfter.StatusCode,
+				"status_name":           evt.StatusAfter.StatusName,
+			}
 		}
 		if evt.Creator != nil && evt.Creator.UserID != 0 {
 			payload["creator"] = gin.H{
@@ -1161,11 +1173,10 @@ func buildResearchFundEventsPayload(events []models.ResearchFundAdminEvent) []gi
 		files := make([]gin.H, 0, len(evt.Files))
 		for _, ef := range evt.Files {
 			filePayload := gin.H{
-				"id":         ef.ID,
-				"event_id":   ef.EventID,
-				"file_id":    ef.FileID,
-				"created_at": ef.CreatedAt,
-				"updated_at": ef.UpdatedAt,
+				"event_file_id": ef.EventFileID,
+				"event_id":      ef.EventID,
+				"file_id":       ef.FileID,
+				"created_at":    ef.CreatedAt,
 			}
 			if ef.File.FileID != 0 {
 				filePayload["file"] = gin.H{
@@ -1188,6 +1199,16 @@ func buildResearchFundEventsPayload(events []models.ResearchFundAdminEvent) []gi
 	return out
 }
 
+func deriveResearchFundEventType(evt models.ResearchFundAdminEvent) string {
+	if evt.StatusAfterID != nil {
+		return models.ResearchFundEventTypeClosure
+	}
+	if evt.IsPayment() {
+		return models.ResearchFundEventTypePayment
+	}
+	return models.ResearchFundEventTypeNote
+}
+
 func buildResearchFundSummary(submission *models.Submission) gin.H {
 	if submission == nil || !isResearchFundSubmission(submission) {
 		return nil
@@ -1195,7 +1216,7 @@ func buildResearchFundSummary(submission *models.Submission) gin.H {
 
 	totalPaid := 0.0
 	for _, evt := range submission.ResearchFundEvents {
-		if evt.EventType == models.ResearchFundEventTypePayment && evt.Amount != nil {
+		if evt.IsPayment() && evt.Amount != nil {
 			totalPaid += *evt.Amount
 		}
 	}

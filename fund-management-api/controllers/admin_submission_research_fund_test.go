@@ -73,7 +73,7 @@ func TestApplyClosureTransition_Reopen(t *testing.T) {
 	closedStatusID := 11
 	now := time.Now()
 
-	submissionUpdates, detailUpdates, comment, err := applyClosureTransition(submission, true, approvedStatusID, closedStatusID, now, "", true)
+	submissionUpdates, detailUpdates, comment, statusAfterID, err := applyClosureTransition(submission, true, approvedStatusID, closedStatusID, now, "", true)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -88,6 +88,9 @@ func TestApplyClosureTransition_Reopen(t *testing.T) {
 	}
 	if comment != "Submission reopened by admin" {
 		t.Fatalf("unexpected comment: %s", comment)
+	}
+	if statusAfterID == nil || *statusAfterID != approvedStatusID {
+		t.Fatalf("expected statusAfterID %d, got %v", approvedStatusID, statusAfterID)
 	}
 }
 
@@ -111,7 +114,7 @@ func TestApplyClosureTransition_RequiresApproved(t *testing.T) {
 		CategoryID:   intPtr(researchFundCategoryID),
 	}
 
-	_, _, _, err := applyClosureTransition(submission, false, 10, 11, time.Now(), "", false)
+	_, _, _, _, err := applyClosureTransition(submission, false, 10, 11, time.Now(), "", false)
 	if err == nil || err.Error() != "submission must be approved before closure" {
 		t.Fatalf("expected approval error, got %v", err)
 	}
