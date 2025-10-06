@@ -1,11 +1,11 @@
 // app/admin/components/submissions/GeneralSubmissionDetails.js
 'use client';
 
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState, useId } from 'react';
 import {
   ArrowLeft, FileText,
   CheckCircle, XCircle, AlertTriangle, Clock,
-  Eye, Download, PlusCircle, Loader2, ToggleLeft, ToggleRight, RefreshCw
+  Eye, Download, PlusCircle, Loader2, ToggleLeft, ToggleRight, RefreshCw, UploadCloud
 } from 'lucide-react';
 
 import PageLayout from '../common/PageLayout';
@@ -120,6 +120,22 @@ const formatDateTime = (value) => {
   } catch (error) {
     return date.toLocaleString();
   }
+};
+
+const formatFileSize = (bytes) => {
+  const size = Number(bytes);
+  if (!Number.isFinite(size) || size <= 0) return '0 KB';
+
+  const units = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+  let unitIndex = 0;
+  let value = size;
+  while (value >= 1024 && unitIndex < units.length - 1) {
+    value /= 1024;
+    unitIndex += 1;
+  }
+
+  const precision = value >= 10 || unitIndex === 0 ? 0 : 1;
+  return `${value.toFixed(precision)} ${units[unitIndex]}`;
 };
 
 /* =========================
@@ -452,7 +468,7 @@ function RequestInfoCard({ submission, detail }) {
 export default function GeneralSubmissionDetails({ submissionId, onBack }) {
   const [loading, setLoading] = useState(true);
   const [submission, setSubmission] = useState(null);
-  const { getCodeById } = useStatusMap();
+  const { getCodeById, getLabelById } = useStatusMap();
 
   // attachments
   const [attachments, setAttachments] = useState([]);
@@ -479,6 +495,7 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
   const [eventSubmitting, setEventSubmitting] = useState(false);
   const [toggleClosureLoading, setToggleClosureLoading] = useState(false);
   const eventFileInputRef = useRef(null);
+  const eventFileInputId = useId();
 
   const submissionStatusId = submission?.status_id;
   const submissionCategoryId = submission?.category_id;
@@ -939,6 +956,53 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
     }
   };
 
+  const getEventStatusDisplay = useCallback(
+    (event) => {
+      if (!event) {
+        return {
+          label: '-',
+          tone: 'neutral',
+        };
+      }
+
+      const normalizedStatus = String(event.status ?? '').toLowerCase();
+      const statusAfterId = Number(event.status_after_id);
+      const labelFromMap = Number.isFinite(statusAfterId) ? getLabelById(statusAfterId) : null;
+      const fallbackLabel =
+        event.status_label ||
+        (normalizedStatus === 'closed'
+          ? 'ปิดทุน'
+          : normalizedStatus === 'approved'
+            ? 'อนุมัติ'
+            : event.status || '-');
+
+      const label = (labelFromMap || fallbackLabel || '-').toString().trim() || '-';
+      const labelLower = label.toLowerCase();
+
+      const isClosed =
+        normalizedStatus === 'closed' ||
+        statusAfterId === 7 ||
+        labelLower.includes('ปิดทุน');
+      const isRejected =
+        normalizedStatus === 'rejected' ||
+        statusAfterId === 3 ||
+        labelLower.includes('ไม่อนุมัติ') ||
+        labelLower.includes('ปฏิเสธ');
+      const isPending =
+        normalizedStatus === 'pending' ||
+        statusAfterId === 1 ||
+        labelLower.includes('รอดำเนินการ');
+
+      let tone = 'approved';
+      if (isClosed) tone = 'closed';
+      else if (isRejected) tone = 'rejected';
+      else if (isPending) tone = 'pending';
+
+      return { label, tone };
+    },
+    [getLabelById]
+  );
+
   const handleToggleClosure = async () => {
     if (!submission?.submission_id) return;
     const nextState = !isFundClosed;
@@ -970,6 +1034,14 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
         await loadResearchEvents(submission.submission_id);
       }
       toast.success(nextState ? 'ปิดทุนเรียบร้อย' : 'เปิดทุนแล้ว');
+      try {
+        await Promise.all([
+          refetchSubmission(),
+          loadResearchEvents(submission.submission_id),
+        ]);
+      } catch (refreshError) {
+        console.warn('refresh after toggle failed', refreshError);
+      }
     } catch (error) {
       console.error('toggle research fund closure failed', error);
       toast.error(error?.message || 'เปลี่ยนสถานะไม่สำเร็จ');
@@ -1361,72 +1433,78 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100 bg-white">
-                      {researchEvents.map((event) => (
-                        <tr key={event.id ?? `${event.created_at}-${event.amount}`} className="align-top">
-                          <td className="px-4 py-3">
-                            <div className="font-semibold text-gray-900">{baht(event.amount)}</div>
-                            {event.comment && (
-                              <p className="mt-1 text-sm text-gray-600 whitespace-pre-wrap break-words">{event.comment}</p>
-                            )}
-                            {!event.comment && (
-                              <p className="mt-1 text-xs text-gray-400">ไม่มีหมายเหตุ</p>
-                            )}
-                          </td>
-                          <td className="px-4 py-3">
-                            <span
-                              className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${
-                                event.status === 'closed'
-                                  ? 'bg-gray-200 text-gray-700'
-                                  : 'bg-green-100 text-green-700'
-                              }`}
-                            >
-                              {event.status_label || (event.status === 'closed' ? 'ปิดทุน' : 'อนุมัติ')}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3">
-                            <div className="text-sm text-gray-800">{event.created_by_name || '-'}</div>
-                            <div className="text-xs text-gray-500">{formatDateTime(event.created_at)}</div>
-                          </td>
-                          <td className="px-4 py-3">
-                            {event.file_id || event.file_path ? (
-                              <div className="flex flex-col gap-2">
-                                {event.file_name && (
-                                  <span className="text-xs text-gray-500 break-all">{event.file_name}</span>
-                                )}
-                                {event.file_id ? (
-                                  <div className="flex flex-wrap gap-2">
-                                    <button
-                                      type="button"
-                                      onClick={() => handleView(event.file_id)}
-                                      className="inline-flex items-center gap-1 rounded-md border border-blue-200 px-2 py-1 text-xs text-blue-600 hover:bg-blue-50"
+                      {researchEvents.map((event) => {
+                        const { label: statusLabel, tone } = getEventStatusDisplay(event);
+                        const statusToneClass =
+                          tone === 'closed'
+                            ? 'bg-gray-200 text-gray-700'
+                            : tone === 'rejected'
+                              ? 'bg-red-100 text-red-700'
+                              : tone === 'pending'
+                                ? 'bg-yellow-100 text-yellow-700'
+                                : 'bg-green-100 text-green-700';
+
+                        return (
+                          <tr key={event.id ?? `${event.created_at}-${event.amount}`} className="align-top">
+                            <td className="px-4 py-3">
+                              <div className="font-semibold text-gray-900">{baht(event.amount)}</div>
+                              {event.comment && (
+                                <p className="mt-1 text-sm text-gray-600 whitespace-pre-wrap break-words">{event.comment}</p>
+                              )}
+                              {!event.comment && (
+                                <p className="mt-1 text-xs text-gray-400">ไม่มีหมายเหตุ</p>
+                              )}
+                            </td>
+                            <td className="px-4 py-3">
+                              <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${statusToneClass}`}>
+                                {statusLabel}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3">
+                              <div className="text-sm text-gray-800">{event.created_by_name || '-'}</div>
+                              <div className="text-xs text-gray-500">{formatDateTime(event.created_at)}</div>
+                            </td>
+                            <td className="px-4 py-3">
+                              {event.file_id || event.file_path ? (
+                                <div className="flex flex-col gap-2">
+                                  {event.file_name && (
+                                    <span className="text-xs text-gray-500 break-all">{event.file_name}</span>
+                                  )}
+                                  {event.file_id ? (
+                                    <div className="flex flex-wrap gap-2">
+                                      <button
+                                        type="button"
+                                        onClick={() => handleView(event.file_id)}
+                                        className="inline-flex items-center gap-1 rounded-md border border-blue-200 px-2 py-1 text-xs text-blue-600 hover:bg-blue-50"
+                                      >
+                                        ดูไฟล์
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleDownload(event.file_id, event.file_name || 'attachment')}
+                                        className="inline-flex items-center gap-1 rounded-md border border-green-200 px-2 py-1 text-xs text-green-600 hover:bg-green-50"
+                                      >
+                                        ดาวน์โหลด
+                                      </button>
+                                    </div>
+                                  ) : (
+                                    <a
+                                      href={getFileURL(event.file_path)}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="inline-flex items-center gap-1 text-xs text-blue-600 underline"
                                     >
-                                      ดูไฟล์
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => handleDownload(event.file_id, event.file_name || 'attachment')}
-                                      className="inline-flex items-center gap-1 rounded-md border border-green-200 px-2 py-1 text-xs text-green-600 hover:bg-green-50"
-                                    >
-                                      ดาวน์โหลด
-                                    </button>
-                                  </div>
-                                ) : (
-                                  <a
-                                    href={getFileURL(event.file_path)}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="inline-flex items-center gap-1 text-xs text-blue-600 underline"
-                                  >
-                                    เปิดไฟล์แนบ
-                                  </a>
-                                )}
-                              </div>
-                            ) : (
-                              <span className="text-xs text-gray-400">ไม่มีไฟล์แนบ</span>
-                            )}
-                          </td>
-                        </tr>
-                      ))}
+                                      เปิดไฟล์แนบ
+                                    </a>
+                                  )}
+                                </div>
+                              ) : (
+                                <span className="text-xs text-gray-400">ไม่มีไฟล์แนบ</span>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
@@ -1668,32 +1746,68 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
               </div>
 
               <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700">ไฟล์แนบ</label>
+                <div className="mb-1 text-sm font-medium text-gray-700">ไฟล์แนบ</div>
                 <input
+                  id={eventFileInputId}
                   ref={eventFileInputRef}
                   type="file"
                   onChange={handleEventFileChange}
                   disabled={eventSubmitting}
-                  className="block w-full text-sm text-gray-700 file:mr-4 file:rounded-md file:border-0 file:bg-blue-50 file:px-4 file:py-2 file:text-blue-600 hover:file:bg-blue-100"
+                  className="sr-only"
                   accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx"
                 />
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (eventSubmitting) return;
+                    eventFileInputRef.current?.click();
+                  }}
+                  className={`group flex w-full items-center justify-between gap-3 rounded-lg border-2 border-dashed px-4 py-3 text-left text-sm transition ${
+                    eventSubmitting
+                      ? 'cursor-not-allowed border-gray-200 bg-gray-50 text-gray-400'
+                      : 'border-blue-200 bg-blue-50 text-blue-700 hover:border-blue-300 hover:bg-blue-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 focus-visible:ring-offset-2'
+                  }`}
+                  disabled={eventSubmitting}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="rounded-full bg-white/80 p-2 text-blue-500 transition group-hover:bg-white">
+                      <UploadCloud size={18} />
+                    </div>
+                    <div className="flex flex-col">
+                      <span className="font-medium">
+                        {eventForm.file ? 'เลือกไฟล์ใหม่' : 'เลือกไฟล์จากเครื่อง'}
+                      </span>
+                      <span className="text-xs text-blue-600/80">
+                        รองรับ .pdf .jpg .png .docx .xlsx
+                      </span>
+                    </div>
+                  </div>
+                  <span className="text-xs font-medium text-blue-600 underline group-hover:text-blue-700">
+                    {eventForm.file ? 'เปลี่ยนไฟล์' : 'เลือกไฟล์'}
+                  </span>
+                </button>
                 {eventForm.file && (
-                  <div className="mt-2 flex items-center justify-between rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-600">
-                    <span className="truncate" title={eventForm.file.name}>{eventForm.file.name}</span>
-                    <button
-                      type="button"
-                      onClick={handleRemoveEventFile}
-                      className="text-red-500 hover:underline"
-                      disabled={eventSubmitting}
-                    >
-                      ลบไฟล์
-                    </button>
+                  <div className="mt-3 rounded-md border border-blue-100 bg-blue-50 px-3 py-2 text-xs text-blue-700">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate font-medium" title={eventForm.file.name}>{eventForm.file.name}</p>
+                        <p className="mt-0.5 text-[11px] text-blue-600/80">ขนาดไฟล์ {formatFileSize(eventForm.file.size)}</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleRemoveEventFile}
+                        className="flex-shrink-0 text-xs font-medium text-red-500 hover:text-red-600"
+                        disabled={eventSubmitting}
+                      >
+                        ลบไฟล์
+                      </button>
+                    </div>
                   </div>
                 )}
                 {eventErrors.file && (
                   <p className="mt-1 text-sm text-red-600">{eventErrors.file}</p>
                 )}
-                <p className="mt-1 text-xs text-gray-500">จำเป็นต้องแนบไฟล์เมื่อมีการบันทึกจำนวนเงิน</p>
+                <p className="mt-2 text-xs text-gray-500">จำเป็นต้องแนบไฟล์เมื่อมีการบันทึกจำนวนเงิน</p>
               </div>
 
               <div className="flex items-center justify-between rounded-md bg-blue-50 px-4 py-3 text-xs text-blue-700">
