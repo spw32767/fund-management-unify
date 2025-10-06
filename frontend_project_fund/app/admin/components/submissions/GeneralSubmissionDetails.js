@@ -920,7 +920,7 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
 
   const handleOpenEventModal = () => {
     setEventErrors({});
-    setEventForm({ comment: '', amount: isFundClosed ? '0' : '', file: null });
+    setEventForm({ comment: '', amount: '', file: null });
     if (eventFileInputRef.current) {
       eventFileInputRef.current.value = '';
     }
@@ -956,20 +956,25 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
   const handleEventSubmit = async (ev) => {
     ev.preventDefault();
     const errors = {};
-    const amountValue = Number(eventForm.amount || 0);
+    const rawAmount = typeof eventForm.amount === 'string' ? eventForm.amount.trim() : '';
+    const parsedAmount = rawAmount === '' ? 0 : Number(rawAmount);
+    const isAmountValidNumber = rawAmount === '' ? true : Number.isFinite(parsedAmount);
+    const amountValue = isAmountValidNumber ? parsedAmount : NaN;
+    const isPaymentEvent = Number.isFinite(amountValue) && amountValue > 0;
 
-    if (!Number.isFinite(amountValue)) {
+    if (!isAmountValidNumber) {
       errors.amount = 'กรุณากรอกจำนวนเงินเป็นตัวเลข';
     } else if (amountValue < 0) {
       errors.amount = 'จำนวนเงินต้องไม่ติดลบ';
     }
 
-    if (amountValue > 0 && !eventForm.file) {
+    if (isPaymentEvent && !eventForm.file) {
       errors.file = 'กรุณาแนบหลักฐานเมื่อมีการจ่ายเงิน';
     }
 
-    const projectedTotal = researchPaidAmount + researchPendingAmount + (Number.isFinite(amountValue) ? amountValue : 0);
-    if (!errors.amount && projectedTotal - researchApprovedAmount > 1e-6) {
+    const projectedTotal =
+      researchPaidAmount + researchPendingAmount + (isPaymentEvent ? amountValue : 0);
+    if (!errors.amount && isPaymentEvent && projectedTotal - researchApprovedAmount > 1e-6) {
       errors.amount = `ยอดรวมหลังบันทึก (${baht(projectedTotal)}) ต้องไม่เกินยอดที่อนุมัติ (${baht(researchApprovedAmount)})`;
     }
 
@@ -983,7 +988,10 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
 
     const formData = new FormData();
     formData.append('comment', eventForm.comment?.trim() || '');
-    formData.append('amount', String(Number.isFinite(amountValue) ? amountValue : 0));
+    formData.append('event_type', isPaymentEvent ? 'payment' : 'note');
+    if (isPaymentEvent) {
+      formData.append('amount', String(amountValue));
+    }
     if (eventForm.file) {
       formData.append('files', eventForm.file);
     }
