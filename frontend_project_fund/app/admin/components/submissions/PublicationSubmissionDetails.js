@@ -2117,7 +2117,7 @@ export default function PublicationSubmissionDetails({ submissionId, onBack }) {
                         {/* Right: Actions */}
                         <div className="flex items-center gap-2 ml-4">
                           <button
-                            className="inline-flex items-center gap-1 px-3 py-2 text-sm text-blue-600 hover:bg-blue-100 rounded-md transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                            className="inline-flex items-center gap-1 border border-blue-200 px-3 py-2 text-sm text-blue-600 hover:bg-blue-100 rounded-md transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
                             onClick={() => handleView(fileId)}
                             disabled={!fileId}
                             title="เปิดดูไฟล์"
@@ -2126,7 +2126,7 @@ export default function PublicationSubmissionDetails({ submissionId, onBack }) {
                             <span>ดู</span>
                           </button>
                           <button
-                            className="inline-flex items-center gap-1 px-3 py-2 text-sm text-green-600 hover:bg-green-100 rounded-md transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                            className="inline-flex items-center gap-1 border border-green-200 px-3 py-2 text-sm text-green-600 hover:bg-green-100 rounded-md transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
                             onClick={() => handleDownload(fileId, fileName)}
                             disabled={!fileId}
                             title="ดาวน์โหลดไฟล์"
@@ -2154,7 +2154,7 @@ export default function PublicationSubmissionDetails({ submissionId, onBack }) {
             {attachments.length > 0 && (
               <div className="flex justify-end gap-3 pt-4 border-t-1 border-gray-300">
                 <button
-                  className="inline-flex items-center gap-1 px-3 py-2 text-sm text-blue-600 hover:bg-blue-50 rounded-md transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="inline-flex items-center gap-1 border border-blue-200 px-3 py-2 text-sm text-blue-600 hover:bg-blue-50 rounded-md transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
                   onClick={handleViewMerged}
                   disabled={attachments.length === 0 || merging}
                   title="เปิดดูไฟล์แนบที่ถูกรวมเป็น PDF"
@@ -2162,7 +2162,7 @@ export default function PublicationSubmissionDetails({ submissionId, onBack }) {
                   <Eye size={16} /> ดูไฟล์รวม (PDF)
                 </button>
                 <button
-                  className="inline-flex items-center gap-1 px-3 py-2 text-sm text-green-600 hover:bg-green-50 rounded-md transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="inline-flex items-center gap-1 border border-green-200 px-3 py-2 text-sm text-green-600 hover:bg-green-50 rounded-md transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
                   onClick={handleDownloadMerged}
                   disabled={attachments.length === 0 || merging}
                   title="ดาวน์โหลดไฟล์แนบที่ถูกรวมเป็น PDF เดียว"
