@@ -129,6 +129,22 @@ const normalizeResearchFundEvent = (event = {}) => {
     submission_id: pickFirst(event?.submission_id, event?.SubmissionID),
     amount: amount ?? 0,
     comment: pickFirst(event?.comment, event?.note, event?.description, '') || '',
+    status_after_id: toNumberOrNull(
+      pickFirst(
+        event?.status_after_id,
+        event?.status_after,
+        event?.status_after_status_id,
+        event?.status_after_state_id
+      )
+    ),
+    status_before_id: toNumberOrNull(
+      pickFirst(
+        event?.status_before_id,
+        event?.status_before,
+        event?.status_before_status_id,
+        event?.status_before_state_id
+      )
+    ),
     status: pickFirst(event?.status, event?.event_status, event?.state, event?.status_code) || null,
     status_label:
       pickFirst(
