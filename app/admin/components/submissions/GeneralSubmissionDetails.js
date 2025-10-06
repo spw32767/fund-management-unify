@@ -1,11 +1,11 @@
 // app/admin/components/submissions/GeneralSubmissionDetails.js
 'use client';
 
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowLeft, FileText,
   CheckCircle, XCircle, AlertTriangle, Clock,
-  Eye, Download,
+  Eye, Download, PlusCircle, Loader2, ToggleLeft, ToggleRight, RefreshCw
 } from 'lucide-react';
 
 import PageLayout from '../common/PageLayout';
@@ -85,6 +85,7 @@ function baht(value) {
   return `${s}฿`;
 }
 
+
 // build absolute URL for file paths (like /uploads/...)
 function getFileURL(filePath) {
   if (!filePath) return '#';
@@ -92,6 +93,34 @@ function getFileURL(filePath) {
   const base = apiClient.baseURL.replace(/\/?api\/v1$/, '');
   try { return new URL(filePath, base).href; } catch { return filePath; }
 }
+
+const safeNumber = (value, fallback = 0) => {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : fallback;
+};
+
+const isResearchFundCategory = (categoryId) => {
+  if (categoryId === null || categoryId === undefined) return false;
+  const idStr = String(categoryId).toLowerCase();
+  return idStr === '1' || idStr === 'research_fund';
+};
+
+const formatDateTime = (value) => {
+  if (!value) return '-';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '-';
+  try {
+    return date.toLocaleString('th-TH', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  } catch (error) {
+    return date.toLocaleString();
+  }
+};
 
 /* =========================
  * Approval Panel
@@ -438,6 +467,23 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
   const [mainAnn, setMainAnn] = useState(null);
   const [activityAnn, setActivityAnn] = useState(null);
 
+  // Research fund timeline
+  const [researchEvents, setResearchEvents] = useState([]);
+  const [researchTotals, setResearchTotals] = useState(null);
+  const [researchLoading, setResearchLoading] = useState(false);
+  const [researchError, setResearchError] = useState(null);
+  const [isFundClosed, setIsFundClosed] = useState(false);
+  const [showEventModal, setShowEventModal] = useState(false);
+  const [eventForm, setEventForm] = useState({ comment: '', amount: '0', file: null });
+  const [eventErrors, setEventErrors] = useState({});
+  const [eventSubmitting, setEventSubmitting] = useState(false);
+  const [toggleClosureLoading, setToggleClosureLoading] = useState(false);
+  const eventFileInputRef = useRef(null);
+
+  const submissionStatusId = submission?.status_id;
+  const submissionCategoryId = submission?.category_id;
+  const submissionEntityId = submission?.submission_id;
+
   const cleanupMergedUrl = () => {
     if (mergedUrlRef.current) {
       URL.revokeObjectURL(mergedUrlRef.current);
@@ -446,44 +492,145 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
   };
   useEffect(() => () => cleanupMergedUrl(), []);
 
+  const mapSubmissionResponse = useCallback((res) => {
+    if (!res) return null;
+    let data = res?.submission || res;
+
+    if (res?.submission_users) data.submission_users = res.submission_users;
+    if (res?.documents) data.documents = res.documents;
+
+    if (res?.details?.type === 'fund_application' && res.details.data) {
+      data.FundApplicationDetail = res.details.data;
+    }
+
+    const applicant =
+      res?.applicant ||
+      res?.applicant_user ||
+      data?.user ||
+      data?.User;
+
+    if (applicant) {
+      data.applicant = applicant;
+      data.user = applicant;
+    }
+
+    if (res?.applicant_user_id) data.applicant_user_id = res.applicant_user_id;
+
+    return data;
+  }, []);
+
+  const refetchSubmission = useCallback(async () => {
+    if (!submissionId) return null;
+    const res = await adminSubmissionAPI.getSubmissionDetails(submissionId);
+    const data = mapSubmissionResponse(res);
+    if (data) setSubmission(data);
+    return data;
+  }, [submissionId, mapSubmissionResponse]);
+
+  const resetResearchSection = useCallback(() => {
+    setResearchEvents([]);
+    setResearchTotals(null);
+    setResearchError(null);
+    setIsFundClosed(false);
+  }, []);
+
+  const loadResearchEvents = useCallback(
+    async (targetSubmissionId) => {
+      const id = targetSubmissionId ?? submissionId;
+      if (!id) return;
+
+      setResearchLoading(true);
+      setResearchError(null);
+      try {
+        const { events = [], totals } = await adminSubmissionAPI.getResearchFundEvents(id);
+        const toTimestamp = (value) => {
+          if (!value) return 0;
+          const date = new Date(value);
+          return Number.isNaN(date.getTime()) ? 0 : date.getTime();
+        };
+        const sorted = [...events].sort((a, b) => toTimestamp(b.created_at) - toTimestamp(a.created_at));
+        setResearchEvents(sorted);
+        setResearchTotals(totals || null);
+        setIsFundClosed(Boolean(totals?.is_closed));
+      } catch (error) {
+        console.error('load research fund events failed', error);
+        setResearchError(error);
+        setResearchEvents([]);
+        setResearchTotals(null);
+        setIsFundClosed(false);
+      } finally {
+        setResearchLoading(false);
+      }
+    },
+    [submissionId]
+  );
+
+  const statusCode = useMemo(
+    () => (submissionStatusId != null ? getCodeById(submissionStatusId) : undefined),
+    [getCodeById, submissionStatusId]
+  );
+
+  const isApprovedStatus = useMemo(() => {
+    const normalizedCode = statusCode != null ? String(statusCode).toLowerCase() : undefined;
+    if (normalizedCode) {
+      if (normalizedCode === 'approved' || normalizedCode === 'อนุมัติ') {
+        return true;
+      }
+      if (normalizedCode === '1' || normalizedCode === '6') {
+        return true;
+      }
+    }
+
+    const normalizedId = Number(submissionStatusId);
+    if (Number.isFinite(normalizedId)) {
+      return normalizedId === 2 || normalizedId === 7;
+    }
+
+    return false;
+  }, [statusCode, submissionStatusId]);
+
+  const isResearchFundApproved = useMemo(() => {
+    if (!isResearchFundCategory(submissionCategoryId)) return false;
+
+    const normalizedCode = statusCode != null ? String(statusCode).toLowerCase() : undefined;
+    if (normalizedCode === '1' || normalizedCode === '6') {
+      return true;
+    }
+
+    const normalizedId = Number(submissionStatusId);
+    if (Number.isFinite(normalizedId)) {
+      return normalizedId === 2 || normalizedId === 7;
+    }
+
+    return false;
+  }, [submissionCategoryId, statusCode, submissionStatusId]);
+
   // load submission details
   useEffect(() => {
     if (!submissionId) return;
+    let cancelled = false;
     (async () => {
       setLoading(true);
       try {
         const res = await adminSubmissionAPI.getSubmissionDetails(submissionId);
-        let data = res?.submission || res;
-
-        if (res?.submission_users) data.submission_users = res.submission_users;
-        if (res?.documents) data.documents = res.documents;
-
-        if (res?.details?.type === 'fund_application' && res.details.data) {
-          data.FundApplicationDetail = res.details.data; // <-- important for FA pages
-        }
-
-        const applicant =
-          res?.applicant || res?.applicant_user || data?.user || data?.User;
-        if (applicant) {
-          data.applicant = applicant;
-          data.user = applicant;
-        }
-        if (res?.applicant_user_id) data.applicant_user_id = res.applicant_user_id;
-
-        console.log('FundApplicationDetail', data?.FundApplicationDetail || data?.details?.data || null);
-
-        // extra logs to help debug FA
-        console.log('[Detail] details.type:', res?.details?.type);
-        console.log('[Detail] FundApplicationDetail (mapped):', data?.FundApplicationDetail || null);
+        if (cancelled) return;
+        const data = mapSubmissionResponse(res);
         setSubmission(data);
       } catch (e) {
-        console.error('load details failed', e);
-        toast.error('โหลดรายละเอียดไม่สำเร็จ');
+        if (!cancelled) {
+          console.error('load details failed', e);
+          toast.error('โหลดรายละเอียดไม่สำเร็จ');
+        }
       } finally {
-        setLoading(false);
+        if (!cancelled) {
+          setLoading(false);
+        }
       }
     })();
-  }, [submissionId]);
+    return () => {
+      cancelled = true;
+    };
+  }, [submissionId, mapSubmissionResponse]);
 
   // load attachments
   useEffect(() => {
@@ -579,6 +726,44 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
     return () => { cancelled = true; };
   }, [submission?.FundApplicationDetail, submission?.details?.data]);
 
+  useEffect(() => {
+    if (!isResearchFundApproved) {
+      resetResearchSection();
+      return;
+    }
+    const targetId = submissionEntityId ?? submissionId;
+    if (!targetId) return;
+    loadResearchEvents(targetId);
+  }, [
+    isResearchFundApproved,
+    submissionEntityId,
+    submissionId,
+    loadResearchEvents,
+    resetResearchSection,
+  ]);
+
+  useEffect(() => {
+    if (!showEventModal) {
+      setEventForm({ comment: '', amount: isFundClosed ? '0' : '', file: null });
+      setEventErrors({});
+      if (eventFileInputRef.current) {
+        eventFileInputRef.current.value = '';
+      }
+    }
+  }, [showEventModal, isFundClosed]);
+
+  useEffect(() => {
+    if (showEventModal && isFundClosed) {
+      setEventForm((prev) => ({ ...prev, amount: '0' }));
+    }
+  }, [showEventModal, isFundClosed]);
+
+  const handleReloadResearchEvents = useCallback(() => {
+    const targetId = submissionEntityId ?? submissionId;
+    if (!targetId) return;
+    return loadResearchEvents(targetId);
+  }, [submissionEntityId, submissionId, loadResearchEvents]);
+
   const formType = useMemo(() => {
     const t =
       submission?.form_type ||
@@ -640,14 +825,158 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
     submission?.payload ||
     submission;
 
-  const requestedAmount = Number(detail?.requested_amount ?? submission?.requested_amount ?? 0);
+  const requestedAmount = safeNumber(detail?.requested_amount ?? submission?.requested_amount ?? 0, 0);
   const approvedAmount =
-    submission?.status_id === 2
-      ? Number(detail?.approved_amount ?? submission?.approved_amount ?? 0)
+    isApprovedStatus
+      ? safeNumber(detail?.approved_amount ?? submission?.approved_amount ?? 0, 0)
       : null;
+  const approvedAmountFallback = safeNumber(
+    detail?.approved_amount ?? submission?.approved_amount ?? requestedAmount,
+    requestedAmount
+  );
+
+  const researchApprovedAmount = safeNumber(
+    researchTotals?.approved_amount,
+    approvedAmount != null ? approvedAmount : approvedAmountFallback
+  );
+  const researchPaidAmount = safeNumber(researchTotals?.paid_amount, 0);
+  const researchPendingAmount = safeNumber(researchTotals?.pending_amount, 0);
+  const researchRemainingAmount = (() => {
+    if (researchTotals?.remaining_amount != null) {
+      return safeNumber(
+        researchTotals.remaining_amount,
+        Math.max(researchApprovedAmount - (researchPaidAmount + researchPendingAmount), 0)
+      );
+    }
+    return Math.max(researchApprovedAmount - (researchPaidAmount + researchPendingAmount), 0);
+  })();
 
   const submittedAt =
     submission?.submitted_at || submission?.created_at || submission?.create_at;
+
+  const handleOpenEventModal = () => {
+    setEventErrors({});
+    setEventForm({ comment: '', amount: isFundClosed ? '0' : '', file: null });
+    if (eventFileInputRef.current) {
+      eventFileInputRef.current.value = '';
+    }
+    setShowEventModal(true);
+  };
+
+  const handleCloseEventModal = () => {
+    setShowEventModal(false);
+  };
+
+  const handleEventCommentChange = (e) => {
+    const value = e.target.value;
+    setEventForm((prev) => ({ ...prev, comment: value }));
+  };
+
+  const handleEventAmountChange = (e) => {
+    const value = e.target.value;
+    setEventForm((prev) => ({ ...prev, amount: value }));
+  };
+
+  const handleEventFileChange = (e) => {
+    const file = e.target.files?.[0] || null;
+    setEventForm((prev) => ({ ...prev, file }));
+  };
+
+  const handleRemoveEventFile = () => {
+    setEventForm((prev) => ({ ...prev, file: null }));
+    if (eventFileInputRef.current) {
+      eventFileInputRef.current.value = '';
+    }
+  };
+
+  const handleEventSubmit = async (ev) => {
+    ev.preventDefault();
+    const errors = {};
+    const amountValue = Number(eventForm.amount || 0);
+
+    if (!Number.isFinite(amountValue)) {
+      errors.amount = 'กรุณากรอกจำนวนเงินเป็นตัวเลข';
+    } else if (amountValue < 0) {
+      errors.amount = 'จำนวนเงินต้องไม่ติดลบ';
+    }
+
+    if (amountValue > 0 && !eventForm.file) {
+      errors.file = 'กรุณาแนบหลักฐานเมื่อมีการจ่ายเงิน';
+    }
+
+    const projectedTotal = researchPaidAmount + researchPendingAmount + (Number.isFinite(amountValue) ? amountValue : 0);
+    if (!errors.amount && projectedTotal - researchApprovedAmount > 1e-6) {
+      errors.amount = `ยอดรวมหลังบันทึก (${baht(projectedTotal)}) ต้องไม่เกินยอดที่อนุมัติ (${baht(researchApprovedAmount)})`;
+    }
+
+    setEventErrors(errors);
+    if (Object.keys(errors).length > 0) return;
+
+    if (!submission?.submission_id) {
+      toast.error('ไม่พบคำร้อง');
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append('comment', eventForm.comment?.trim() || '');
+    formData.append('amount', String(Number.isFinite(amountValue) ? amountValue : 0));
+    if (eventForm.file) {
+      formData.append('files', eventForm.file);
+    }
+
+    setEventSubmitting(true);
+    try {
+      await adminSubmissionAPI.createResearchFundEvent(submission.submission_id, formData);
+      toast.success('บันทึกเหตุการณ์เรียบร้อย');
+      setShowEventModal(false);
+      await refetchSubmission();
+      await loadResearchEvents(submission.submission_id);
+    } catch (error) {
+      console.error('create research fund event failed', error);
+      toast.error(error?.message || 'บันทึกเหตุการณ์ไม่สำเร็จ');
+    } finally {
+      setEventSubmitting(false);
+    }
+  };
+
+  const handleToggleClosure = async () => {
+    if (!submission?.submission_id) return;
+    const nextState = !isFundClosed;
+    setToggleClosureLoading(true);
+    try {
+      const result = await adminSubmissionAPI.toggleResearchFundClosure(
+        submission.submission_id,
+        {
+          status: nextState ? 'closed' : 'approved',
+          is_closed: nextState,
+        }
+      );
+      const totals = result?.totals;
+      if (totals) {
+        setResearchTotals(totals);
+        setIsFundClosed(Boolean(totals?.is_closed));
+      } else {
+        setIsFundClosed(nextState);
+      }
+      if (Array.isArray(result?.events)) {
+        const toTimestamp = (value) => {
+          if (!value) return 0;
+          const date = new Date(value);
+          return Number.isNaN(date.getTime()) ? 0 : date.getTime();
+        };
+        const sorted = [...result.events].sort((a, b) => toTimestamp(b.created_at) - toTimestamp(a.created_at));
+        setResearchEvents(sorted);
+      } else {
+        await loadResearchEvents(submission.submission_id);
+      }
+      toast.success(nextState ? 'ปิดทุนเรียบร้อย' : 'เปิดทุนแล้ว');
+    } catch (error) {
+      console.error('toggle research fund closure failed', error);
+      toast.error(error?.message || 'เปลี่ยนสถานะไม่สำเร็จ');
+    } finally {
+      setToggleClosureLoading(false);
+    }
+  };
 
   // Approve/Reject handlers
   const approve = async (payload) => {
@@ -661,14 +990,7 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
     } catch (e) {
       console.warn('notifySubmissionApproved failed:', e);
     }
-    const res = await adminSubmissionAPI.getSubmissionDetails(submission.submission_id);
-    let data = res?.submission || res;
-    if (res?.submission_users) data.submission_users = res.submission_users;
-    if (res?.documents) data.documents = res.documents;
-    if (res?.details?.type === 'publication_reward' && res.details.data) {
-      data.PublicationRewardDetail = res.details.data;
-    }
-    setSubmission(data);
+    await refetchSubmission();
   };
 
   const reject = async (reason) => {
@@ -682,14 +1004,7 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
     } catch (e) {
       console.warn('notifySubmissionRejected failed:', e);
     }
-    const res = await adminSubmissionAPI.getSubmissionDetails(submission.submission_id);
-    let data = res?.submission || res;
-    if (res?.submission_users) data.submission_users = res.submission_users;
-    if (res?.documents) data.documents = res.documents;
-    if (res?.details?.type === 'publication_reward' && res.details.data) {
-      data.PublicationRewardDetail = res.details.data;
-    }
-    setSubmission(data);
+    await refetchSubmission();
   };
 
   // file handlers
@@ -938,6 +1253,193 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
         />
       </div>
 
+      {isResearchFundApproved && (
+        <Card
+          title="ประวัติการจ่ายทุนวิจัย"
+          icon={Clock}
+          collapsible={false}
+          action={
+            <button
+              type="button"
+              onClick={handleOpenEventModal}
+              className="inline-flex items-center gap-2 rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 disabled:cursor-not-allowed disabled:opacity-60"
+              disabled={eventSubmitting}
+            >
+              <PlusCircle size={16} />
+              เพิ่มประวัติ (Add Event)
+            </button>
+          }
+          className="mb-6"
+        >
+          <div className="space-y-6">
+            <div className="flex flex-col gap-4 rounded-lg border border-gray-200 bg-gray-50 p-4 md:flex-row md:items-center md:justify-between">
+              <div>
+                <p className="text-sm text-gray-500">สถานะการจ่ายทุน</p>
+                <p className="text-base font-semibold text-gray-800">
+                  {isFundClosed ? 'ปิดทุน' : 'อนุมัติ'}
+                </p>
+                {researchTotals?.last_event_at && (
+                  <p className="text-xs text-gray-500 mt-1">
+                    อัปเดตล่าสุด: {formatDateTime(researchTotals.last_event_at)}
+                  </p>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={handleToggleClosure}
+                className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-offset-2 ${
+                  isFundClosed
+                    ? 'bg-gray-200 text-gray-700 hover:bg-gray-300 focus:ring-gray-400'
+                    : 'bg-green-100 text-green-700 hover:bg-green-200 focus:ring-green-300'
+                } disabled:cursor-not-allowed disabled:opacity-60`}
+                disabled={toggleClosureLoading}
+              >
+                {isFundClosed ? <ToggleLeft size={18} /> : <ToggleRight size={18} />}
+                {toggleClosureLoading ? 'กำลังอัปเดต...' : isFundClosed ? 'เปิดทุนอีกครั้ง' : 'ปิดทุน'}
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <div className="rounded-lg bg-blue-50 p-4">
+                <p className="text-xs font-semibold uppercase tracking-wide text-blue-600">ยอดอนุมัติรวม</p>
+                <p className="mt-2 text-xl font-semibold text-blue-900">{baht(researchApprovedAmount)}</p>
+              </div>
+              <div className="rounded-lg bg-green-50 p-4">
+                <p className="text-xs font-semibold uppercase tracking-wide text-green-600">จ่ายแล้ว</p>
+                <p className="mt-2 text-xl font-semibold text-green-900">{baht(researchPaidAmount)}</p>
+              </div>
+              <div className="rounded-lg bg-amber-50 p-4">
+                <p className="text-xs font-semibold uppercase tracking-wide text-amber-600">รอดำเนินการ</p>
+                <p className="mt-2 text-xl font-semibold text-amber-900">{baht(researchPendingAmount)}</p>
+              </div>
+              <div className="rounded-lg bg-gray-50 p-4">
+                <p className="text-xs font-semibold uppercase tracking-wide text-gray-600">คงเหลือ</p>
+                <p className={`mt-2 text-xl font-semibold ${researchRemainingAmount < 0 ? 'text-red-600' : 'text-gray-900'}`}>
+                  {baht(Math.max(researchRemainingAmount, 0))}
+                </p>
+              </div>
+            </div>
+
+            <div>
+              <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <h4 className="text-base font-semibold text-gray-800">เหตุการณ์การจ่ายทุน</h4>
+                <button
+                  type="button"
+                  onClick={handleReloadResearchEvents}
+                  className="inline-flex items-center gap-2 text-sm text-blue-600 hover:text-blue-800 disabled:cursor-not-allowed disabled:opacity-60"
+                  disabled={researchLoading}
+                >
+                  <RefreshCw size={16}/>
+                </button>
+              </div>
+
+              {researchLoading ? (
+                <div className="flex items-center justify-center gap-3 rounded-md border border-dashed border-gray-200 py-8 text-gray-500">
+                  <Loader2 size={20} className="animate-spin" />
+                  <span>กำลังโหลดข้อมูลเหตุการณ์...</span>
+                </div>
+              ) : researchError ? (
+                <div className="space-y-3 rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+                  <p>ไม่สามารถโหลดไทม์ไลน์ได้: {researchError?.message || 'เกิดข้อผิดพลาด'}</p>
+                  <button
+                    type="button"
+                    onClick={handleReloadResearchEvents}
+                    className="inline-flex items-center gap-2 rounded-md border border-red-300 px-3 py-2 text-xs font-medium text-red-700 hover:bg-red-100"
+                  >
+                    ลองอีกครั้ง
+                  </button>
+                </div>
+              ) : researchEvents.length === 0 ? (
+                <div className="rounded-md border border-dashed border-gray-200 bg-white py-8 text-center text-sm text-gray-500">
+                  ยังไม่มีการบันทึกเหตุการณ์
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="min-w-full divide-y divide-gray-200 text-sm">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-4 py-3 text-left font-medium text-gray-600">จำนวนเงิน / หมายเหตุ</th>
+                        <th className="px-4 py-3 text-left font-medium text-gray-600">สถานะ</th>
+                        <th className="px-4 py-3 text-left font-medium text-gray-600">บันทึกโดย</th>
+                        <th className="px-4 py-3 text-left font-medium text-gray-600">ไฟล์แนบ</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100 bg-white">
+                      {researchEvents.map((event) => (
+                        <tr key={event.id ?? `${event.created_at}-${event.amount}`} className="align-top">
+                          <td className="px-4 py-3">
+                            <div className="font-semibold text-gray-900">{baht(event.amount)}</div>
+                            {event.comment && (
+                              <p className="mt-1 text-sm text-gray-600 whitespace-pre-wrap break-words">{event.comment}</p>
+                            )}
+                            {!event.comment && (
+                              <p className="mt-1 text-xs text-gray-400">ไม่มีหมายเหตุ</p>
+                            )}
+                          </td>
+                          <td className="px-4 py-3">
+                            <span
+                              className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${
+                                event.status === 'closed'
+                                  ? 'bg-gray-200 text-gray-700'
+                                  : 'bg-green-100 text-green-700'
+                              }`}
+                            >
+                              {event.status_label || (event.status === 'closed' ? 'ปิดทุน' : 'อนุมัติ')}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="text-sm text-gray-800">{event.created_by_name || '-'}</div>
+                            <div className="text-xs text-gray-500">{formatDateTime(event.created_at)}</div>
+                          </td>
+                          <td className="px-4 py-3">
+                            {event.file_id || event.file_path ? (
+                              <div className="flex flex-col gap-2">
+                                {event.file_name && (
+                                  <span className="text-xs text-gray-500 break-all">{event.file_name}</span>
+                                )}
+                                {event.file_id ? (
+                                  <div className="flex flex-wrap gap-2">
+                                    <button
+                                      type="button"
+                                      onClick={() => handleView(event.file_id)}
+                                      className="inline-flex items-center gap-1 rounded-md border border-blue-200 px-2 py-1 text-xs text-blue-600 hover:bg-blue-50"
+                                    >
+                                      ดูไฟล์
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleDownload(event.file_id, event.file_name || 'attachment')}
+                                      className="inline-flex items-center gap-1 rounded-md border border-green-200 px-2 py-1 text-xs text-green-600 hover:bg-green-50"
+                                    >
+                                      ดาวน์โหลด
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <a
+                                    href={getFileURL(event.file_path)}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="inline-flex items-center gap-1 text-xs text-blue-600 underline"
+                                  >
+                                    เปิดไฟล์แนบ
+                                  </a>
+                                )}
+                              </div>
+                            ) : (
+                              <span className="text-xs text-gray-400">ไม่มีไฟล์แนบ</span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </div>
+        </Card>
+      )}
+
       {/* Attachments */}
       <Card title="เอกสารแนบ (Attachments)" icon={FileText} collapsible={false}>
         <div className="space-y-6">
@@ -1061,6 +1563,116 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
           )}
         </div>
       </Card>
+
+      {showEventModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4"
+          onClick={handleCloseEventModal}
+        >
+          <div
+            className="w-full max-w-lg overflow-hidden rounded-xl bg-white shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4">
+              <h3 className="text-lg font-semibold text-gray-800">เพิ่มเหตุการณ์การจ่ายทุน</h3>
+              <button
+                type="button"
+                onClick={handleCloseEventModal}
+                className="rounded-full p-1 text-gray-500 hover:bg-gray-100 hover:text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                aria-label="ปิดโมดัล"
+              >
+                ✕
+              </button>
+            </div>
+            <form onSubmit={handleEventSubmit} className="space-y-5 px-6 py-5">
+              <div>
+                <label className="mb-1 block text-sm font-medium text-gray-700">หมายเหตุ</label>
+                <textarea
+                  rows={3}
+                  value={eventForm.comment}
+                  onChange={handleEventCommentChange}
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-700 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  placeholder="ระบุรายละเอียดเพิ่มเติม (ถ้ามี)"
+                  disabled={eventSubmitting}
+                />
+              </div>
+
+              <div>
+                <label className="mb-1 block text-sm font-medium text-gray-700">จำนวนเงินที่จ่าย (บาท)</label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={eventForm.amount}
+                  onChange={handleEventAmountChange}
+                  disabled={isFundClosed || eventSubmitting}
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-700 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:bg-gray-100"
+                  placeholder={isFundClosed ? 'ทุนถูกปิด ไม่สามารถบันทึกจำนวนเงินได้' : '0.00'}
+                />
+                {isFundClosed && (
+                  <p className="mt-1 text-xs text-gray-500">สถานะทุนถูกปิด จะบันทึกได้เฉพาะหมายเหตุ</p>
+                )}
+                {eventErrors.amount && (
+                  <p className="mt-1 text-sm text-red-600">{eventErrors.amount}</p>
+                )}
+              </div>
+
+              <div>
+                <label className="mb-1 block text-sm font-medium text-gray-700">ไฟล์แนบ</label>
+                <input
+                  ref={eventFileInputRef}
+                  type="file"
+                  onChange={handleEventFileChange}
+                  disabled={eventSubmitting}
+                  className="block w-full text-sm text-gray-700 file:mr-4 file:rounded-md file:border-0 file:bg-blue-50 file:px-4 file:py-2 file:text-blue-600 hover:file:bg-blue-100"
+                  accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx"
+                />
+                {eventForm.file && (
+                  <div className="mt-2 flex items-center justify-between rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-600">
+                    <span className="truncate" title={eventForm.file.name}>{eventForm.file.name}</span>
+                    <button
+                      type="button"
+                      onClick={handleRemoveEventFile}
+                      className="text-red-500 hover:underline"
+                      disabled={eventSubmitting}
+                    >
+                      ลบไฟล์
+                    </button>
+                  </div>
+                )}
+                {eventErrors.file && (
+                  <p className="mt-1 text-sm text-red-600">{eventErrors.file}</p>
+                )}
+                <p className="mt-1 text-xs text-gray-500">จำเป็นต้องแนบไฟล์เมื่อมีการบันทึกจำนวนเงิน</p>
+              </div>
+
+              <div className="flex items-center justify-between rounded-md bg-blue-50 px-4 py-3 text-xs text-blue-700">
+                <span>ยอดอนุมัติคงเหลือ: {baht(Math.max(researchRemainingAmount, 0))}</span>
+                <span>ยอดจ่ายสะสม: {baht(researchPaidAmount + researchPendingAmount)}</span>
+              </div>
+
+              <div className="flex justify-end gap-3 border-t border-gray-200 pt-4">
+                <button
+                  type="button"
+                  onClick={handleCloseEventModal}
+                  className="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
+                  disabled={eventSubmitting}
+                >
+                  ยกเลิก
+                </button>
+                <button
+                  type="submit"
+                  className="inline-flex items-center gap-2 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 disabled:cursor-not-allowed disabled:opacity-60"
+                  disabled={eventSubmitting}
+                >
+                  {eventSubmitting && <Loader2 size={16} className="animate-spin" />}
+                  บันทึกเหตุการณ์
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </PageLayout>
   );
 }

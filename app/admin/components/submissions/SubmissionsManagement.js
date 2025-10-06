@@ -42,6 +42,7 @@ export default function SubmissionsManagement() {
   const [loading, setLoading] = useState(true);
   const [statistics, setStatistics] = useState({
     total_submissions: 0,
+    dept_head_pending_count: 0,
     pending_count: 0,
     approved_count: 0,
     rejected_count: 0,
@@ -112,12 +113,13 @@ export default function SubmissionsManagement() {
       const aggregate = [];
 
       while (!done) {
-        const params = {
-          page,
-          year_id: yearId || '',
-          sort_by: 'created_at',
-          sort_order: 'desc',
-        };
+         const params = {
+           page,
+           limit: 500,               // ← NEW: ลดปัญหาหน้าเหลื่อม/ซ้ำ
+           year_id: yearId || '',
+           sort_by: 'created_at',
+           sort_order: 'desc',
+         };
         console.log('[FetchAll] /admin/submissions params:', params);
 
         const res = await submissionsListingAPI.getAdminSubmissions(params);
@@ -141,9 +143,25 @@ export default function SubmissionsManagement() {
         ? aggregate.filter(s => String(s.year_id) === Y || String(s.Year?.year_id) === Y)
         : aggregate;
 
-      console.log('[FetchAll] total fetched:', aggregate.length, 'after year filter:', filteredByYear.length);
+      // NEW: de-dupe โดยใช้ submission_id/id เป็นคีย์
+      const uniqMap = new Map();
+      for (const s of filteredByYear) {
+        const k = String(s?.submission_id ?? s?.id ?? '');
+        if (!k || !uniqMap.has(k)) uniqMap.set(k, s);
+      }
+      const uniq = Array.from(uniqMap.values());
 
-      setAllSubmissions(filteredByYear);
+      setAllSubmissions(uniq);
+      // สถิติให้คำนวณจาก uniq เพื่อไม่ให้ “คำร้องทั้งหมด” เพี้ยน
+      const countBy = (id) => uniq.filter(r => Number(r.status_id) === id).length;
+      setStatistics({
+        total_submissions: uniq.length,
+        dept_head_pending_count: countBy(5),
+        pending_count: countBy(1),
+        approved_count: countBy(2),
+        rejected_count: countBy(3),
+        revision_count: countBy(4),
+      });
 
       // Prime userMap from rows that already include User/applicant on the list rows
       try {
@@ -208,15 +226,6 @@ export default function SubmissionsManagement() {
         console.warn('Failed to load fund structure; will fallback to IDs', e);
       }
 
-      // Compute statistics on the client (count by status)
-      const countBy = (id) => filteredByYear.filter(r => Number(r.status_id) === id).length;
-      setStatistics({
-        total_submissions: filteredByYear.length,
-        pending_count: countBy(1),
-        approved_count: countBy(2),
-        rejected_count: countBy(3),
-        revision_count: countBy(4),
-      });
     } catch (err) {
       if (reqId === latestReq.current) {
         console.error('Error fetching submissions:', err);
@@ -635,8 +644,9 @@ export default function SubmissionsManagement() {
       </div>
 
       {/* Statistics (client-side over current year) */}
-      <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4 mb-6">
+      <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-5 mb-6">
         <StatCard label="คำร้องทั้งหมด" value={statistics.total_submissions} />
+        <StatCard label="อยู่ระหว่างการพิจารณาจากหัวหน้าสาขา" value={statistics.dept_head_pending_count} color="text-amber-600" />
         <StatCard label="อยู่ระหว่างการพิจารณา" value={statistics.pending_count} color="text-yellow-600" />
         <StatCard label="อนุมัติแล้ว" value={statistics.approved_count} color="text-green-600" />
         <StatCard label="ไม่อนุมัติ" value={statistics.rejected_count} color="text-red-600" />

@@ -174,20 +174,31 @@ export default function SubmissionTable({
   };
 
   const getAmount = (s) => {
-    const pr =
-      getPRDetail(s) ||
-      null;
-
+    // 1) Publication Reward: คำนวณเหมือนเดิม
+    const pr = getPRDetail(s);
     if (pr) {
       const total =
         pr.total_amount ?? pr.total_reward_amount ?? pr.net_amount ??
-        ((pr.reward_amount || 0) + (pr.revision_fee || 0) + (pr.publication_fee || 0) - (pr.external_funding_amount || 0));
+        ((pr.reward_amount || 0) +
+         (pr.revision_fee || 0) +
+         (pr.publication_fee || 0) -
+         (pr.external_funding_amount || 0));
       const n = Number(total || 0);
       return isFinite(n) ? n : 0;
     }
 
-    const n = Number(s.approved_amount ?? s.requested_amount ?? s.amount ?? 0);
-    return isFinite(n) ? n : 0;
+    // 2) Fund Application (& อื่นๆ): แสดง "requested" เสมอ ไม่ใช้ approved
+    const dpo = getDPO(s) || {};
+    const fa =
+      s?.FundApplicationDetail ||
+      dpo?.FundApplicationDetail ||
+      // ถ้า payload แบน ๆ และมี requested_amount / project_title ให้ถือเป็น FA detail
+      (dpo && (dpo.requested_amount != null || dpo.project_title != null) ? dpo : null);
+
+    const requested = Number(
+      (fa?.requested_amount ?? s?.requested_amount ?? s?.amount ?? 0)
+    );
+    return isFinite(requested) ? requested : 0;
   };
 
   const getDisplayDate = (s) => s?.display_date || s?.submitted_at || s?.created_at;

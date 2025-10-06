@@ -111,7 +111,7 @@ function getFileURL(filePath) {
 /* =========================
  * Dept Decision Panel (แทน Approval Result เดิมทั้งก้อน)
  * ========================= */
-function DeptDecisionPanel({ submission, onApprove, onReject }) {
+function DeptDecisionPanel({ submission, onApprove, onReject, onBack }) {
   const [comment, setComment] = useState(
     submission?.head_comment ?? submission?.comment ?? ''
   );  
@@ -156,6 +156,7 @@ function DeptDecisionPanel({ submission, onApprove, onReject }) {
 
     if (result.isConfirmed) {
       await Swal.fire({ icon: 'success', title: 'อนุมัติแล้ว', timer: 1400, showConfirmButton: false });
+      if (typeof onBack === 'function') onBack();    
     }
   };
 
@@ -210,6 +211,7 @@ function DeptDecisionPanel({ submission, onApprove, onReject }) {
 
     if (res2.isConfirmed) {
       await Swal.fire({ icon: 'success', title: 'ดำเนินการแล้ว', timer: 1200, showConfirmButton: false });
+      if (typeof onBack === 'function') onBack();    
     }
   };
 
@@ -1133,6 +1135,7 @@ export default function GeneralSubmissionDetailsDept({ submissionId, onBack }) {
           submission={submission}
           onApprove={approve}
           onReject={reject}
+          onBack={onBack}
         />
       </div>
 

@@ -3,7 +3,7 @@ import { AuthProvider } from './contexts/AuthContext';
 import './globals.css';
 
 export const metadata = {
-  title: 'ระบบบริหารจัดการทุนวิจัย - วิทยาลัยการคอมพิวเตอร์ มข.',
+  title: 'กองทุนวิจัยฯ วิทยาลัยการคอมพิวเตอร์ - วิทยาลัยการคอมพิวเตอร์ มข.',
   description: 'ระบบบริหารจัดการทุนวิจัยสำหรับอาจารย์และเจ้าหน้าที่ วิทยาลัยการคอมพิวเตอร์ มหาวิทยาลัยขอนแก่น',
   keywords: 'fund management, research fund, university, computer science, KKU',
   authors: [{ name: 'วิทยาลัยการคอมพิวเตอร์ มข.' }],
