@@ -100,3 +100,28 @@ npm run start  # replace with your process manager command
 ```
 
 Ensure any new environment variables introduced in updates are applied to `.env.local` before restarting the service.
+
+## 7. Customizing the Header Branding
+
+The dashboard header (logo, application name, and subtitle) is now driven by a shared
+configuration file located at `app/config/branding.js`.
+
+### How it works now
+
+| Element | Where to change it | Notes |
+| --- | --- | --- |
+| Logo badge (fallback text, optional image, colors) | `BRANDING.logo` | Supply `imageSrc` to display an image instead of the default text badge. |
+| Application name | `BRANDING.appName` | Appears next to the logo for both Admin and Member dashboards. |
+| Subtitle / description | `BRANDING.subtitles.admin` and `BRANDING.subtitles.member` | Each dashboard can show a different subtitle.
+
+The header components (`app/admin/components/layout/Header.js` and
+`app/member/components/layout/Header.js`) now import and read from the shared
+`BRANDING` object, so any updates you make to `branding.js` automatically show up in
+both experiences.
+
+### How it differed before
+
+Previously the logo text, subtitle, and styling were hard-coded inside each header
+component. To change the branding you had to edit multiple files individually. The new
+approach centralizes those values in one place, reducing duplication and keeping the
+Admin and Member headers in sync.
