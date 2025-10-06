@@ -823,15 +823,16 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
     return String(t).toLowerCase();
   }, [submission]);
 
-  // Redirect to Publication Details page when needed
-  if (formType === 'publication_reward') {
-    return (
+  const isPublicationReward = formType === 'publication_reward';
+
+  let renderedContent;
+
+  if (isPublicationReward) {
+    renderedContent = (
       <PublicationSubmissionDetails submissionId={submissionId} onBack={onBack} />
     );
-  }
-
-  if (loading) {
-    return (
+  } else if (loading) {
+    renderedContent = (
       <PageLayout
         title="รายละเอียดคำร้อง (Submission Details)"
         subtitle="กำลังโหลดข้อมูล."
@@ -851,10 +852,8 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
         </div>
       </PageLayout>
     );
-  }
-
-  if (!submission) {
-    return (
+  } else if (!submission) {
+    renderedContent = (
       <PageLayout title="ไม่พบข้อมูล" subtitle="ไม่พบคำร้องที่ระบุ" icon={FileText}>
         <Card collapsible={false}>
           <div className="text-center py-12">
@@ -1209,6 +1208,10 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
     a.click();
     a.remove();
   };
+
+  if (renderedContent) {
+    return renderedContent;
+  }
 
   // ===== Render =====
   return (
