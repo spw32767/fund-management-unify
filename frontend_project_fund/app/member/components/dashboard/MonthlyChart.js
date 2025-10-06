@@ -1,7 +1,7 @@
 // dashboard/MonthlyChart.js
 "use client";
 
-import { BarChart3, TrendingUp } from "lucide-react";
+import { BarChart3, TrendingUp, LineChart } from "lucide-react";
 
 export default function MonthlyChart({ data = [] }) {
   const normalizedData = (Array.isArray(data) ? data : []).map((item) => ({
@@ -9,6 +9,10 @@ export default function MonthlyChart({ data = [] }) {
     applications: Number(item?.applications ?? item?.total_applications ?? 0),
     approved: Number(item?.approved ?? 0),
   }));
+
+  const hasData = normalizedData.some(
+    (item) => Number(item.applications) > 0 || Number(item.approved) > 0,
+  );
 
   const maxValue = normalizedData.length > 0
     ? Math.max(...normalizedData.map((d) => d.applications))
@@ -41,6 +45,17 @@ export default function MonthlyChart({ data = [] }) {
 
       {/* Bar Chart */}
       <div className="relative h-64">
+        {!hasData && (
+          <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-3 text-center text-gray-500">
+            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gray-100">
+              <LineChart className="h-6 w-6" />
+            </div>
+            <div>
+              <p className="font-semibold text-gray-600">ยังไม่มีข้อมูลกราฟในช่วงนี้</p>
+              <p className="text-sm">ระบบจะเริ่มแสดงกราฟเมื่อมีการยื่นคำร้องหรือได้รับการอนุมัติ</p>
+            </div>
+          </div>
+        )}
         <div className="absolute inset-0 flex items-end justify-around px-2">
           {normalizedData.map((stat, index) => (
             <div key={index} className="flex flex-col items-center flex-1 mx-1">
@@ -57,7 +72,7 @@ export default function MonthlyChart({ data = [] }) {
               {/* Bars */}
               <div className="relative w-full flex flex-col items-center">
                 {/* Total Applications Bar */}
-                <div 
+                <div
                   className="w-12 bg-blue-500 rounded-t-md transition-all duration-500 hover:bg-blue-600 relative group"
                   style={{ height: `${stat.applications * scale}px` }}
                 >
@@ -68,7 +83,7 @@ export default function MonthlyChart({ data = [] }) {
                 </div>
                 
                 {/* Approved Bar (overlay) */}
-                <div 
+                <div
                   className="w-12 bg-green-500 absolute bottom-0 rounded-b-md transition-all duration-500 hover:bg-green-600 group"
                   style={{ height: `${stat.approved * scale}px` }}
                 >
