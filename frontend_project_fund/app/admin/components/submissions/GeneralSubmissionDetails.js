@@ -131,6 +131,21 @@ const normalizeFundStatus = (value) => {
   return normalized;
 };
 
+const FUND_CLOSE_THRESHOLD = 0.01;
+
+const getAttachmentDisplayName = (file) => {
+  if (!file || typeof file !== 'object') return '';
+  return (
+    file.original_name ||
+    file.file_name ||
+    file.name ||
+    file.filename ||
+    file.File?.original_name ||
+    file.file?.original_name ||
+    ''
+  );
+};
+
 /* =========================
  * Approval Panel
  * ========================= */
@@ -886,12 +901,46 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
     return Math.max(researchApprovedAmount - (researchPaidAmount + researchPendingAmount), 0);
   })();
 
+  const eventAmountNumber = useMemo(() => {
+    const n = Number(eventForm?.amount);
+    if (!Number.isFinite(n) || n < 0) return 0;
+    return n;
+  }, [eventForm?.amount]);
+
+  const projectedRemainingAfterEntry = useMemo(() => {
+    const currentRemaining = Number(researchRemainingAmount);
+    const safeRemaining = Number.isFinite(currentRemaining) ? currentRemaining : 0;
+    const nextRemaining = safeRemaining - eventAmountNumber;
+    return nextRemaining <= FUND_CLOSE_THRESHOLD ? 0 : nextRemaining;
+  }, [eventAmountNumber, researchRemainingAmount]);
+
+  const canCloseFund = useMemo(() => {
+    const nextRemaining = projectedRemainingAfterEntry;
+    return nextRemaining <= FUND_CLOSE_THRESHOLD;
+  }, [projectedRemainingAfterEntry]);
+
+  useEffect(() => {
+    if (eventForm?.status === 'closed' && !canCloseFund) {
+      setEventForm((prev) => ({ ...prev, status: 'approved' }));
+    }
+  }, [eventForm?.status, canCloseFund]);
+
   const submittedAt =
     submission?.submitted_at || submission?.created_at || submission?.create_at;
 
   const handleOpenEventModal = () => {
     setEventErrors({});
-    const defaultStatus = currentFundStatusCode || (isFundClosed ? 'closed' : 'approved');
+    const defaultStatus = (() => {
+      const initialStatus = currentFundStatusCode || (isFundClosed ? 'closed' : 'approved');
+      if (normalizeFundStatus(initialStatus) === 'closed') {
+        const initialRemaining = Number(researchRemainingAmount);
+        const canCloseInitially = Number.isFinite(initialRemaining)
+          ? initialRemaining <= FUND_CLOSE_THRESHOLD
+          : false;
+        return canCloseInitially ? 'closed' : 'approved';
+      }
+      return initialStatus || 'approved';
+    })();
     setEventForm({ comment: '', amount: '', status: defaultStatus, file: null });
     if (eventFileInputRef.current) {
       eventFileInputRef.current.value = '';
@@ -911,16 +960,24 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
   const handleEventAmountChange = (e) => {
     const value = e.target.value;
     setEventForm((prev) => ({ ...prev, amount: value }));
+    setEventErrors((prev) => ({ ...prev, amount: undefined, status: undefined }));
   };
 
   const handleEventStatusChange = (e) => {
     const value = normalizeFundStatus(e.target.value);
-    setEventForm((prev) => ({ ...prev, status: value || prev.status || 'approved' }));
+    setEventForm((prev) => {
+      if (value === 'closed' && !canCloseFund) {
+        return { ...prev, status: 'approved' };
+      }
+      return { ...prev, status: value || prev.status || 'approved' };
+    });
+    setEventErrors((prev) => ({ ...prev, status: undefined }));
   };
 
   const handleEventFileChange = (e) => {
     const file = e.target.files?.[0] || null;
     setEventForm((prev) => ({ ...prev, file }));
+    setEventErrors((prev) => ({ ...prev, file: undefined }));
   };
 
   const handleRemoveEventFile = () => {
@@ -928,6 +985,7 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
     if (eventFileInputRef.current) {
       eventFileInputRef.current.value = '';
     }
+    setEventErrors((prev) => ({ ...prev, file: undefined }));
   };
 
   const handleEventSubmit = async (ev) => {
@@ -946,6 +1004,10 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
 
     if (!normalizedStatus || !['approved', 'closed'].includes(normalizedStatus)) {
       errors.status = 'กรุณาเลือกสถานะ';
+    }
+
+    if (normalizedStatus === 'closed' && !canCloseFund) {
+      errors.status = 'สามารถปิดทุนได้เมื่อยอดอนุมัติคงเหลือเป็น 0';
     }
 
     if (amountValue > 0 && !eventForm.file) {
@@ -1449,6 +1511,9 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
                                 <div className="space-y-2">
                                   {attachmentList.map((file, index) => {
                                     const fileKey = file.file_id ?? `${event.id || event.created_at}-file-${index}`;
+                                    const displayName = getAttachmentDisplayName(file);
+                                    const fileLabel = `ไฟล์ที่ ${index + 1}${displayName ? ` ${displayName}` : ''}`;
+                                    const downloadName = displayName || `attachment-${index + 1}`;
                                     return (
                                       <div
                                         key={fileKey}
@@ -1456,12 +1521,9 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
                                       >
                                         <div className="flex items-start justify-between gap-2">
                                           <div className="flex-1 min-w-0">
-                                            <p className="text-xs font-medium text-gray-600">
-                                              ไฟล์ที่ {index + 1}
+                                            <p className="text-xs font-medium text-gray-600 break-all" title={fileLabel}>
+                                              {fileLabel}
                                             </p>
-                                            {file.file_name && (
-                                              <p className="text-xs text-gray-500 break-all">{file.file_name}</p>
-                                            )}
                                           </div>
                                           <div className="flex flex-wrap gap-2">
                                             {file.file_id ? (
@@ -1475,7 +1537,7 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
                                                 </button>
                                                 <button
                                                   type="button"
-                                                  onClick={() => handleDownload(file.file_id, file.file_name || `attachment-${index + 1}`)}
+                                                  onClick={() => handleDownload(file.file_id, downloadName)}
                                                   className="inline-flex items-center gap-1 rounded-md border border-green-200 px-2 py-1 text-xs text-green-600 hover:bg-green-50"
                                                 >
                                                   ดาวน์โหลด
@@ -1487,6 +1549,7 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
                                                 target="_blank"
                                                 rel="noopener noreferrer"
                                                 className="inline-flex items-center gap-1 text-xs text-blue-600 underline"
+                                                title={fileLabel}
                                               >
                                                 เปิดไฟล์แนบ
                                               </a>
@@ -1665,7 +1728,9 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
                   className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-700 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
                 >
                   <option value="approved">อนุมัติ (เปิดทุน)</option>
-                  <option value="closed">ปิดทุน</option>
+                  <option value="closed" disabled={!canCloseFund}>
+                    ปิดทุน
+                  </option>
                 </select>
                 {eventErrors.status && (
                   <p className="mt-1 text-sm text-red-600">{eventErrors.status}</p>
@@ -1673,6 +1738,11 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
                 <p className="mt-1 text-xs text-gray-500">
                   ระบบจะอัปเดตสถานะคำร้องตามที่เลือกในการบันทึกครั้งนี้
                 </p>
+                {!canCloseFund && (
+                  <p className="mt-1 text-xs text-orange-600">
+                    สามารถปิดทุนได้เมื่อยอดอนุมัติคงเหลือหลังการบันทึกครั้งนี้เท่ากับ 0 บาท
+                  </p>
+                )}
               </div>
 
               <div>
@@ -1733,9 +1803,17 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
                 <p className="mt-1 text-xs text-gray-500">จำเป็นต้องแนบไฟล์เมื่อมีการบันทึกจำนวนเงิน</p>
               </div>
 
-              <div className="flex items-center justify-between rounded-md bg-blue-50 px-4 py-3 text-xs text-blue-700">
-                <span>ยอดอนุมัติคงเหลือ: {baht(Math.max(researchRemainingAmount, 0))}</span>
-                <span>ยอดจ่ายสะสม: {baht(researchPaidAmount + researchPendingAmount)}</span>
+              <div className="flex flex-col gap-2 rounded-md bg-blue-50 px-4 py-3 text-xs text-blue-700 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex flex-col gap-1">
+                  <span>ยอดอนุมัติคงเหลือปัจจุบัน: {baht(Math.max(researchRemainingAmount, 0))}</span>
+                  <span>คาดว่าจะเหลือหลังบันทึก: {baht(Math.max(projectedRemainingAfterEntry, 0))}</span>
+                  {canCloseFund ? (
+                    <span className="text-[11px] font-medium text-emerald-600">
+                      ยอดคงเหลือหลังบันทึกเป็น 0 สามารถปิดทุนได้
+                    </span>
+                  ) : null}
+                </div>
+                <span className="sm:text-right">ยอดจ่ายสะสม: {baht(researchPaidAmount + researchPendingAmount)}</span>
               </div>
 
               <div className="flex justify-end gap-3 border-t border-gray-200 pt-4">
