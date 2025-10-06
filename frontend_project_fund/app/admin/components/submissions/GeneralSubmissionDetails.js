@@ -136,10 +136,10 @@ const FUND_CLOSE_THRESHOLD = 0.01;
 
 const getAttachmentDisplayName = (file) => {
   if (!file || typeof file !== 'object') return '';
+  if (file.display_name) return file.display_name;
+  if (file.original_name) return file.original_name;
   return (
-    file.original_name ||
     file.original_filename ||
-    file.display_name ||
     file.file_name ||
     file.name ||
     file.filename ||
@@ -150,8 +150,34 @@ const getAttachmentDisplayName = (file) => {
     file.file?.file_name ||
     file.document_name ||
     file.Document?.original_name ||
+    (typeof file.file_path === 'string' ? file.file_path.split('/').pop() : '') ||
     ''
   );
+};
+
+const resolveApprovedAmount = (submission, fundDetail, fallback = null) => {
+  const candidates = [
+    fundDetail?.approved_amount,
+    fundDetail?.approval_amount,
+    fundDetail?.approve_amount,
+    fundDetail?.approvedAmount,
+    submission?.approved_amount,
+    submission?.approval_amount,
+    submission?.approvedAmount,
+    submission?.admin_approved_amount,
+    submission?.total_approved_amount,
+    submission?.FundApplicationDetail?.approved_amount,
+    submission?.details?.data?.approved_amount,
+  ];
+
+  for (const value of candidates) {
+    const num = Number(value);
+    if (Number.isFinite(num)) {
+      return num;
+    }
+  }
+
+  return fallback;
 };
 
 /* =========================
@@ -161,15 +187,46 @@ function FundApprovalPanel({ submission, fundDetail, onApprove, onReject }) {
   const statusId = Number(submission?.status_id);
   const requested = Number(fundDetail?.requested_amount || 0);
 
+  const defaultApprovedAmount = React.useMemo(() => {
+    const resolved = resolveApprovedAmount(submission, fundDetail, null);
+    const numeric = Number(resolved);
+    if (Number.isFinite(numeric) && numeric >= 0) {
+      return numeric;
+    }
+    return Number.isFinite(requested) ? requested : 0;
+  }, [submission, fundDetail, requested]);
+
   const [approved, setApproved] = React.useState(
-    Number.isFinite(Number(fundDetail?.approved_amount))
-      ? Number(fundDetail?.approved_amount)
-      : requested
+    defaultApprovedAmount
   );
-  const [announceRef, setAnnounceRef] = React.useState(fundDetail?.announce_reference_number || '');
+  const announceReference =
+    fundDetail?.announce_reference_number ||
+    submission?.announce_reference_number ||
+    submission?.announce_reference ||
+    '';
+  const [announceRef, setAnnounceRef] = React.useState(announceReference || '');
   const [comment, setComment] = React.useState(
     submission?.admin_comment ?? submission?.comment ?? ''
-  );  const [errors, setErrors] = React.useState({});
+  );
+  const [errors, setErrors] = React.useState({});
+
+  React.useEffect(() => {
+    if (statusId === 1) {
+      setApproved(defaultApprovedAmount);
+    }
+  }, [statusId, defaultApprovedAmount]);
+
+  React.useEffect(() => {
+    if (statusId === 1) {
+      setAnnounceRef(announceReference || '');
+    }
+  }, [statusId, announceReference]);
+
+  React.useEffect(() => {
+    if (statusId === 1) {
+      setComment(submission?.admin_comment ?? submission?.comment ?? '');
+    }
+  }, [statusId, submission?.admin_comment, submission?.comment]);
 
   const validate = () => {
     const e = {};
@@ -270,13 +327,22 @@ function FundApprovalPanel({ submission, fundDetail, onApprove, onReject }) {
 
   // ====== READ-ONLY MODE ======
   if (statusId !== 1) {
-    const approvedAmount =
-      statusId === 2
-        ? Number(
-            fundDetail?.approved_amount ??
-            approved ?? 0
-          )
-        : null;
+    const approvedAmount = resolveApprovedAmount(submission, fundDetail, null);
+    const announceValue =
+      fundDetail?.announce_reference_number ||
+      submission?.announce_reference_number ||
+      submission?.announce_reference ||
+      '';
+    const adminComment =
+      submission?.admin_comment ??
+      submission?.approval_comment ??
+      submission?.comment ??
+      '';
+    const headComment =
+      submission?.head_comment ??
+      submission?.HeadComment ??
+      submission?.headComment ??
+      '';
 
     const headerTitle = (
       <div className="flex items-center justify-between w-full">
@@ -305,19 +371,26 @@ function FundApprovalPanel({ submission, fundDetail, onApprove, onReject }) {
           <div className="flex items-start justify-between">
             <span className="text-gray-600">จำนวนที่อนุมัติ</span>
             <span className="font-semibold text-green-700">
-              {approvedAmount != null ? baht(approvedAmount) : '—'}
+              {Number.isFinite(Number(approvedAmount)) ? baht(approvedAmount) : '—'}
             </span>
           </div>
 
           <div className="flex items-start justify-between">
             <span className="text-gray-600">หมายเลขอ้างอิงประกาศผลการพิจารณา</span>
-            <span className="font-medium">{announceRef || '—'}</span>
+            <span className="font-medium">{announceValue || '—'}</span>
           </div>
 
           <div>
-            <div className="text-gray-600 mb-1">หมายเหตุ</div>
+            <div className="text-gray-600 mb-1">หมายเหตุของผู้ดูแลระบบ (admin_comment)</div>
             <div className="rounded-md border border-gray-200 bg-gray-50 p-2 min-h-[40px]">
-              {comment || '—'}
+              {adminComment || '—'}
+            </div>
+          </div>
+
+          <div>
+            <div className="text-gray-600 mb-1">หมายเหตุของหัวหน้าสาขา</div>
+            <div className="rounded-md border border-gray-200 bg-gray-50 p-2 min-h-[40px]">
+              {headComment || '—'}
             </div>
           </div>
         </div>

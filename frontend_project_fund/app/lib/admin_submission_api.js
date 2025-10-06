@@ -41,15 +41,27 @@ const normalizeEventAttachment = (event = {}) => {
     attachment?.id,
     attachment?.fileId
   );
+  const originalName = pickFirst(
+    event?.original_name,
+    event?.original_filename,
+    event?.attachment_name,
+    event?.document_name,
+    event?.display_name,
+    event?.file_original_name,
+    attachment?.original_name,
+    attachment?.original_filename,
+    attachment?.display_name,
+    attachment?.document_name,
+    attachment?.file_original_name,
+    attachment?.title
+  );
   const fileName = pickFirst(
     event?.file_name,
-    event?.attachment_name,
-    event?.original_name,
-    event?.document_name,
-    attachment?.original_name,
+    event?.filename,
     attachment?.file_name,
+    attachment?.filename,
     attachment?.name,
-    attachment?.title
+    originalName
   );
   const filePath = pickFirst(
     event?.file_path,
@@ -61,13 +73,24 @@ const normalizeEventAttachment = (event = {}) => {
     attachment?.url
   );
 
-  if (fileId == null && !fileName && !filePath) {
+  const derivedName = (() => {
+    if (originalName) return originalName;
+    if (fileName) return fileName;
+    if (typeof filePath === 'string' && filePath.includes('/')) {
+      return filePath.split('/').pop();
+    }
+    return filePath || null;
+  })();
+
+  if (fileId == null && !derivedName && !filePath) {
     return null;
   }
 
   return {
     file_id: fileId ?? null,
-    file_name: fileName ?? null,
+    file_name: fileName ?? derivedName ?? null,
+    original_name: derivedName ?? null,
+    display_name: derivedName ?? null,
     file_path: filePath ?? null,
   };
 };
@@ -145,14 +168,23 @@ const normalizeResearchFundEvent = (event = {}) => {
   const attachmentGroups = [
     event?.attachments,
     event?.attachment_list,
+    event?.attachmentList,
+    event?.attachment_files,
     event?.files,
     event?.Files,
     event?.documents,
     event?.Documents,
+    event?.Attachments,
   ];
   attachmentGroups.forEach((group) => {
-    if (!Array.isArray(group)) return;
-    group.forEach((item) => pushAttachment(item));
+    if (!group) return;
+    if (Array.isArray(group)) {
+      group.forEach((item) => pushAttachment(item));
+      return;
+    }
+    if (typeof group === 'object') {
+      Object.values(group).forEach((item) => pushAttachment(item));
+    }
   });
 
   pushAttachment(event?.attachment);
