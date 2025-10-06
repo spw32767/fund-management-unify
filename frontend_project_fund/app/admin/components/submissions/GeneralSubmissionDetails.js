@@ -481,7 +481,6 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
   const eventFileInputRef = useRef(null);
 
   const submissionStatusId = submission?.status_id;
-  const submissionType = submission?.submission_type;
   const submissionCategoryId = submission?.category_id;
   const submissionEntityId = submission?.submission_id;
 
@@ -516,12 +515,6 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
     }
 
     if (res?.applicant_user_id) data.applicant_user_id = res.applicant_user_id;
-
-    if (data?.FundApplicationDetail || data?.details?.data) {
-      console.log('FundApplicationDetail', data?.FundApplicationDetail || data?.details?.data || null);
-      console.log('[Detail] details.type:', res?.details?.type);
-      console.log('[Detail] FundApplicationDetail (mapped):', data?.FundApplicationDetail || null);
-    }
 
     return data;
   }, []);
@@ -578,16 +571,39 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
   );
 
   const isApprovedStatus = useMemo(() => {
-    if (statusCode) return statusCode === 'approved';
-    return Number(submissionStatusId) === 2;
+    const normalizedCode = statusCode != null ? String(statusCode).toLowerCase() : undefined;
+    if (normalizedCode) {
+      if (normalizedCode === 'approved' || normalizedCode === 'อนุมัติ') {
+        return true;
+      }
+      if (normalizedCode === '1' || normalizedCode === '6') {
+        return true;
+      }
+    }
+
+    const normalizedId = Number(submissionStatusId);
+    if (Number.isFinite(normalizedId)) {
+      return normalizedId === 2 || normalizedId === 7;
+    }
+
+    return false;
   }, [statusCode, submissionStatusId]);
 
   const isResearchFundApproved = useMemo(() => {
-    const type = String(submissionType || '').toLowerCase();
-    if (type !== 'fund_application') return false;
     if (!isResearchFundCategory(submissionCategoryId)) return false;
-    return isApprovedStatus;
-  }, [submissionType, submissionCategoryId, isApprovedStatus]);
+
+    const normalizedCode = statusCode != null ? String(statusCode).toLowerCase() : undefined;
+    if (normalizedCode === '1' || normalizedCode === '6') {
+      return true;
+    }
+
+    const normalizedId = Number(submissionStatusId);
+    if (Number.isFinite(normalizedId)) {
+      return normalizedId === 2 || normalizedId === 7;
+    }
+
+    return false;
+  }, [submissionCategoryId, statusCode, submissionStatusId]);
 
   // load submission details
   useEffect(() => {
