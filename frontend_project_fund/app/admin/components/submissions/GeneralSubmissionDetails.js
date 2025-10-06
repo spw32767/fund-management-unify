@@ -781,6 +781,53 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
     return loadResearchEvents(targetId);
   }, [submissionEntityId, submissionId, loadResearchEvents]);
 
+  const getEventStatusDisplay = useCallback(
+    (event) => {
+      if (!event) {
+        return {
+          label: '-',
+          tone: 'neutral',
+        };
+      }
+
+      const normalizedStatus = String(event.status ?? '').toLowerCase();
+      const statusAfterId = Number(event.status_after_id);
+      const labelFromMap = Number.isFinite(statusAfterId) ? getLabelById(statusAfterId) : null;
+      const fallbackLabel =
+        event.status_label ||
+        (normalizedStatus === 'closed'
+          ? 'ปิดทุน'
+          : normalizedStatus === 'approved'
+            ? 'อนุมัติ'
+            : event.status || '-');
+
+      const label = (labelFromMap || fallbackLabel || '-').toString().trim() || '-';
+      const labelLower = label.toLowerCase();
+
+      const isClosed =
+        normalizedStatus === 'closed' ||
+        statusAfterId === 7 ||
+        labelLower.includes('ปิดทุน');
+      const isRejected =
+        normalizedStatus === 'rejected' ||
+        statusAfterId === 3 ||
+        labelLower.includes('ไม่อนุมัติ') ||
+        labelLower.includes('ปฏิเสธ');
+      const isPending =
+        normalizedStatus === 'pending' ||
+        statusAfterId === 1 ||
+        labelLower.includes('รอดำเนินการ');
+
+      let tone = 'approved';
+      if (isClosed) tone = 'closed';
+      else if (isRejected) tone = 'rejected';
+      else if (isPending) tone = 'pending';
+
+      return { label, tone };
+    },
+    [getLabelById]
+  );
+
   const formType = useMemo(() => {
     const t =
       submission?.form_type ||
@@ -955,53 +1002,6 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
       setEventSubmitting(false);
     }
   };
-
-  const getEventStatusDisplay = useCallback(
-    (event) => {
-      if (!event) {
-        return {
-          label: '-',
-          tone: 'neutral',
-        };
-      }
-
-      const normalizedStatus = String(event.status ?? '').toLowerCase();
-      const statusAfterId = Number(event.status_after_id);
-      const labelFromMap = Number.isFinite(statusAfterId) ? getLabelById(statusAfterId) : null;
-      const fallbackLabel =
-        event.status_label ||
-        (normalizedStatus === 'closed'
-          ? 'ปิดทุน'
-          : normalizedStatus === 'approved'
-            ? 'อนุมัติ'
-            : event.status || '-');
-
-      const label = (labelFromMap || fallbackLabel || '-').toString().trim() || '-';
-      const labelLower = label.toLowerCase();
-
-      const isClosed =
-        normalizedStatus === 'closed' ||
-        statusAfterId === 7 ||
-        labelLower.includes('ปิดทุน');
-      const isRejected =
-        normalizedStatus === 'rejected' ||
-        statusAfterId === 3 ||
-        labelLower.includes('ไม่อนุมัติ') ||
-        labelLower.includes('ปฏิเสธ');
-      const isPending =
-        normalizedStatus === 'pending' ||
-        statusAfterId === 1 ||
-        labelLower.includes('รอดำเนินการ');
-
-      let tone = 'approved';
-      if (isClosed) tone = 'closed';
-      else if (isRejected) tone = 'rejected';
-      else if (isPending) tone = 'pending';
-
-      return { label, tone };
-    },
-    [getLabelById]
-  );
 
   const handleToggleClosure = async () => {
     if (!submission?.submission_id) return;
