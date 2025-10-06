@@ -16,11 +16,27 @@ const toNumberOrNull = (value) => {
   return Number.isFinite(num) ? num : null;
 };
 
+const normalizeStatusCode = (value) => {
+  if (value === null || value === undefined) return null;
+  const normalized = String(value).trim().toLowerCase();
+  if (!normalized) return null;
+  if (['6', 'closed', 'admin_closed', 'ปิดทุน'].includes(normalized)) return 'closed';
+  if (['1', 'approved', 'อนุมัติ'].includes(normalized)) return 'approved';
+  return normalized;
+};
+
 const normalizeEventAttachment = (event = {}) => {
-  const attachment = event?.attachment || event?.file || event?.document || {};
+  const attachment =
+    event?.attachment ||
+    event?.file ||
+    event?.document ||
+    event?.File ||
+    event;
   const fileId = pickFirst(
     event?.file_id,
     event?.attachment_id,
+    event?.event_file_id,
+    attachment?.event_file_id,
     attachment?.file_id,
     attachment?.id,
     attachment?.fileId
@@ -28,6 +44,8 @@ const normalizeEventAttachment = (event = {}) => {
   const fileName = pickFirst(
     event?.file_name,
     event?.attachment_name,
+    event?.original_name,
+    event?.document_name,
     attachment?.original_name,
     attachment?.file_name,
     attachment?.name,
@@ -36,9 +54,10 @@ const normalizeEventAttachment = (event = {}) => {
   const filePath = pickFirst(
     event?.file_path,
     event?.attachment_path,
+    event?.stored_path,
+    attachment?.stored_path,
     attachment?.file_path,
     attachment?.path,
-    attachment?.stored_path,
     attachment?.url
   );
 
@@ -104,7 +123,48 @@ const normalizeUserDisplayName = (...candidates) => {
 };
 
 const normalizeResearchFundEvent = (event = {}) => {
-  const attachment = normalizeEventAttachment(event);
+  const attachments = [];
+  const seenKeys = new Set();
+  const pushAttachment = (candidate) => {
+    if (!candidate) return;
+    const normalized = normalizeEventAttachment(candidate);
+    if (!normalized) return;
+    const key =
+      normalized.file_id != null
+        ? `id:${normalized.file_id}`
+        : normalized.file_path
+        ? `path:${normalized.file_path}`
+        : normalized.file_name
+        ? `name:${normalized.file_name}`
+        : null;
+    if (key && seenKeys.has(key)) return;
+    if (key) seenKeys.add(key);
+    attachments.push(normalized);
+  };
+
+  const attachmentGroups = [
+    event?.attachments,
+    event?.attachment_list,
+    event?.files,
+    event?.Files,
+    event?.documents,
+    event?.Documents,
+  ];
+  attachmentGroups.forEach((group) => {
+    if (!Array.isArray(group)) return;
+    group.forEach((item) => pushAttachment(item));
+  });
+
+  pushAttachment(event?.attachment);
+  pushAttachment(event?.file);
+  pushAttachment(event?.document);
+  pushAttachment(event?.File);
+  if (attachments.length === 0) {
+    pushAttachment(event);
+  }
+
+  const primaryAttachment = attachments[0] || null;
+
   const amount = toNumberOrNull(
     pickFirst(
       event?.amount,
@@ -124,21 +184,62 @@ const normalizeResearchFundEvent = (event = {}) => {
     event?.created_by_user
   );
 
+  const statusAfter = event?.status_after || event?.StatusAfter || event?.statusAfter || null;
+  const statusAfterId = pickFirst(
+    event?.status_after_id,
+    event?.StatusAfterID,
+    statusAfter?.application_status_id,
+    statusAfter?.ApplicationStatusID
+  );
+  const statusAfterCode = pickFirst(
+    statusAfter?.status_code,
+    statusAfter?.StatusCode,
+    statusAfter?.code,
+    statusAfter?.status,
+    statusAfter?.statusCode
+  );
+  const statusAfterName = pickFirst(
+    statusAfter?.status_name,
+    statusAfter?.StatusName,
+    statusAfter?.name,
+    statusAfter?.title
+  );
+
+  const rawStatus = pickFirst(
+    event?.status,
+    event?.event_status,
+    event?.state,
+    event?.status_code,
+    statusAfterCode
+  );
+  const normalizedStatus = normalizeStatusCode(rawStatus);
+  const statusLabel =
+    pickFirst(
+      event?.status_name,
+      event?.status_label,
+      event?.event_status_label,
+      event?.status_display,
+      event?.status_text,
+      statusAfterName
+    ) || (normalizedStatus === 'closed' ? 'ปิดทุน' : normalizedStatus === 'approved' ? 'อนุมัติ' : null);
+
   return {
     id: pickFirst(event?.event_id, event?.id, event?.research_fund_event_id, event?.timeline_id),
     submission_id: pickFirst(event?.submission_id, event?.SubmissionID),
     amount: amount ?? 0,
     comment: pickFirst(event?.comment, event?.note, event?.description, '') || '',
-    status: pickFirst(event?.status, event?.event_status, event?.state, event?.status_code) || null,
-    status_label:
-      pickFirst(
-        event?.status_name,
-        event?.status_label,
-        event?.event_status_label,
-        event?.status_display,
-        event?.status_text,
-        event?.status
-      ) || null,
+    status: normalizedStatus,
+    status_code: rawStatus ?? normalizedStatus,
+    status_label: statusLabel,
+    status_name: statusLabel,
+    status_after_id: statusAfterId ?? null,
+    status_after: statusAfter
+      ? {
+          status_code: statusAfterCode ?? null,
+          status_name: statusAfterName ?? null,
+          application_status_id: statusAfterId ?? null,
+        }
+      : null,
     created_at: pickFirst(event?.created_at, event?.create_at, event?.createdAt, event?.timestamp) || null,
     created_by:
       pickFirst(
@@ -156,10 +257,12 @@ const normalizeResearchFundEvent = (event = {}) => {
         event?.creator,
         event?.user_name
       ),
-    attachment,
-    file_id: attachment?.file_id ?? null,
-    file_name: attachment?.file_name ?? null,
-    file_path: attachment?.file_path ?? null,
+    attachment: primaryAttachment,
+    attachments,
+    files: attachments,
+    file_id: primaryAttachment?.file_id ?? null,
+    file_name: primaryAttachment?.file_name ?? null,
+    file_path: primaryAttachment?.file_path ?? null,
     raw: event,
   };
 };
@@ -219,7 +322,25 @@ const normalizeResearchFundTotals = (totals = {}, fallback = {}) => {
     )
   );
 
-  const status = pickFirst(totals?.status, totals?.state, fallback?.status, isClosed ? 'closed' : 'approved');
+  const statusId = toNumberOrNull(
+    pickFirst(totals?.status_id, totals?.statusId, totals?.status_after_id, fallback?.status_id)
+  );
+  const statusCodeRaw = pickFirst(
+    totals?.status_code,
+    totals?.status,
+    totals?.state,
+    fallback?.status_code,
+    fallback?.status
+  );
+  const statusNormalized = normalizeStatusCode(statusCodeRaw) || (isClosed ? 'closed' : 'approved');
+  const statusName =
+    pickFirst(
+      totals?.status_name,
+      totals?.status_label,
+      totals?.status_text,
+      fallback?.status_name,
+      fallback?.status_label
+    ) || (statusNormalized === 'closed' ? 'ปิดทุน' : statusNormalized === 'approved' ? 'อนุมัติ' : null);
 
   return {
     approved_amount: approvedAmount,
@@ -227,7 +348,11 @@ const normalizeResearchFundTotals = (totals = {}, fallback = {}) => {
     pending_amount: pendingAmount ?? 0,
     remaining_amount: remainingAmount,
     is_closed: isClosed,
-    status,
+    status: statusNormalized,
+    status_code: statusCodeRaw ?? statusNormalized,
+    status_name: statusName,
+    status_label: statusName,
+    status_id: statusId ?? null,
     last_event_at: pickFirst(totals?.last_event_at, totals?.latest_event_at, totals?.updated_at) || null,
     raw: totals,
   };
@@ -338,8 +463,20 @@ export const adminSubmissionAPI = {
       payload
     );
 
-    const data = response?.data || response?.event || response;
-    return normalizeResearchFundEvent(data);
+    const body = response?.data || response || {};
+    const eventSource = body?.event || body?.data || body;
+    const event = normalizeResearchFundEvent(eventSource);
+    const events = Array.isArray(body?.events)
+      ? body.events.map((item) => normalizeResearchFundEvent(item))
+      : undefined;
+    const totals = normalizeResearchFundTotals(body?.summary || body?.totals || body, {});
+
+    return {
+      event,
+      events,
+      totals,
+      raw: body,
+    };
   },
 
   async toggleResearchFundClosure(submissionId, payload = {}) {
