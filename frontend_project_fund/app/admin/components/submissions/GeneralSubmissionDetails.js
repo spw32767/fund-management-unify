@@ -583,6 +583,7 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
   const [eventErrors, setEventErrors] = useState({});
   const [eventSubmitting, setEventSubmitting] = useState(false);
   const eventFileInputRef = useRef(null);
+  const fileMetaCacheRef = useRef(new Map());
 
   const submissionStatusId = submission?.status_id;
   const submissionCategoryId = submission?.category_id;
@@ -648,6 +649,156 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
     return sorted;
   }, []);
 
+  const enhanceResearchEventAttachments = useCallback(async (events = []) => {
+    if (!Array.isArray(events) || events.length === 0) {
+      return events;
+    }
+
+    const cache = fileMetaCacheRef.current;
+    const missingIds = new Set();
+
+    events.forEach((event) => {
+      const attachmentsSource = Array.isArray(event?.attachments)
+        ? event.attachments
+        : Array.isArray(event?.files)
+          ? event.files
+          : [];
+
+      attachmentsSource.forEach((file) => {
+        if (!file || typeof file !== 'object') return;
+        if (file.file_id == null) return;
+        const hasMetadata = Boolean(getAttachmentDisplayName(file)) || Boolean(file.file_path);
+        if (!hasMetadata && !cache.has(file.file_id)) {
+          missingIds.add(file.file_id);
+        }
+      });
+    });
+
+    if (missingIds.size > 0) {
+      console.groupCollapsed(
+        '[GeneralSubmissionDetails] Fetching metadata for research attachments'
+      );
+      console.log('File IDs missing metadata', Array.from(missingIds));
+      console.groupEnd();
+
+      await Promise.all(
+        Array.from(missingIds).map(async (fileId) => {
+          try {
+            const { file } = await adminSubmissionAPI.getFileUpload(fileId);
+            if (file) {
+              cache.set(fileId, file);
+            } else if (!cache.has(fileId)) {
+              cache.set(fileId, null);
+            }
+          } catch (error) {
+            console.warn(
+              '[GeneralSubmissionDetails] Failed to fetch file metadata',
+              fileId,
+              error
+            );
+            if (!cache.has(fileId)) {
+              cache.set(fileId, null);
+            }
+          }
+        })
+      );
+    }
+
+    const enrichedEvents = events.map((event) => {
+      const attachmentsSource = Array.isArray(event?.attachments)
+        ? event.attachments
+        : Array.isArray(event?.files)
+          ? event.files
+          : [];
+
+      const normalizedAttachments = attachmentsSource.map((file) => {
+        if (!file || typeof file !== 'object') return file;
+        const meta = file.file_id != null ? cache.get(file.file_id) || null : null;
+
+        if (!meta) {
+          const fallbackDisplay = getAttachmentDisplayName(file);
+          return {
+            ...file,
+            display_name: fallbackDisplay || file.display_name || null,
+          };
+        }
+
+        const filePath =
+          file.file_path ||
+          meta.file_path ||
+          meta.stored_path ||
+          meta.url ||
+          null;
+
+        const originalName =
+          meta.original_name ||
+          file.original_name ||
+          meta.file_name ||
+          file.file_name ||
+          null;
+
+        const fileName =
+          meta.file_name ||
+          file.file_name ||
+          originalName ||
+          null;
+
+        const displayName =
+          getAttachmentDisplayName({ ...meta, ...file }) ||
+          originalName ||
+          fileName ||
+          null;
+
+        return {
+          ...file,
+          file_id: file.file_id ?? meta.file_id ?? null,
+          file_name: fileName,
+          original_name: originalName,
+          display_name: displayName,
+          file_path: filePath,
+          meta,
+        };
+      });
+
+      const primaryAttachment = normalizedAttachments[0] || null;
+
+      return {
+        ...event,
+        attachments: normalizedAttachments,
+        files: normalizedAttachments,
+        attachment: primaryAttachment,
+        file_id: primaryAttachment?.file_id ?? event.file_id ?? null,
+        file_name:
+          primaryAttachment?.file_name ||
+          primaryAttachment?.display_name ||
+          event.file_name ||
+          null,
+        file_path: primaryAttachment?.file_path || event.file_path || null,
+      };
+    });
+
+    console.groupCollapsed('[GeneralSubmissionDetails] Research attachment metadata cache');
+    console.log(
+      'Cached file metadata',
+      Object.fromEntries(
+        Array.from(cache.entries()).map(([id, meta]) => [
+          id,
+          meta
+            ? {
+                file_id: meta.file_id ?? id,
+                original_name: meta.original_name ?? meta.file_name ?? null,
+                file_path: meta.file_path ?? meta.stored_path ?? null,
+              }
+            : null,
+        ])
+      )
+    );
+    console.log('Enriched research events (attachments normalized)', enrichedEvents);
+    console.groupEnd();
+
+    return enrichedEvents;
+  }, [adminSubmissionAPI]);
+
   const loadResearchEvents = useCallback(
     async (targetSubmissionId) => {
       const id = targetSubmissionId ?? submissionId;
@@ -658,18 +809,20 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
       try {
         const { events = [], totals, meta } = await adminSubmissionAPI.getResearchFundEvents(id);
         const sorted = sortEventsByCreatedAt(events);
+        const enriched = await enhanceResearchEventAttachments(sorted);
         console.groupCollapsed(
           '[GeneralSubmissionDetails] Research fund events fetched',
           `submission:${id}`
         );
         console.log('Raw events from API', events);
         console.log('Sorted events (oldest first)', sorted);
+        console.log('Enriched events with file metadata', enriched);
         console.log('Totals payload', totals);
         if (meta !== undefined) {
           console.log('Meta payload', meta);
         }
         console.groupEnd();
-        setResearchEvents(sorted);
+        setResearchEvents(enriched);
         setResearchTotals(totals || null);
         setIsFundClosed(Boolean(totals?.is_closed));
       } catch (error) {
@@ -682,8 +835,19 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
         setResearchLoading(false);
       }
     },
-    [submissionId, sortEventsByCreatedAt]
+    [submissionId, sortEventsByCreatedAt, enhanceResearchEventAttachments]
   );
+
+  useEffect(() => {
+    fileMetaCacheRef.current.clear();
+    console.log(
+      '[GeneralSubmissionDetails] Reset research attachment metadata cache',
+      {
+        submissionEntityId,
+        submissionId,
+      }
+    );
+  }, [submissionEntityId, submissionId]);
 
   const statusCode = useMemo(
     () => (submissionStatusId != null ? getCodeById(submissionStatusId) : undefined),

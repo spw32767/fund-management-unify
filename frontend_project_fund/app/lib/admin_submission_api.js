@@ -390,13 +390,147 @@ const normalizeResearchFundTotals = (totals = {}, fallback = {}) => {
   };
 };
 
+const normalizeFileUploadRecord = (payload = {}) => {
+  if (!payload || typeof payload !== 'object') {
+    return null;
+  }
+
+  const file =
+    payload?.file ||
+    payload?.File ||
+    payload?.data?.file ||
+    payload;
+
+  if (!file || typeof file !== 'object') {
+    return null;
+  }
+
+  const fileId = pickFirst(file?.file_id, file?.FileID, file?.id, file?.fileId);
+  const storedPath = pickFirst(
+    file?.file_path,
+    file?.stored_path,
+    file?.storedPath,
+    file?.path,
+    file?.url
+  );
+  const originalName = pickFirst(
+    file?.original_name,
+    file?.original_filename,
+    file?.display_name,
+    file?.file_original_name,
+    file?.name
+  );
+  const fileName = pickFirst(
+    file?.file_name,
+    file?.filename,
+    originalName,
+    (typeof storedPath === 'string' && storedPath.includes('/'))
+      ? storedPath.split('/').pop()
+      : storedPath
+  );
+  const displayName = pickFirst(
+    file?.display_name,
+    originalName,
+    fileName
+  );
+
+  return {
+    file_id: fileId ?? null,
+    file_name: fileName ?? null,
+    original_name: originalName ?? fileName ?? null,
+    display_name: displayName ?? originalName ?? fileName ?? null,
+    file_path: storedPath ?? null,
+    stored_path: storedPath ?? null,
+    mime_type: pickFirst(file?.mime_type, file?.content_type) ?? null,
+    file_size: pickFirst(file?.file_size, file?.size) ?? null,
+    uploaded_by: pickFirst(file?.uploaded_by, file?.user_id) ?? null,
+    uploaded_at: pickFirst(file?.uploaded_at, file?.create_at, file?.created_at) ?? null,
+    raw: file,
+  };
+};
+
 // Admin Submission Management API
 export const adminSubmissionAPI = {
   
   // Admin detail view
   // GET /api/v1/admin/submissions/:id/details
   async getSubmissionDetails(submissionId) {
-    return apiClient.get(`/admin/submissions/${submissionId}/details`);
+    if (!submissionId) {
+      throw new Error('submissionId is required');
+    }
+
+    const primary = await apiClient.get(`/admin/submissions/${submissionId}/details`);
+    const payload =
+      primary && typeof primary === 'object' && !Array.isArray(primary)
+        ? { ...primary }
+        : primary;
+
+    const extractSubmission = (source) => {
+      if (!source || typeof source !== 'object') return null;
+      if (source.submission && typeof source.submission === 'object') {
+        return source.submission;
+      }
+      if (source.data && typeof source.data === 'object') {
+        if (source.data.submission && typeof source.data.submission === 'object') {
+          return source.data.submission;
+        }
+      }
+      return null;
+    };
+
+    const needsSupplement = (submission) => {
+      if (!submission || typeof submission !== 'object') return true;
+      const requiredKeys = [
+        'admin_comment',
+        'head_comment',
+        'admin_rejection_reason',
+        'head_rejection_reason',
+        'admin_approved_by',
+        'admin_approved_at',
+        'admin_rejected_by',
+        'admin_rejected_at',
+        'head_approved_by',
+        'head_approved_at',
+      ];
+      return requiredKeys.some((key) => !(key in submission));
+    };
+
+    const submissionFromPrimary = extractSubmission(payload) || primary;
+    let supplementalSubmission = null;
+
+    if (needsSupplement(submissionFromPrimary)) {
+      try {
+        const fallback = await apiClient.get(`/submissions/${submissionId}`);
+        supplementalSubmission = extractSubmission(fallback) || fallback;
+      } catch (error) {
+        console.warn('[adminSubmissionAPI] fallback submission fetch failed', error);
+      }
+    }
+
+    const mergedSubmission = (() => {
+      if (submissionFromPrimary && supplementalSubmission) {
+        return { ...supplementalSubmission, ...submissionFromPrimary };
+      }
+      if (submissionFromPrimary) return submissionFromPrimary;
+      if (supplementalSubmission) return supplementalSubmission;
+      return null;
+    })();
+
+    if (payload && typeof payload === 'object' && !Array.isArray(payload)) {
+      return {
+        ...payload,
+        submission: mergedSubmission,
+        supplemental_submission:
+          supplementalSubmission && !payload.supplemental_submission
+            ? supplementalSubmission
+            : payload.supplemental_submission,
+      };
+    }
+
+    return {
+      submission: mergedSubmission,
+      supplemental_submission: supplementalSubmission,
+    };
   },
 
   // PATCH /api/v1/admin/submissions/:id/publication-reward/approval-amounts
@@ -532,6 +666,34 @@ export const adminSubmissionAPI = {
       events,
       meta: body?.meta || null,
     };
+  },
+
+  async getFileUpload(fileId) {
+    if (!fileId) {
+      return { file: null, raw: null };
+    }
+
+    try {
+      const response = await apiClient.get(`/files/managed/${fileId}`);
+      const payload =
+        response && typeof response === 'object' && !Array.isArray(response)
+          ? response
+          : { file: response };
+      const normalized =
+        normalizeFileUploadRecord(payload) || normalizeFileUploadRecord(payload?.file);
+
+      return {
+        file: normalized,
+        raw: payload,
+        success: payload?.success ?? (normalized ? true : undefined),
+      };
+    } catch (error) {
+      if (error?.status === 404 || String(error?.status) === '404') {
+        return { file: null, raw: null, success: false };
+      }
+      console.warn('[adminSubmissionAPI] getFileUpload failed', fileId, error);
+      throw error;
+    }
   }
 
 };
