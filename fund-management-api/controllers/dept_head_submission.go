@@ -124,7 +124,8 @@ func DeptHeadRecommendSubmission(c *gin.Context) {
 	}
 
 	var req struct {
-		Comment string `json:"comment"`
+		Comment       string `json:"comment"`
+		HeadSignature string `json:"head_signature"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil && !strings.Contains(err.Error(), "EOF") {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request payload"})
@@ -186,6 +187,13 @@ func DeptHeadRecommendSubmission(c *gin.Context) {
 		updates["comment"] = gorm.Expr("NULL")
 	}
 
+	signature := strings.TrimSpace(req.HeadSignature)
+	if signature != "" {
+		updates["head_signature"] = signature
+	} else {
+		updates["head_signature"] = gorm.Expr("NULL")
+	}
+
 	if err := tx.Model(&models.Submission{}).
 		Where("submission_id = ?", submissionID).
 		Updates(updates).Error; err != nil {
@@ -241,6 +249,7 @@ func DeptHeadRejectSubmission(c *gin.Context) {
 	var req struct {
 		RejectionReason string `json:"rejection_reason" binding:"required"`
 		Comment         string `json:"comment"`
+		HeadSignature   string `json:"head_signature"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil || strings.TrimSpace(req.RejectionReason) == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Rejection reason is required"})
@@ -291,6 +300,11 @@ func DeptHeadRejectSubmission(c *gin.Context) {
 	}
 	if strings.TrimSpace(req.Comment) != "" {
 		updates["head_comment"] = strings.TrimSpace(req.Comment)
+	}
+
+	signature := strings.TrimSpace(req.HeadSignature)
+	if signature != "" {
+		updates["head_signature"] = signature
 	}
 
 	if err := tx.Model(&models.Submission{}).
@@ -472,6 +486,7 @@ func buildSubmissionDetailPayload(submissionID int) (gin.H, error) {
 		"head_rejected_at":       submission.HeadRejectedAt,
 		"head_rejection_reason":  submission.HeadRejectionReason,
 		"head_comment":           submission.HeadComment,
+		"head_signature":         submission.HeadSignature,
 		"admin_approved_by":      submission.AdminApprovedBy,
 		"admin_approved_at":      submission.AdminApprovedAt,
 		"admin_rejected_by":      submission.AdminRejectedBy,
