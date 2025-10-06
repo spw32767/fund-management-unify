@@ -53,6 +53,56 @@ const normalizeEventAttachment = (event = {}) => {
   };
 };
 
+const toUserName = (value) => {
+  if (!value) return null;
+  if (typeof value === 'string') return value;
+  if (typeof value === 'object') {
+    const firstName = pickFirst(
+      value?.user_fname,
+      value?.fname,
+      value?.first_name,
+      value?.firstname,
+      value?.name,
+      value?.name_th
+    );
+    const lastName = pickFirst(
+      value?.user_lname,
+      value?.lname,
+      value?.last_name,
+      value?.lastname,
+      value?.surname,
+      value?.name_en
+    );
+
+    if (firstName || lastName) {
+      return [firstName, lastName].filter(Boolean).join(' ').trim() || null;
+    }
+
+    return pickFirst(value?.display_name, value?.full_name, value?.email, value?.username) || null;
+  }
+
+  return null;
+};
+
+const toUserId = (value) => {
+  if (!value) return null;
+  if (typeof value === 'string' || typeof value === 'number') return value;
+  if (typeof value === 'object') {
+    return pickFirst(value?.user_id, value?.id, value?.userId, value?.uid);
+  }
+  return null;
+};
+
+const normalizeUserDisplayName = (...candidates) => {
+  for (const candidate of candidates) {
+    const name = toUserName(candidate);
+    if (name) {
+      return name;
+    }
+  }
+  return null;
+};
+
 const normalizeResearchFundEvent = (event = {}) => {
   const attachment = normalizeEventAttachment(event);
   const amount = toNumberOrNull(
@@ -63,6 +113,15 @@ const normalizeResearchFundEvent = (event = {}) => {
       event?.total_amount,
       event?.value
     )
+  );
+
+  const creatorCandidate = pickFirst(
+    event?.created_by,
+    event?.creator,
+    event?.user,
+    event?.createdBy,
+    event?.creator_user,
+    event?.created_by_user
   );
 
   return {
@@ -81,15 +140,22 @@ const normalizeResearchFundEvent = (event = {}) => {
         event?.status
       ) || null,
     created_at: pickFirst(event?.created_at, event?.create_at, event?.createdAt, event?.timestamp) || null,
-    created_by: pickFirst(event?.created_by, event?.created_by_id, event?.user_id, event?.creator_id) || null,
-    created_by_name:
+    created_by:
       pickFirst(
+        toUserId(creatorCandidate),
+        event?.created_by_id,
+        event?.user_id,
+        event?.creator_id
+      ) ?? null,
+    created_by_name:
+      normalizeUserDisplayName(
         event?.created_by_name,
+        creatorCandidate,
         event?.creator_name,
         event?.created_by_full_name,
         event?.creator,
         event?.user_name
-      ) || null,
+      ),
     attachment,
     file_id: attachment?.file_id ?? null,
     file_name: attachment?.file_name ?? null,
