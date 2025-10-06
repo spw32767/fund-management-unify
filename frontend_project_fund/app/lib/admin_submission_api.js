@@ -1,6 +1,172 @@
 // app/lib/admin_submission_api.js
 import apiClient from './api';
 
+const pickFirst = (...candidates) => {
+  for (const value of candidates) {
+    if (value !== undefined && value !== null && value !== '') {
+      return value;
+    }
+  }
+  return undefined;
+};
+
+const toNumberOrNull = (value) => {
+  if (value === null || value === undefined || value === '') return null;
+  const num = Number(value);
+  return Number.isFinite(num) ? num : null;
+};
+
+const normalizeEventAttachment = (event = {}) => {
+  const attachment = event?.attachment || event?.file || event?.document || {};
+  const fileId = pickFirst(
+    event?.file_id,
+    event?.attachment_id,
+    attachment?.file_id,
+    attachment?.id,
+    attachment?.fileId
+  );
+  const fileName = pickFirst(
+    event?.file_name,
+    event?.attachment_name,
+    attachment?.original_name,
+    attachment?.file_name,
+    attachment?.name,
+    attachment?.title
+  );
+  const filePath = pickFirst(
+    event?.file_path,
+    event?.attachment_path,
+    attachment?.file_path,
+    attachment?.path,
+    attachment?.stored_path,
+    attachment?.url
+  );
+
+  if (fileId == null && !fileName && !filePath) {
+    return null;
+  }
+
+  return {
+    file_id: fileId ?? null,
+    file_name: fileName ?? null,
+    file_path: filePath ?? null,
+  };
+};
+
+const normalizeResearchFundEvent = (event = {}) => {
+  const attachment = normalizeEventAttachment(event);
+  const amount = toNumberOrNull(
+    pickFirst(
+      event?.amount,
+      event?.paid_amount,
+      event?.payment_amount,
+      event?.total_amount,
+      event?.value
+    )
+  );
+
+  return {
+    id: pickFirst(event?.event_id, event?.id, event?.research_fund_event_id, event?.timeline_id),
+    submission_id: pickFirst(event?.submission_id, event?.SubmissionID),
+    amount: amount ?? 0,
+    comment: pickFirst(event?.comment, event?.note, event?.description, '') || '',
+    status: pickFirst(event?.status, event?.event_status, event?.state, event?.status_code) || null,
+    status_label:
+      pickFirst(
+        event?.status_name,
+        event?.status_label,
+        event?.event_status_label,
+        event?.status_display,
+        event?.status_text,
+        event?.status
+      ) || null,
+    created_at: pickFirst(event?.created_at, event?.create_at, event?.createdAt, event?.timestamp) || null,
+    created_by: pickFirst(event?.created_by, event?.created_by_id, event?.user_id, event?.creator_id) || null,
+    created_by_name:
+      pickFirst(
+        event?.created_by_name,
+        event?.creator_name,
+        event?.created_by_full_name,
+        event?.creator,
+        event?.user_name
+      ) || null,
+    attachment,
+    file_id: attachment?.file_id ?? null,
+    file_name: attachment?.file_name ?? null,
+    file_path: attachment?.file_path ?? null,
+    raw: event,
+  };
+};
+
+const normalizeResearchFundTotals = (totals = {}, fallback = {}) => {
+  const approvedAmount =
+    toNumberOrNull(
+      pickFirst(
+        totals?.approved_amount,
+        totals?.total_approved_amount,
+        totals?.total_approved,
+        fallback?.approved_amount
+      )
+    ) ?? 0;
+  const paidAmount =
+    toNumberOrNull(
+      pickFirst(
+        totals?.paid_amount,
+        totals?.total_paid_amount,
+        totals?.total_paid,
+        totals?.disbursed_amount,
+        totals?.payout_total,
+        fallback?.paid_amount
+      )
+    ) ?? 0;
+  const pendingAmount =
+    toNumberOrNull(
+      pickFirst(
+        totals?.pending_amount,
+        totals?.total_pending_amount,
+        totals?.pending_total,
+        fallback?.pending_amount
+      )
+    ) ?? 0;
+
+  const remainingRaw = pickFirst(
+    totals?.remaining_amount,
+    totals?.balance_amount,
+    totals?.balance,
+    fallback?.remaining_amount
+  );
+  const remainingAmount = (() => {
+    const direct = toNumberOrNull(remainingRaw);
+    if (direct != null) return direct;
+    const computed = approvedAmount - (paidAmount + (pendingAmount ?? 0));
+    return Number.isFinite(computed) ? computed : 0;
+  })();
+
+  const isClosed = Boolean(
+    pickFirst(
+      totals?.is_closed,
+      totals?.closed,
+      totals?.closed_at ? true : undefined,
+      totals?.status === 'closed' ? true : undefined,
+      totals?.state === 'closed' ? true : undefined,
+      fallback?.is_closed
+    )
+  );
+
+  const status = pickFirst(totals?.status, totals?.state, fallback?.status, isClosed ? 'closed' : 'approved');
+
+  return {
+    approved_amount: approvedAmount,
+    paid_amount: paidAmount,
+    pending_amount: pendingAmount ?? 0,
+    remaining_amount: remainingAmount,
+    is_closed: isClosed,
+    status,
+    last_event_at: pickFirst(totals?.last_event_at, totals?.latest_event_at, totals?.updated_at) || null,
+    raw: totals,
+  };
+};
+
 // Admin Submission Management API
 export const adminSubmissionAPI = {
   
@@ -45,6 +211,92 @@ export const adminSubmissionAPI = {
   async getDocumentTypes(params = {}) {
     // GET /api/v1/document-types   (หรือใช้ /admin/document-types ถ้าอยากดึงทั้งหมดแบบไม่กรอง)
     return apiClient.get('/document-types', { params });
+  },
+
+  async getResearchFundEvents(submissionId) {
+    if (!submissionId) {
+      return { events: [], totals: normalizeResearchFundTotals() };
+    }
+
+    const response = await apiClient.get(`/admin/submissions/${submissionId}/research-fund/events`);
+    const payload = response?.data || response;
+
+    const listSource = Array.isArray(payload?.events)
+      ? payload.events
+      : Array.isArray(payload?.timeline)
+        ? payload.timeline
+        : Array.isArray(payload?.data)
+          ? payload.data
+          : Array.isArray(payload)
+            ? payload
+            : [];
+
+    const events = listSource.map((item) => normalizeResearchFundEvent(item));
+
+    const totals = normalizeResearchFundTotals(payload?.totals || payload?.summary || payload?.meta || payload, {
+      approved_amount: payload?.approved_amount,
+      paid_amount: payload?.paid_amount,
+      pending_amount: payload?.pending_amount,
+      remaining_amount: payload?.remaining_amount,
+      is_closed: payload?.is_closed,
+      status: payload?.status,
+    });
+
+    return {
+      events,
+      totals,
+      meta: payload?.meta || null,
+    };
+  },
+
+  async createResearchFundEvent(submissionId, formData) {
+    if (!submissionId) {
+      throw new Error('submissionId is required');
+    }
+
+    let payload = formData;
+    if (!(payload instanceof FormData)) {
+      const fd = new FormData();
+      Object.entries(formData || {}).forEach(([key, value]) => {
+        if (Array.isArray(value)) {
+          value.forEach((v) => fd.append(key, v));
+        } else if (value !== undefined && value !== null) {
+          fd.append(key, value);
+        }
+      });
+      payload = fd;
+    }
+
+    const response = await apiClient.postFormData(
+      `/admin/submissions/${submissionId}/research-fund/events`,
+      payload
+    );
+
+    const data = response?.data || response?.event || response;
+    return normalizeResearchFundEvent(data);
+  },
+
+  async toggleResearchFundClosure(submissionId, payload = {}) {
+    if (!submissionId) {
+      throw new Error('submissionId is required');
+    }
+
+    const response = await apiClient.post(
+      `/admin/submissions/${submissionId}/research-fund/toggle-closure`,
+      payload || {}
+    );
+
+    const body = response?.data || response;
+    const totals = normalizeResearchFundTotals(body?.totals || body);
+    const events = Array.isArray(body?.events)
+      ? body.events.map((item) => normalizeResearchFundEvent(item))
+      : undefined;
+
+    return {
+      totals,
+      events,
+      meta: body?.meta || null,
+    };
   }
 
 };
