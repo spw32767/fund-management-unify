@@ -770,6 +770,29 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
     }
   }, [showEventModal, isFundClosed]);
 
+  const currentFundStatusCode = useMemo(() => {
+    const fromTotals = normalizeFundStatus(
+      researchTotals?.status ??
+        researchTotals?.status_code ??
+        researchTotals?.status_id
+    );
+    if (fromTotals) return fromTotals;
+    return isFundClosed ? 'closed' : 'approved';
+  }, [researchTotals, isFundClosed]);
+
+  const currentFundStatusLabel = useMemo(() => {
+    const label =
+      researchTotals?.status_name ||
+      researchTotals?.status_label ||
+      (currentFundStatusCode === 'closed'
+        ? 'ปิดทุน'
+        : currentFundStatusCode === 'approved'
+        ? 'อนุมัติ'
+        : null);
+    if (label) return label;
+    return currentFundStatusCode || '';
+  }, [researchTotals, currentFundStatusCode]);
+
   const handleReloadResearchEvents = useCallback(() => {
     const targetId = submissionEntityId ?? submissionId;
     if (!targetId) return;
@@ -865,29 +888,6 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
 
   const submittedAt =
     submission?.submitted_at || submission?.created_at || submission?.create_at;
-
-  const currentFundStatusCode = useMemo(() => {
-    const fromTotals = normalizeFundStatus(
-      researchTotals?.status ??
-        researchTotals?.status_code ??
-        researchTotals?.status_id
-    );
-    if (fromTotals) return fromTotals;
-    return isFundClosed ? 'closed' : 'approved';
-  }, [researchTotals, isFundClosed]);
-
-  const currentFundStatusLabel = useMemo(() => {
-    const label =
-      researchTotals?.status_name ||
-      researchTotals?.status_label ||
-      (currentFundStatusCode === 'closed'
-        ? 'ปิดทุน'
-        : currentFundStatusCode === 'approved'
-        ? 'อนุมัติ'
-        : null);
-    if (label) return label;
-    return currentFundStatusCode || '';
-  }, [researchTotals, currentFundStatusCode]);
 
   const handleOpenEventModal = () => {
     setEventErrors({});
