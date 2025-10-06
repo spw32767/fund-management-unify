@@ -136,10 +136,10 @@ const FUND_CLOSE_THRESHOLD = 0.01;
 
 const getAttachmentDisplayName = (file) => {
   if (!file || typeof file !== 'object') return '';
+  if (file.display_name) return file.display_name;
+  if (file.original_name) return file.original_name;
   return (
-    file.original_name ||
     file.original_filename ||
-    file.display_name ||
     file.file_name ||
     file.name ||
     file.filename ||
@@ -150,8 +150,34 @@ const getAttachmentDisplayName = (file) => {
     file.file?.file_name ||
     file.document_name ||
     file.Document?.original_name ||
+    (typeof file.file_path === 'string' ? file.file_path.split('/').pop() : '') ||
     ''
   );
+};
+
+const resolveApprovedAmount = (submission, fundDetail, fallback = null) => {
+  const candidates = [
+    fundDetail?.approved_amount,
+    fundDetail?.approval_amount,
+    fundDetail?.approve_amount,
+    fundDetail?.approvedAmount,
+    submission?.approved_amount,
+    submission?.approval_amount,
+    submission?.approvedAmount,
+    submission?.admin_approved_amount,
+    submission?.total_approved_amount,
+    submission?.FundApplicationDetail?.approved_amount,
+    submission?.details?.data?.approved_amount,
+  ];
+
+  for (const value of candidates) {
+    const num = Number(value);
+    if (Number.isFinite(num)) {
+      return num;
+    }
+  }
+
+  return fallback;
 };
 
 /* =========================
@@ -161,15 +187,46 @@ function FundApprovalPanel({ submission, fundDetail, onApprove, onReject }) {
   const statusId = Number(submission?.status_id);
   const requested = Number(fundDetail?.requested_amount || 0);
 
+  const defaultApprovedAmount = React.useMemo(() => {
+    const resolved = resolveApprovedAmount(submission, fundDetail, null);
+    const numeric = Number(resolved);
+    if (Number.isFinite(numeric) && numeric >= 0) {
+      return numeric;
+    }
+    return Number.isFinite(requested) ? requested : 0;
+  }, [submission, fundDetail, requested]);
+
   const [approved, setApproved] = React.useState(
-    Number.isFinite(Number(fundDetail?.approved_amount))
-      ? Number(fundDetail?.approved_amount)
-      : requested
+    defaultApprovedAmount
   );
-  const [announceRef, setAnnounceRef] = React.useState(fundDetail?.announce_reference_number || '');
+  const announceReference =
+    fundDetail?.announce_reference_number ||
+    submission?.announce_reference_number ||
+    submission?.announce_reference ||
+    '';
+  const [announceRef, setAnnounceRef] = React.useState(announceReference || '');
   const [comment, setComment] = React.useState(
     submission?.admin_comment ?? submission?.comment ?? ''
-  );  const [errors, setErrors] = React.useState({});
+  );
+  const [errors, setErrors] = React.useState({});
+
+  React.useEffect(() => {
+    if (statusId === 1) {
+      setApproved(defaultApprovedAmount);
+    }
+  }, [statusId, defaultApprovedAmount]);
+
+  React.useEffect(() => {
+    if (statusId === 1) {
+      setAnnounceRef(announceReference || '');
+    }
+  }, [statusId, announceReference]);
+
+  React.useEffect(() => {
+    if (statusId === 1) {
+      setComment(submission?.admin_comment ?? submission?.comment ?? '');
+    }
+  }, [statusId, submission?.admin_comment, submission?.comment]);
 
   const validate = () => {
     const e = {};
@@ -270,13 +327,22 @@ function FundApprovalPanel({ submission, fundDetail, onApprove, onReject }) {
 
   // ====== READ-ONLY MODE ======
   if (statusId !== 1) {
-    const approvedAmount =
-      statusId === 2
-        ? Number(
-            fundDetail?.approved_amount ??
-            approved ?? 0
-          )
-        : null;
+    const approvedAmount = resolveApprovedAmount(submission, fundDetail, null);
+    const announceValue =
+      fundDetail?.announce_reference_number ||
+      submission?.announce_reference_number ||
+      submission?.announce_reference ||
+      '';
+    const adminComment =
+      submission?.admin_comment ??
+      submission?.approval_comment ??
+      submission?.comment ??
+      '';
+    const headComment =
+      submission?.head_comment ??
+      submission?.HeadComment ??
+      submission?.headComment ??
+      '';
 
     const headerTitle = (
       <div className="flex items-center justify-between w-full">
@@ -305,19 +371,26 @@ function FundApprovalPanel({ submission, fundDetail, onApprove, onReject }) {
           <div className="flex items-start justify-between">
             <span className="text-gray-600">จำนวนที่อนุมัติ</span>
             <span className="font-semibold text-green-700">
-              {approvedAmount != null ? baht(approvedAmount) : '—'}
+              {Number.isFinite(Number(approvedAmount)) ? baht(approvedAmount) : '—'}
             </span>
           </div>
 
           <div className="flex items-start justify-between">
             <span className="text-gray-600">หมายเลขอ้างอิงประกาศผลการพิจารณา</span>
-            <span className="font-medium">{announceRef || '—'}</span>
+            <span className="font-medium">{announceValue || '—'}</span>
           </div>
 
           <div>
-            <div className="text-gray-600 mb-1">หมายเหตุ</div>
+            <div className="text-gray-600 mb-1">หมายเหตุของผู้ดูแลระบบ</div>
             <div className="rounded-md border border-gray-200 bg-gray-50 p-2 min-h-[40px]">
-              {comment || '—'}
+              {adminComment || '—'}
+            </div>
+          </div>
+
+          <div>
+            <div className="text-gray-600 mb-1">หมายเหตุของหัวหน้าสาขา</div>
+            <div className="rounded-md border border-gray-200 bg-gray-50 p-2 min-h-[40px]">
+              {headComment || '—'}
             </div>
           </div>
         </div>
@@ -359,12 +432,16 @@ function FundApprovalPanel({ submission, fundDetail, onApprove, onReject }) {
               errors.approved ? 'border-red-400' : 'border-gray-300 hover:border-blue-300',
             ].join(' ')}>
               <input
-                type="number"
-                step="0.01"
-                min="0"
-                max={requested}
+                type="text"
+                inputMode="decimal"
                 value={approved}
-                onChange={(e) => setApproved(e.target.value)}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  // อนุญาตให้กรอกเฉพาะตัวเลขและจุดทศนิยม
+                  if (value === '' || /^\d*\.?\d{0,2}$/.test(value)) {
+                    setApproved(value);
+                  }
+                }}
                 className="w-full text-right font-mono tabular-nums bg-transparent py-2 pl-3 pr-1 outline-none border-0"
                 placeholder="0.00"
               />
@@ -510,6 +587,7 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
   const [eventErrors, setEventErrors] = useState({});
   const [eventSubmitting, setEventSubmitting] = useState(false);
   const eventFileInputRef = useRef(null);
+  const fileMetaCacheRef = useRef(new Map());
 
   const submissionStatusId = submission?.status_id;
   const submissionCategoryId = submission?.category_id;
@@ -571,8 +649,159 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
       const date = new Date(value);
       return Number.isNaN(date.getTime()) ? 0 : date.getTime();
     };
-    return [...list].sort((a, b) => toTimestamp(b.created_at) - toTimestamp(a.created_at));
+    const sorted = [...list].sort((a, b) => toTimestamp(a.created_at) - toTimestamp(b.created_at));
+    return sorted;
   }, []);
+
+  const enhanceResearchEventAttachments = useCallback(async (events = []) => {
+    if (!Array.isArray(events) || events.length === 0) {
+      return events;
+    }
+
+    const cache = fileMetaCacheRef.current;
+    const missingIds = new Set();
+
+    events.forEach((event) => {
+      const attachmentsSource = Array.isArray(event?.attachments)
+        ? event.attachments
+        : Array.isArray(event?.files)
+          ? event.files
+          : [];
+
+      attachmentsSource.forEach((file) => {
+        if (!file || typeof file !== 'object') return;
+        if (file.file_id == null) return;
+        const hasMetadata = Boolean(getAttachmentDisplayName(file)) || Boolean(file.file_path);
+        if (!hasMetadata && !cache.has(file.file_id)) {
+          missingIds.add(file.file_id);
+        }
+      });
+    });
+
+    if (missingIds.size > 0) {
+      console.groupCollapsed(
+        '[GeneralSubmissionDetails] Fetching metadata for research attachments'
+      );
+      console.log('File IDs missing metadata', Array.from(missingIds));
+      console.groupEnd();
+
+      await Promise.all(
+        Array.from(missingIds).map(async (fileId) => {
+          try {
+            const { file } = await adminSubmissionAPI.getFileUpload(fileId);
+            if (file) {
+              cache.set(fileId, file);
+            } else if (!cache.has(fileId)) {
+              cache.set(fileId, null);
+            }
+          } catch (error) {
+            console.warn(
+              '[GeneralSubmissionDetails] Failed to fetch file metadata',
+              fileId,
+              error
+            );
+            if (!cache.has(fileId)) {
+              cache.set(fileId, null);
+            }
+          }
+        })
+      );
+    }
+
+    const enrichedEvents = events.map((event) => {
+      const attachmentsSource = Array.isArray(event?.attachments)
+        ? event.attachments
+        : Array.isArray(event?.files)
+          ? event.files
+          : [];
+
+      const normalizedAttachments = attachmentsSource.map((file) => {
+        if (!file || typeof file !== 'object') return file;
+        const meta = file.file_id != null ? cache.get(file.file_id) || null : null;
+
+        if (!meta) {
+          const fallbackDisplay = getAttachmentDisplayName(file);
+          return {
+            ...file,
+            display_name: fallbackDisplay || file.display_name || null,
+          };
+        }
+
+        const filePath =
+          file.file_path ||
+          meta.file_path ||
+          meta.stored_path ||
+          meta.url ||
+          null;
+
+        const originalName =
+          meta.original_name ||
+          file.original_name ||
+          meta.file_name ||
+          file.file_name ||
+          null;
+
+        const fileName =
+          meta.file_name ||
+          file.file_name ||
+          originalName ||
+          null;
+
+        const displayName =
+          getAttachmentDisplayName({ ...meta, ...file }) ||
+          originalName ||
+          fileName ||
+          null;
+
+        return {
+          ...file,
+          file_id: file.file_id ?? meta.file_id ?? null,
+          file_name: fileName,
+          original_name: originalName,
+          display_name: displayName,
+          file_path: filePath,
+          meta,
+        };
+      });
+
+      const primaryAttachment = normalizedAttachments[0] || null;
+
+      return {
+        ...event,
+        attachments: normalizedAttachments,
+        files: normalizedAttachments,
+        attachment: primaryAttachment,
+        file_id: primaryAttachment?.file_id ?? event.file_id ?? null,
+        file_name:
+          primaryAttachment?.file_name ||
+          primaryAttachment?.display_name ||
+          event.file_name ||
+          null,
+        file_path: primaryAttachment?.file_path || event.file_path || null,
+      };
+    });
+
+    console.groupCollapsed('[GeneralSubmissionDetails] Research attachment metadata cache');
+    console.log(
+      'Cached file metadata',
+      Object.fromEntries(
+        Array.from(cache.entries()).map(([id, meta]) => [
+          id,
+          meta
+            ? {
+                file_id: meta.file_id ?? id,
+                original_name: meta.original_name ?? meta.file_name ?? null,
+                file_path: meta.file_path ?? meta.stored_path ?? null,
+              }
+            : null,
+        ])
+      )
+    );
+    console.log('Enriched research events (attachments normalized)', enrichedEvents);
+    console.groupEnd();
+
+    return enrichedEvents;
+  }, [adminSubmissionAPI]);
 
   const loadResearchEvents = useCallback(
     async (targetSubmissionId) => {
@@ -582,9 +811,22 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
       setResearchLoading(true);
       setResearchError(null);
       try {
-        const { events = [], totals } = await adminSubmissionAPI.getResearchFundEvents(id);
+        const { events = [], totals, meta } = await adminSubmissionAPI.getResearchFundEvents(id);
         const sorted = sortEventsByCreatedAt(events);
-        setResearchEvents(sorted);
+        const enriched = await enhanceResearchEventAttachments(sorted);
+        console.groupCollapsed(
+          '[GeneralSubmissionDetails] Research fund events fetched',
+          `submission:${id}`
+        );
+        console.log('Raw events from API', events);
+        console.log('Sorted events (oldest first)', sorted);
+        console.log('Enriched events with file metadata', enriched);
+        console.log('Totals payload', totals);
+        if (meta !== undefined) {
+          console.log('Meta payload', meta);
+        }
+        console.groupEnd();
+        setResearchEvents(enriched);
         setResearchTotals(totals || null);
         setIsFundClosed(Boolean(totals?.is_closed));
       } catch (error) {
@@ -597,8 +839,19 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
         setResearchLoading(false);
       }
     },
-    [submissionId, sortEventsByCreatedAt]
+    [submissionId, sortEventsByCreatedAt, enhanceResearchEventAttachments]
   );
+
+  useEffect(() => {
+    fileMetaCacheRef.current.clear();
+    console.log(
+      '[GeneralSubmissionDetails] Reset research attachment metadata cache',
+      {
+        submissionEntityId,
+        submissionId,
+      }
+    );
+  }, [submissionEntityId, submissionId]);
 
   const statusCode = useMemo(
     () => (submissionStatusId != null ? getCodeById(submissionStatusId) : undefined),
@@ -724,6 +977,31 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
     };
     loadAttachments();
   }, [submission?.submission_id]);
+
+  useEffect(() => {
+    if (!submission) return;
+    console.groupCollapsed('[GeneralSubmissionDetails] Submission data debug');
+    console.log('Submission ID', submission?.submission_id);
+    console.log('Admin comment', submission?.admin_comment ?? submission?.approval_comment ?? submission?.comment);
+    console.log('Head comment', submission?.head_comment ?? submission?.HeadComment ?? submission?.headComment);
+    console.log('Raw submission object', submission);
+    console.groupEnd();
+  }, [submission]);
+
+  useEffect(() => {
+    if (attachmentsLoading) return;
+    console.groupCollapsed('[GeneralSubmissionDetails] Submission attachments debug');
+    console.log('Attachments list', attachments);
+    console.groupEnd();
+  }, [attachments, attachmentsLoading]);
+
+  useEffect(() => {
+    if (researchLoading) return;
+    console.groupCollapsed('[GeneralSubmissionDetails] Research fund events debug');
+    console.log('Normalized research events', researchEvents);
+    console.log('Research totals', researchTotals);
+    console.groupEnd();
+  }, [researchEvents, researchTotals, researchLoading]);
 
   // fetch announcements for Status Summary
   useEffect(() => {
@@ -1408,7 +1686,7 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
               <div className="rounded-lg bg-blue-50 p-4">
                 <p className="text-xs font-semibold uppercase tracking-wide text-blue-600">ยอดอนุมัติรวม</p>
                 <p className="mt-2 text-xl font-semibold text-blue-900">{baht(researchApprovedAmount)}</p>
@@ -1416,10 +1694,6 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
               <div className="rounded-lg bg-green-50 p-4">
                 <p className="text-xs font-semibold uppercase tracking-wide text-green-600">จ่ายแล้ว</p>
                 <p className="mt-2 text-xl font-semibold text-green-900">{baht(researchPaidAmount)}</p>
-              </div>
-              <div className="rounded-lg bg-amber-50 p-4">
-                <p className="text-xs font-semibold uppercase tracking-wide text-amber-600">รอดำเนินการ</p>
-                <p className="mt-2 text-xl font-semibold text-amber-900">{baht(researchPendingAmount)}</p>
               </div>
               <div className="rounded-lg bg-gray-50 p-4">
                 <p className="text-xs font-semibold uppercase tracking-wide text-gray-600">คงเหลือ</p>
@@ -1502,21 +1776,46 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
                           </td>
                           <td className="px-4 py-3">
                             {(() => {
-                              const attachmentList = Array.isArray(event.attachments) && event.attachments.length > 0
-                                ? event.attachments
-                                : event.file_id || event.file_path || event.file_name
-                                  ? [
-                                      {
-                                        file_id: event.file_id,
-                                        file_path: event.file_path,
-                                        file_name: event.file_name,
-                                      },
-                                    ]
-                                  : [];
+                              let attachmentList = [];
+                              if (Array.isArray(event.attachments) && event.attachments.length > 0) {
+                                attachmentList = event.attachments;
+                              } else if (event.attachments && typeof event.attachments === 'object') {
+                                attachmentList = Object.values(event.attachments).filter(Boolean);
+                              } else if (event.files && typeof event.files === 'object' && !Array.isArray(event.files)) {
+                                attachmentList = Object.values(event.files).filter(Boolean);
+                              }
+
+                              if (!attachmentList.length && Array.isArray(event.files) && event.files.length > 0) {
+                                attachmentList = event.files;
+                              }
+
+                              if (
+                                !attachmentList.length &&
+                                (event.file_id || event.file_path || event.file_name)
+                              ) {
+                                attachmentList = [
+                                  {
+                                    file_id: event.file_id,
+                                    file_path: event.file_path,
+                                    file_name: event.file_name,
+                                  },
+                                ];
+                              }
+
+                              if (!attachmentList.length && event.attachment) {
+                                attachmentList = [event.attachment];
+                              }
 
                               if (!attachmentList.length) {
                                 return <span className="text-xs text-gray-400">ไม่มีไฟล์แนบ</span>;
                               }
+
+                              console.groupCollapsed(
+                                '[GeneralSubmissionDetails] Render research attachments',
+                                event.id ?? event.created_at ?? 'unknown-event'
+                              );
+                              console.log('Attachment list', attachmentList);
+                              console.groupEnd();
 
                               return (
                                 <div className="space-y-2">
@@ -1553,7 +1852,7 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
                                                   className="inline-flex items-center gap-1 rounded-md border border-blue-200 px-2 py-1 text-xs font-medium text-blue-600 hover:bg-blue-50"
                                                 >
                                                   <Eye size={12} />
-                                                  <span>ดูไฟล์</span>
+                                                  <span>ดู</span>
                                                 </button>
                                                 <button
                                                   type="button"
@@ -1664,7 +1963,7 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
 
                       <div className="flex items-center gap-2 ml-4">
                         <button
-                          className="inline-flex items-center gap-1 px-3 py-2 text-sm text-blue-600 hover:bg-blue-100 rounded-md transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                          className="inline-flex items-center gap-1 border border-blue-200 px-3 py-2 text-sm text-blue-600 hover:bg-blue-100 rounded-md transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
                           onClick={() => handleView(fileId)}
                           disabled={!fileId}
                           title="เปิดดูไฟล์"
@@ -1673,7 +1972,7 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
                           <span>ดู</span>
                         </button>
                         <button
-                          className="inline-flex items-center gap-1 px-3 py-2 text-sm text-green-600 hover:bg-green-100 rounded-md transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                          className="inline-flex items-center gap-1 border border-green-200 px-3 py-2 text-sm text-green-600 hover:bg-green-100 rounded-md transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
                           onClick={() => handleDownload(fileId, fileName)}
                           disabled={!fileId}
                           title="ดาวน์โหลดไฟล์"
@@ -1700,7 +1999,7 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
           {attachments.length > 0 && (
             <div className="flex justify-end gap-3 pt-4 border-t-1 border-gray-300">
               <button
-                className="inline-flex items-center gap-1 px-3 py-2 text-sm text-blue-600 hover:bg-blue-50 rounded-md transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="inline-flex items-center gap-1 border border-blue-200 px-3 py-2 text-sm text-blue-600 hover:bg-blue-50 rounded-md transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
                 onClick={handleViewMerged}
                 disabled={attachments.length === 0 || merging || creatingMerged}
                 title="เปิดดูไฟล์แนบที่ถูกรวมเป็น PDF"
@@ -1708,7 +2007,7 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
                 <Eye size={16} /> ดูไฟล์รวม (PDF)
               </button>
               <button
-                className="inline-flex items-center gap-1 px-3 py-2 text-sm text-green-600 hover:bg-green-50 rounded-md transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="inline-flex items-center gap-1 border border-green-200 px-3 py-2 text-sm text-green-600 hover:bg-green-50 rounded-md transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
                 onClick={handleDownloadMerged}
                 disabled={attachments.length === 0 || merging || creatingMerged}
                 title="ดาวน์โหลดไฟล์แนบที่ถูกรวมเป็น PDF เดียว"

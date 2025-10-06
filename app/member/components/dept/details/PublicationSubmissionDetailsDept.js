@@ -94,6 +94,12 @@ const formatDate = (dateString) => {
 const formatCurrency = (n) =>
   Number(n || 0).toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
+const escapeHtml = (value) =>
+  String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+
 const formatCurrencyParen = (n) =>
   `(${Number(Math.abs(n || 0)).toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})`;
 
@@ -345,19 +351,41 @@ function ReadonlyMoney({ value, aria }) {
 function DeptDecisionPanel({ submission, onApprove, onReject, onBack }) {
   const [comment, setComment] = useState(
     submission?.head_comment ?? submission?.comment ?? ''
-  );  
+  );
+  const [headSignature, setHeadSignature] = useState(
+    submission?.head_signature ?? ''
+  );
   const [saving, setSaving] = useState(false);
 
   const canAct = true;
 
   const handleApprove = async () => {
+    const trimmedComment = comment?.trim() || '';
+    const trimmedSignature = headSignature?.trim() || '';
+    if (!trimmedSignature) {
+      await Swal.fire({
+        icon: 'warning',
+        title: 'กรุณาระบุลายเซ็นหัวหน้าสาขา',
+        text: 'โปรดพิมพ์ชื่อเต็มของหัวหน้าสาขาก่อนดำเนินการ.',
+      });
+      return;
+    }
     const html = `
       <div style="text-align:left;font-size:14px;line-height:1.6;">
-        ${comment?.trim()
-          ? `<div style="font-weight:500;margin-bottom:.25rem;">หมายเหตุจากหัวหน้าสาขา</div>
-            <div style="border:1px solid #e5e7eb;background:#f9fafb;padding:.5rem;border-radius:.5rem;">${comment.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</div>`
-          : `<div style="font-size:12px;color:#6b7280;">(ไม่มีหมายเหตุ)</div>`
-        }
+        <div style="margin-bottom:0.75rem;">
+            <div style="font-weight:500;margin-bottom:.25rem;">ลายเซ็นหัวหน้าสาขา</div>
+            ${trimmedSignature
+              ? `<div style=\"border:1px solid #e5e7eb;background:#f9fafb;padding:.5rem;border-radius:.5rem;\">${escapeHtml(trimmedSignature)}</div>`
+              : `<div style=\"font-size:12px;color:#6b7280;\">(ไม่ระบุลายเซ็น)</div>`
+            }
+        </div>
+        <div>
+          <div style="font-weight:500;margin-bottom:.25rem;">หมายเหตุจากหัวหน้าสาขา</div>
+          ${trimmedComment
+            ? `<div style=\"border:1px solid #e5e7eb;background:#f9fafb;padding:.5rem;border-radius:.5rem;white-space:pre-wrap;\">${escapeHtml(trimmedComment)}</div>`
+            : `<div style=\"font-size:12px;color:#6b7280;\">(ไม่มีหมายเหตุ)</div>`
+          }
+        </div>
       </div>
     `;
 
@@ -374,7 +402,7 @@ function DeptDecisionPanel({ submission, onApprove, onReject, onBack }) {
         try {
           setSaving(true);
           // ส่งหมายเหตุ (comment/head_comment) ไปเก็บที่ submissions เท่านั้น
-          await onApprove(comment?.trim() || '');
+          await onApprove(trimmedComment, trimmedSignature);
         } catch (e) {
           Swal.showValidationMessage(e?.message || 'อนุมัติไม่สำเร็จ');
           throw e;
@@ -392,6 +420,8 @@ function DeptDecisionPanel({ submission, onApprove, onReject, onBack }) {
 
 
   const handleReject = async () => {
+    const trimmedSignature = headSignature?.trim() || '';
+    const trimmedComment = comment?.trim() || '';
     // Step 1: กล่องกรอกเหตุผล
     const { value: reason } = await Swal.fire({
       title: 'เหตุผลการไม่อนุมัติ',
@@ -410,11 +440,27 @@ function DeptDecisionPanel({ submission, onApprove, onReject, onBack }) {
       title: 'ยืนยันการไม่อนุมัติ',
       html: `
         <div style="text-align:left;font-size:14px;">
-          <div style="font-weight:500;margin-bottom:.25rem;">เหตุผลการไม่อนุมัติ</div>
-          <div style="border:1px solid #e5e7eb;background:#f9fafb;padding:.75rem;border-radius:.5rem;white-space:pre-wrap;">
-            ${String(reason).replace(/</g,'&lt;').replace(/>/g,'&gt;')}
+          <div style="margin-bottom:0.75rem;">
+            <div style="font-weight:500;margin-bottom:.25rem;">เหตุผลการไม่อนุมัติ</div>
+            <div style="border:1px solid #e5e7eb;background:#f9fafb;padding:.75rem;border-radius:.5rem;white-space:pre-wrap;">
+              ${escapeHtml(String(reason).trim())}
+            </div>
           </div>
-          <p style="font-size:12px;color:#6b7280;margin-top:.5rem;">
+          <div style="margin-bottom:0.75rem;">
+            <div style="font-weight:500;margin-bottom:.25rem;">ลายเซ็นหัวหน้าสาขา</div>
+            ${trimmedSignature
+              ? `<div style=\"border:1px solid #e5e7eb;background:#f9fafb;padding:.5rem;border-radius:.5rem;\">${escapeHtml(trimmedSignature)}</div>`
+              : `<div style=\"font-size:12px;color:#6b7280;\">(ไม่ระบุลายเซ็น)</div>`
+            }
+          </div>
+          <div>
+            <div style="font-weight:500;margin-bottom:.25rem;">หมายเหตุจากหัวหน้าสาขา</div>
+            ${trimmedComment
+              ? `<div style=\"border:1px solid #e5e7eb;background:#f9fafb;padding:.5rem;border-radius:.5rem;white-space:pre-wrap;\">${escapeHtml(trimmedComment)}</div>`
+              : `<div style=\"font-size:12px;color:#6b7280;\">(ไม่มีหมายเหตุ)</div>`
+            }
+          </div>
+          <p style="font-size:12px;color:#6b7280;margin-top:.75rem;">
             ระบบจะบันทึกเหตุผลและเปลี่ยนสถานะคำร้องเป็น “ไม่อนุมัติ”
           </p>
         </div>
@@ -429,7 +475,11 @@ function DeptDecisionPanel({ submission, onApprove, onReject, onBack }) {
         try {
           setSaving(true);
           // ส่งเหตุผล + หมายเหตุหัวหน้าสาขา (comment) ไปหลังบ้าน (เก็บที่ submissions เท่านั้น)
-          await onReject(String(reason).trim(), comment?.trim() || '');
+          await onReject(
+            String(reason).trim(),
+            trimmedComment,
+            trimmedSignature
+          );
         } catch (e) {
           Swal.showValidationMessage(e?.message || 'ไม่อนุมัติไม่สำเร็จ');
           throw e;
@@ -457,6 +507,18 @@ function DeptDecisionPanel({ submission, onApprove, onReject, onBack }) {
             placeholder="เขียนหมายเหตุของหัวหน้าสาขาหรือบันทึกหมายเหตุ (ถ้ามี)"
             value={comment}
             onChange={(e) => setComment(e.target.value)}
+            disabled={saving}
+          />
+        </div>
+
+        <div>
+          <label className="text-sm text-gray-600">ลายเซ็นหัวหน้าสาขา (พิมพ์ชื่อเต็ม)</label>
+          <input
+            type="text"
+            className="w-full rounded-lg border border-gray-300 p-3 outline-none focus:ring-2 focus:ring-blue-500"
+            placeholder="พิมพ์ชื่อเต็มของหัวหน้าสาขา"
+            value={headSignature}
+            onChange={(e) => setHeadSignature(e.target.value)}
             disabled={saving}
           />
         </div>
@@ -1284,8 +1346,15 @@ export default function PublicationSubmissionDetailsDept({ submissionId, onBack 
   }, []);
 
   // ==== PATCH: handlers ภายใน component หลัก PublicationSubmissionDetailsDept ====
-  const approve = async (headComment) => {
-    const body = headComment ? { head_comment: headComment, comment: headComment } : {};
+  const approve = async (headComment, headSignature) => {
+    const body = {};
+    if (headComment) {
+      body.head_comment = headComment;
+      body.comment = headComment;
+    }
+    if (headSignature) {
+      body.head_signature = headSignature;
+    }
     await deptHeadAPI.recommendSubmission(submission.submission_id, body);
 
     // reload details หลังบันทึก
@@ -1299,11 +1368,14 @@ export default function PublicationSubmissionDetailsDept({ submissionId, onBack 
     setSubmission(data);
   };
 
-  const reject = async (reason, headComment) => {
+  const reject = async (reason, headComment, headSignature) => {
     const payload = { rejection_reason: reason };
     if (headComment) {
       payload.head_comment = headComment;
       payload.comment = headComment; // เผื่อจุดเก่าอ่านจาก comment
+    }
+    if (headSignature) {
+      payload.head_signature = headSignature;
     }
     await deptHeadAPI.rejectSubmission(submission.submission_id, payload);
 

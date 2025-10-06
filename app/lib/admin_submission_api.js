@@ -41,15 +41,27 @@ const normalizeEventAttachment = (event = {}) => {
     attachment?.id,
     attachment?.fileId
   );
+  const originalName = pickFirst(
+    event?.original_name,
+    event?.original_filename,
+    event?.attachment_name,
+    event?.document_name,
+    event?.display_name,
+    event?.file_original_name,
+    attachment?.original_name,
+    attachment?.original_filename,
+    attachment?.display_name,
+    attachment?.document_name,
+    attachment?.file_original_name,
+    attachment?.title
+  );
   const fileName = pickFirst(
     event?.file_name,
-    event?.attachment_name,
-    event?.original_name,
-    event?.document_name,
-    attachment?.original_name,
+    event?.filename,
     attachment?.file_name,
+    attachment?.filename,
     attachment?.name,
-    attachment?.title
+    originalName
   );
   const filePath = pickFirst(
     event?.file_path,
@@ -61,13 +73,24 @@ const normalizeEventAttachment = (event = {}) => {
     attachment?.url
   );
 
-  if (fileId == null && !fileName && !filePath) {
+  const derivedName = (() => {
+    if (originalName) return originalName;
+    if (fileName) return fileName;
+    if (typeof filePath === 'string' && filePath.includes('/')) {
+      return filePath.split('/').pop();
+    }
+    return filePath || null;
+  })();
+
+  if (fileId == null && !derivedName && !filePath) {
     return null;
   }
 
   return {
     file_id: fileId ?? null,
-    file_name: fileName ?? null,
+    file_name: fileName ?? derivedName ?? null,
+    original_name: derivedName ?? null,
+    display_name: derivedName ?? null,
     file_path: filePath ?? null,
   };
 };
@@ -145,14 +168,23 @@ const normalizeResearchFundEvent = (event = {}) => {
   const attachmentGroups = [
     event?.attachments,
     event?.attachment_list,
+    event?.attachmentList,
+    event?.attachment_files,
     event?.files,
     event?.Files,
     event?.documents,
     event?.Documents,
+    event?.Attachments,
   ];
   attachmentGroups.forEach((group) => {
-    if (!Array.isArray(group)) return;
-    group.forEach((item) => pushAttachment(item));
+    if (!group) return;
+    if (Array.isArray(group)) {
+      group.forEach((item) => pushAttachment(item));
+      return;
+    }
+    if (typeof group === 'object') {
+      Object.values(group).forEach((item) => pushAttachment(item));
+    }
   });
 
   pushAttachment(event?.attachment);
@@ -358,13 +390,147 @@ const normalizeResearchFundTotals = (totals = {}, fallback = {}) => {
   };
 };
 
+const normalizeFileUploadRecord = (payload = {}) => {
+  if (!payload || typeof payload !== 'object') {
+    return null;
+  }
+
+  const file =
+    payload?.file ||
+    payload?.File ||
+    payload?.data?.file ||
+    payload;
+
+  if (!file || typeof file !== 'object') {
+    return null;
+  }
+
+  const fileId = pickFirst(file?.file_id, file?.FileID, file?.id, file?.fileId);
+  const storedPath = pickFirst(
+    file?.file_path,
+    file?.stored_path,
+    file?.storedPath,
+    file?.path,
+    file?.url
+  );
+  const originalName = pickFirst(
+    file?.original_name,
+    file?.original_filename,
+    file?.display_name,
+    file?.file_original_name,
+    file?.name
+  );
+  const fileName = pickFirst(
+    file?.file_name,
+    file?.filename,
+    originalName,
+    (typeof storedPath === 'string' && storedPath.includes('/'))
+      ? storedPath.split('/').pop()
+      : storedPath
+  );
+  const displayName = pickFirst(
+    file?.display_name,
+    originalName,
+    fileName
+  );
+
+  return {
+    file_id: fileId ?? null,
+    file_name: fileName ?? null,
+    original_name: originalName ?? fileName ?? null,
+    display_name: displayName ?? originalName ?? fileName ?? null,
+    file_path: storedPath ?? null,
+    stored_path: storedPath ?? null,
+    mime_type: pickFirst(file?.mime_type, file?.content_type) ?? null,
+    file_size: pickFirst(file?.file_size, file?.size) ?? null,
+    uploaded_by: pickFirst(file?.uploaded_by, file?.user_id) ?? null,
+    uploaded_at: pickFirst(file?.uploaded_at, file?.create_at, file?.created_at) ?? null,
+    raw: file,
+  };
+};
+
 // Admin Submission Management API
 export const adminSubmissionAPI = {
   
   // Admin detail view
   // GET /api/v1/admin/submissions/:id/details
   async getSubmissionDetails(submissionId) {
-    return apiClient.get(`/admin/submissions/${submissionId}/details`);
+    if (!submissionId) {
+      throw new Error('submissionId is required');
+    }
+
+    const primary = await apiClient.get(`/admin/submissions/${submissionId}/details`);
+    const payload =
+      primary && typeof primary === 'object' && !Array.isArray(primary)
+        ? { ...primary }
+        : primary;
+
+    const extractSubmission = (source) => {
+      if (!source || typeof source !== 'object') return null;
+      if (source.submission && typeof source.submission === 'object') {
+        return source.submission;
+      }
+      if (source.data && typeof source.data === 'object') {
+        if (source.data.submission && typeof source.data.submission === 'object') {
+          return source.data.submission;
+        }
+      }
+      return null;
+    };
+
+    const needsSupplement = (submission) => {
+      if (!submission || typeof submission !== 'object') return true;
+      const requiredKeys = [
+        'admin_comment',
+        'head_comment',
+        'admin_rejection_reason',
+        'head_rejection_reason',
+        'admin_approved_by',
+        'admin_approved_at',
+        'admin_rejected_by',
+        'admin_rejected_at',
+        'head_approved_by',
+        'head_approved_at',
+      ];
+      return requiredKeys.some((key) => !(key in submission));
+    };
+
+    const submissionFromPrimary = extractSubmission(payload) || primary;
+    let supplementalSubmission = null;
+
+    if (needsSupplement(submissionFromPrimary)) {
+      try {
+        const fallback = await apiClient.get(`/submissions/${submissionId}`);
+        supplementalSubmission = extractSubmission(fallback) || fallback;
+      } catch (error) {
+        console.warn('[adminSubmissionAPI] fallback submission fetch failed', error);
+      }
+    }
+
+    const mergedSubmission = (() => {
+      if (submissionFromPrimary && supplementalSubmission) {
+        return { ...supplementalSubmission, ...submissionFromPrimary };
+      }
+      if (submissionFromPrimary) return submissionFromPrimary;
+      if (supplementalSubmission) return supplementalSubmission;
+      return null;
+    })();
+
+    if (payload && typeof payload === 'object' && !Array.isArray(payload)) {
+      return {
+        ...payload,
+        submission: mergedSubmission,
+        supplemental_submission:
+          supplementalSubmission && !payload.supplemental_submission
+            ? supplementalSubmission
+            : payload.supplemental_submission,
+      };
+    }
+
+    return {
+      submission: mergedSubmission,
+      supplemental_submission: supplementalSubmission,
+    };
   },
 
   // PATCH /api/v1/admin/submissions/:id/publication-reward/approval-amounts
@@ -500,6 +666,34 @@ export const adminSubmissionAPI = {
       events,
       meta: body?.meta || null,
     };
+  },
+
+  async getFileUpload(fileId) {
+    if (!fileId) {
+      return { file: null, raw: null };
+    }
+
+    try {
+      const response = await apiClient.get(`/files/managed/${fileId}`);
+      const payload =
+        response && typeof response === 'object' && !Array.isArray(response)
+          ? response
+          : { file: response };
+      const normalized =
+        normalizeFileUploadRecord(payload) || normalizeFileUploadRecord(payload?.file);
+
+      return {
+        file: normalized,
+        raw: payload,
+        success: payload?.success ?? (normalized ? true : undefined),
+      };
+    } catch (error) {
+      if (error?.status === 404 || String(error?.status) === '404') {
+        return { file: null, raw: null, success: false };
+      }
+      console.warn('[adminSubmissionAPI] getFileUpload failed', fileId, error);
+      throw error;
+    }
   }
 
 };
