@@ -19,10 +19,9 @@ import { teacherAPI } from "../../../lib/member_api";
 import { targetRolesUtils, filterFundsByRole } from "../../../lib/target_roles_utils";
 import { FORM_TYPE_CONFIG } from "../../../lib/form_type_config";
 import systemConfigAPI from "../../../lib/system_config_api";
-import apiClient from "../../../lib/api";
 
 export default function ResearchFundContent({ onNavigate }) {
-  const [selectedYear, setSelectedYear] = useState("2568");
+  const [selectedYear, setSelectedYear] = useState("");
   const [yearId, setYearId] = useState(null);
   const [fundCategories, setFundCategories] = useState([]);
   const [filteredFunds, setFilteredFunds] = useState([]);
@@ -116,18 +115,42 @@ export default function ResearchFundContent({ onNavigate }) {
         targetRolesUtils.getCurrentUserRole(),
         loadAvailableYears(),
         loadSystemConfig(),
-        apiClient.get("/system-config/current-year")
+        systemConfigAPI.getCurrentYear().catch((err) => {
+          console.warn("Failed to fetch current year:", err);
+          return null;
+        }),
       ]);
 
       setUserRole(roleInfo);
       setYears(yearsData);
-      setSystemConfig(winData);
+      if (winData) {
+        setSystemConfig(winData);
+      }
 
-      const currentYear = currentYearRes?.current_year
-        ? String(currentYearRes.current_year)
-        : selectedYear;
+      const derivedYear = (() => {
+        if (currentYearRes?.current_year) return String(currentYearRes.current_year);
+        if (winData?.current_year) return String(winData.current_year);
+        if (Array.isArray(yearsData) && yearsData.length > 0) {
+          const first = yearsData[0];
+          if (first?.year) return String(first.year);
+          if (first?.year_id) return String(first.year_id);
+        }
+        return "";
+      })();
 
-      setSelectedYear(currentYear);
+      if (derivedYear) {
+        setSelectedYear(derivedYear);
+        const matchedYear = Array.isArray(yearsData)
+          ? yearsData.find(
+              (y) =>
+                String(y.year) === derivedYear ||
+                (y.year_id != null && String(y.year_id) === derivedYear)
+            )
+          : null;
+        if (matchedYear?.year_id) {
+          setYearId(matchedYear.year_id);
+        }
+      }
       // loadFundData will be triggered by effect on selectedYear
     } catch (err) {
       console.error("Error loading initial data:", err);
@@ -198,7 +221,14 @@ export default function ResearchFundContent({ onNavigate }) {
         now: win.now,
       });
 
-      return { start_date, end_date, is_open_effective: open };
+      return {
+        start_date,
+        end_date,
+        is_open_effective: open,
+        current_year: win.current_year ?? null,
+        last_updated: win.last_updated ?? null,
+        now: win.now ?? null,
+      };
     } catch (e) {
       console.warn("loadSystemConfig failed:", e);
       setIsWithinApplicationPeriod(true);

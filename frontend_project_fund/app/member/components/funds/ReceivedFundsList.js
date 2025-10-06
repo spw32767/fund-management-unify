@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { Search, Eye, Download, Gift } from "lucide-react";
 import { submissionAPI } from "@/app/lib/member_api";
+import systemConfigAPI from "../../../lib/system_config_api";
 import PageLayout from "../common/PageLayout";
 import Card from "../common/Card";
 import DataTable from "../common/DataTable";
@@ -13,6 +14,7 @@ export default function ReceivedFundsList({ onNavigate }) {
   const [funds, setFunds] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [yearFilter, setYearFilter] = useState("all");
+  const [defaultYear, setDefaultYear] = useState("all");
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [loading, setLoading] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
@@ -20,7 +22,21 @@ export default function ReceivedFundsList({ onNavigate }) {
 
   useEffect(() => {
     loadFunds();
+    fetchCurrentYear();
   }, []);
+
+  const fetchCurrentYear = async () => {
+    try {
+      const res = await systemConfigAPI.getCurrentYear();
+      if (res?.current_year) {
+        const yearString = String(res.current_year);
+        setDefaultYear(yearString);
+        setYearFilter(yearString);
+      }
+    } catch (err) {
+      console.warn("Failed to fetch current year for received funds:", err);
+    }
+  };
 
   const loadFunds = async () => {
     setLoading(true);
@@ -70,10 +86,15 @@ export default function ReceivedFundsList({ onNavigate }) {
   const yearOptions = useMemo(() => {
     const set = new Set();
     funds.forEach((f) => {
-      if (f.year && f.year !== "-") set.add(f.year);
+      if (f.year && f.year !== "-") set.add(String(f.year));
     });
-    return Array.from(set).sort().reverse();
-  }, [funds]);
+    if (defaultYear !== "all" && defaultYear) {
+      set.add(String(defaultYear));
+    }
+    return Array.from(set)
+      .filter((y) => y)
+      .sort((a, b) => Number(b) - Number(a));
+  }, [funds, defaultYear]);
 
   const categoryOptions = useMemo(() => {
     const set = new Set();
