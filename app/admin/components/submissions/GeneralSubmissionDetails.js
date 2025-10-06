@@ -927,13 +927,13 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
     setEventSubmitting(true);
     try {
       await adminSubmissionAPI.createResearchFundEvent(submission.submission_id, formData);
-      toast.success('บันทึกเหตุการณ์เรียบร้อย');
+      toast.success('บันทึกประวัติเรียบร้อย');
       setShowEventModal(false);
       await refetchSubmission();
       await loadResearchEvents(submission.submission_id);
     } catch (error) {
       console.error('create research fund event failed', error);
-      toast.error(error?.message || 'บันทึกเหตุการณ์ไม่สำเร็จ');
+      toast.error(error?.message || 'บันทึกประวัติไม่สำเร็จ');
     } finally {
       setEventSubmitting(false);
     }
@@ -1322,7 +1322,7 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
 
             <div>
               <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                <h4 className="text-base font-semibold text-gray-800">เหตุการณ์การจ่ายทุน</h4>
+                <h4 className="text-base font-semibold text-gray-800">ประวัติการการจ่ายทุน</h4>
                 <button
                   type="button"
                   onClick={handleReloadResearchEvents}
@@ -1336,7 +1336,7 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
               {researchLoading ? (
                 <div className="flex items-center justify-center gap-3 rounded-md border border-dashed border-gray-200 py-8 text-gray-500">
                   <Loader2 size={20} className="animate-spin" />
-                  <span>กำลังโหลดข้อมูลเหตุการณ์...</span>
+                  <span>กำลังโหลดข้อมูลประวัติ...</span>
                 </div>
               ) : researchError ? (
                 <div className="space-y-3 rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-700">
@@ -1351,7 +1351,7 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
                 </div>
               ) : researchEvents.length === 0 ? (
                 <div className="rounded-md border border-dashed border-gray-200 bg-white py-8 text-center text-sm text-gray-500">
-                  ยังไม่มีการบันทึกเหตุการณ์
+                  ยังไม่มีการบันทึกประวัติ
                 </div>
               ) : (
                 <div className="overflow-x-auto">
@@ -1574,7 +1574,7 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4">
-              <h3 className="text-lg font-semibold text-gray-800">เพิ่มเหตุการณ์การจ่ายทุน</h3>
+              <h3 className="text-lg font-semibold text-gray-800">เพิ่มประวัติการจ่ายทุนวิจัย</h3>
               <button
                 type="button"
                 onClick={handleCloseEventModal}
@@ -1666,7 +1666,7 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
                   disabled={eventSubmitting}
                 >
                   {eventSubmitting && <Loader2 size={16} className="animate-spin" />}
-                  บันทึกเหตุการณ์
+                  บันทึกประวัติ
                 </button>
               </div>
             </form>
