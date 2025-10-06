@@ -5,7 +5,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   ArrowLeft, FileText,
   CheckCircle, XCircle, AlertTriangle, Clock,
-  Eye, Download, PlusCircle, Loader2, ToggleLeft, ToggleRight, RefreshCw
+  Eye, Download, PlusCircle, Loader2, RefreshCw
 } from 'lucide-react';
 
 import PageLayout from '../common/PageLayout';
@@ -20,6 +20,7 @@ import Swal from 'sweetalert2';
 import { useStatusMap } from '@/app/hooks/useStatusMap';
 import 'sweetalert2/dist/sweetalert2.min.css';
 import { PDFDocument } from 'pdf-lib';
+import { AnimatePresence, motion } from 'motion/react';
 import PublicationSubmissionDetails from './PublicationSubmissionDetails';
 
 /* =========================
@@ -120,6 +121,37 @@ const formatDateTime = (value) => {
   } catch (error) {
     return date.toLocaleString();
   }
+};
+
+const normalizeFundStatus = (value) => {
+  if (value === null || value === undefined) return '';
+  const normalized = String(value).trim().toLowerCase();
+  if (!normalized) return '';
+  if (['6', 'closed', 'admin_closed', 'ปิดทุน'].includes(normalized)) return 'closed';
+  if (['1', 'approved', 'อนุมัติ'].includes(normalized)) return 'approved';
+  return normalized;
+};
+
+const FUND_CLOSE_THRESHOLD = 0.01;
+
+const getAttachmentDisplayName = (file) => {
+  if (!file || typeof file !== 'object') return '';
+  return (
+    file.original_name ||
+    file.original_filename ||
+    file.display_name ||
+    file.file_name ||
+    file.name ||
+    file.filename ||
+    file.title ||
+    file.File?.original_name ||
+    file.File?.file_name ||
+    file.file?.original_name ||
+    file.file?.file_name ||
+    file.document_name ||
+    file.Document?.original_name ||
+    ''
+  );
 };
 
 /* =========================
@@ -474,10 +506,9 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
   const [researchError, setResearchError] = useState(null);
   const [isFundClosed, setIsFundClosed] = useState(false);
   const [showEventModal, setShowEventModal] = useState(false);
-  const [eventForm, setEventForm] = useState({ comment: '', amount: '0', file: null });
+  const [eventForm, setEventForm] = useState({ comment: '', amount: '', status: 'approved', file: null });
   const [eventErrors, setEventErrors] = useState({});
   const [eventSubmitting, setEventSubmitting] = useState(false);
-  const [toggleClosureLoading, setToggleClosureLoading] = useState(false);
   const eventFileInputRef = useRef(null);
 
   const submissionStatusId = submission?.status_id;
@@ -534,6 +565,15 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
     setIsFundClosed(false);
   }, []);
 
+  const sortEventsByCreatedAt = useCallback((list = []) => {
+    const toTimestamp = (value) => {
+      if (!value) return 0;
+      const date = new Date(value);
+      return Number.isNaN(date.getTime()) ? 0 : date.getTime();
+    };
+    return [...list].sort((a, b) => toTimestamp(b.created_at) - toTimestamp(a.created_at));
+  }, []);
+
   const loadResearchEvents = useCallback(
     async (targetSubmissionId) => {
       const id = targetSubmissionId ?? submissionId;
@@ -543,12 +583,7 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
       setResearchError(null);
       try {
         const { events = [], totals } = await adminSubmissionAPI.getResearchFundEvents(id);
-        const toTimestamp = (value) => {
-          if (!value) return 0;
-          const date = new Date(value);
-          return Number.isNaN(date.getTime()) ? 0 : date.getTime();
-        };
-        const sorted = [...events].sort((a, b) => toTimestamp(b.created_at) - toTimestamp(a.created_at));
+        const sorted = sortEventsByCreatedAt(events);
         setResearchEvents(sorted);
         setResearchTotals(totals || null);
         setIsFundClosed(Boolean(totals?.is_closed));
@@ -562,7 +597,7 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
         setResearchLoading(false);
       }
     },
-    [submissionId]
+    [submissionId, sortEventsByCreatedAt]
   );
 
   const statusCode = useMemo(
@@ -758,6 +793,29 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
     }
   }, [showEventModal, isFundClosed]);
 
+  const currentFundStatusCode = useMemo(() => {
+    const fromTotals = normalizeFundStatus(
+      researchTotals?.status ??
+        researchTotals?.status_code ??
+        researchTotals?.status_id
+    );
+    if (fromTotals) return fromTotals;
+    return isFundClosed ? 'closed' : 'approved';
+  }, [researchTotals, isFundClosed]);
+
+  const currentFundStatusLabel = useMemo(() => {
+    const label =
+      researchTotals?.status_name ||
+      researchTotals?.status_label ||
+      (currentFundStatusCode === 'closed'
+        ? 'ปิดทุน'
+        : currentFundStatusCode === 'approved'
+        ? 'อนุมัติ'
+        : null);
+    if (label) return label;
+    return currentFundStatusCode || '';
+  }, [researchTotals, currentFundStatusCode]);
+
   const handleReloadResearchEvents = useCallback(() => {
     const targetId = submissionEntityId ?? submissionId;
     if (!targetId) return;
@@ -773,15 +831,16 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
     return String(t).toLowerCase();
   }, [submission]);
 
-  // Redirect to Publication Details page when needed
-  if (formType === 'publication_reward') {
-    return (
+  const isPublicationReward = formType === 'publication_reward';
+
+  let renderedContent;
+
+  if (isPublicationReward) {
+    renderedContent = (
       <PublicationSubmissionDetails submissionId={submissionId} onBack={onBack} />
     );
-  }
-
-  if (loading) {
-    return (
+  } else if (loading) {
+    renderedContent = (
       <PageLayout
         title="รายละเอียดคำร้อง (Submission Details)"
         subtitle="กำลังโหลดข้อมูล."
@@ -801,10 +860,8 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
         </div>
       </PageLayout>
     );
-  }
-
-  if (!submission) {
-    return (
+  } else if (!submission) {
+    renderedContent = (
       <PageLayout title="ไม่พบข้อมูล" subtitle="ไม่พบคำร้องที่ระบุ" icon={FileText}>
         <Card collapsible={false}>
           <div className="text-center py-12">
@@ -851,12 +908,47 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
     return Math.max(researchApprovedAmount - (researchPaidAmount + researchPendingAmount), 0);
   })();
 
+  const eventAmountNumber = useMemo(() => {
+    const n = Number(eventForm?.amount);
+    if (!Number.isFinite(n) || n < 0) return 0;
+    return n;
+  }, [eventForm?.amount]);
+
+  const projectedRemainingAfterEntry = useMemo(() => {
+    const currentRemaining = Number(researchRemainingAmount);
+    const safeRemaining = Number.isFinite(currentRemaining) ? currentRemaining : 0;
+    const nextRemaining = safeRemaining - eventAmountNumber;
+    return nextRemaining <= FUND_CLOSE_THRESHOLD ? 0 : nextRemaining;
+  }, [eventAmountNumber, researchRemainingAmount]);
+
+  const canCloseFund = useMemo(() => {
+    const nextRemaining = projectedRemainingAfterEntry;
+    return nextRemaining <= FUND_CLOSE_THRESHOLD;
+  }, [projectedRemainingAfterEntry]);
+
+  useEffect(() => {
+    if (eventForm?.status === 'closed' && !canCloseFund) {
+      setEventForm((prev) => ({ ...prev, status: 'approved' }));
+    }
+  }, [eventForm?.status, canCloseFund]);
+
   const submittedAt =
     submission?.submitted_at || submission?.created_at || submission?.create_at;
 
   const handleOpenEventModal = () => {
     setEventErrors({});
-    setEventForm({ comment: '', amount: isFundClosed ? '0' : '', file: null });
+    const defaultStatus = (() => {
+      const initialStatus = currentFundStatusCode || (isFundClosed ? 'closed' : 'approved');
+      if (normalizeFundStatus(initialStatus) === 'closed') {
+        const initialRemaining = Number(researchRemainingAmount);
+        const canCloseInitially = Number.isFinite(initialRemaining)
+          ? initialRemaining <= FUND_CLOSE_THRESHOLD
+          : false;
+        return canCloseInitially ? 'closed' : 'approved';
+      }
+      return initialStatus || 'approved';
+    })();
+    setEventForm({ comment: '', amount: '', status: defaultStatus, file: null });
     if (eventFileInputRef.current) {
       eventFileInputRef.current.value = '';
     }
@@ -875,11 +967,24 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
   const handleEventAmountChange = (e) => {
     const value = e.target.value;
     setEventForm((prev) => ({ ...prev, amount: value }));
+    setEventErrors((prev) => ({ ...prev, amount: undefined, status: undefined }));
+  };
+
+  const handleEventStatusChange = (e) => {
+    const value = normalizeFundStatus(e.target.value);
+    setEventForm((prev) => {
+      if (value === 'closed' && !canCloseFund) {
+        return { ...prev, status: 'approved' };
+      }
+      return { ...prev, status: value || prev.status || 'approved' };
+    });
+    setEventErrors((prev) => ({ ...prev, status: undefined }));
   };
 
   const handleEventFileChange = (e) => {
     const file = e.target.files?.[0] || null;
     setEventForm((prev) => ({ ...prev, file }));
+    setEventErrors((prev) => ({ ...prev, file: undefined }));
   };
 
   const handleRemoveEventFile = () => {
@@ -887,17 +992,29 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
     if (eventFileInputRef.current) {
       eventFileInputRef.current.value = '';
     }
+    setEventErrors((prev) => ({ ...prev, file: undefined }));
   };
 
   const handleEventSubmit = async (ev) => {
     ev.preventDefault();
     const errors = {};
     const amountValue = Number(eventForm.amount || 0);
+    const normalizedStatus = normalizeFundStatus(
+      eventForm.status || currentFundStatusCode || 'approved'
+    );
 
     if (!Number.isFinite(amountValue)) {
       errors.amount = 'กรุณากรอกจำนวนเงินเป็นตัวเลข';
     } else if (amountValue < 0) {
       errors.amount = 'จำนวนเงินต้องไม่ติดลบ';
+    }
+
+    if (!normalizedStatus || !['approved', 'closed'].includes(normalizedStatus)) {
+      errors.status = 'กรุณาเลือกสถานะ';
+    }
+
+    if (normalizedStatus === 'closed' && !canCloseFund) {
+      errors.status = 'สามารถปิดทุนได้เมื่อยอดอนุมัติคงเหลือเป็น 0';
     }
 
     if (amountValue > 0 && !eventForm.file) {
@@ -924,57 +1041,47 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
       formData.append('files', eventForm.file);
     }
 
+    const statusCodeForSubmit = normalizedStatus === 'closed' ? 'closed' : 'approved';
+    const statusIdForSubmit = statusCodeForSubmit === 'closed' ? '6' : '1';
+    formData.append('status', statusCodeForSubmit);
+    formData.append('status_code', statusCodeForSubmit);
+    formData.append('status_id', statusIdForSubmit);
+    formData.append('status_after_id', statusIdForSubmit);
+
+    const eventType = amountValue > 0 ? 'payment' : 'note';
+    formData.append('event_type', eventType);
+
     setEventSubmitting(true);
     try {
-      await adminSubmissionAPI.createResearchFundEvent(submission.submission_id, formData);
+      const result = await adminSubmissionAPI.createResearchFundEvent(submission.submission_id, formData);
       toast.success('บันทึกประวัติเรียบร้อย');
       setShowEventModal(false);
+      const updatedStatus = normalizeFundStatus(
+        result?.totals?.status ??
+          result?.totals?.status_code ??
+          (result?.totals?.is_closed ? 'closed' : null)
+      );
+      setEventForm({ comment: '', amount: '', status: updatedStatus || statusCodeForSubmit, file: null });
+      setEventErrors({});
+      if (eventFileInputRef.current) {
+        eventFileInputRef.current.value = '';
+      }
+      if (Array.isArray(result?.events)) {
+        setResearchEvents(sortEventsByCreatedAt(result.events));
+      }
+      if (result?.totals) {
+        setResearchTotals(result.totals);
+        setIsFundClosed(Boolean(result.totals?.is_closed));
+      }
       await refetchSubmission();
-      await loadResearchEvents(submission.submission_id);
+      if (!Array.isArray(result?.events) || !result?.totals) {
+        await loadResearchEvents(submission.submission_id);
+      }
     } catch (error) {
       console.error('create research fund event failed', error);
       toast.error(error?.message || 'บันทึกประวัติไม่สำเร็จ');
     } finally {
       setEventSubmitting(false);
-    }
-  };
-
-  const handleToggleClosure = async () => {
-    if (!submission?.submission_id) return;
-    const nextState = !isFundClosed;
-    setToggleClosureLoading(true);
-    try {
-      const result = await adminSubmissionAPI.toggleResearchFundClosure(
-        submission.submission_id,
-        {
-          status: nextState ? 'closed' : 'approved',
-          is_closed: nextState,
-        }
-      );
-      const totals = result?.totals;
-      if (totals) {
-        setResearchTotals(totals);
-        setIsFundClosed(Boolean(totals?.is_closed));
-      } else {
-        setIsFundClosed(nextState);
-      }
-      if (Array.isArray(result?.events)) {
-        const toTimestamp = (value) => {
-          if (!value) return 0;
-          const date = new Date(value);
-          return Number.isNaN(date.getTime()) ? 0 : date.getTime();
-        };
-        const sorted = [...result.events].sort((a, b) => toTimestamp(b.created_at) - toTimestamp(a.created_at));
-        setResearchEvents(sorted);
-      } else {
-        await loadResearchEvents(submission.submission_id);
-      }
-      toast.success(nextState ? 'ปิดทุนเรียบร้อย' : 'เปิดทุนแล้ว');
-    } catch (error) {
-      console.error('toggle research fund closure failed', error);
-      toast.error(error?.message || 'เปลี่ยนสถานะไม่สำเร็จ');
-    } finally {
-      setToggleClosureLoading(false);
     }
   };
 
@@ -1109,6 +1216,10 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
     a.click();
     a.remove();
   };
+
+  if (renderedContent) {
+    return renderedContent;
+  }
 
   // ===== Render =====
   return (
@@ -1275,28 +1386,26 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
             <div className="flex flex-col gap-4 rounded-lg border border-gray-200 bg-gray-50 p-4 md:flex-row md:items-center md:justify-between">
               <div>
                 <p className="text-sm text-gray-500">สถานะการจ่ายทุน</p>
-                <p className="text-base font-semibold text-gray-800">
-                  {isFundClosed ? 'ปิดทุน' : 'อนุมัติ'}
-                </p>
+                <div className="mt-1 flex flex-col gap-2">
+                  <span
+                    className={`inline-flex w-fit items-center rounded-full px-3 py-1 text-xs font-semibold ${
+                      currentFundStatusCode === 'closed'
+                        ? 'bg-gray-200 text-gray-700'
+                        : 'bg-green-100 text-green-700'
+                    }`}
+                  >
+                    {currentFundStatusLabel || '-'}
+                  </span>
+                  <p className="text-xs text-gray-500">
+                    สามารถเปลี่ยนสถานะได้ขณะบันทึกประวัติการจ่ายทุน
+                  </p>
+                </div>
                 {researchTotals?.last_event_at && (
                   <p className="text-xs text-gray-500 mt-1">
                     อัปเดตล่าสุด: {formatDateTime(researchTotals.last_event_at)}
                   </p>
                 )}
               </div>
-              <button
-                type="button"
-                onClick={handleToggleClosure}
-                className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-offset-2 ${
-                  isFundClosed
-                    ? 'bg-gray-200 text-gray-700 hover:bg-gray-300 focus:ring-gray-400'
-                    : 'bg-green-100 text-green-700 hover:bg-green-200 focus:ring-green-300'
-                } disabled:cursor-not-allowed disabled:opacity-60`}
-                disabled={toggleClosureLoading}
-              >
-                {isFundClosed ? <ToggleLeft size={18} /> : <ToggleRight size={18} />}
-                {toggleClosureLoading ? 'กำลังอัปเดต...' : isFundClosed ? 'เปิดทุนอีกครั้ง' : 'ปิดทุน'}
-              </button>
             </div>
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -1392,42 +1501,89 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
                             <div className="text-xs text-gray-500">{formatDateTime(event.created_at)}</div>
                           </td>
                           <td className="px-4 py-3">
-                            {event.file_id || event.file_path ? (
-                              <div className="flex flex-col gap-2">
-                                {event.file_name && (
-                                  <span className="text-xs text-gray-500 break-all">{event.file_name}</span>
-                                )}
-                                {event.file_id ? (
-                                  <div className="flex flex-wrap gap-2">
-                                    <button
-                                      type="button"
-                                      onClick={() => handleView(event.file_id)}
-                                      className="inline-flex items-center gap-1 rounded-md border border-blue-200 px-2 py-1 text-xs text-blue-600 hover:bg-blue-50"
-                                    >
-                                      ดูไฟล์
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => handleDownload(event.file_id, event.file_name || 'attachment')}
-                                      className="inline-flex items-center gap-1 rounded-md border border-green-200 px-2 py-1 text-xs text-green-600 hover:bg-green-50"
-                                    >
-                                      ดาวน์โหลด
-                                    </button>
-                                  </div>
-                                ) : (
-                                  <a
-                                    href={getFileURL(event.file_path)}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="inline-flex items-center gap-1 text-xs text-blue-600 underline"
-                                  >
-                                    เปิดไฟล์แนบ
-                                  </a>
-                                )}
-                              </div>
-                            ) : (
-                              <span className="text-xs text-gray-400">ไม่มีไฟล์แนบ</span>
-                            )}
+                            {(() => {
+                              const attachmentList = Array.isArray(event.attachments) && event.attachments.length > 0
+                                ? event.attachments
+                                : event.file_id || event.file_path || event.file_name
+                                  ? [
+                                      {
+                                        file_id: event.file_id,
+                                        file_path: event.file_path,
+                                        file_name: event.file_name,
+                                      },
+                                    ]
+                                  : [];
+
+                              if (!attachmentList.length) {
+                                return <span className="text-xs text-gray-400">ไม่มีไฟล์แนบ</span>;
+                              }
+
+                              return (
+                                <div className="space-y-2">
+                                  {attachmentList.map((file, index) => {
+                                    const fileKey = file.file_id ?? `${event.id || event.created_at}-file-${index}`;
+                                    const displayName = getAttachmentDisplayName(file);
+                                    const fileLabel = `ไฟล์ที่ ${index + 1}`;
+                                    const titleLabel = displayName
+                                      ? `${fileLabel} ${displayName}`
+                                      : fileLabel;
+                                    const downloadName = displayName || `attachment-${index + 1}`;
+                                    return (
+                                      <div
+                                        key={fileKey}
+                                        className="rounded-md border border-gray-200 bg-white p-2"
+                                      >
+                                        <div className="flex items-start justify-between gap-2">
+                                          <div className="flex-1 min-w-0">
+                                            <p className="text-xs font-medium text-gray-700 break-all" title={titleLabel}>
+                                              {fileLabel}
+                                            </p>
+                                            {displayName && (
+                                              <p className="mt-0.5 text-[11px] text-gray-500 break-all" title={displayName}>
+                                                {displayName}
+                                              </p>
+                                            )}
+                                          </div>
+                                          <div className="flex flex-wrap gap-2">
+                                            {file.file_id ? (
+                                              <>
+                                                <button
+                                                  type="button"
+                                                  onClick={() => handleView(file.file_id)}
+                                                  className="inline-flex items-center gap-1 rounded-md border border-blue-200 px-2 py-1 text-xs font-medium text-blue-600 hover:bg-blue-50"
+                                                >
+                                                  <Eye size={12} />
+                                                  <span>ดูไฟล์</span>
+                                                </button>
+                                                <button
+                                                  type="button"
+                                                  onClick={() => handleDownload(file.file_id, downloadName)}
+                                                  className="inline-flex items-center gap-1 rounded-md border border-green-200 px-2 py-1 text-xs font-medium text-green-600 hover:bg-green-50"
+                                                >
+                                                  <Download size={12} />
+                                                  <span>ดาวน์โหลด</span>
+                                                </button>
+                                              </>
+                                            ) : file.file_path ? (
+                                              <a
+                                                href={getFileURL(file.file_path)}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="inline-flex items-center gap-1 text-xs font-medium text-blue-600 underline"
+                                                title={titleLabel}
+                                              >
+                                                <Eye size={12} />
+                                                <span>เปิดไฟล์แนบ</span>
+                                              </a>
+                                            ) : null}
+                                          </div>
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              );
+                            })()}
                           </td>
                         </tr>
                       ))}
@@ -1564,115 +1720,157 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
         </div>
       </Card>
 
-      {showEventModal && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4"
-          onClick={handleCloseEventModal}
-        >
-          <div
-            className="w-full max-w-lg overflow-hidden rounded-xl bg-white shadow-2xl"
-            onClick={(e) => e.stopPropagation()}
+      <AnimatePresence>
+        {showEventModal && (
+          <motion.div
+            key="event-modal"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2, ease: 'easeOut' }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4"
+            onClick={handleCloseEventModal}
           >
-            <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4">
-              <h3 className="text-lg font-semibold text-gray-800">เพิ่มประวัติการจ่ายทุนวิจัย</h3>
-              <button
-                type="button"
-                onClick={handleCloseEventModal}
-                className="rounded-full p-1 text-gray-500 hover:bg-gray-100 hover:text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                aria-label="ปิดโมดัล"
-              >
-                ✕
-              </button>
-            </div>
-            <form onSubmit={handleEventSubmit} className="space-y-5 px-6 py-5">
-              <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700">หมายเหตุ</label>
-                <textarea
-                  rows={3}
-                  value={eventForm.comment}
-                  onChange={handleEventCommentChange}
-                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-700 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                  placeholder="ระบุรายละเอียดเพิ่มเติม (ถ้ามี)"
-                  disabled={eventSubmitting}
-                />
-              </div>
-
-              <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700">จำนวนเงินที่จ่าย (บาท)</label>
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={eventForm.amount}
-                  onChange={handleEventAmountChange}
-                  disabled={isFundClosed || eventSubmitting}
-                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-700 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:bg-gray-100"
-                  placeholder={isFundClosed ? 'ทุนถูกปิด ไม่สามารถบันทึกจำนวนเงินได้' : '0.00'}
-                />
-                {isFundClosed && (
-                  <p className="mt-1 text-xs text-gray-500">สถานะทุนถูกปิด จะบันทึกได้เฉพาะหมายเหตุ</p>
-                )}
-                {eventErrors.amount && (
-                  <p className="mt-1 text-sm text-red-600">{eventErrors.amount}</p>
-                )}
-              </div>
-
-              <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700">ไฟล์แนบ</label>
-                <input
-                  ref={eventFileInputRef}
-                  type="file"
-                  onChange={handleEventFileChange}
-                  disabled={eventSubmitting}
-                  className="block w-full text-sm text-gray-700 file:mr-4 file:rounded-md file:border-0 file:bg-blue-50 file:px-4 file:py-2 file:text-blue-600 hover:file:bg-blue-100"
-                  accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx"
-                />
-                {eventForm.file && (
-                  <div className="mt-2 flex items-center justify-between rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-600">
-                    <span className="truncate" title={eventForm.file.name}>{eventForm.file.name}</span>
-                    <button
-                      type="button"
-                      onClick={handleRemoveEventFile}
-                      className="text-red-500 hover:underline"
-                      disabled={eventSubmitting}
-                    >
-                      ลบไฟล์
-                    </button>
-                  </div>
-                )}
-                {eventErrors.file && (
-                  <p className="mt-1 text-sm text-red-600">{eventErrors.file}</p>
-                )}
-                <p className="mt-1 text-xs text-gray-500">จำเป็นต้องแนบไฟล์เมื่อมีการบันทึกจำนวนเงิน</p>
-              </div>
-
-              <div className="flex items-center justify-between rounded-md bg-blue-50 px-4 py-3 text-xs text-blue-700">
-                <span>ยอดอนุมัติคงเหลือ: {baht(Math.max(researchRemainingAmount, 0))}</span>
-                <span>ยอดจ่ายสะสม: {baht(researchPaidAmount + researchPendingAmount)}</span>
-              </div>
-
-              <div className="flex justify-end gap-3 border-t border-gray-200 pt-4">
+            <motion.div
+              initial={{ opacity: 0, y: 24, scale: 0.95 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 24, scale: 0.95 }}
+              transition={{ duration: 0.2, ease: 'easeOut' }}
+              className="w-full max-w-lg overflow-hidden rounded-xl bg-white shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4">
+                <h3 className="text-lg font-semibold text-gray-800">เพิ่มประวัติการจ่ายทุนวิจัย</h3>
                 <button
                   type="button"
                   onClick={handleCloseEventModal}
-                  className="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
-                  disabled={eventSubmitting}
+                  className="rounded-full p-1 text-gray-500 hover:bg-gray-100 hover:text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  aria-label="ปิดโมดัล"
                 >
-                  ยกเลิก
-                </button>
-                <button
-                  type="submit"
-                  className="inline-flex items-center gap-2 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 disabled:cursor-not-allowed disabled:opacity-60"
-                  disabled={eventSubmitting}
-                >
-                  {eventSubmitting && <Loader2 size={16} className="animate-spin" />}
-                  บันทึกประวัติ
+                  ✕
                 </button>
               </div>
-            </form>
-          </div>
-        </div>
-      )}
+              <form onSubmit={handleEventSubmit} className="space-y-5 px-6 py-5">
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-gray-700">สถานะหลังบันทึก</label>
+                  <select
+                    value={eventForm.status || currentFundStatusCode || 'approved'}
+                    onChange={handleEventStatusChange}
+                    disabled={eventSubmitting}
+                    className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-700 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  >
+                    <option value="approved">อนุมัติ (เปิดทุน)</option>
+                    <option value="closed" disabled={!canCloseFund}>
+                      ปิดทุน
+                    </option>
+                  </select>
+                  {eventErrors.status && (
+                    <p className="mt-1 text-sm text-red-600">{eventErrors.status}</p>
+                  )}
+                  <p className="mt-1 text-xs text-gray-500">
+                    ระบบจะอัปเดตสถานะคำร้องตามที่เลือกในการบันทึกครั้งนี้
+                  </p>
+                  {!canCloseFund && (
+                    <p className="mt-1 text-xs text-orange-600">
+                      สามารถปิดทุนได้เมื่อยอดอนุมัติคงเหลือหลังการบันทึกครั้งนี้เท่ากับ 0 บาท
+                    </p>
+                  )}
+                </div>
+
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-gray-700">หมายเหตุ</label>
+                  <textarea
+                    rows={3}
+                    value={eventForm.comment}
+                    onChange={handleEventCommentChange}
+                    className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-700 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    placeholder="ระบุรายละเอียดเพิ่มเติม (ถ้ามี)"
+                    disabled={eventSubmitting}
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-gray-700">จำนวนเงินที่จ่าย (บาท)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={eventForm.amount}
+                    onChange={handleEventAmountChange}
+                    disabled={eventSubmitting}
+                    className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-700 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    placeholder="0.00"
+                  />
+                  {eventErrors.amount && (
+                    <p className="mt-1 text-sm text-red-600">{eventErrors.amount}</p>
+                  )}
+                </div>
+
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-gray-700">ไฟล์แนบ</label>
+                  <input
+                    ref={eventFileInputRef}
+                    type="file"
+                    onChange={handleEventFileChange}
+                    disabled={eventSubmitting}
+                    className="block w-full text-sm text-gray-700 file:mr-4 file:rounded-md file:border-0 file:bg-blue-50 file:px-4 file:py-2 file:text-blue-600 hover:file:bg-blue-100"
+                    accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx"
+                  />
+                  {eventForm.file && (
+                    <div className="mt-2 flex items-center justify-between rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-600">
+                      <span className="truncate" title={eventForm.file.name}>{eventForm.file.name}</span>
+                      <button
+                        type="button"
+                        onClick={handleRemoveEventFile}
+                        className="text-red-500 hover:underline"
+                        disabled={eventSubmitting}
+                      >
+                        ลบไฟล์
+                      </button>
+                    </div>
+                  )}
+                  {eventErrors.file && (
+                    <p className="mt-1 text-sm text-red-600">{eventErrors.file}</p>
+                  )}
+                  <p className="mt-1 text-xs text-gray-500">จำเป็นต้องแนบไฟล์เมื่อมีการบันทึกจำนวนเงิน</p>
+                </div>
+
+                <div className="flex flex-col gap-2 rounded-md bg-blue-50 px-4 py-3 text-xs text-blue-700 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex flex-col gap-1">
+                    <span>ยอดอนุมัติคงเหลือปัจจุบัน: {baht(Math.max(researchRemainingAmount, 0))}</span>
+                    <span>คาดว่าจะเหลือหลังบันทึก: {baht(Math.max(projectedRemainingAfterEntry, 0))}</span>
+                    {canCloseFund ? (
+                      <span className="text-[11px] font-medium text-emerald-600">
+                        ยอดคงเหลือหลังบันทึกเป็น 0 สามารถปิดทุนได้
+                      </span>
+                    ) : null}
+                  </div>
+                  <span className="sm:text-right">ยอดจ่ายสะสม: {baht(researchPaidAmount + researchPendingAmount)}</span>
+                </div>
+
+                <div className="flex justify-end gap-3 border-t border-gray-200 pt-4">
+                  <button
+                    type="button"
+                    onClick={handleCloseEventModal}
+                    className="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
+                    disabled={eventSubmitting}
+                  >
+                    ยกเลิก
+                  </button>
+                  <button
+                    type="submit"
+                    className="inline-flex items-center gap-2 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 disabled:cursor-not-allowed disabled:opacity-60"
+                    disabled={eventSubmitting}
+                  >
+                    {eventSubmitting && <Loader2 size={16} className="animate-spin" />}
+                    บันทึกประวัติ
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </PageLayout>
   );
 }
