@@ -110,7 +110,7 @@ configuration file located at `app/config/branding.js`.
 
 | Element | Where to change it | Notes |
 | --- | --- | --- |
-| Logo badge (fallback text, optional image, colors) | `BRANDING.logo` | Supply `imageSrc` to display an image instead of the default text badge. |
+| Logo badge (fallback text, optional image, colors) | `BRANDING.logo` | Supply `imageSrc` (e.g. `/image_icon/fund_cpkku_logo.png` for a file in `public/image_icon`) to display an image instead of the default text badge. |
 | Application name | `BRANDING.appName` | Appears next to the logo for both Admin and Member dashboards. |
 | Subtitle / description | `BRANDING.subtitles.admin` and `BRANDING.subtitles.member` | Each dashboard can show a different subtitle.
 

@@ -24,8 +24,8 @@ export const BRANDING = Object.freeze({
    */
   logo: {
     text: null,
-    imageSrc: null,
-    imageAlt: "Fund Management logo",
-    backgroundClass: "bg-gradient-to-br from-blue-500 to-purple-600",
+    imageSrc: "/image_icon/fund_cpkku_logo.png",
+    imageAlt: "Fund CPKKU logo",
+    backgroundClass: "",
   },
 });
