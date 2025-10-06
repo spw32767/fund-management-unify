@@ -130,6 +130,7 @@ function DeptDecisionPanel({ submission, onApprove, onReject, onBack }) {
   const canAct = statusId === 1 || String(submission?.status?.status_code || '').toLowerCase() === 'pending';
 
   const handleApprove = async () => {
+    const trimmedComment = comment?.trim() || '';
     const trimmedSignature = headSignature?.trim() || '';
     if (!trimmedSignature) {
       await Swal.fire({
@@ -139,8 +140,6 @@ function DeptDecisionPanel({ submission, onApprove, onReject, onBack }) {
       });
       return;
     }
-
-    const trimmedComment = comment?.trim() || '';
     const html = `
       <div style="text-align:left;font-size:14px;line-height:1.6;">
         <div style="margin-bottom:0.75rem;">
@@ -189,15 +188,6 @@ function DeptDecisionPanel({ submission, onApprove, onReject, onBack }) {
 
   const handleReject = async () => {
     const trimmedSignature = headSignature?.trim() || '';
-    if (!trimmedSignature) {
-      await Swal.fire({
-        icon: 'warning',
-        title: 'กรุณาระบุลายเซ็นหัวหน้าสาขา',
-        text: 'โปรดพิมพ์ชื่อเต็มของหัวหน้าสาขาก่อนดำเนินการ.',
-      });
-      return;
-    }
-
     const trimmedComment = comment?.trim() || '';
     // Step 1: กล่องกรอกเหตุผล
     const { value: reason } = await Swal.fire({
@@ -225,9 +215,10 @@ function DeptDecisionPanel({ submission, onApprove, onReject, onBack }) {
           </div>
           <div style="margin-bottom:0.75rem;">
             <div style="font-weight:500;margin-bottom:.25rem;">ลายเซ็นหัวหน้าสาขา</div>
-            <div style="border:1px solid #e5e7eb;background:#f9fafb;padding:.5rem;border-radius:.5rem;">
-              ${escapeHtml(trimmedSignature)}
-            </div>
+            ${trimmedSignature
+              ? `<div style=\"border:1px solid #e5e7eb;background:#f9fafb;padding:.5rem;border-radius:.5rem;\">${escapeHtml(trimmedSignature)}</div>`
+              : `<div style=\"font-size:12px;color:#6b7280;\">(ไม่ระบุลายเซ็น)</div>`
+            }
           </div>
           <div>
             <div style="font-weight:500;margin-bottom:.25rem;">หมายเหตุจากหัวหน้าสาขา</div>
