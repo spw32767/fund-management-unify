@@ -548,7 +548,7 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
           const date = new Date(value);
           return Number.isNaN(date.getTime()) ? 0 : date.getTime();
         };
-        const sorted = [...events].sort((a, b) => toTimestamp(b.created_at) - toTimestamp(a.created_at));
+        const sorted = [...events].sort((a, b) => toTimestamp(a.created_at) - toTimestamp(b.created_at));
         setResearchEvents(sorted);
         setResearchTotals(totals || null);
         setIsFundClosed(Boolean(totals?.is_closed));
@@ -964,7 +964,7 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
           const date = new Date(value);
           return Number.isNaN(date.getTime()) ? 0 : date.getTime();
         };
-        const sorted = [...result.events].sort((a, b) => toTimestamp(b.created_at) - toTimestamp(a.created_at));
+        const sorted = [...result.events].sort((a, b) => toTimestamp(a.created_at) - toTimestamp(b.created_at));
         setResearchEvents(sorted);
       } else {
         await loadResearchEvents(submission.submission_id);
@@ -1287,19 +1287,19 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
               <button
                 type="button"
                 onClick={handleToggleClosure}
-                className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-offset-2 ${
+                className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-offset-2 transition-colors ${
                   isFundClosed
-                    ? 'bg-gray-200 text-gray-700 hover:bg-gray-300 focus:ring-gray-400'
+                    ? 'bg-red-100 text-red-700 hover:bg-red-200 focus:ring-red-300'
                     : 'bg-green-100 text-green-700 hover:bg-green-200 focus:ring-green-300'
                 } disabled:cursor-not-allowed disabled:opacity-60`}
                 disabled={toggleClosureLoading}
               >
                 {isFundClosed ? <ToggleLeft size={18} /> : <ToggleRight size={18} />}
-                {toggleClosureLoading ? 'กำลังอัปเดต...' : isFundClosed ? 'เปิดทุนอีกครั้ง' : 'ปิดทุน'}
+                {toggleClosureLoading ? 'กำลังอัปเดต...' : isFundClosed ? 'เปิดทุน' : 'ปิดทุน'}
               </button>
             </div>
 
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
               <div className="rounded-lg bg-blue-50 p-4">
                 <p className="text-xs font-semibold uppercase tracking-wide text-blue-600">ยอดอนุมัติรวม</p>
                 <p className="mt-2 text-xl font-semibold text-blue-900">{baht(researchApprovedAmount)}</p>
@@ -1307,10 +1307,6 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
               <div className="rounded-lg bg-green-50 p-4">
                 <p className="text-xs font-semibold uppercase tracking-wide text-green-600">จ่ายแล้ว</p>
                 <p className="mt-2 text-xl font-semibold text-green-900">{baht(researchPaidAmount)}</p>
-              </div>
-              <div className="rounded-lg bg-amber-50 p-4">
-                <p className="text-xs font-semibold uppercase tracking-wide text-amber-600">รอดำเนินการ</p>
-                <p className="mt-2 text-xl font-semibold text-amber-900">{baht(researchPendingAmount)}</p>
               </div>
               <div className="rounded-lg bg-gray-50 p-4">
                 <p className="text-xs font-semibold uppercase tracking-wide text-gray-600">คงเหลือ</p>
@@ -1463,68 +1459,122 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
                   doc.name ||
                   `เอกสารที่ ${index + 1}`;
                 const docType = (doc.document_type_name || '').trim() || 'ไม่ระบุประเภท';
+                const extension = (fileName.split('.').pop() || '').toUpperCase();
+                const filePath = doc.file_path || doc.File?.stored_path || doc.file?.stored_path;
+
+                const openExternal = () => {
+                  if (fileId) {
+                    handleView(fileId);
+                    return;
+                  }
+                  if (filePath) {
+                    window.open(getFileURL(filePath), '_blank', 'noopener');
+                  }
+                };
+
+                const handleCardClick = (event) => {
+                  if (!fileId) return;
+                  if (event.target instanceof Element && event.target.closest('button, a')) {
+                    return;
+                  }
+                  handleView(fileId);
+                };
+
+                const handleCardKeyDown = (event) => {
+                  if (!fileId) return;
+                  if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    handleView(fileId);
+                  }
+                };
 
                 return (
                   <div
                     key={doc.document_id || fileId || index}
-                    className="bg-gray-50/50 rounded-lg p-4 hover:bg-gray-50 transition-colors duration-200"
+                    className={`group relative rounded-xl border border-transparent bg-white/80 p-4 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-md ${
+                      fileId ? 'cursor-pointer' : 'cursor-default'
+                    }`}
+                    onClick={handleCardClick}
+                    onKeyDown={handleCardKeyDown}
+                    role={fileId ? 'button' : undefined}
+                    tabIndex={fileId ? 0 : undefined}
+                    aria-label={fileId ? `เปิดดู ${fileName}` : undefined}
                   >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-4 flex-1 min-w-0">
-                        <div className="flex-shrink-0 w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center">
-                          <span className="text-gray-600 font-semibold text-sm">
-                            {index + 1}
-                          </span>
+                    <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="flex flex-1 items-start gap-4 min-w-0">
+                        <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-lg bg-blue-50 text-sm font-semibold text-blue-600">
+                          {extension || index + 1}
                         </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-1">
-                          <FileText size={16} className="text-gray-600 flex-shrink-0" />
-                          <p className="text-sm text-gray-600">
-                            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-green-100 text-green-700">
+                        <div className="min-w-0 flex-1 space-y-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <FileText size={16} className="text-gray-500" />
+                            <span className="inline-flex items-center rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">
                               {docType}
                             </span>
-                          </p>
                           </div>
-                            {/* ชื่อไฟล์: ทำเป็นลิงก์สีน้ำเงิน กดแล้วเรียก handleView(fileId) */}
-                            {fileId ? (
-                              <a
-                                href="#"
-                                onClick={(e) => { e.preventDefault(); handleView(fileId); }}
-                                className="font-medium text-blue-600 hover:underline truncate cursor-pointer"
-                                title={`เปิดดู: ${fileName}`}
-                              >
-                                {fileName}
-                              </a>
-                            ) : (
-                              <span
-                                className="font-medium text-gray-400 truncate"
-                                title={fileName}
-                              >
-                                {fileName}
-                              </span>
-                            )}
+                          {fileId ? (
+                            <button
+                              type="button"
+                              onClick={() => handleView(fileId)}
+                              className="block max-w-full truncate text-left text-sm font-medium text-blue-600 underline-offset-2 hover:underline"
+                              title={`เปิดดู: ${fileName}`}
+                            >
+                              {fileName}
+                            </button>
+                          ) : filePath ? (
+                            <a
+                              href={getFileURL(filePath)}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="block max-w-full truncate text-sm font-medium text-blue-600 underline-offset-2 hover:underline"
+                              title={`เปิดดู: ${fileName}`}
+                            >
+                              {fileName}
+                            </a>
+                          ) : (
+                            <span className="block max-w-full truncate text-sm font-medium text-gray-500" title={fileName}>
+                              {fileName}
+                            </span>
+                          )}
+                          {doc.remark && (
+                            <p className="text-xs text-gray-500">{doc.remark}</p>
+                          )}
                         </div>
                       </div>
 
-                      <div className="flex items-center gap-2 ml-4">
-                        <button
-                          className="inline-flex items-center gap-1 px-3 py-2 text-sm text-blue-600 hover:bg-blue-100 rounded-md transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-                          onClick={() => handleView(fileId)}
-                          disabled={!fileId}
-                          title="เปิดดูไฟล์"
-                        >
-                          <Eye size={14} />
-                          <span>ดู</span>
-                        </button>
-                        <button
-                          className="inline-flex items-center gap-1 px-3 py-2 text-sm text-green-600 hover:bg-green-100 rounded-md transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-                          onClick={() => handleDownload(fileId, fileName)}
-                          disabled={!fileId}
-                          title="ดาวน์โหลดไฟล์"
-                        >
-                          <Download size={14} />
-                          <span>ดาวน์โหลด</span>
-                        </button>
+                      <div className="flex flex-wrap items-center gap-2">
+                        {fileId ? (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => handleView(fileId)}
+                              className="inline-flex items-center gap-1 rounded-full border border-blue-200 bg-white px-3 py-2 text-xs font-medium text-blue-600 transition-colors hover:bg-blue-50"
+                              title="เปิดดูไฟล์"
+                            >
+                              <Eye size={14} />
+                              <span>เปิดดู</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDownload(fileId, fileName)}
+                              className="inline-flex items-center gap-1 rounded-full border border-green-200 bg-white px-3 py-2 text-xs font-medium text-green-600 transition-colors hover:bg-green-50"
+                              title="ดาวน์โหลดไฟล์"
+                            >
+                              <Download size={14} />
+                              <span>ดาวน์โหลด</span>
+                            </button>
+                          </>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={openExternal}
+                            className="inline-flex items-center gap-1 rounded-full border border-blue-200 bg-white px-3 py-2 text-xs font-medium text-blue-600 transition-colors hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-60"
+                            disabled={!filePath}
+                          >
+                            <Eye size={14} />
+                            <span>เปิดไฟล์</span>
+                          </button>
+                        )}
                       </div>
                     </div>
                   </div>
