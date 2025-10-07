@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Search, Eye, Download, FileText, ClipboardList, Plus, RefreshCcw } from "lucide-react";
 import { submissionAPI, teacherAPI } from "@/app/lib/member_api";
 import { systemAPI } from "@/app/lib/api";
@@ -22,6 +22,7 @@ export default function ApplicationList({ onNavigate }) {
   const [loading, setLoading] = useState(false);
   const [years, setYears] = useState([]);
   const [yearsLoading, setYearsLoading] = useState(false);
+  const latestApplicationsRequestRef = useRef(0);
   const {
     statuses: statusOptions,
     getLabelById,
@@ -139,6 +140,7 @@ export default function ApplicationList({ onNavigate }) {
 
   // Load applications from API
   const loadApplications = async () => {
+    const requestId = ++latestApplicationsRequestRef.current;
     setLoading(true);
     try {
       // Build query params for API
@@ -171,7 +173,7 @@ export default function ApplicationList({ onNavigate }) {
       // Debug log
       console.log('API Response:', response);
 
-      if (response.success && response.submissions) {
+      if (response.success && Array.isArray(response.submissions)) {
         // Transform data to match existing structure
         const transformedData = response.submissions.map(sub => {
           const subId = getSubcategoryId(sub);
@@ -250,17 +252,25 @@ export default function ApplicationList({ onNavigate }) {
           return !(isApprovedLike || isClosedLike);
         });
 
-        setApplications(nonApprovedApplications);
-        setFilteredApplications(nonApprovedApplications);
+        if (latestApplicationsRequestRef.current === requestId) {
+          setApplications(nonApprovedApplications);
+          setFilteredApplications(nonApprovedApplications);
+        }
+      } else if (latestApplicationsRequestRef.current === requestId) {
+        setApplications([]);
+        setFilteredApplications([]);
       }
     } catch (error) {
       console.error('Error loading applications:', error);
       // Fallback to empty array
-      setApplications([]);
-      setFilteredApplications([]);
+      if (latestApplicationsRequestRef.current === requestId) {
+        setApplications([]);
+        setFilteredApplications([]);
+      }
     } finally {
-      setLoading(false);
-    }
+      if (latestApplicationsRequestRef.current === requestId) {
+        setLoading(false);
+      }    }
   };
 
   // Helper functions to extract data
@@ -486,19 +496,14 @@ export default function ApplicationList({ onNavigate }) {
     }
   };
 
-  const handleDownload = (id) => {
-    console.log("Download:", id);
-    // Handle download
-  };
-
   const handleCreateNew = () => {
     if (onNavigate) {
       onNavigate('research-fund');
     }
   };
 
-  const handleRefresh = () => {
-    loadApplications();
+  const handleRefresh = async () => {
+    await loadApplications();
   };
 
   return (
