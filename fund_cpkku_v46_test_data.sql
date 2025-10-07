@@ -1389,6 +1389,7 @@ INSERT INTO `scholar_import_runs` (`id`, `trigger_source`, `status`, `error_mess
 CREATE TABLE `subcategory_budgets` (
   `subcategory_budget_id` int(11) NOT NULL,
   `subcategory_id` int(11) NOT NULL,
+  `record_scope` enum('overall','rule') NOT NULL DEFAULT 'rule' COMMENT 'overall = งบสรุปภาพรวม, rule = รายการเงื่อนไข',
   `allocated_amount` decimal(15,2) DEFAULT NULL COMMENT 'จำนวนทุนต่อไป',
   `remaining_budget` decimal(15,2) DEFAULT NULL,
   `used_amount` decimal(15,2) DEFAULT NULL,
@@ -1441,6 +1442,61 @@ INSERT INTO `subcategory_budgets` (`subcategory_budget_id`, `subcategory_id`, `a
 (35, 15, '3500000.00', '3500000.00', '0.00', '15000.00', NULL, NULL, NULL, 'active', 'วารสารระดับนานาชาติในฐานข้อมูล WOS หรือ ISI หรือ SCOPUS ควอร์ไทล์ 3', NULL, '2025-06-30 11:48:03', '2025-08-11 11:49:58', NULL),
 (36, 15, '3500000.00', '3500000.00', '0.00', '7500.00', NULL, NULL, NULL, 'active', 'วารสารระดับนานาชาติในฐานข้อมูล WOS หรือ ISI หรือ SCOPUS ควอร์ไทล์ 4', NULL, '2025-06-30 11:48:03', '2025-08-11 11:49:58', NULL),
 (37, 15, '3500000.00', '3500000.00', '0.00', '3000.00', NULL, NULL, NULL, 'active', 'บทความตีพิมพ์ในวารสารระดับนานาชาติในฐานข้อมูล WOS หรือ ISI หรือ SCOPUS หรือวารสารที่อยู่ในฐานข้อมูล TCI กลุ่มที่ 1 สาขาวิทยาศาสตร์เทคโนโลยี ', NULL, '2025-06-30 11:48:03', '2025-08-11 11:49:58', NULL);
+
+--
+-- กำหนดขอบเขตข้อมูลของตาราง subcategory_budgets
+--
+
+-- แถวที่มีเพียงหนึ่งรายการต่อทุนรองจะถือเป็น "overall"
+UPDATE subcategory_budgets sb
+JOIN (
+    SELECT subcategory_id
+    FROM subcategory_budgets
+    WHERE delete_at IS NULL
+    GROUP BY subcategory_id
+    HAVING COUNT(*) = 1
+) single ON sb.subcategory_id = single.subcategory_id
+SET sb.record_scope = 'overall';
+
+-- สร้างแถว "overall" สำหรับทุนรองที่มีหลายเงื่อนไข
+INSERT INTO subcategory_budgets (
+    subcategory_id,
+    allocated_amount,
+    remaining_budget,
+    used_amount,
+    max_amount_per_grant,
+    max_grants,
+    remaining_grant,
+    level,
+    status,
+    fund_description,
+    comment,
+    create_at,
+    update_at,
+    delete_at,
+    record_scope
+)
+SELECT
+    sb.subcategory_id,
+    MAX(sb.allocated_amount) AS allocated_amount,
+    MAX(sb.remaining_budget) AS remaining_budget,
+    MAX(sb.used_amount) AS used_amount,
+    MAX(sb.max_amount_per_grant) AS max_amount_per_grant,
+    MAX(sb.max_grants) AS max_grants,
+    MAX(sb.remaining_grant) AS remaining_grant,
+    NULL AS level,
+    'active' AS status,
+    NULL AS fund_description,
+    NULL AS comment,
+    MIN(sb.create_at) AS create_at,
+    MIN(sb.update_at) AS update_at,
+    NULL AS delete_at,
+    'overall' AS record_scope
+FROM subcategory_budgets sb
+WHERE sb.delete_at IS NULL
+GROUP BY sb.subcategory_id
+HAVING COUNT(*) > 1
+   AND SUM(CASE WHEN sb.record_scope = 'overall' THEN 1 ELSE 0 END) = 0;
 
 -- --------------------------------------------------------
 
@@ -2641,6 +2697,20 @@ CREATE TABLE `v_fund_applications` (
 -- --------------------------------------------------------
 
 --
+-- Stand-in structure for view `v_subcategory_user_usage`
+-- (See below for the actual view)
+--
+CREATE TABLE `v_subcategory_user_usage` (
+`subcategory_id` int(11)
+,`user_id` int(11)
+,`usage_year` int(11)
+,`approved_grants` bigint(21)
+,`approved_amount` decimal(32,2)
+);
+
+-- --------------------------------------------------------
+
+--
 -- Stand-in structure for view `v_publication_rewards`
 -- (See below for the actual view)
 --
@@ -2744,7 +2814,7 @@ INSERT INTO `years` (`year_id`, `year`, `budget`, `status`, `create_at`, `update
 --
 DROP TABLE IF EXISTS `view_budget_summary`;
 
-CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `view_budget_summary`  AS  select `y`.`year` AS `year`,`fc`.`category_name` AS `category_name`,`fs`.`subcategory_name` AS `subcategory_name`,`sb`.`allocated_amount` AS `allocated_amount`,`sb`.`used_amount` AS `used_amount`,`sb`.`remaining_budget` AS `remaining_budget`,`sb`.`max_grants` AS `max_grants`,`sb`.`remaining_grant` AS `remaining_grant`,count(`fa`.`application_id`) AS `total_applications`,count(case when `fa`.`application_status_id` = 2 then 1 end) AS `approved_applications` from ((((`subcategory_budgets` `sb` left join `fund_subcategories` `fs` on(`sb`.`subcategory_id` = `fs`.`subcategory_id`)) left join `fund_categories` `fc` on(`fs`.`category_id` = `fc`.`category_id`)) left join `years` `y` on(`fc`.`year_id` = `y`.`year_id`)) left join `v_fund_applications` `fa` on(`fs`.`subcategory_id` = `fa`.`subcategory_id` and `fa`.`delete_at` is null)) where `sb`.`delete_at` is null group by `sb`.`subcategory_budget_id`,`y`.`year`,`fc`.`category_name`,`fs`.`subcategory_name`,`sb`.`allocated_amount`,`sb`.`used_amount`,`sb`.`remaining_budget`,`sb`.`max_grants`,`sb`.`remaining_grant` ;
+CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `view_budget_summary`  AS  select `y`.`year` AS `year`,`fc`.`category_name` AS `category_name`,`fs`.`subcategory_name` AS `subcategory_name`,`sb`.`allocated_amount` AS `allocated_amount`,`sb`.`used_amount` AS `used_amount`,`sb`.`remaining_budget` AS `remaining_budget`,`sb`.`max_grants` AS `max_grants`,`sb`.`remaining_grant` AS `remaining_grant`,count(`fa`.`application_id`) AS `total_applications`,count(case when `fa`.`application_status_id` = 2 then 1 end) AS `approved_applications` from ((((`subcategory_budgets` `sb` left join `fund_subcategories` `fs` on(`sb`.`subcategory_id` = `fs`.`subcategory_id`)) left join `fund_categories` `fc` on(`fs`.`category_id` = `fc`.`category_id`)) left join `years` `y` on(`fc`.`year_id` = `y`.`year_id`)) left join `v_fund_applications` `fa` on(`fs`.`subcategory_id` = `fa`.`subcategory_id` and `fa`.`delete_at` is null)) where `sb`.`delete_at` is null and `sb`.`record_scope` = 'overall' group by `sb`.`subcategory_budget_id`,`y`.`year`,`fc`.`category_name`,`fs`.`subcategory_name`,`sb`.`allocated_amount`,`sb`.`used_amount`,`sb`.`remaining_budget`,`sb`.`max_grants`,`sb`.`remaining_grant` ;
 
 -- --------------------------------------------------------
 
@@ -2772,6 +2842,15 @@ CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW 
 DROP TABLE IF EXISTS `v_approval_records`;
 
 CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v_approval_records`  AS  select `s`.`submission_id` AS `submission_id`,`s`.`submission_number` AS `submission_number`,`s`.`submission_type` AS `submission_type`,`s`.`user_id` AS `user_id`,concat(`u`.`user_fname`,' ',`u`.`user_lname`) AS `applicant_name`,`s`.`year_id` AS `year_id`,`y`.`year` AS `year_th`,`s`.`category_id` AS `category_id`,`fc`.`category_name` AS `category_name`,`s`.`subcategory_id` AS `subcategory_id`,`fsc`.`subcategory_name` AS `subcategory_name`,`s`.`subcategory_budget_id` AS `subcategory_budget_id`,coalesce(nullif(trim(`sb`.`fund_description`),''),nullif(concat('ระดับ ',`sb`.`level`),'ระดับ '),concat('งบ #',`sb`.`subcategory_budget_id`)) AS `subcategory_budget_label`,`s`.`status_id` AS `status_id`,`s`.`approved_by` AS `approved_by`,`s`.`approved_at` AS `approved_at`,case when `s`.`submission_type` = 'publication_reward' then coalesce(`prd`.`total_approve_amount`,coalesce(`prd`.`reward_approve_amount`,0) + coalesce(`prd`.`revision_fee_approve_amount`,0) + coalesce(`prd`.`publication_fee_approve_amount`,0),0) when `s`.`submission_type` = 'fund_application' then coalesce(`fa`.`total_approved_amount`,0) else 0 end AS `approved_amount` from (((((((`submissions` `s` join `users` `u` on(`u`.`user_id` = `s`.`user_id` and (`u`.`delete_at` is null or `u`.`delete_at` = 0))) join `years` `y` on(`y`.`year_id` = `s`.`year_id`)) left join `fund_categories` `fc` on(`fc`.`category_id` = `s`.`category_id`)) left join `fund_subcategories` `fsc` on(`fsc`.`subcategory_id` = `s`.`subcategory_id`)) left join `subcategory_budgets` `sb` on(`sb`.`subcategory_budget_id` = `s`.`subcategory_budget_id`)) left join `publication_reward_details` `prd` on(`prd`.`submission_id` = `s`.`submission_id`)) left join (select `fund_application_details`.`submission_id` AS `submission_id`,sum(coalesce(`fund_application_details`.`approved_amount`,0)) AS `total_approved_amount` from `fund_application_details` group by `fund_application_details`.`submission_id`) `fa` on(`fa`.`submission_id` = `s`.`submission_id`)) where `s`.`status_id` = 2 and `s`.`deleted_at` is null ;
+
+-- --------------------------------------------------------
+
+--
+-- Structure for view `v_subcategory_user_usage`
+--
+DROP TABLE IF EXISTS `v_subcategory_user_usage`;
+
+CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v_subcategory_user_usage`  AS  select `fad`.`subcategory_id` AS `subcategory_id`,`s`.`user_id` AS `user_id`,coalesce(year(`s`.`approved_at`),year(`fad`.`approved_at`),year(`fad`.`closed_at`),year(`s`.`submitted_at`),year(`s`.`created_at`)) AS `usage_year`,count(0) AS `approved_grants`,coalesce(sum(`fad`.`approved_amount`),0) AS `approved_amount` from (`fund_application_details` `fad` join `submissions` `s` on(`fad`.`submission_id` = `s`.`submission_id`)) where `s`.`status_id` = 2 and `s`.`deleted_at` is null group by `fad`.`subcategory_id`,`s`.`user_id`,coalesce(year(`s`.`approved_at`),year(`fad`.`approved_at`),year(`fad`.`closed_at`),year(`s`.`submitted_at`),year(`s`.`created_at`)) ;
 
 -- --------------------------------------------------------
 
@@ -3349,7 +3428,7 @@ ALTER TABLE `scholar_import_runs`
 -- AUTO_INCREMENT for table `subcategory_budgets`
 --
 ALTER TABLE `subcategory_budgets`
-  MODIFY `subcategory_budget_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=38;
+  MODIFY `subcategory_budget_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=200;
 
 --
 -- AUTO_INCREMENT for table `submissions`
