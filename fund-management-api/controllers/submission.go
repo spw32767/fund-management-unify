@@ -118,9 +118,10 @@ func GetSubmission(c *gin.Context) {
 		Preload("Year").
 		Preload("Status").
 		Preload("Documents", func(db *gorm.DB) *gorm.DB {
-			return db.Joins("LEFT JOIN document_types dt ON dt.document_type_id = submission_documents.document_type_id").
-				Select("submission_documents.*, dt.document_type_name").
-				Order("submission_documents.display_order ASC, COALESCE(dt.document_order, 9999) ASC, submission_documents.created_at ASC, submission_documents.document_id ASC")
+                       // See docs/submission_document_ordering.md for rationale behind the deterministic sort.
+                       return db.Joins("LEFT JOIN document_types dt ON dt.document_type_id = submission_documents.document_type_id").
+                               Select("submission_documents.*, dt.document_type_name").
+                               Order("submission_documents.display_order ASC, COALESCE(dt.document_order, 9999) ASC, submission_documents.created_at ASC, submission_documents.document_id ASC")
 		}).
 		Preload("Documents.File").
 		Preload("Documents.DocumentType").
