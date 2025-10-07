@@ -624,6 +624,7 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
     hasPreviewed: false,
     timestamp: null,
   });
+  const [previewAcknowledged, setPreviewAcknowledged] = useState(false);
   const previewUrlRef = useRef(null);
   const previewSignatureRef = useRef('');
   const previewSectionRef = useRef(null);
@@ -937,6 +938,7 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
           timestamp: null,
         };
       });
+      setPreviewAcknowledged(false);
     }
   }, [previewDataSignature]);
 
@@ -1866,6 +1868,7 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
         hasPreviewed: false,
         loading: false,
       }));
+      setPreviewAcknowledged(false);
       Toast.fire({ icon: 'warning', title: message });
       throw new Error(message);
     }
@@ -2040,6 +2043,7 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
         hasPreviewed: true,
         timestamp: Date.now(),
       });
+      setPreviewAcknowledged(true);
 
       if (previewWindow) {
         previewWindow.location = blobUrl;
@@ -2067,6 +2071,7 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
         error: message,
         hasPreviewed: false,
       }));
+      setPreviewAcknowledged(false);
 
       Toast.fire({ icon: 'error', title: 'ไม่สามารถสร้างตัวอย่างได้', text: message });
       throw error;
@@ -2448,6 +2453,7 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
     setExternalFundings([]);
     setErrors({});
     setCurrentSubmissionId(null);
+    setPreviewAcknowledged(false);
     deleteDraftFromLocal();
   };
 
@@ -2478,7 +2484,7 @@ const showSubmissionConfirmation = async () => {
     return false;
   }
 
-  const previewAvailable = previewState.hasPreviewed && !!previewUrl;
+  const previewAvailable = previewAcknowledged && !!previewUrl;
   let previewViewed = previewAvailable;
   const previewButtonMode = previewAvailable ? 'open' : 'create';
   const previewButtonInitialLabel = previewAvailable ? '👀 เปิดอีกครั้ง' : '⚙️ สร้างแบบเดียวกับ ดูตัวอย่างเอกสารรวมเลย';
@@ -2626,7 +2632,8 @@ const showSubmissionConfirmation = async () => {
         },
         // Dynamic validation
         preConfirm: () => {
-          if (currentAttachments.length > 0 && !previewViewed) {
+          const previewReady = previewViewed || previewAcknowledged;
+          if (currentAttachments.length > 0 && !previewReady) {
             Swal.showValidationMessage('กรุณาดูตัวอย่างเอกสารรวมก่อนส่งคำร้อง');
             return false;
           }
@@ -2652,6 +2659,7 @@ const showSubmissionConfirmation = async () => {
                 try {
                   await generatePreview({ openWindow: true });
                   previewViewed = true;
+                  setPreviewAcknowledged(true);
 
                   if (previewStatus) {
                     previewStatus.innerHTML = '<span class="text-green-600">✅ ดูตัวอย่างเอกสารแล้ว</span>';
