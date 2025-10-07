@@ -42,16 +42,6 @@ const Toast = Swal.mixin({
 // Draft storage constants
 const DRAFT_KEY = 'publication_reward_draft';
 
-// Author status to subcategory mapping
-const AUTHOR_STATUS_SUBCATEGORY_MAP = {
-  first_author: 14,
-  corresponding_author: 15
-};
-
-const getSubcategoryIdForAuthorStatus = (status) => {
-  return AUTHOR_STATUS_SUBCATEGORY_MAP[status] ?? null;
-};
-
 // =================================================================
 // UTILITY FUNCTIONS
 // =================================================================
@@ -131,6 +121,17 @@ const sortQuartiles = (quartiles) => {
   return [...quartiles].sort((a, b) => {
     return getQuartileSortOrder(a) - getQuartileSortOrder(b);
   });
+};
+
+const findStatusQuartileOption = (options, status, quartile) => {
+  if (!status) return null;
+  const normalizedQuartile = quartile ?? '';
+  const exactMatch = options.find(option =>
+    option?.author_status === status &&
+    (option?.journal_quartile ?? '') === normalizedQuartile
+  );
+  if (exactMatch) return exactMatch;
+  return options.find(option => option?.author_status === status && !option?.journal_quartile);
 };
 
 // Get maximum fee limit based on quartile
@@ -552,6 +553,7 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
   });
   const [enabledYears, setEnabledYears] = useState([]);
   const [enabledPairs, setEnabledPairs] = useState([]);
+  const [authorQuartileOptions, setAuthorQuartileOptions] = useState([]);
   const [resolutionError, setResolutionError] = useState('');
 
   // Form data state
@@ -692,11 +694,11 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
       const resp = await publicationBudgetAPI.getValidOptions(category_id, year_id);
       const options = resp.options || resp.data || [];
       const pairs = options.map(o => ({ author_status: o.author_status, journal_quartile: o.journal_quartile }));
-      return { pairs };
+      return { pairs, options };
 
     } catch (err) {
       console.error('getEnabledAuthorStatusQuartiles error:', err);
-      return { pairs: [] };
+      return { pairs: [], options: [] };
     }
   };
   
@@ -892,16 +894,22 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
   useEffect(() => {
     const recompute = async () => {
       if (categoryId && formData.year_id) {
-        const { pairs } = await getEnabledAuthorStatusQuartiles({
+        const { pairs, options } = await getEnabledAuthorStatusQuartiles({
           category_id: categoryId,
           year_id: formData.year_id
         });
         setEnabledPairs(pairs);
+        setAuthorQuartileOptions(options);
         const uniqueStatuses = [...new Set(pairs.map(p => p.author_status))];
         setAvailableAuthorStatuses(uniqueStatuses);
         setAvailableQuartiles([]);
         setFormData(prev => ({ ...prev, author_status: '', journal_quartile: '', subcategory_id: null, subcategory_budget_id: null, publication_reward: 0, reward_amount: 0 }));
         setResolutionError(pairs.length === 0 ? 'ไม่พบทุนสำหรับปี/สถานะ/ควอร์ไทล์ที่เลือก' : '');
+      } else {
+        setEnabledPairs([]);
+        setAuthorQuartileOptions([]);
+        setAvailableAuthorStatuses([]);
+        setAvailableQuartiles([]);
       }
     };
     recompute();
@@ -910,15 +918,17 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
   // Update quartile options when author status changes
   useEffect(() => {
     if (formData.author_status) {
-      const quartiles = enabledPairs.filter(p => p.author_status === formData.author_status).map(p => p.journal_quartile);
-      const sorted = sortQuartiles(quartiles);
+      const quartiles = enabledPairs
+        .filter(p => p.author_status === formData.author_status)
+        .map(p => p.journal_quartile);
+      const sorted = sortQuartiles([...new Set(quartiles)]);
       setAvailableQuartiles(sorted);
-      const mappedSubcategoryId = getSubcategoryIdForAuthorStatus(formData.author_status);
+      const defaultOption = findStatusQuartileOption(authorQuartileOptions, formData.author_status, null);
       setFormData(prev => ({
         ...prev,
         journal_quartile: '',
-        subcategory_id: mappedSubcategoryId,
-        subcategory_budget_id: null
+        subcategory_id: defaultOption?.subcategory_id ?? null,
+        subcategory_budget_id: defaultOption?.subcategory_budget_id ?? null
       }));
       if (sorted.length === 0) {
         setResolutionError('ไม่พบทุนสำหรับปี/สถานะ/ควอร์ไทล์ที่เลือก');
@@ -926,7 +936,7 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
         setResolutionError('');
       }
     }
-  }, [formData.author_status, enabledPairs]);
+  }, [formData.author_status, enabledPairs, authorQuartileOptions]);
 
   // Resolve mapping when author status or quartile changes
   useEffect(() => {
@@ -940,21 +950,23 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
             journal_quartile: formData.journal_quartile
           });
           if (result) {
-            const mappedSubcategoryId = getSubcategoryIdForAuthorStatus(formData.author_status);
-            const resolvedSubcategoryId = mappedSubcategoryId ?? result?.subcategory_id ?? null;
+            const matchingOption = findStatusQuartileOption(authorQuartileOptions, formData.author_status, formData.journal_quartile);
+            const resolvedSubcategoryId = result?.subcategory_id ?? matchingOption?.subcategory_id ?? null;
+            const resolvedSubcategoryBudgetId = result?.subcategory_budget_id ?? matchingOption?.subcategory_budget_id ?? null;
             setFormData(prev => ({
               ...prev,
               subcategory_id: resolvedSubcategoryId,
-              subcategory_budget_id: result.subcategory_budget_id,
+              subcategory_budget_id: resolvedSubcategoryBudgetId,
               publication_reward: result.reward_amount,
               reward_amount: result.reward_amount,
             }));
             setResolutionError(result.remaining_budget > 0 ? '' : 'งบประมาณสำหรับทุนนี้หมดแล้ว');
           } else {
+            const fallbackOption = findStatusQuartileOption(authorQuartileOptions, formData.author_status, formData.journal_quartile);
             setFormData(prev => ({
               ...prev,
-              subcategory_id: null,
-              subcategory_budget_id: null,
+              subcategory_id: fallbackOption?.subcategory_id ?? null,
+              subcategory_budget_id: fallbackOption?.subcategory_budget_id ?? null,
               publication_reward: 0,
               reward_amount: 0,
             }));
@@ -962,17 +974,18 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
           }
         } catch (error) {
           console.error('resolveBudgetAndSubcategory error:', error);
+          const fallbackOption = findStatusQuartileOption(authorQuartileOptions, formData.author_status, formData.journal_quartile);
           setFormData(prev => ({
             ...prev,
-            subcategory_id: null,
-            subcategory_budget_id: null
+            subcategory_id: fallbackOption?.subcategory_id ?? null,
+            subcategory_budget_id: fallbackOption?.subcategory_budget_id ?? null
           }));
           setResolutionError('ไม่สามารถตรวจสอบทุนได้');
         }
       }
     };
     resolve();
-  }, [formData.author_status, formData.journal_quartile, formData.year_id, categoryId]);
+  }, [formData.author_status, formData.journal_quartile, formData.year_id, categoryId, authorQuartileOptions]);
 
   // Update fee limits when quartile changes
   useEffect(() => {
@@ -1304,11 +1317,12 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
 
       // Load enabled author status & quartile pairs
       if (categoryId && currentYear) {
-        const { pairs, rMap, bMap } = await getEnabledAuthorStatusQuartiles({
+        const { pairs, meta } = await getEnabledAuthorStatusQuartiles({
           category_id: categoryId,
           year_id: currentYear.year_id
         });
         setEnabledPairs(pairs);
+        setAuthorStatusMeta(meta);
         const uniqueStatuses = [...new Set(pairs.map(p => p.author_status))];
         setAvailableAuthorStatuses(uniqueStatuses);
         setAvailableQuartiles([]);
@@ -2632,11 +2646,13 @@ const showSubmissionConfirmation = async () => {
           html: 'กำลังสร้างคำร้อง...'
         });
 
-        const submissionSubcategoryId = getSubcategoryIdForAuthorStatus(formData.author_status) ?? formData.subcategory_id;
+        const submissionOption = findStatusQuartileOption(authorQuartileOptions, formData.author_status, formData.journal_quartile);
+        const submissionSubcategoryId = formData.subcategory_id ?? submissionOption?.subcategory_id ?? null;
+        const submissionSubcategoryBudgetId = formData.subcategory_budget_id ?? submissionOption?.subcategory_budget_id ?? null;
 
         console.log('Before POST:', {
           subcategory_id: submissionSubcategoryId,
-          subcategory_budget_id: formData.subcategory_budget_id
+          subcategory_budget_id: submissionSubcategoryBudgetId
         });
 
         const submissionResponse = await submissionAPI.create({
@@ -2644,7 +2660,7 @@ const showSubmissionConfirmation = async () => {
           year_id: formData.year_id,
           category_id: formData.category_id || categoryId,
           subcategory_id: submissionSubcategoryId,        // Dynamic resolved
-          subcategory_budget_id: formData.subcategory_budget_id,  // Dynamic resolved
+          subcategory_budget_id: submissionSubcategoryBudgetId,  // Dynamic resolved
         });
         
         submissionId = submissionResponse.submission.submission_id;
