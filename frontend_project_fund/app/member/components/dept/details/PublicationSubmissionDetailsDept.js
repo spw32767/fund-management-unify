@@ -133,6 +133,18 @@ const firstNonEmpty = (...vals) => {
   return null;
 };
 
+const DOCUMENT_TYPE_LABEL_OVERRIDES = {
+  publication_reward_form_docx: 'แบบฟอร์มคำขอรับเงินรางวัล (DOCX)',
+  publication_reward_form_head_signed_docx:
+    'แบบฟอร์มคำขอรับเงินรางวัล (หัวหน้าภาคลงนาม DOCX)',
+};
+
+const resolveDocumentTypeLabel = (code, fallback) => {
+  const normalized = typeof code === 'string' ? code.trim().toLowerCase() : '';
+  if (!normalized) return fallback;
+  return DOCUMENT_TYPE_LABEL_OVERRIDES[normalized] || fallback;
+};
+
 const getSubcategoryName = (submission, pubDetail) => {
   // 1) จากรายละเอียดบทความ (ลองหลายชื่อ key)
   const fromDetail = firstNonEmpty(
@@ -943,7 +955,16 @@ export default function PublicationSubmissionDetailsDept({ submissionId, onBack 
             d?.document_type_obj?.id ??
             null;
 
-          const docTypeName =
+          const docTypeCodeCandidate = firstNonEmpty(
+            typeof d?.document_type_code === 'string' ? d.document_type_code : null,
+            typeof d?.DocumentType?.code === 'string' ? d.DocumentType.code : null,
+            typeof d?.code === 'string' ? d.code : null,
+            typeof d?.document_type === 'string' ? d.document_type : null,
+            typeof d?.document_type_key === 'string' ? d.document_type_key : null
+          );
+          const docTypeCode = docTypeCodeCandidate ? docTypeCodeCandidate.trim() : null;
+
+          const rawDocTypeName =
             (typeof d?.document_type_name === 'string' && d.document_type_name.trim()
               ? d.document_type_name.trim()
               : null) ??
@@ -952,15 +973,16 @@ export default function PublicationSubmissionDetailsDept({ submissionId, onBack 
               ? d.DocumentType.document_type_name.trim()
               : null) ??
             (docTypeId != null ? typeMap[String(docTypeId)] : null) ??
-            (typeof d?.document_type_code === 'string' && d.document_type_code.trim()
-              ? d.document_type_code.trim()
-              : null) ??
+            docTypeCode ??
             'ไม่ระบุประเภท';
+
+          const docTypeName = resolveDocumentTypeLabel(docTypeCode, rawDocTypeName);
 
           return {
             ...d,
             document_type_id: docTypeId ?? d?.document_type_id ?? null,
             document_type_name: docTypeName,
+            document_type_code: docTypeCode ?? undefined,
             _index: index,
           };
         });
@@ -2099,7 +2121,11 @@ export default function PublicationSubmissionDetailsDept({ submissionId, onBack 
                 {attachments.map((doc, index) => {
                   const fileId = resolveFileId(doc);
                   const fileName = resolveFileName(doc, `เอกสารที่ ${index + 1}`);
-                  const docType = (doc.document_type_name || '').trim() || 'ไม่ระบุประเภท';
+                  const docTypeCode = (doc.document_type_code || '').trim();
+                  const docType = resolveDocumentTypeLabel(
+                    docTypeCode,
+                    (doc.document_type_name || '').trim() || 'ไม่ระบุประเภท'
+                  );
                   const canOpen = fileId != null || !!resolveFilePath(doc);
 
                   return (
