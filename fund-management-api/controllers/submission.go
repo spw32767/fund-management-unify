@@ -15,6 +15,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -28,6 +29,8 @@ const (
 	publicationRewardFormDocumentCode       = "publication_reward_form_docx"
 	publicationRewardHeadSignedDocumentCode = "publication_reward_form_head_signed_docx"
 )
+
+var submissionNumberPrefixPattern = regexp.MustCompile(`(?i)^[A-Z]{2,5}[-_ ]?\d{4}[-_ ]?\d{4}[-_ ]*`)
 
 // ===================== SUBMISSION MANAGEMENT =====================
 
@@ -872,7 +875,9 @@ func MoveFileToSubmissionFolder(fileID int, submissionID int, submissionType str
 		originalName = filepath.Base(fileUpload.StoredPath)
 	}
 	ext := filepath.Ext(originalName)
-	base := strings.TrimSuffix(originalName, ext)
+	base := strings.TrimSpace(strings.TrimSuffix(originalName, ext))
+	base = submissionNumberPrefixPattern.ReplaceAllString(base, "")
+	base = strings.TrimLeft(base, "_- ")
 	if base == "" {
 		base = "attachment"
 	}
