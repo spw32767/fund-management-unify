@@ -3,8 +3,8 @@
 import React, { useEffect, useMemo, useState } from "react";
 import Swal from "sweetalert2";
 import { Save, RefreshCw, Calendar as CalendarIcon, Clock } from "lucide-react";
-import systemConfigAPI from "../../../lib/system_config_api";
-import apiClient from "../../../lib/api";
+import systemConfigAPI from "@/app/lib/system_config_api";
+import apiClient from "@/app/lib/api";
 
 /** ไทย: แปลงวันที่ ISO เป็นรูปแบบไทยอ่านง่าย (ปี พ.ศ., เดือนแบบคำ, เวลา HH:mm) */
 function formatThaiFull(dtStr) {
