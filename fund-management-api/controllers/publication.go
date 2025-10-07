@@ -451,7 +451,7 @@ func CreatePublicationReward(c *gin.Context) {
 					UpdateAt:     now,
 				}
 
-				if err := tx.Create(&fileUpload).Error; err != nil {
+				if err := tx.Omit("Metadata").Create(&fileUpload).Error; err != nil {
 					tx.Rollback()
 					os.Remove(dst)
 					c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save file info"})
@@ -850,6 +850,7 @@ func UploadPublicationDocument(c *gin.Context) {
 			fileUpload := models.FileUpload{
 				OriginalName: fileHeader.Filename,
 				StoredPath:   dst,
+				FolderType:   models.FileFolderTypeSubmission,
 				FileSize:     fileHeader.Size,
 				MimeType:     fileHeader.Header.Get("Content-Type"),
 				FileHash:     "", // ไม่ใช้ hash ในระบบ user-based
@@ -860,7 +861,7 @@ func UploadPublicationDocument(c *gin.Context) {
 				UpdateAt:     now,
 			}
 
-			if err := config.DB.Create(&fileUpload).Error; err != nil {
+			if err := config.DB.Omit("Metadata").Create(&fileUpload).Error; err != nil {
 				// Delete uploaded file if database save fails
 				os.Remove(dst)
 				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save file info"})
