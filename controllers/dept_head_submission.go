@@ -523,6 +523,7 @@ func regenerateHeadApprovedPublicationDoc(tx *gorm.DB, submission *models.Submis
 	fileUpload := models.FileUpload{
 		OriginalName: filename,
 		StoredPath:   targetPath,
+		FolderType:   models.FileFolderTypeSubmission,
 		FileSize:     stat.Size(),
 		MimeType:     "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
 		FileHash:     "",
@@ -677,7 +678,7 @@ func buildSubmissionDetailPayload(submissionID int) (gin.H, error) {
 		Preload("File").
 		Preload("DocumentType").
 		Where("submission_id = ? AND submission_documents.deleted_at IS NULL", submissionID).
-		Order("submission_documents.display_order, submission_documents.created_at").
+		Order("submission_documents.display_order ASC, COALESCE(dt.document_order, 9999) ASC, submission_documents.created_at ASC, submission_documents.document_id ASC").
 		Find(&documents).Error; err != nil {
 		documents = []models.SubmissionDocument{}
 	}
