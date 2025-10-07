@@ -14,61 +14,90 @@
  * @returns {string}
  */
 export function resolveDocumentFileName(doc, fallback = 'document') {
-  const firstString = (candidates) => {
-    for (const candidate of candidates) {
-      if (typeof candidate === 'string') {
-        const trimmed = candidate.trim();
+  const toCandidateStrings = (values) => {
+    const results = [];
+    for (const value of values) {
+      if (typeof value === 'string') {
+        const trimmed = value.trim();
         if (trimmed) {
-          return trimmed;
+          results.push(trimmed);
         }
+      } else if (typeof value === 'number' && Number.isFinite(value)) {
+        results.push(String(value));
       }
     }
-    return null;
+    return results;
   };
 
-  const directName = firstString([
-    doc?.original_name,
-    doc?.original_filename,
-    doc?.filename,
-    doc?.file_name,
-    doc?.display_name,
-    doc?.name,
-    doc?.title,
-    doc?.document_name,
-    doc?.document_title,
-    doc?.File?.original_name,
-    doc?.File?.original_filename,
-    doc?.File?.filename,
-    doc?.File?.file_name,
-    doc?.File?.display_name,
-    doc?.file?.original_name,
-    doc?.file?.original_filename,
-    doc?.file?.filename,
-    doc?.file?.file_name,
-    doc?.file?.display_name,
-    doc?.Document?.original_name,
-    doc?.Document?.original_filename,
-  ]);
+  const collectKeys = (obj, keys) => {
+    if (!obj || typeof obj !== 'object') return [];
+    return keys.map((key) => obj?.[key]);
+  };
 
-  if (directName) return directName;
+  const nameKeys = [
+    'original_name',
+    'original_filename',
+    'file_original_name',
+    'filename',
+    'file_name',
+    'display_name',
+    'name',
+    'title',
+    'document_name',
+    'document_title',
+    'document_filename',
+    'fileTitle',
+    'fileLabel',
+    'label',
+    'caption',
+  ];
 
-  const pathCandidate = firstString([
-    doc?.file_path,
-    doc?.File?.file_path,
-    doc?.file?.file_path,
-    doc?.path,
-    doc?.File?.path,
-    doc?.file?.path,
-    doc?.file_url,
-    doc?.url,
-    doc?.File?.url,
-    doc?.file?.url,
-  ]);
+  const nestedSources = [
+    doc,
+    doc?.File,
+    doc?.file,
+    doc?.Document,
+    doc?.document,
+    doc?.Attachment,
+    doc?.attachment,
+    doc?.DocumentFile,
+    doc?.document_file,
+    doc?.ManagedFile,
+    doc?.managed_file,
+    doc?.FileMetadata,
+    doc?.file_metadata,
+    doc?.FileInfo,
+    doc?.file_info,
+    doc?.storage,
+    doc?.meta,
+  ].filter(Boolean);
 
-  if (pathCandidate) {
-    const segments = pathCandidate.split(/[\\/]/).filter(Boolean);
-    if (segments.length > 0) {
-      return segments[segments.length - 1];
+  for (const source of nestedSources) {
+    const directName = toCandidateStrings(collectKeys(source, nameKeys))[0];
+    if (directName) {
+      return directName;
+    }
+  }
+
+  const pathKeys = [
+    'file_path',
+    'path',
+    'stored_path',
+    'storage_path',
+    'file_url',
+    'url',
+    'download_url',
+    'signed_url',
+  ];
+
+  for (const source of nestedSources) {
+    const candidate = toCandidateStrings(collectKeys(source, pathKeys))[0];
+    if (candidate) {
+      const segments = candidate.split(/[\\/]/).filter(Boolean);
+      if (segments.length > 0) {
+        return segments[segments.length - 1];
+      }
+      return candidate;
     }
   }
 
