@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Search, Eye, Download, Gift, RefreshCcw } from "lucide-react";
 import { submissionAPI, teacherAPI } from "@/app/lib/member_api";
 import { systemAPI } from "@/app/lib/api";
@@ -22,6 +22,7 @@ export default function ReceivedFundsList({ onNavigate }) {
   const [loading, setLoading] = useState(false);
   const [years, setYears] = useState([]);
   const [yearsLoading, setYearsLoading] = useState(false);
+  const latestFundsRequestRef = useRef(0);
   const {
     statuses: statusOptions,
     getLabelById,
@@ -141,6 +142,7 @@ export default function ReceivedFundsList({ onNavigate }) {
   };
 
   const loadFunds = async () => {
+    const requestId = ++latestFundsRequestRef.current;
     setLoading(true);
     try {
       const params = { limit: 1000 };
@@ -227,19 +229,24 @@ export default function ReceivedFundsList({ onNavigate }) {
             new Date(a._original?.created_at || a._original?.create_at || 0)
         );
 
-        setFunds(approvedOrClosed);
-        setFilteredFunds(approvedOrClosed);
-      } else {
+        if (latestFundsRequestRef.current === requestId) {
+          setFunds(approvedOrClosed);
+          setFilteredFunds(approvedOrClosed);
+        }
+      } else if (latestFundsRequestRef.current === requestId) {
         setFunds([]);
         setFilteredFunds([]);
       }
     } catch (error) {
       console.error("Error loading received funds:", error);
-      setFunds([]);
-      setFilteredFunds([]);
+      if (latestFundsRequestRef.current === requestId) {
+        setFunds([]);
+        setFilteredFunds([]);
+      }
     } finally {
-      setLoading(false);
-    }
+      if (latestFundsRequestRef.current === requestId) {
+        setLoading(false);
+      }    }
   };
 
   const filterFunds = () => {
