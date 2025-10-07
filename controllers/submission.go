@@ -24,7 +24,10 @@ import (
 	"gorm.io/gorm"
 )
 
-const publicationRewardFormDocumentCode = "publication_reward_form_docx"
+const (
+	publicationRewardFormDocumentCode       = "publication_reward_form_docx"
+	publicationRewardHeadSignedDocumentCode = "publication_reward_form_head_signed_docx"
+)
 
 // ===================== SUBMISSION MANAGEMENT =====================
 
@@ -469,7 +472,7 @@ func SubmitSubmission(c *gin.Context) {
 			return fmt.Errorf("failed to load submission documents: %w", err)
 		}
 
-		replacements, err := buildSubmissionPreviewReplacements(&submission, &detail, sysConfig, documents)
+		replacements, err := buildSubmissionPreviewReplacements(&submission, &detail, sysConfig, documents, nil)
 		if err != nil {
 			return err
 		}
@@ -514,6 +517,7 @@ func SubmitSubmission(c *gin.Context) {
 		fileUpload := models.FileUpload{
 			OriginalName: uniqueFilename,
 			StoredPath:   outputPath,
+			FolderType:   models.FileFolderTypeSubmission,
 			FileSize:     stat.Size(),
 			MimeType:     "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
 			FileHash:     "",
@@ -524,7 +528,7 @@ func SubmitSubmission(c *gin.Context) {
 			UpdateAt:     now,
 		}
 
-		if err := tx.Create(&fileUpload).Error; err != nil {
+		if err := tx.Omit("Metadata").Create(&fileUpload).Error; err != nil {
 			os.Remove(outputPath)
 			return fmt.Errorf("failed to persist generated docx: %w", err)
 		}
@@ -601,7 +605,38 @@ func ensurePublicationRewardFormDocumentType(tx *gorm.DB) (*models.DocumentType,
 	return &docType, nil
 }
 
-func buildSubmissionPreviewReplacements(submission *models.Submission, detail *models.PublicationRewardDetail, sysConfig *systemConfigSnapshot, documents []models.SubmissionDocument) (map[string]string, error) {
+func ensurePublicationRewardHeadSignedDocumentType(tx *gorm.DB) (*models.DocumentType, error) {
+	var docType models.DocumentType
+	if err := tx.Where("code = ? AND (delete_at IS NULL OR delete_at = '0000-00-00 00:00:00')", publicationRewardHeadSignedDocumentCode).
+		First(&docType).Error; err != nil {
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, err
+		}
+
+		now := time.Now()
+		category := "publication_reward"
+		fundTypes := "[\"publication_reward\"]"
+		docType = models.DocumentType{
+			DocumentTypeName: "แบบฟอร์มคำขอรับเงินรางวัล (หัวหน้าภาคลงนาม DOCX)",
+			Code:             publicationRewardHeadSignedDocumentCode,
+			Category:         category,
+			Required:         false,
+			Multiple:         true,
+			DocumentOrder:    0,
+			CreateAt:         now,
+			UpdateAt:         now,
+			FundTypes:        &fundTypes,
+		}
+
+		if err := tx.Create(&docType).Error; err != nil {
+			return nil, err
+		}
+	}
+
+	return &docType, nil
+}
+
+func buildSubmissionPreviewReplacements(submission *models.Submission, detail *models.PublicationRewardDetail, sysConfig *systemConfigSnapshot, documents []models.SubmissionDocument, headUser *models.User) (map[string]string, error) {
 	if submission == nil {
 		return nil, fmt.Errorf("submission is required")
 	}
@@ -630,6 +665,30 @@ func buildSubmissionPreviewReplacements(submission *models.Submission, detail *m
 		positionName = strings.TrimSpace(submission.User.Position.PositionName)
 	}
 
+	headComment := ""
+	if submission.HeadComment != nil {
+		headComment = strings.TrimSpace(*submission.HeadComment)
+	}
+
+	headSignature := ""
+	if submission.HeadSignature != nil {
+		headSignature = strings.TrimSpace(*submission.HeadSignature)
+	}
+
+	headName := ""
+	if headUser != nil {
+		headName = buildApplicantName(headUser)
+	}
+
+	if headName == "" && headSignature != "" {
+		headName = headSignature
+	}
+
+	headApprovedDate := ""
+	if submission.HeadApprovedAt != nil {
+		headApprovedDate = utils.FormatThaiDate(*submission.HeadApprovedAt)
+	}
+
 	replacements := map[string]string{
 		"{{date_th}}":            utils.FormatThaiDate(documentDate),
 		"{{applicant_name}}":     buildApplicantName(submission.User),
@@ -649,6 +708,10 @@ func buildSubmissionPreviewReplacements(submission *models.Submission, detail *m
 		"{{document_line}}":      buildDocumentLine(documents),
 		"{{kku_report_year}}":    formatNullableString(sysConfig.KkuReportYear),
 		"{{signature}}":          strings.TrimSpace(detail.Signature),
+		"{{head_comment}}":       headComment,
+		"{{head_signature}}":     headSignature,
+		"{{head_name}}":          headName,
+		"{{head_approved_date}}": headApprovedDate,
 	}
 
 	return replacements, nil
@@ -802,12 +865,29 @@ func MoveFileToSubmissionFolder(fileID int, submissionID int, submissionType str
 		return err
 	}
 
-	// ===== ตั้งชื่อไฟล์ใหม่: <original-name>_<submission-number><ext>
-	orig := fileUpload.OriginalName
-	ext := filepath.Ext(orig)
-	base := strings.TrimSuffix(orig, ext)
+	// ===== ตั้งชื่อไฟล์ใหม่: <submission-number>_<original-name>
+	originalName := strings.TrimSpace(fileUpload.OriginalName)
+	if originalName == "" {
+		originalName = filepath.Base(fileUpload.StoredPath)
+	}
+	ext := filepath.Ext(originalName)
+	base := strings.TrimSuffix(originalName, ext)
+	if base == "" {
+		base = "attachment"
+	}
+	if ext == "" {
+		ext = filepath.Ext(fileUpload.StoredPath)
+	}
+	if ext == "" {
+		ext = ".dat"
+	}
 
-	desiredName := fmt.Sprintf("%s_%s%s", base, submission.SubmissionNumber, ext)
+	var desiredName string
+	if strings.TrimSpace(submission.SubmissionNumber) != "" {
+		desiredName = fmt.Sprintf("%s_%s%s", strings.TrimSpace(submission.SubmissionNumber), base, ext)
+	} else {
+		desiredName = fmt.Sprintf("%s%s", base, ext)
+	}
 
 	// ให้ utils.GenerateUniqueFilename ช่วยกันชื่อซ้ำ (ส่ง desiredName เข้าไปให้เป็น "ต้นฉบับ")
 	newFilename := utils.GenerateUniqueFilename(submissionFolderPath, desiredName)
