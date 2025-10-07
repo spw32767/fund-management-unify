@@ -2306,122 +2306,256 @@ const showSubmissionConfirmation = async () => {
     ? 'px-3 py-1 bg-green-500 text-white text-xs rounded hover:bg-green-600 transition-colors'
     : 'px-3 py-1 bg-blue-500 text-white text-xs rounded hover:bg-blue-600 transition-colors';
 
+    const fileCounts = getFileCountByType();
+    const summaryStatus = (() => {
+      if (currentAttachments.length === 0) {
+        return {
+          label: 'ต้องแนบไฟล์ (Attachments Required)',
+          badgeClass: 'bg-red-100 text-red-700',
+          dotClass: 'bg-red-500',
+        };
+      }
+
+      if (previewAvailable) {
+        return {
+          label: 'พร้อมส่งคำร้อง (Ready to Submit)',
+          badgeClass: 'bg-green-100 text-green-700',
+          dotClass: 'bg-green-500',
+        };
+      }
+
+      return {
+        label: 'ร่างคำร้อง (Draft)',
+        badgeClass: 'bg-yellow-100 text-yellow-700',
+        dotClass: 'bg-yellow-500',
+      };
+    })();
+
+    const summaryGeneratedAt = new Date().toLocaleString('th-TH', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+
+    const authorStatusLabel = formData.author_status === 'first_author'
+      ? 'ผู้แต่งหลัก (First Author)'
+      : formData.author_status === 'corresponding_author'
+        ? 'ผู้แต่งที่รับผิดชอบบทความ (Corresponding Author)'
+        : '-';
+
+    const publicationDateLabel = formData.journal_month && formData.journal_year
+      ? `${formData.journal_month}/${formData.journal_year}`
+      : (formData.journal_year || '-');
+
+    const selectedYear = years.find(year => String(year.year_id) === String(formData.year_id));
+    const budgetYearLabel = selectedYear
+      ? `ปีงบประมาณ ${selectedYear.year}`
+      : (formData.year_id ? `ปีงบประมาณ ${formData.year_id}` : '-');
+
+    const applicantName = currentUser
+      ? [
+          currentUser.position_name || currentUser.position?.position_name || '',
+          currentUser.user_fname || currentUser.first_name || '',
+          currentUser.user_lname || currentUser.last_name || '',
+        ]
+          .filter(Boolean)
+          .join(' ')
+          .trim() || '-'
+      : '-';
+
+    const applicantEmail = currentUser?.email || currentUser?.user_email || '';
+    const applicantEmailLine = applicantEmail
+      ? `<p class="text-xs text-gray-500">${applicantEmail}</p>`
+      : '';
+
+    const coauthorListBlock = coauthors.length > 0
+      ? `<div class="mt-3">
+          <p class="text-sm font-semibold text-gray-700">ผู้แต่งร่วม (${coauthors.length} คน)</p>
+          <ul class="mt-1 space-y-1 text-xs text-gray-600">
+            ${coauthors
+              .map((author, index) => {
+                const fname = author?.user_fname || author?.first_name || '';
+                const lname = author?.user_lname || author?.last_name || '';
+                const fullName = `${fname} ${lname}`.trim() || author?.full_name || author?.name || '-';
+                return `<li class="flex items-start gap-2">
+                  <span class="text-gray-400">#${index + 1}</span>
+                  <span>${fullName}</span>
+                </li>`;
+              })
+              .join('')}
+          </ul>
+        </div>`
+      : '<p class="text-xs text-gray-500 mt-2">ไม่มีผู้แต่งร่วม</p>';
+
+    const externalFundingTotal = parseFloat(formData.external_funding_amount || 0) || 0;
+    const externalFundingBlock = (externalFundings && externalFundings.length > 0)
+      ? `<div class="bg-white border border-gray-200 rounded-lg p-4">
+          <p class="text-sm font-semibold text-gray-700">ทุนภายนอก (${externalFundings.length} รายการ)</p>
+          <ul class="mt-2 space-y-1 text-xs text-gray-600">
+            ${externalFundings
+              .map((funding, index) => {
+                const fundName = funding?.fundName || funding?.file?.name || `ทุนภายนอก #${index + 1}`;
+                const amount = parseFloat(funding?.amount || 0) || 0;
+                return `<li class="flex justify-between gap-3">
+                  <span class="font-medium text-gray-700">${fundName}</span>
+                  <span>${formatCurrency(amount)} บาท</span>
+                </li>`;
+              })
+              .join('')}
+          </ul>
+        </div>`
+      : '';
+
+    const attachmentsListHtml = allFilesList.length > 0
+      ? allFilesList
+          .map((file, index) => `
+            <li class="flex items-center justify-between gap-3 px-3 py-2 text-xs ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}">
+              <span class="flex items-center gap-2">
+                <span class="text-gray-400">#${index + 1}</span>
+                <span class="font-medium text-gray-700 break-all">${file.name}</span>
+              </span>
+              <span class="text-gray-500">${(file.size / 1024 / 1024).toFixed(2)} MB</span>
+            </li>
+          `)
+          .join('')
+      : '<li class="px-3 py-3 text-xs text-gray-500">ยังไม่มีไฟล์แนบ</li>';
+
+    const hasBankInfo = formData.bank_account || formData.bank_name || formData.phone_number;
+    const bankInfoBlock = hasBankInfo
+      ? `<div class="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
+          <div class="px-5 py-4 border-b border-gray-200">
+            <h4 class="text-sm font-semibold text-gray-800">ข้อมูลการติดต่อและธนาคาร</h4>
+          </div>
+          <div class="p-6 space-y-2 text-sm">
+            ${formData.phone_number ? `<div class="flex items-center gap-2"><span class="text-gray-500 min-w-[110px]">เบอร์โทรศัพท์:</span><span class="font-medium text-gray-700">${formData.phone_number}</span></div>` : ''}
+            ${formData.bank_name ? `<div class="flex items-center gap-2"><span class="text-gray-500 min-w-[110px]">ธนาคาร:</span><span class="font-medium text-gray-700">${formData.bank_name}</span></div>` : ''}
+            ${formData.bank_account ? `<div class="flex items-center gap-2"><span class="text-gray-500 min-w-[110px]">เลขที่บัญชี:</span><span class="font-medium text-gray-700">${formData.bank_account}</span></div>` : ''}
+          </div>
+        </div>`
+      : '';
+
     const summaryHTML = `
-      <div class="text-left space-y-4">
-        <div class="bg-gray-50 p-4 rounded-lg">
-          <h4 class="font-semibold text-gray-700 mb-2">ข้อมูลบทความ</h4>
-          <div class="space-y-2 text-sm">
-            <p><span class="font-medium">ชื่อบทความ:</span> ${formData.article_title || '-'}</p>
-            <p><span class="font-medium">วารสาร:</span> ${formData.journal_name || '-'}</p>
-            <p><span class="font-medium">Quartile:</span> ${formData.journal_quartile || '-'}</p>
-            <p><span class="font-medium">วันที่ตีพิมพ์:</span> ${publicationDate}</p>
-            <p><span class="font-medium">DOI:</span> ${formData.doi || '-'}</p>
+      <div class="space-y-6 text-sm text-gray-700 leading-relaxed">
+        <div class="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
+          <div class="px-5 py-4 border-b border-gray-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div class="flex items-center gap-3 text-gray-800 font-semibold">
+              <span>สรุปคำร้อง (Submission Overview)</span>
+              <span class="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold ${summaryStatus.badgeClass}">
+                <span class="inline-flex w-2 h-2 rounded-full ${summaryStatus.dotClass}"></span>
+                ${summaryStatus.label}
+              </span>
+            </div>
+            <div class="text-xs text-gray-500">
+              อัปเดตล่าสุด: ${summaryGeneratedAt}
+            </div>
           </div>
-        </div>
-
-        <div class="bg-blue-50 p-4 rounded-lg">
-          <h4 class="font-semibold text-blue-700 mb-2">ข้อมูลผู้แต่ง</h4>
-          <div class="space-y-2 text-sm">
-            <p><span class="font-medium">สถานะผู้แต่ง:</span> ${
-              formData.author_status === 'first_author' ? 'ผู้แต่งหลัก' :
-              formData.author_status === 'corresponding_author' ? 'Corresponding Author' : '-'
-            }</p>
-            <p><span class="font-medium">จำนวนผู้แต่งร่วม:</span> ${coauthors.length} คน</p>
-            ${coauthors.length > 0 ? `
-              <div class="mt-2">
-                <span class="font-medium">รายชื่อผู้แต่งร่วม:</span>
-                <ul class="ml-4 mt-1">
-                  ${coauthors.map(author => `<li>• ${author.user_fname} ${author.user_lname}</li>`).join('')}
-                </ul>
-              </div>
-            ` : ''}
-          </div>
-        </div>
-
-        <div class="bg-green-50 p-4 rounded-lg">
-          <h4 class="font-semibold text-green-700 mb-2">จำนวนเงินที่ขอเบิก</h4>
-          <div class="space-y-2 text-sm">
-            <p><span class="font-medium">เงินรางวัลการตีพิมพ์:</span> ${formatCurrency(formData.publication_reward || 0)} บาท</p>
-            <p><span class="font-medium">ค่าปรับปรุงบทความ:</span> ${formatCurrency(formData.revision_fee || 0)} บาท</p>
-            <p><span class="font-medium">ค่าการตีพิมพ์:</span> ${formatCurrency(formData.publication_fee || 0)} บาท</p>
-            
-            ${(externalFundings && externalFundings.length > 0) ? `
-              <div class="mt-3 pt-2 border-t border-green-200">
-                <span class="font-medium text-green-800">รายการทุนภายนอก:</span>
-                <ul class="ml-4 mt-1 space-y-1">
-                  ${externalFundings.map(funding => {
-                    const fundName = funding?.fundName || funding?.file?.name || 'ไม่ระบุชื่อทุน';
-                    const amount = parseFloat(funding?.amount || 0);
-                    return `<li class="text-xs">• ${fundName}: ${formatCurrency(amount)} บาท</li>`;
-                  }).join('')}
-                </ul>
-                <p class="mt-2 text-sm"><span class="font-medium">รวมทุนภายนอก:</span> ${formatCurrency(formData.external_funding_amount || 0)} บาท</p>
-              </div>
-            ` : ''}
-            
-            <div class="mt-3 pt-3 border-t-2 border-green-300">
-              <div class="bg-white p-3 rounded border">
-                <p class="text-base font-bold text-green-800">
-                  ยอดสุทธิที่เบิกจากวิทยาลัย: ${formatCurrency(formData.total_amount || 0)} บาท
-                </p>
-                <div class="text-xs text-gray-600 mt-1">
-                  คำนวณจาก: เงินรางวัล + ค่าปรับปรุง + ค่าตีพิมพ์ - ทุนภายนอก
+          <div class="p-6 space-y-6">
+            <div class="flex flex-col lg:flex-row gap-6">
+              <div class="flex-1 space-y-4">
+                <div class="flex flex-wrap items-start gap-2">
+                  <span class="text-gray-500 shrink-0 min-w-[120px]">ชื่อบทความ:</span>
+                  <span class="font-semibold text-gray-800 flex-1">${formData.article_title || '-'}</span>
                 </div>
-                <div class="text-xs text-gray-600">
-                  = ${formatCurrency(formData.publication_reward || 0)} + ${formatCurrency(formData.revision_fee || 0)} + ${formatCurrency(formData.publication_fee || 0)} - ${formatCurrency(formData.external_funding_amount || 0)}
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-3">
+                  <div class="flex items-start gap-2">
+                    <span class="text-gray-500 shrink-0 min-w-[110px]">วารสาร:</span>
+                    <span class="font-medium text-gray-700 flex-1">${formData.journal_name || '-'}</span>
+                  </div>
+                  <div class="flex items-start gap-2">
+                    <span class="text-gray-500 shrink-0 min-w-[110px]">Quartile:</span>
+                    <span class="font-medium text-gray-700 flex-1">${formData.journal_quartile || '-'}</span>
+                  </div>
+                  <div class="flex items-start gap-2">
+                    <span class="text-gray-500 shrink-0 min-w-[110px]">วันที่ตีพิมพ์:</span>
+                    <span class="font-medium text-gray-700 flex-1">${publicationDateLabel}</span>
+                  </div>
+                  <div class="flex items-start gap-2">
+                    <span class="text-gray-500 shrink-0 min-w-[110px]">DOI:</span>
+                    <span class="font-medium text-gray-700 break-all flex-1">${formData.doi || '-'}</span>
+                  </div>
+                  <div class="flex items-start gap-2">
+                    <span class="text-gray-500 shrink-0 min-w-[110px]">ปีงบประมาณ:</span>
+                    <span class="font-medium text-gray-700 flex-1">${budgetYearLabel}</span>
+                  </div>
+                  <div class="flex items-start gap-2">
+                    <span class="text-gray-500 shrink-0 min-w-[110px]">สถานะผู้แต่ง:</span>
+                    <span class="font-medium text-gray-700 flex-1">${authorStatusLabel}</span>
+                  </div>
+                </div>
+                <div class="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                  <p class="text-sm font-semibold text-gray-700">ผู้ยื่นคำร้อง</p>
+                  <p class="text-sm text-gray-700">${applicantName}</p>
+                  ${applicantEmailLine}
+                  ${coauthorListBlock}
+                </div>
+                ${externalFundingBlock}
+              </div>
+              <div class="w-full lg:w-80">
+                <div class="bg-blue-50 border border-blue-200 rounded-lg p-5 text-right">
+                  <div class="text-xs uppercase tracking-wide text-blue-600">ยอดรวมที่ขอเบิก</div>
+                  <div class="text-3xl font-bold text-blue-700 mt-1">${formatCurrency(formData.total_amount || 0)} บาท</div>
+                  <div class="mt-4 space-y-2 text-sm text-left">
+                    <div class="flex justify-between text-gray-600">
+                      <span>เงินรางวัล</span>
+                      <span class="font-semibold text-gray-800">${formatCurrency(formData.publication_reward || 0)} บาท</span>
+                    </div>
+                    <div class="flex justify-between text-gray-600">
+                      <span>ค่าปรับปรุงบทความ</span>
+                      <span class="font-semibold text-gray-800">${formatCurrency(formData.revision_fee || 0)} บาท</span>
+                    </div>
+                    <div class="flex justify-between text-gray-600">
+                      <span>ค่าธรรมเนียมตีพิมพ์</span>
+                      <span class="font-semibold text-gray-800">${formatCurrency(formData.publication_fee || 0)} บาท</span>
+                    </div>
+                    <div class="flex justify-between text-gray-600">
+                      <span>ทุนภายนอก</span>
+                      <span class="font-semibold text-gray-800">-${formatCurrency(externalFundingTotal)} บาท</span>
+                    </div>
+                  </div>
+                  <div class="mt-4 text-xs text-gray-500 text-left border-t border-blue-200 pt-3">
+                    คำนวณ: ${formatCurrency(formData.publication_reward || 0)} + ${formatCurrency(formData.revision_fee || 0)} + ${formatCurrency(formData.publication_fee || 0)} - ${formatCurrency(externalFundingTotal)}
+                  </div>
                 </div>
               </div>
             </div>
           </div>
         </div>
 
-        <div class="bg-yellow-50 p-4 rounded-lg">
-          <h4 class="font-semibold text-yellow-700 mb-2">เอกสารแนบ</h4>
-          <div class="space-y-3 text-sm">
-            <div>
-              <p class="font-medium mb-2">ไฟล์ทั้งหมด (${allFilesList.length} ไฟล์):</p>
-              <div class="bg-white p-3 rounded border max-h-32 overflow-y-auto">
-                <ul class="space-y-1">
-                  ${allFilesList.map(file => `
-                    <li class="flex justify-between items-center text-xs">
-                      <span>📄 ${file.name}</span>
-                      <span class="text-gray-500">${(file.size / 1024 / 1024).toFixed(2)} MB</span>
-                    </li>
-                  `).join('')}
-                </ul>
+        <div class="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
+          <div class="px-5 py-4 border-b border-gray-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <h4 class="text-sm font-semibold text-gray-800">เอกสารแนบ (Attachments)</h4>
+            <span class="text-xs text-gray-500">${fileCounts.summary}</span>
+          </div>
+          <div class="p-6 space-y-4">
+            <div class="rounded-lg border border-gray-200 bg-gray-50 max-h-48 overflow-y-auto">
+              <ul class="divide-y divide-gray-200">
+                ${attachmentsListHtml}
+              </ul>
+            </div>
+            <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-3">
+              <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <div>
+                  <p class="text-sm font-semibold text-blue-800">เอกสารรวม (PDF)</p>
+                  <p class="text-xs text-blue-600">ไฟล์ PDF ทั้งหมดรวมเป็นไฟล์เดียว</p>
+                </div>
+                <button
+                  id="preview-pdf-btn"
+                  type="button"
+                  class="${previewButtonInitialClass}"
+                >
+                  ${previewButtonInitialLabel}
+                </button>
+              </div>
+              <div id="preview-status" class="text-xs">
+                ${previewStatusMarkup}
               </div>
             </div>
-
-        <div class="bg-blue-50 border border-blue-200 p-3 rounded">
-          <div class="flex items-center justify-between">
-            <div>
-              <p class="font-medium text-blue-800">📋 เอกสารรวม (PDF)</p>
-              <p class="text-xs text-blue-600">ไฟล์ PDF ทั้งหมดรวมเป็นไฟล์เดียว</p>
-            </div>
-            <button
-              id="preview-pdf-btn"
-              type="button"
-              class="${previewButtonInitialClass}"
-            >
-              ${previewButtonInitialLabel}
-            </button>
-          </div>
-          <div id="preview-status" class="mt-2 text-xs">
-            ${previewStatusMarkup}
-          </div>
-        </div>
           </div>
         </div>
 
-        ${formData.bank_account || formData.bank_name ? `
-          <div class="bg-purple-50 p-4 rounded-lg">
-            <h4 class="font-semibold text-purple-700 mb-2">ข้อมูลธนาคาร</h4>
-            <div class="space-y-2 text-sm">
-              <p><span class="font-medium">เลขบัญชี:</span> ${formData.bank_account || '-'}</p>
-              <p><span class="font-medium">ธนาคาร:</span> ${formData.bank_name || '-'}</p>
-            </div>
-          </div>
-        ` : ''}
+        ${bankInfoBlock}
       </div>
     `;
 
