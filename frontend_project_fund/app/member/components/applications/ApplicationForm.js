@@ -6,6 +6,8 @@ import { FileText, Upload, Plus, X, Save, Send, AlertCircle } from "lucide-react
 import PageLayout from "../common/PageLayout";
 import SimpleCard from "../common/SimpleCard";
 import { fundApplicationAPI, submissionAPI, fileAPI } from '../../../lib/member_api';
+import { systemAPI, documentTypesAPI } from '../../../lib/api';
+import { systemConfigAPI } from '../../../lib/system_config_api';
 import { notificationsAPI } from '../../../lib/notifications_api';
 
 // File upload component with drag & drop
@@ -118,6 +120,7 @@ export default function ApplicationForm({ selectedFund }) {
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState({});
   const [years, setYears] = useState([]);
+  const [defaultYearId, setDefaultYearId] = useState(null);
   const [currentSubmissionId, setCurrentSubmissionId] = useState(null);
 
   // Form data state
@@ -165,23 +168,104 @@ export default function ApplicationForm({ selectedFund }) {
       setLoading(true);
       
       // Load years and document types
-      const [yearsResponse, docTypesResponse] = await Promise.all([
-        fetch('/api/years').then(res => res.json()),
-        fetch('/api/document-types?category=fund_application').then(res => res.json())
+      const [yearsResponse, docTypesResponse, currentYearResponse] = await Promise.all([
+        systemAPI
+          .getYears()
+          .catch((error) => {
+            console.error('Error fetching years list:', error);
+            return null;
+          }),
+        documentTypesAPI
+          .getDocumentTypes({ category: 'fund_application' })
+          .catch((error) => {
+            console.error('Error fetching fund document types:', error);
+            return null;
+          }),
+        systemConfigAPI
+          .getCurrentYear()
+          .catch((error) => {
+            console.error('Error fetching current system year:', error);
+            return null;
+          }),
       ]);
 
-      if (yearsResponse.success) {
-        setYears(yearsResponse.years || []);
-        // Set current year as default
-        const currentYear = yearsResponse.years?.find(y => y.year === '2568');
-        if (currentYear) {
-          setFormData(prev => ({ ...prev, year_id: currentYear.year_id }));
+      const rawYears = Array.isArray(yearsResponse?.years)
+        ? yearsResponse.years
+        : Array.isArray(yearsResponse?.data)
+        ? yearsResponse.data
+        : Array.isArray(yearsResponse)
+        ? yearsResponse
+        : [];
+
+      const normalizedYears = rawYears
+        .map(year => ({
+          year_id: year?.year_id ?? year?.id ?? null,
+          year: year?.year ?? year?.label ?? null,
+          budget: year?.budget ?? null,
+          status: year?.status ?? 'active'
+        }))
+        .filter(year => year.year_id != null && year.year != null);
+
+      setYears(normalizedYears);
+
+      const resolveDefaultYear = () => {
+        const currentYearCandidate =
+          currentYearResponse?.current_year ??
+          currentYearResponse?.data?.current_year ??
+          currentYearResponse?.year ??
+          currentYearResponse?.data?.year ??
+          null;
+
+        if (currentYearCandidate != null) {
+          const candidate = String(currentYearCandidate);
+          const match = normalizedYears.find(year => {
+            return String(year.year) === candidate || String(year.year_id) === candidate;
+          });
+          if (match) {
+            return match.year_id;
+          }
         }
+
+        const activeYear = normalizedYears.find(year => String(year.status).toLowerCase() === 'active');
+        if (activeYear) {
+          return activeYear.year_id;
+        }
+
+        return normalizedYears.length > 0 ? normalizedYears[0].year_id : null;
+      };
+
+      const defaultId = resolveDefaultYear();
+      if (defaultId != null) {
+        setDefaultYearId(defaultId);
+        setFormData(prev => {
+          const hasPrevYear = normalizedYears.some(year => Number(year.year_id) === Number(prev.year_id));
+          if (prev.year_id != null && hasPrevYear) {
+            return prev;
+          }
+          return { ...prev, year_id: defaultId };
+        });
+      } else {
+        setDefaultYearId(null);
+        setFormData(prev => {
+          const hasPrevYear = normalizedYears.some(year => Number(year.year_id) === Number(prev.year_id));
+          if (prev.year_id != null && hasPrevYear) {
+            return prev;
+          }
+          return { ...prev, year_id: null };
+        });
       }
 
-      if (docTypesResponse.success) {
-        setDocumentTypes(docTypesResponse.document_types || []);
-      }
+      const extractedDocTypes = Array.isArray(docTypesResponse?.document_types)
+        ? docTypesResponse.document_types
+        : Array.isArray(docTypesResponse?.data)
+        ? docTypesResponse.data
+        : Array.isArray(docTypesResponse?.items)
+        ? docTypesResponse.items
+        : Array.isArray(docTypesResponse)
+        ? docTypesResponse
+        : [];
+
+      setDocumentTypes(extractedDocTypes);
 
     } catch (error) {
       console.error('Error loading initial data:', error);
@@ -337,8 +421,9 @@ export default function ApplicationForm({ selectedFund }) {
   };
 
   const resetForm = () => {
+    const resolvedDefaultYearId = defaultYearId ?? years[0]?.year_id ?? null;
     setFormData({
-      year_id: years.find(y => y.year === '2568')?.year_id || null,
+      year_id: resolvedDefaultYearId,
       priority: 'normal',
       project_title: '',
       project_description: '',
