@@ -24,7 +24,10 @@ import (
 	"gorm.io/gorm"
 )
 
-const publicationRewardFormDocumentCode = "publication_reward_form_docx"
+const (
+	publicationRewardFormDocumentCode       = "publication_reward_form_docx"
+	publicationRewardHeadSignedDocumentCode = "publication_reward_form_head_signed_docx"
+)
 
 // ===================== SUBMISSION MANAGEMENT =====================
 
@@ -587,6 +590,37 @@ func ensurePublicationRewardFormDocumentType(tx *gorm.DB) (*models.DocumentType,
 			Category:         category,
 			Required:         false,
 			Multiple:         false,
+			DocumentOrder:    0,
+			CreateAt:         now,
+			UpdateAt:         now,
+			FundTypes:        &fundTypes,
+		}
+
+		if err := tx.Create(&docType).Error; err != nil {
+			return nil, err
+		}
+	}
+
+	return &docType, nil
+}
+
+func ensurePublicationRewardHeadSignedDocumentType(tx *gorm.DB) (*models.DocumentType, error) {
+	var docType models.DocumentType
+	if err := tx.Where("code = ? AND (delete_at IS NULL OR delete_at = '0000-00-00 00:00:00')", publicationRewardHeadSignedDocumentCode).
+		First(&docType).Error; err != nil {
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, err
+		}
+
+		now := time.Now()
+		category := "publication_reward"
+		fundTypes := "[\"publication_reward\"]"
+		docType = models.DocumentType{
+			DocumentTypeName: "แบบฟอร์มคำขอรับเงินรางวัล (หัวหน้าภาคลงนาม DOCX)",
+			Code:             publicationRewardHeadSignedDocumentCode,
+			Category:         category,
+			Required:         false,
+			Multiple:         true,
 			DocumentOrder:    0,
 			CreateAt:         now,
 			UpdateAt:         now,

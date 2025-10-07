@@ -473,7 +473,7 @@ func regenerateHeadApprovedPublicationDoc(tx *gorm.DB, submission *models.Submis
 		return err
 	}
 
-	docType, err := ensurePublicationRewardFormDocumentType(tx)
+	docType, err := ensurePublicationRewardHeadSignedDocumentType(tx)
 	if err != nil {
 		return fmt.Errorf("failed to prepare document type: %w", err)
 	}
