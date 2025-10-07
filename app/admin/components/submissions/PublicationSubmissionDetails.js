@@ -114,6 +114,123 @@ const getUserFullName = (user) => {
 
 const getUserEmail = (user) => (user?.email ? user.email : '');
 
+const parseAmount = (value) => {
+  if (value === null || value === undefined) return null;
+  if (typeof value === 'string') {
+    const cleaned = value.replace(/,/g, '').trim();
+    if (cleaned === '') return null;
+    const num = Number(cleaned);
+    return Number.isFinite(num) ? num : null;
+  }
+  const num = Number(value);
+  return Number.isFinite(num) ? num : null;
+};
+
+const deriveRequestedSummary = (pubDetail = {}, submission = {}) => {
+  const rewardRaw = parseAmount(pubDetail?.reward_amount ?? submission?.reward_amount);
+  const revisionRaw = parseAmount(
+    pubDetail?.revision_fee ??
+      pubDetail?.editing_fee ??
+      submission?.revision_fee
+  );
+  const publicationRaw = parseAmount(
+    pubDetail?.publication_fee ??
+      pubDetail?.page_charge ??
+      submission?.publication_fee
+  );
+  const externalRaw = parseAmount(
+    pubDetail?.external_funding_amount ?? submission?.external_funding_amount
+  );
+
+  const reward = rewardRaw ?? 0;
+  const revision = revisionRaw ?? 0;
+  const publication = publicationRaw ?? 0;
+  const external = externalRaw ?? 0;
+
+  const hasBreakdown =
+    rewardRaw != null || revisionRaw != null || publicationRaw != null;
+
+  const fallbackTotals = [
+    parseAmount(pubDetail?.total_amount),
+    parseAmount(submission?.total_amount),
+    parseAmount(submission?.requested_amount),
+  ];
+
+  let baseTotal = hasBreakdown
+    ? reward + revision + publication
+    : fallbackTotals.find((v) => v != null);
+
+  if (baseTotal == null) {
+    baseTotal = reward + revision + publication;
+  }
+
+  const total = Math.max(0, (baseTotal ?? 0) - external);
+
+  return {
+    reward,
+    revision,
+    publication,
+    external,
+    baseTotal: baseTotal ?? 0,
+    total,
+    hasBreakdown,
+  };
+};
+
+const deriveApprovedSummary = (pubDetail = {}, submission = {}, requestedSummary) => {
+  const rewardRaw = parseAmount(
+    pubDetail?.reward_approve_amount ??
+      pubDetail?.reward_approved_amount ??
+      submission?.reward_approve_amount
+  );
+  const revisionRaw = parseAmount(
+    pubDetail?.revision_fee_approve_amount ??
+      pubDetail?.revision_fee_approved_amount ??
+      submission?.revision_fee_approve_amount
+  );
+  const publicationRaw = parseAmount(
+    pubDetail?.publication_fee_approve_amount ??
+      pubDetail?.publication_fee_approved_amount ??
+      submission?.publication_fee_approve_amount
+  );
+
+  const hasBreakdown =
+    rewardRaw != null || revisionRaw != null || publicationRaw != null;
+
+  const fallbackTotals = [
+    parseAmount(pubDetail?.total_approve_amount),
+    parseAmount(pubDetail?.approved_amount),
+    parseAmount(submission?.approved_amount),
+  ];
+
+  let baseTotal = hasBreakdown
+    ? (rewardRaw ?? 0) + (revisionRaw ?? 0) + (publicationRaw ?? 0)
+    : fallbackTotals.find((v) => v != null);
+
+  if (baseTotal == null && requestedSummary) {
+    baseTotal = requestedSummary.baseTotal;
+  }
+
+  const external = requestedSummary?.external ??
+    parseAmount(pubDetail?.external_funding_amount ?? submission?.external_funding_amount) ??
+    0;
+
+  const total = Math.max(0, (baseTotal ?? 0) - external);
+
+  return {
+    reward: rewardRaw ?? (requestedSummary?.reward ?? 0),
+    rewardRaw,
+    revision: revisionRaw ?? (requestedSummary?.revision ?? 0),
+    revisionRaw,
+    publication: publicationRaw ?? (requestedSummary?.publication ?? 0),
+    publicationRaw,
+    external,
+    baseTotal: baseTotal ?? 0,
+    total,
+    hasBreakdown,
+  };
+};
+
 // ---------- Add: helpers for subcategory name from payload ----------
 const firstNonEmpty = (...vals) => {
   for (const v of vals) {
@@ -316,38 +433,12 @@ function ReadonlyMoney({ value, aria }) {
 /* =========================
  * Approval Panel (admin-only)
  * ========================= */
-function ApprovalPanel({ submission, pubDetail, onApprove, onReject }) {
+function ApprovalPanel({ submission, pubDetail, requestedSummary, approvedSummary, onApprove, onReject }) {
   const statusId = Number(submission?.status_id);
   const approvable = statusId === 1; // อยู่ระหว่างการพิจารณา
   if (!approvable) {
-    const requestedTotal = (() => {
-      const candidates = [
-        pubDetail?.total_amount,
-        (pubDetail?.reward_amount != null ||
-          pubDetail?.revision_fee != null ||
-          pubDetail?.editing_fee != null ||
-          pubDetail?.publication_fee != null ||
-          pubDetail?.page_charge != null)
-          ? Number(pubDetail?.reward_amount || 0) +
-            Number(pubDetail?.revision_fee ?? pubDetail?.editing_fee ?? 0) +
-            Number(pubDetail?.publication_fee ?? pubDetail?.page_charge ?? 0)
-          : null,
-        submission?.requested_amount,
-      ];
-      for (const value of candidates) {
-        const num = Number(value);
-        if (Number.isFinite(num) && num >= 0) return num;
-      }
-      return 0;
-    })();
-
-    const approvedTotalRaw =
-      pubDetail?.total_approve_amount ??
-      pubDetail?.approved_amount ??
-      (Number(pubDetail?.reward_approve_amount || 0) +
-        Number(pubDetail?.revision_fee_approve_amount || 0) +
-        Number(pubDetail?.publication_fee_approve_amount || 0));
-    const approvedTotalNumber = Number(approvedTotalRaw);
+    const requestedTotal = Number(requestedSummary?.total ?? 0);
+    const approvedTotalNumber = Number(approvedSummary?.total ?? 0);
 
     const announceValue =
       pubDetail?.announce_reference_number ||
@@ -418,18 +509,26 @@ function ApprovalPanel({ submission, pubDetail, onApprove, onReject }) {
   }
 
   // Defaults from "ข้อมูลการเงิน"
-  const requestedReward = Number(pubDetail?.reward_amount || 0);
-  const requestedRevision = Number(pubDetail?.revision_fee || pubDetail?.editing_fee || 0);
-  const requestedPublication = Number(pubDetail?.publication_fee || pubDetail?.page_charge || 0);
-  const extFunding = Number(pubDetail?.external_funding_amount || 0);
+  const requestedReward = requestedSummary?.reward ?? Number(pubDetail?.reward_amount || 0);
+  const requestedRevision = requestedSummary?.revision ?? Number(pubDetail?.revision_fee || pubDetail?.editing_fee || 0);
+  const requestedPublication = requestedSummary?.publication ?? Number(pubDetail?.publication_fee || pubDetail?.page_charge || 0);
+  const extFunding = requestedSummary?.external ?? Number(pubDetail?.external_funding_amount || 0);
+  const requestedBaseTotal = requestedSummary?.baseTotal ?? (
+    Number(requestedReward || 0) +
+    Number(requestedRevision || 0) +
+    Number(requestedPublication || 0)
+  );
+
+  const approvedRewardDefault = approvedSummary?.reward ?? requestedReward;
+  const approvedRevisionDefault = approvedSummary?.revision ?? requestedRevision;
+  const approvedPublicationDefault = approvedSummary?.publication ?? requestedPublication;
+  const approvedTotalDefault = approvedSummary?.total ?? Math.max(0, requestedBaseTotal - extFunding);
 
   // Approved values
-  const [rewardApprove, setRewardApprove] = useState(requestedReward);
-  const [revisionApprove, setRevisionApprove] = useState(requestedRevision);
-  const [publicationApprove, setPublicationApprove] = useState(requestedPublication);
-  const [totalApprove, setTotalApprove] = useState(
-    requestedReward + requestedRevision + requestedPublication
-  );
+  const [rewardApprove, setRewardApprove] = useState(approvedRewardDefault);
+  const [revisionApprove, setRevisionApprove] = useState(approvedRevisionDefault);
+  const [publicationApprove, setPublicationApprove] = useState(approvedPublicationDefault);
+  const [totalApprove, setTotalApprove] = useState(approvedTotalDefault);
 
   const [announceRef, setAnnounceRef] = useState(pubDetail?.announce_reference_number || '');
 
@@ -519,11 +618,15 @@ function ApprovalPanel({ submission, pubDetail, onApprove, onReject }) {
   useEffect(() => {
     if (capLoading) return;
 
+    const rewardBase = approvedRewardDefault;
+    const revisionBase = feeCap == null ? 0 : approvedRevisionDefault;
+    const publicationBase = feeCap == null ? 0 : approvedPublicationDefault;
+
     // ครั้งแรกเท่านั้น
     if (!hydrated) {
-      setRewardApprove(requestedReward);
-      setRevisionApprove(feeCap == null ? 0 : requestedRevision);
-      setPublicationApprove(feeCap == null ? 0 : requestedPublication);
+      setRewardApprove(rewardBase);
+      setRevisionApprove(revisionBase);
+      setPublicationApprove(publicationBase);
       setHydrated(true);
       return;
     }
@@ -535,10 +638,10 @@ function ApprovalPanel({ submission, pubDetail, onApprove, onReject }) {
     }
   }, [
     capLoading,
-    hideSharedFeeFields,
-    requestedReward,
-    requestedRevision,
-    requestedPublication,
+    approvedRewardDefault,
+    approvedRevisionDefault,
+    approvedPublicationDefault,
+    feeCap,
     hydrated,
     revisionApprove,
     publicationApprove,
@@ -548,8 +651,9 @@ function ApprovalPanel({ submission, pubDetail, onApprove, onReject }) {
   // รวมอัตโนมัติ (Total อ่านอย่างเดียว)
   useEffect(() => {
     const sum = Number(rewardApprove || 0) + Number(revisionApprove || 0) + Number(publicationApprove || 0);
-    setTotalApprove(sum);
-  }, [rewardApprove, revisionApprove, publicationApprove]);
+    const net = Math.max(0, sum - Number(extFunding || 0));
+    setTotalApprove(net);
+  }, [rewardApprove, revisionApprove, publicationApprove, extFunding]);
 
   // Clamp helper สำหรับวงเงินร่วม (Revision+Publication)
   const clampShared = (val, other) => {
@@ -628,9 +732,9 @@ function ApprovalPanel({ submission, pubDetail, onApprove, onReject }) {
 
   // รีเซ็ตกลับค่าเริ่มต้นจาก FI (หรือ 0 ถ้าซ่อนฟิลด์ร่วม)
   const recalc = () => {
-    const baseRevision = hideSharedFeeFields ? 0 : requestedRevision;
-    const basePublication = hideSharedFeeFields ? 0 : requestedPublication;
-    setRewardApprove(requestedReward);
+    const baseRevision = feeCap == null ? 0 : approvedRevisionDefault;
+    const basePublication = feeCap == null ? 0 : approvedPublicationDefault;
+    setRewardApprove(approvedRewardDefault);
     setRevisionApprove(baseRevision);
     setPublicationApprove(basePublication);
   };
@@ -974,7 +1078,7 @@ function ApprovalPanel({ submission, pubDetail, onApprove, onReject }) {
         <div className="grid grid-cols-2 items-start">
           <label className="block text-sm font-medium text-gray-700 leading-tight pt-2">
             หมายเหตุของผู้ดูแลระบบ
-            <br /><span className="text-xs font-normal text-gray-600">Comment</span>
+            <br /><span className="text-xs font-normal text-gray-600">Admin Comment</span>
           </label>
           <div className="w-full rounded-md border bg-white shadow-sm transition-all border-gray-300 hover:border-blue-300 focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-500">
             <textarea
@@ -1242,12 +1346,17 @@ export default function PublicationSubmissionDetails({ submissionId, onBack }) {
     submission?.details?.data ||
     {};
 
-  const approvedTotal =
-    pubDetail?.total_approve_amount ??
-    pubDetail?.approved_amount ??
-    (Number(pubDetail?.reward_approve_amount || 0) +
-      Number(pubDetail?.revision_fee_approve_amount || 0) +
-      Number(pubDetail?.publication_fee_approve_amount || 0));
+  const requestedSummary = useMemo(
+    () => deriveRequestedSummary(pubDetail, submission),
+    [pubDetail, submission]
+  );
+
+  const approvedSummary = useMemo(
+    () => deriveApprovedSummary(pubDetail, submission, requestedSummary),
+    [pubDetail, submission, requestedSummary]
+  );
+
+  const approvedTotal = approvedSummary?.total ?? null;
 
   const submittedAt =
     submission?.submitted_at ??
@@ -1829,20 +1938,15 @@ export default function PublicationSubmissionDetails({ submissionId, onBack }) {
         {/* Amounts (คอลัมน์ขวา) */}
         <div className="text-right">
           <div className="text-2xl font-bold text-blue-600">
-            {formatCurrency(pubDetail.reward_amount || 0)}
+            {formatCurrency(requestedSummary?.total || 0)}
           </div>
           <div className="text-sm text-gray-500">จำนวนเงินที่ขอ</div>
 
           {submission?.status_id === 2 && (
             <div className="mt-2">
               <div className="text-lg font-bold text-green-600">
-                  {formatCurrency(
-                    pubDetail?.total_approve_amount ??
-                      (Number(pubDetail?.reward_approve_amount || 0) +
-                        Number(pubDetail?.revision_fee_approve_amount || 0) +
-                        Number(pubDetail?.publication_fee_approve_amount || 0))
-                  )}฿
-                </div>
+                {formatCurrency(approvedSummary?.total || 0)}
+              </div>
               <div className="text-sm text-gray-500">จำนวนเงินที่อนุมัติ</div>
             </div>
           )}
@@ -2013,8 +2117,8 @@ export default function PublicationSubmissionDetails({ submissionId, onBack }) {
             </div>
           </Card>
           
-          {/* Financial Information */}
-          <Card title="ข้อมูลการเงิน (Financial Information)" icon={DollarSign} collapsible={false}>
+          {/* Request Information */}
+          <Card title="ข้อมูลการเงิน (Request Information)" icon={DollarSign} collapsible={false}>
             <div className="space-y-4">
               <div className={`grid ${submission?.status_id === 2 ? 'grid-cols-3' : 'grid-cols-2'} pb-2 border-b text-sm text-gray-600`}>
                 <div></div>
@@ -2100,16 +2204,11 @@ export default function PublicationSubmissionDetails({ submissionId, onBack }) {
                   <span className="text-xs font-normal text-gray-600">Total Requested to CP-KKU</span>
                 </label>
                 <span className="text-right font-bold text-blue-600">
-                  {formatCurrency(pubDetail.total_amount || pubDetail.reward_amount || 0)}฿
+                  ฿{formatCurrency(requestedSummary?.total || 0)}
                 </span>
                 {submission?.status_id === 2 && (
                   <span className="text-right font-bold text-green-600">
-                    {formatCurrency(
-                      pubDetail?.total_approve_amount ??
-                        (Number(pubDetail?.reward_approve_amount || 0) +
-                          Number(pubDetail?.revision_fee_approve_amount || 0) +
-                          Number(pubDetail?.publication_fee_approve_amount || 0))
-                    )}฿
+                    ฿{formatCurrency(approvedSummary?.total || 0)}
                   </span>
                 )}
               </div>
@@ -2120,6 +2219,8 @@ export default function PublicationSubmissionDetails({ submissionId, onBack }) {
           <ApprovalPanel
             submission={submission}
             pubDetail={pubDetail}
+            requestedSummary={requestedSummary}
+            approvedSummary={approvedSummary}
             onApprove={approve}
             onReject={reject}
           />
