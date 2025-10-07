@@ -42,16 +42,6 @@ const Toast = Swal.mixin({
 // Draft storage constants
 const DRAFT_KEY = 'publication_reward_draft';
 
-// Author status to subcategory mapping
-const AUTHOR_STATUS_SUBCATEGORY_MAP = {
-  first_author: 14,
-  corresponding_author: 15
-};
-
-const getSubcategoryIdForAuthorStatus = (status) => {
-  return AUTHOR_STATUS_SUBCATEGORY_MAP[status] ?? null;
-};
-
 // =================================================================
 // UTILITY FUNCTIONS
 // =================================================================
@@ -65,6 +55,79 @@ const formatNumber = (value) => {
 const formatCurrency = (value) => {
   const num = formatNumber(value);
   return num.toLocaleString('th-TH');
+};
+
+const parseNumberOrNull = (value) => {
+  if (value === null || value === undefined || value === '') {
+    return null;
+  }
+  const num = Number(value);
+  return Number.isFinite(num) ? num : null;
+};
+
+const parseIntegerOrNull = (value) => {
+  if (value === null || value === undefined || value === '') {
+    return null;
+  }
+  const intVal = parseInt(value, 10);
+  return Number.isNaN(intVal) ? null : intVal;
+};
+
+const formatCurrencyWithPlaceholder = (value, placeholder = '-') => {
+  const numeric = parseNumberOrNull(value);
+  if (numeric === null) {
+    return placeholder;
+  }
+  return `${formatCurrency(numeric)} บาท`;
+};
+
+const normalizePolicyPayload = (policy = {}) => {
+  if (!policy || typeof policy !== 'object') {
+    return null;
+  }
+
+  const overall = policy.overall || {};
+  const rule = policy.rule || {};
+  const userUsage = policy.user_usage || {};
+  const userRemaining = policy.user_remaining || {};
+
+  return {
+    overall: {
+      subcategory_budget_id: parseIntegerOrNull(overall.subcategory_budget_id),
+      allocated_amount: parseNumberOrNull(overall.allocated_amount),
+      used_amount: parseNumberOrNull(overall.used_amount),
+      remaining_amount: parseNumberOrNull(overall.remaining_amount),
+      max_amount_per_year: parseNumberOrNull(overall.max_amount_per_year),
+      max_grants: parseIntegerOrNull(overall.max_grants),
+      max_amount_per_grant: parseNumberOrNull(overall.max_amount_per_grant),
+    },
+    rule: {
+      subcategory_budget_id: parseIntegerOrNull(rule.subcategory_budget_id),
+      fund_description: rule.fund_description || '',
+      max_amount_per_grant: parseNumberOrNull(rule.max_amount_per_grant),
+    },
+    user_usage: {
+      total_grants: parseIntegerOrNull(userUsage.total_grants) ?? 0,
+      total_amount: parseNumberOrNull(userUsage.total_amount) ?? 0,
+      publication_grants: parseIntegerOrNull(userUsage.publication_grants) ?? 0,
+      publication_amount: parseNumberOrNull(userUsage.publication_amount) ?? 0,
+    },
+    user_remaining: {
+      grants: parseIntegerOrNull(userRemaining.grants),
+      amount: parseNumberOrNull(userRemaining.amount),
+    }
+  };
+};
+
+const formatGrantLimit = (value) => {
+  if (value === null || value === undefined) {
+    return 'ไม่จำกัด';
+  }
+  try {
+    return `${Number(value).toLocaleString('th-TH')} ครั้ง`;
+  } catch (error) {
+    return `${value} ครั้ง`;
+  }
 };
 
 // Phone number formatting
@@ -553,6 +616,9 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
   const [enabledYears, setEnabledYears] = useState([]);
   const [enabledPairs, setEnabledPairs] = useState([]);
   const [resolutionError, setResolutionError] = useState('');
+  const [rewardRateMap, setRewardRateMap] = useState({});
+  const [budgetOptionMap, setBudgetOptionMap] = useState({});
+  const [policyContext, setPolicyContext] = useState(null);
 
   // Form data state
   const [formData, setFormData] = useState({
@@ -691,24 +757,43 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
     try {
       const resp = await publicationBudgetAPI.getValidOptions(category_id, year_id);
       const options = resp.options || resp.data || [];
-      const pairs = options.map(o => ({ author_status: o.author_status, journal_quartile: o.journal_quartile }));
-      return { pairs };
+      const pairs = [];
+      const rateMap = {};
+      const budgetMap = {};
+
+      options.forEach(opt => {
+        if (!opt) return;
+        const author_status = opt.author_status;
+        const journal_quartile = opt.journal_quartile;
+        if (!author_status || !journal_quartile) return;
+
+        const key = `${author_status}|${journal_quartile}`;
+        pairs.push({ author_status, journal_quartile });
+
+        const rewardAmount = parseNumberOrNull(opt.reward_amount);
+        if (rewardAmount !== null) {
+          rateMap[key] = rewardAmount;
+        }
+
+        budgetMap[key] = {
+          subcategory_id: opt.subcategory_id ?? null,
+          subcategory_budget_id: opt.subcategory_budget_id ?? null,
+          fund_description: opt.fund_description || '',
+          overall_subcategory_budget_id: opt.overall_subcategory_budget_id ?? null,
+          max_amount_per_year: parseNumberOrNull(opt.max_amount_per_year),
+          max_grants: parseIntegerOrNull(opt.max_grants),
+          max_amount_per_grant: parseNumberOrNull(opt.max_amount_per_grant),
+        };
+      });
+
+      return { pairs, rateMap, budgetMap };
 
     } catch (err) {
       console.error('getEnabledAuthorStatusQuartiles error:', err);
-      return { pairs: [] };
+      return { pairs: [], rateMap: {}, budgetMap: {} };
     }
   };
-  
-  const getRewardContext = (authorStatus, quartile) => {
-    const amount = ratesMap[`${authorStatus}|${quartile}`] || 0;
-    const mapping = budgetMap[`${authorStatus}|${quartile}`] || {
-      subcategory_id: null,
-      subcategory_budget_id: null,
-      fund_description: null
-    };
-    return { amount, ...mapping };
-  };
+
 
   // =================================================================
   // EFFECT HOOKS
@@ -892,16 +977,19 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
   useEffect(() => {
     const recompute = async () => {
       if (categoryId && formData.year_id) {
-        const { pairs } = await getEnabledAuthorStatusQuartiles({
+        const { pairs, rateMap, budgetMap } = await getEnabledAuthorStatusQuartiles({
           category_id: categoryId,
           year_id: formData.year_id
         });
         setEnabledPairs(pairs);
+        setRewardRateMap(rateMap);
+        setBudgetOptionMap(budgetMap);
         const uniqueStatuses = [...new Set(pairs.map(p => p.author_status))];
         setAvailableAuthorStatuses(uniqueStatuses);
         setAvailableQuartiles([]);
         setFormData(prev => ({ ...prev, author_status: '', journal_quartile: '', subcategory_id: null, subcategory_budget_id: null, publication_reward: 0, reward_amount: 0 }));
         setResolutionError(pairs.length === 0 ? 'ไม่พบทุนสำหรับปี/สถานะ/ควอร์ไทล์ที่เลือก' : '');
+        setPolicyContext(null);
       }
     };
     recompute();
@@ -913,18 +1001,20 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
       const quartiles = enabledPairs.filter(p => p.author_status === formData.author_status).map(p => p.journal_quartile);
       const sorted = sortQuartiles(quartiles);
       setAvailableQuartiles(sorted);
-      const mappedSubcategoryId = getSubcategoryIdForAuthorStatus(formData.author_status);
       setFormData(prev => ({
         ...prev,
         journal_quartile: '',
-        subcategory_id: mappedSubcategoryId,
-        subcategory_budget_id: null
+        subcategory_id: null,
+        subcategory_budget_id: null,
+        publication_reward: 0,
+        reward_amount: 0
       }));
       if (sorted.length === 0) {
         setResolutionError('ไม่พบทุนสำหรับปี/สถานะ/ควอร์ไทล์ที่เลือก');
       } else {
         setResolutionError('');
       }
+      setPolicyContext(null);
     }
   }, [formData.author_status, enabledPairs]);
 
@@ -933,6 +1023,10 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
     const resolve = async () => {
       if (formData.author_status && formData.journal_quartile && formData.year_id) {
         try {
+          const key = `${formData.author_status}|${formData.journal_quartile}`;
+          const optionContext = budgetOptionMap[key] || {};
+          const fallbackReward = rewardRateMap[key] ?? 0;
+          setPolicyContext(null);
           const result = await resolveBudgetAndSubcategory({
             category_id: categoryId,
             year_id: formData.year_id,
@@ -940,16 +1034,38 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
             journal_quartile: formData.journal_quartile
           });
           if (result) {
-            const mappedSubcategoryId = getSubcategoryIdForAuthorStatus(formData.author_status);
-            const resolvedSubcategoryId = mappedSubcategoryId ?? result?.subcategory_id ?? null;
+            const resolvedSubcategoryId = parseIntegerOrNull(result?.subcategory_id ?? optionContext.subcategory_id);
+            const resolvedBudgetId = parseIntegerOrNull(result?.subcategory_budget_id ?? optionContext.subcategory_budget_id);
+            const resolvedReward = parseNumberOrNull(result?.reward_amount);
+            const normalizedPolicy = normalizePolicyPayload(result.policy);
+            setPolicyContext(normalizedPolicy);
             setFormData(prev => ({
               ...prev,
               subcategory_id: resolvedSubcategoryId,
-              subcategory_budget_id: result.subcategory_budget_id,
-              publication_reward: result.reward_amount,
-              reward_amount: result.reward_amount,
+              subcategory_budget_id: resolvedBudgetId,
+              publication_reward: resolvedReward ?? fallbackReward,
+              reward_amount: resolvedReward ?? fallbackReward,
             }));
-            setResolutionError(result.remaining_budget > 0 ? '' : 'งบประมาณสำหรับทุนนี้หมดแล้ว');
+            let resolutionMessage = '';
+            const overallRemaining = normalizedPolicy?.overall?.remaining_amount;
+            if (overallRemaining !== null && overallRemaining !== undefined && overallRemaining <= 0) {
+              resolutionMessage = 'งบประมาณสำหรับทุนนี้หมดแล้ว';
+            }
+            const userRemainingGrants = normalizedPolicy?.user_remaining?.grants;
+            if (!resolutionMessage && userRemainingGrants === 0) {
+              resolutionMessage = 'คุณใช้สิทธิ์จำนวนครั้งครบตามโควตาประจำปีแล้ว';
+            }
+            const userRemainingAmount = normalizedPolicy?.user_remaining?.amount;
+            if (!resolutionMessage && userRemainingAmount !== null && userRemainingAmount !== undefined && userRemainingAmount <= 0) {
+              resolutionMessage = 'คุณใช้วงเงินประจำปีครบแล้ว';
+            }
+            if (!resolutionMessage && result?.remaining_budget !== undefined && result?.remaining_budget !== null) {
+              const remainingBudget = Number(result.remaining_budget);
+              if (!Number.isNaN(remainingBudget) && remainingBudget <= 0) {
+                resolutionMessage = 'งบประมาณสำหรับทุนนี้หมดแล้ว';
+              }
+            }
+            setResolutionError(resolutionMessage);
           } else {
             setFormData(prev => ({
               ...prev,
@@ -959,6 +1075,7 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
               reward_amount: 0,
             }));
             setResolutionError('ไม่พบทุนสำหรับปี/สถานะ/ควอร์ไทล์ที่เลือก');
+            setPolicyContext(null);
           }
         } catch (error) {
           console.error('resolveBudgetAndSubcategory error:', error);
@@ -968,11 +1085,12 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
             subcategory_budget_id: null
           }));
           setResolutionError('ไม่สามารถตรวจสอบทุนได้');
+          setPolicyContext(null);
         }
       }
     };
     resolve();
-  }, [formData.author_status, formData.journal_quartile, formData.year_id, categoryId]);
+  }, [formData.author_status, formData.journal_quartile, formData.year_id, categoryId, budgetOptionMap, rewardRateMap]);
 
   // Update fee limits when quartile changes
   useEffect(() => {
@@ -1304,11 +1422,13 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
 
       // Load enabled author status & quartile pairs
       if (categoryId && currentYear) {
-        const { pairs, rMap, bMap } = await getEnabledAuthorStatusQuartiles({
+        const { pairs, rateMap, budgetMap } = await getEnabledAuthorStatusQuartiles({
           category_id: categoryId,
           year_id: currentYear.year_id
         });
         setEnabledPairs(pairs);
+        setRewardRateMap(rateMap);
+        setBudgetOptionMap(budgetMap);
         const uniqueStatuses = [...new Set(pairs.map(p => p.author_status))];
         setAvailableAuthorStatuses(uniqueStatuses);
         setAvailableQuartiles([]);
@@ -1411,6 +1531,7 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
       }));
       if (['author_status', 'journal_quartile'].includes(name)) {
         setResolutionError('');
+        setPolicyContext(null);
       }
     }
 
@@ -3329,6 +3450,49 @@ const showSubmissionConfirmation = async () => {
                   <p id="resolution-journal_quartile" className="text-red-500 text-sm mt-1">{resolutionError}</p>
                 )}
               </div>
+
+              {policyContext && (
+                <div className="md:col-span-2">
+                  <div className="mt-1 rounded-lg border border-blue-200 bg-blue-50 p-4 text-blue-900">
+                    <div className="flex items-center gap-2 font-semibold">
+                      <Calculator className="h-4 w-4" />
+                      <span>สรุปสิทธิ์และงบประมาณประจำปี</span>
+                    </div>
+                    <div className="mt-3 grid gap-3 md:grid-cols-3">
+                      <div>
+                        <p className="text-xs uppercase tracking-wide text-blue-700">งบประมาณคงเหลือ (ภาพรวม)</p>
+                        <p className="text-lg font-semibold">{formatCurrencyWithPlaceholder(policyContext?.overall?.remaining_amount)}</p>
+                        {policyContext?.overall?.allocated_amount !== null && policyContext?.overall?.allocated_amount !== undefined && (
+                          <p className="text-xs text-blue-700">จากงบรวม {formatCurrency(policyContext.overall.allocated_amount)} บาท</p>
+                        )}
+                      </div>
+                      <div>
+                        <p className="text-xs uppercase tracking-wide text-blue-700">สิทธิจำนวนครั้งที่เหลือ</p>
+                        <p className="text-lg font-semibold">{formatGrantLimit(policyContext?.user_remaining?.grants)}</p>
+                        {policyContext?.overall?.max_grants !== null && policyContext?.overall?.max_grants !== undefined && (
+                          <p className="text-xs text-blue-700">สิทธิ์รวม {policyContext.overall.max_grants.toLocaleString('th-TH')} ครั้ง</p>
+                        )}
+                      </div>
+                      <div>
+                        <p className="text-xs uppercase tracking-wide text-blue-700">วงเงินที่ยังสามารถยื่นได้</p>
+                        <p className="text-lg font-semibold">
+                          {policyContext?.overall?.max_amount_per_year !== null && policyContext?.overall?.max_amount_per_year !== undefined
+                            ? formatCurrencyWithPlaceholder(policyContext?.user_remaining?.amount)
+                            : 'ไม่จำกัด'}
+                        </p>
+                        {policyContext?.overall?.max_amount_per_year !== null && policyContext?.overall?.max_amount_per_year !== undefined && (
+                          <p className="text-xs text-blue-700">วงเงินต่อปีไม่เกิน {formatCurrency(policyContext.overall.max_amount_per_year)} บาท</p>
+                        )}
+                      </div>
+                    </div>
+                    {policyContext?.rule?.max_amount_per_grant !== null && policyContext?.rule?.max_amount_per_grant !== undefined && (
+                      <p className="mt-2 text-xs text-blue-700">
+                        วงเงินต่อครั้งไม่เกิน {formatCurrency(policyContext.rule.max_amount_per_grant)} บาท ({policyContext?.rule?.fund_description || 'ตามประกาศ'})
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
 
               {/* Volume/Issue */}
               <div>
