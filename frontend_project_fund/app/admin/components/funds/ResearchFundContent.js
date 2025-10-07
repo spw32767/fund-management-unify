@@ -38,6 +38,7 @@ export default function ResearchFundContent() {
   const [statusFilter, setStatusFilter] = useState("all");
 
   const [showConditionModal, setShowConditionModal] = useState(false);
+  const [isConditionModalVisible, setIsConditionModalVisible] = useState(false);
   const [selectedCondition, setSelectedCondition] = useState({ title: "", content: "" });
   const modalRef = useRef(null);
 
@@ -60,6 +61,32 @@ export default function ResearchFundContent() {
   useEffect(() => {
     applyFilters();
   }, [searchTerm, statusFilter, fundCategories]);
+
+  const parseBudgetValue = (value) => {
+    if (value === null || value === undefined || value === "") return 0;
+    if (typeof value === "number") {
+      return Number.isFinite(value) ? value : 0;
+    }
+
+    const cleaned = String(value).replace(/,/g, "").trim();
+    if (cleaned === "") return 0;
+
+    const numeric = Number.parseFloat(cleaned);
+    return Number.isNaN(numeric) ? 0 : numeric;
+  };
+
+  const parseCountValue = (value) => {
+    if (value === null || value === undefined || value === "") return 0;
+    if (typeof value === "number") {
+      return Number.isFinite(value) ? value : 0;
+    }
+
+    const cleaned = String(value).replace(/,/g, "").trim();
+    if (cleaned === "") return 0;
+
+    const numeric = Number.parseInt(cleaned, 10);
+    return Number.isNaN(numeric) ? 0 : numeric;
+  };
 
   const computeApplicationOpen = (start, end) => {
     if (!start || !end) return true;
@@ -283,11 +310,11 @@ export default function ResearchFundContent() {
   };
 
   const isAvailableResearch = (sub) => {
-    const hasBudget = (sub.remaining_budget || 0) > 0;
+    const hasBudget = parseBudgetValue(sub.remaining_budget) > 0;
     const grantsOk =
       sub.remaining_grant === null ||
       sub.remaining_grant === undefined ||
-      sub.remaining_grant > 0;
+      parseCountValue(sub.remaining_grant) > 0;
     return hasBudget && grantsOk;
   };
 
@@ -328,13 +355,38 @@ export default function ResearchFundContent() {
   };
 
   const formatAmount = (amount) => {
-    if (!amount && amount !== 0) return "ไม่ระบุ";
-    return new Intl.NumberFormat("th-TH").format(amount) + " บาท";
+    if (amount === null || amount === undefined || amount === "") {
+      return "ไม่ระบุ";
+    }
+
+    const numeric = parseBudgetValue(amount);
+    if (!Number.isFinite(numeric)) {
+      return "ไม่ระบุ";
+    }
+
+    const hasDecimal = Math.abs(numeric % 1) > 1e-6;
+
+    return (
+      new Intl.NumberFormat("th-TH", {
+        minimumFractionDigits: hasDecimal ? 2 : 0,
+        maximumFractionDigits: 2,
+      }).format(numeric) + " บาท"
+    );
   };
 
   const showCondition = (fundName, condition) => {
     setSelectedCondition({ title: fundName, content: condition });
     setShowConditionModal(true);
+    if (typeof window !== "undefined" && window.requestAnimationFrame) {
+      window.requestAnimationFrame(() => setIsConditionModalVisible(true));
+    } else {
+      setTimeout(() => setIsConditionModalVisible(true), 0);
+    }
+  };
+
+  const closeConditionModal = () => {
+    setIsConditionModalVisible(false);
+    setTimeout(() => setShowConditionModal(false), 250);
   };
 
   const renderApplicationPeriodInfo = () => {
@@ -425,12 +477,67 @@ export default function ResearchFundContent() {
 
   const renderFundRow = (fund) => {
     const fundName = fund.subcategorie_name || fund.subcategory_name || "ไม่ระบุ";
-    const remainingBudget = fund.remaining_budget ?? 0;
+    const remainingBudget = parseBudgetValue(fund.remaining_budget);
+    const hasBudgetValue =
+      fund.remaining_budget !== null &&
+      fund.remaining_budget !== undefined &&
+      String(fund.remaining_budget).trim() !== "";
+    const grantsRemaining =
+      fund.remaining_grant === null || fund.remaining_grant === undefined
+        ? null
+        : parseCountValue(fund.remaining_grant);
+
     const available = isAvailableResearch(fund);
+
+    const budgetBadgeClass = !hasBudgetValue
+      ? "bg-gray-100 text-gray-600"
+      : !isWithinApplicationPeriod
+      ? "bg-gray-100 text-gray-600"
+      : remainingBudget > 0
+      ? "bg-emerald-50 text-emerald-700"
+      : "bg-red-50 text-red-700";
+
+    const budgetStatusText = !hasBudgetValue
+      ? "ไม่มีข้อมูลงบประมาณ"
+      : remainingBudget > 0
+      ? "ยังมีงบประมาณ"
+      : "งบประมาณหมด";
+
+    const budgetStatusClass = !hasBudgetValue
+      ? "text-gray-500"
+      : remainingBudget > 0
+      ? "text-emerald-600"
+      : "text-red-600";
+
+    const grantStatusText =
+      grantsRemaining === null
+        ? null
+        : grantsRemaining > 0
+        ? `เหลือสิทธิ์อีก ${grantsRemaining} ทุน`
+        : "จำนวนทุนครบแล้ว";
+
+    const grantStatusClass =
+      grantsRemaining === null
+        ? ""
+        : grantsRemaining > 0
+        ? "text-blue-600"
+        : "text-orange-600";
+
+    const availabilityText = !isWithinApplicationPeriod
+      ? "ปิดรับคำขอ"
+      : !available
+      ? "งบประมาณหมด หรือจำนวนทุนครบแล้ว"
+      : "เปิดรับคำขอ";
+
+    const availabilityClass = !isWithinApplicationPeriod
+      ? "text-gray-500"
+      : !available
+      ? "text-red-600"
+      : "text-blue-600";
 
     return (
       <tr key={fund.subcategory_id || fund.subcategorie_id} className={!isWithinApplicationPeriod ? "bg-gray-50" : ""}>
-        <td className="px-6 py-4">
+        <td className="px-6 py-4 align-top">
           <div className="text-sm font-medium text-gray-900 max-w-lg break-words leading-relaxed">
             {fundName}
           </div>
@@ -440,29 +547,34 @@ export default function ResearchFundContent() {
         </td>
 
         <td className="px-6 py-4">
-          <div className="text-sm text-gray-900">
-            {fund.fund_condition ? (
-              <button
-                onClick={() => showCondition(fundName, fund.fund_condition)}
-                className="text-blue-600 hover:text-blue-800 underline flex items-center gap-1"
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="text-sm text-gray-900">
+              {fund.fund_condition ? (
+                <button
+                  onClick={() => showCondition(fundName, fund.fund_condition)}
+                  className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-800 transition-colors"
+                >
+                  <Info className="w-4 h-4" />
+                  ดูเงื่อนไข
+                </button>
+              ) : (
+                <span className="text-gray-500">ไม่มีเงื่อนไขเฉพาะ</span>
+              )}
+            </div>
+
+            <div className="flex flex-col sm:items-end gap-1">
+              <span
+                className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${budgetBadgeClass}`}
               >
-                <Info className="w-4 h-4" />
-                ดูเงื่อนไข
-              </button>
-            ) : (
-              <span className="text-gray-500">ไม่มีเงื่อนไขเฉพาะ</span>
-            )}
+                {hasBudgetValue ? formatAmount(remainingBudget) : "ไม่ระบุ"}
+              </span>
+              <span className={`text-xs ${budgetStatusClass}`}>{budgetStatusText}</span>
+              {grantStatusText && (
+                <span className={`text-xs ${grantStatusClass}`}>{grantStatusText}</span>
+              )}
+              <span className={`text-xs ${availabilityClass}`}>{availabilityText}</span>
+            </div>
           </div>
-        </td>
-
-        <td className="px-6 py-4">
-          <div className="text-sm font-medium text-gray-900">{formatAmount(remainingBudget)}</div>
-
-          {!available ? (
-            <div className="text-xs text-red-600 mt-1">งบประมาณหมด หรือจำนวนทุนครบแล้ว</div>
-          ) : !isWithinApplicationPeriod ? (
-            <div className="text-xs text-gray-500 mt-1">ปิดรับคำขอ</div>
-          ) : null}
         </td>
       </tr>
     );
@@ -551,11 +663,8 @@ export default function ResearchFundContent() {
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-2/5">
                     ชื่อทุน
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-1/4">
-                    เงื่อนไขทุน
-                  </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    งบประมาณคงเหลือ
+                    รายละเอียด
                   </th>
                 </tr>
               </thead>
@@ -567,7 +676,7 @@ export default function ResearchFundContent() {
 
                   return (
                     <tr key={category.category_id}>
-                      <td colSpan="3" className="px-6 py-4 text-center text-gray-500">
+                      <td colSpan="2" className="px-6 py-4 text-center text-gray-500">
                         ไม่มีทุนย่อยในหมวด {category.category_name}
                       </td>
                     </tr>
@@ -583,18 +692,22 @@ export default function ResearchFundContent() {
         <div
           className="fixed inset-0 z-50 flex items-center justify-center p-4"
           onClick={(e) => {
-            if (e.target === e.currentTarget) setShowConditionModal(false);
+            if (e.target === e.currentTarget) closeConditionModal();
           }}
         >
           <div
-            className="fixed inset-0 bg-gray-500 opacity-75 transition-opacity duration-300 ease-in-out"
-            onClick={() => setShowConditionModal(false)}
+            className={`fixed inset-0 bg-gray-500 transition-opacity duration-300 ease-in-out ${
+              isConditionModalVisible ? "opacity-75" : "opacity-0"
+            }`}
+            onClick={closeConditionModal}
             aria-hidden="true"
           ></div>
 
           <div
             ref={modalRef}
-            className="relative bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all duration-300 ease-in-out max-w-2xl w-full max-h-[90vh] flex flex-col"
+            className={`relative bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all duration-300 ease-in-out max-w-2xl w-full max-h-[90vh] flex flex-col ${
+              isConditionModalVisible ? "opacity-100 scale-100" : "opacity-0 scale-95"
+            }`}
             role="dialog"
             aria-labelledby="modal-title"
             aria-describedby="modal-description"
@@ -608,7 +721,7 @@ export default function ResearchFundContent() {
                 <button
                   type="button"
                   className="text-gray-400 hover:text-gray-500 flex-shrink-0"
-                  onClick={() => setShowConditionModal(false)}
+                  onClick={closeConditionModal}
                 >
                   <X size={20} />
                 </button>
@@ -628,7 +741,7 @@ export default function ResearchFundContent() {
               <button
                 type="button"
                 className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-blue-600 text-base font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:ml-3 sm:w-auto sm:text-sm"
-                onClick={() => setShowConditionModal(false)}
+                onClick={closeConditionModal}
               >
                 ปิด
               </button>
