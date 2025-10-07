@@ -37,6 +37,7 @@ import { notificationsAPI } from '@/app/lib/notifications_api';
 
 import Swal from 'sweetalert2';
 import 'sweetalert2/dist/sweetalert2.min.css';
+import { resolveDocumentFileName } from '@/app/utils/fileHelpers';
 
 const pickArray = (...candidates) => {
   for (const candidate of candidates) {
@@ -1153,26 +1154,6 @@ export default function PublicationSubmissionDetailsDept({ submissionId, onBack 
     return null;
   };
 
-  const resolveFileName = (doc, fallback = 'document') => {
-    const candidates = [
-      doc?.original_name,
-      doc?.original_filename,
-      doc?.file_name,
-      doc?.File?.original_name,
-      doc?.file?.original_name,
-      doc?.File?.file_name,
-      doc?.file?.file_name,
-      doc?.name,
-      doc?.title,
-    ];
-    for (const candidate of candidates) {
-      if (typeof candidate === 'string' && candidate.trim() !== '') {
-        return candidate;
-      }
-    }
-    return fallback;
-  };
-
   const fetchManagedFileBlob = async (fileId) => {
     const token = apiClient.getToken();
     const url = `${apiClient.baseURL}/files/managed/${fileId}/download`;
@@ -1268,7 +1249,7 @@ export default function PublicationSubmissionDetailsDept({ submissionId, onBack 
     }
 
     const fileId = resolveFileId(doc);
-    const fileName = resolveFileName(doc, fallbackName);
+    const fileName = resolveDocumentFileName(doc, fallbackName);
 
     if (fileId != null) {
       try {
@@ -1311,7 +1292,10 @@ export default function PublicationSubmissionDetailsDept({ submissionId, onBack 
         const pages = await merged.copyPages(src, src.getPageIndices());
         pages.forEach(p => merged.addPage(p));
       } catch (e) {
-        const skippedName = resolveFileName(doc, doc?.file_id ? `file-${doc.file_id}.pdf` : 'unknown.pdf');
+        const skippedName = resolveDocumentFileName(
+          doc,
+          doc?.file_id ? `file-${doc.file_id}.pdf` : 'unknown.pdf'
+        );
         console.warn('merge: skip', skippedName, e);
         skipped.push(skippedName);
         continue;
@@ -2098,7 +2082,7 @@ export default function PublicationSubmissionDetailsDept({ submissionId, onBack 
               <div className="space-y-4">
                 {attachments.map((doc, index) => {
                   const fileId = resolveFileId(doc);
-                  const fileName = resolveFileName(doc, `เอกสารที่ ${index + 1}`);
+                  const fileName = resolveDocumentFileName(doc, `เอกสารที่ ${index + 1}`);
                   const docType = (doc.document_type_name || '').trim() || 'ไม่ระบุประเภท';
                   const canOpen = fileId != null || !!resolveFilePath(doc);
 

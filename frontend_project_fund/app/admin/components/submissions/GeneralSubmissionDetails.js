@@ -22,6 +22,7 @@ import 'sweetalert2/dist/sweetalert2.min.css';
 import { PDFDocument } from 'pdf-lib';
 import { AnimatePresence, motion } from 'motion/react';
 import PublicationSubmissionDetails from './PublicationSubmissionDetails';
+import { resolveDocumentFileName } from '@/app/utils/fileHelpers';
 
 /* =========================
  * Helpers
@@ -948,14 +949,7 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
 
         const merged = (rawDocs || []).map((d, i) => {
           const fileId = d.file_id ?? d.File?.file_id ?? d.file?.file_id ?? d.id;
-          const name =
-            d.file_name ??
-            d.original_name ??
-            d.original_filename ??
-            d.File?.original_name ??
-            d.file?.original_name ??
-            d.name ??
-            `เอกสารที่ ${i + 1}`;
+          const name = resolveDocumentFileName(d, `เอกสารที่ ${i + 1}`);
           const docTypeId = d.document_type_id ?? d.DocumentTypeID ?? d.doc_type_id ?? null;
           const docTypeName = d.document_type_name || typeMap[String(docTypeId)] || 'ไม่ระบุหมวด';
           return {
@@ -1453,8 +1447,12 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
         const pages = await merged.copyPages(src, src.getPageIndices());
         pages.forEach((p) => merged.addPage(p));
       } catch (e) {
-        console.warn('merge: skip', e);
-        skipped.push(doc?.original_name || doc?.file_name || `file-${doc.file_id}.pdf`);
+        const skippedName = resolveDocumentFileName(
+          doc,
+          doc?.file_id ? `file-${doc.file_id}.pdf` : 'unknown-file'
+        );
+        console.warn('merge: skip', skippedName, e);
+        skipped.push(skippedName);
         continue;
       }
     }
@@ -1928,14 +1926,7 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
             <div className="space-y-4">
               {attachments.map((doc, index) => {
                 const fileId = doc.file_id || doc.File?.file_id || doc.file?.file_id;
-                const fileName =
-                  doc.original_name ||
-                  doc.File?.original_name ||
-                  doc.file?.original_name ||
-                  doc.original_filename ||
-                  doc.file_name ||
-                  doc.name ||
-                  `เอกสารที่ ${index + 1}`;
+                const fileName = resolveDocumentFileName(doc, `เอกสารที่ ${index + 1}`);
                 const docType = (doc.document_type_name || '').trim() || 'ไม่ระบุประเภท';
 
                 return (
