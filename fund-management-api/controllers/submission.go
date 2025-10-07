@@ -120,7 +120,7 @@ func GetSubmission(c *gin.Context) {
 		Preload("Documents", func(db *gorm.DB) *gorm.DB {
 			return db.Joins("LEFT JOIN document_types dt ON dt.document_type_id = submission_documents.document_type_id").
 				Select("submission_documents.*, dt.document_type_name").
-				Order("submission_documents.display_order, submission_documents.created_at")
+				Order("submission_documents.display_order ASC, COALESCE(dt.document_order, 9999) ASC, submission_documents.created_at ASC, submission_documents.document_id ASC")
 		}).
 		Preload("Documents.File").
 		Preload("Documents.DocumentType").
@@ -517,6 +517,7 @@ func SubmitSubmission(c *gin.Context) {
 		fileUpload := models.FileUpload{
 			OriginalName: uniqueFilename,
 			StoredPath:   outputPath,
+			FolderType:   models.FileFolderTypeSubmission,
 			FileSize:     stat.Size(),
 			MimeType:     "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
 			FileHash:     "",
@@ -801,11 +802,24 @@ func UploadFile(c *gin.Context) {
 		return
 	}
 
+	// Determine folder type - default to temp if not provided/invalid
+	requestedFolderType := strings.TrimSpace(c.PostForm("folder_type"))
+	switch requestedFolderType {
+	case models.FileFolderTypeTemp,
+		models.FileFolderTypeSubmission,
+		models.FileFolderTypeProfile,
+		models.FileFolderTypeOther:
+		// keep requested value
+	default:
+		requestedFolderType = models.FileFolderTypeTemp
+	}
+
 	// Save to database
 	now := time.Now()
 	fileUpload := models.FileUpload{
 		OriginalName: file.Filename,
 		StoredPath:   storedPath,
+		FolderType:   requestedFolderType,
 		FileSize:     file.Size,
 		MimeType:     file.Header.Get("Content-Type"),
 		FileHash:     "", // ไม่ใช้ hash ในระบบ user-based
@@ -880,8 +894,10 @@ func MoveFileToSubmissionFolder(fileID int, submissionID int, submissionType str
 		return err
 	}
 
-	// Update DB path (เก็บ OriginalName ตามเดิมไว้ เพื่อแสดงชื่อไฟล์เดิมใน UI ได้ถ้าต้องการ)
+	// Update DB path และตั้งชื่อไฟล์ใหม่ (เพื่อให้ UI แสดงเลขคำร้องปัจจุบัน)
 	fileUpload.StoredPath = newPath
+	fileUpload.OriginalName = newFilename
+	fileUpload.FolderType = models.FileFolderTypeSubmission
 	fileUpload.UpdateAt = time.Now()
 	return config.DB.Save(&fileUpload).Error
 }
@@ -1192,7 +1208,7 @@ func GetSubmissionDocuments(c *gin.Context) {
 		Preload("File").
 		Preload("DocumentType").
 		Where("submission_id = ?", submissionID).
-		Order("display_order, created_at").
+		Order("submission_documents.display_order ASC, COALESCE(dt.document_order, 9999) ASC, submission_documents.created_at ASC, submission_documents.document_id ASC").
 		Find(&documents).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch documents"})
 		return
