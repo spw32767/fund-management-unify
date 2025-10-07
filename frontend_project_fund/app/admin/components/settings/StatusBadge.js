@@ -1,4 +1,4 @@
-// components/common/StatusBadge.js
+// components/settings/StatusBadge.js
 import React from "react";
 import Swal from "sweetalert2";
 import { ToggleRight, ToggleLeft } from "lucide-react";

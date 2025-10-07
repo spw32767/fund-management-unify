@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import Swal from 'sweetalert2';
 import adminAPI from "@/app/lib/admin_api";
-import StatusBadge from "@/app/admin/components/settings/common/StatusBadge";
+import StatusBadge from "@/app/admin/components/settings/StatusBadge";
 
 const RewardConfigManager = () => {
   const [activeSubTab, setActiveSubTab] = useState('rates');

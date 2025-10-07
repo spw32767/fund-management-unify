@@ -12,7 +12,7 @@ import PromotionFundContent from "./components/funds/PromotionFundContent";
 import FundSettingsContent from "./components/settings";
 import UnderDevelopmentContent from "./components/common/UnderDevelopmentContent";
 import SubmissionsManagement from "./components/submissions/SubmissionsManagement"
-import AdminPublicationsImport from "./components/settings/announcements/AdminPublicationsImport";
+import AdminPublicationsImport from "./components/settings/announcement_config/AdminPublicationsImport";
 import ApprovalRecords from "./components/approves/ApprovalRecords";
 
 function AdminPageContent() {

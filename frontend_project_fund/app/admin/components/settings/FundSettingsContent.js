@@ -5,18 +5,18 @@ import Swal from 'sweetalert2';
 
 // Import separated components
 import PageLayout from "@/app/admin/components/common/PageLayout";
-import StatusBadge from "@/app/admin/components/settings/common/StatusBadge";
-import YearManagementTab from "@/app/admin/components/settings/tabs/YearManagementTab";
-import FundManagementTab from "@/app/admin/components/settings/tabs/FundManagementTab";
-import RewardConfigManager from "@/app/admin/components/settings/tabs/RewardConfigManager";
-import SystemConfigSettings from "@/app/admin/components/settings/tabs/SystemConfigSettings";
-import AnnouncementManager from "@/app/admin/components/settings/announcements/AnnouncementManager";
+import StatusBadge from "@/app/admin/components/settings/StatusBadge";
+import YearManagementTab from "@/app/admin/components/settings/years_config/YearManagementTab";
+import FundManagementTab from "@/app/admin/components/settings/funds_config/FundManagementTab";
+import RewardConfigManager from "@/app/admin/components/settings/reward_config/RewardConfigManager";
+import SystemConfigSettings from "@/app/admin/components/settings/system_config/SystemConfigSettings";
+import AnnouncementManager from "@/app/admin/components/settings/announcement_config/AnnouncementManager";
 
 // Import modals
-import CategoryModal from "@/app/admin/components/settings/modals/CategoryModal";
-import SubcategoryModal from "@/app/admin/components/settings/modals/SubcategoryModal";
-import BudgetModal from "@/app/admin/components/settings/modals/BudgetModal";
-import DeleteConfirmDialog from "@/app/admin/components/settings/modals/DeleteConfirmDialog";
+import CategoryModal from "@/app/admin/components/settings/funds_config/CategoryModal";
+import SubcategoryModal from "@/app/admin/components/settings/funds_config/SubcategoryModal";
+import BudgetModal from "@/app/admin/components/settings/funds_config/BudgetModal";
+import DeleteConfirmDialog from "@/app/admin/components/settings/funds_config/DeleteConfirmDialog";
 
 // Import real API
 import { adminAPI } from "@/app/lib/admin_api";
