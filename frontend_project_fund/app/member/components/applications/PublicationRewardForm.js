@@ -329,9 +329,13 @@ const QUARTILE_MAP = {
 // FILE UPLOAD COMPONENT
 // =================================================================
 
-const FileUpload = ({ onFileSelect, accept, multiple = false, error, label }) => {
+const FileUpload = ({ onFileSelect, accept, multiple = false, error, label, files = [] }) => {
   const [isDragging, setIsDragging] = useState(false);
-  const [selectedFiles, setSelectedFiles] = useState([]);
+  const [selectedFiles, setSelectedFiles] = useState(() => (Array.isArray(files) ? files : []));
+
+  useEffect(() => {
+    setSelectedFiles(Array.isArray(files) ? files : []);
+  }, [files]);
 
   const handleDragOver = (e) => {
     e.preventDefault();
@@ -1503,25 +1507,27 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
   // Handle file uploads
   const handleFileUpload = (documentTypeId, files) => {
     console.log('handleFileUpload called with:', { documentTypeId, files });
-    
-    if (files && files.length > 0) {
-      if (documentTypeId === 'other') {
-        // For other documents, ADD to existing array (don't replace)
-        console.log('Adding other documents:', files);
-        setOtherDocuments(prev => [...prev, ...files]); // เพิ่มไฟล์เข้าไป ไม่ทับ
-      } else {
-        // For specific document types, store first file only
-        console.log(`Setting uploaded file for type ${documentTypeId}:`, files[0]);
-        setUploadedFiles(prev => ({
-          ...prev,
-          [documentTypeId]: files[0]
-        }));
-      }
 
-      // Clear error
-      if (errors[`file_${documentTypeId}`]) {
-        setErrors(prev => ({ ...prev, [`file_${documentTypeId}`]: '' }));
-      }
+    const fileList = Array.isArray(files) ? files : [];
+
+    if (documentTypeId === 'other') {
+      console.log('Setting other documents to:', fileList);
+      setOtherDocuments(fileList);
+    } else {
+      console.log(`Updating uploaded file for type ${documentTypeId}:`, fileList[0]);
+      setUploadedFiles(prev => {
+        const next = { ...prev };
+        if (fileList.length > 0) {
+          next[documentTypeId] = fileList[0];
+        } else {
+          delete next[documentTypeId];
+        }
+        return next;
+      });
+    }
+
+    if (errors[`file_${documentTypeId}`]) {
+      setErrors(prev => ({ ...prev, [`file_${documentTypeId}`]: '' }));
     }
   };
 
@@ -3997,7 +4003,8 @@ const showSubmissionConfirmation = async () => {
                           accept=".pdf"
                           multiple={true}
                           label="other"
-                        />                   
+                          files={otherDocuments}
+                        />
                       </div>
                     );
                   }
@@ -4084,19 +4091,23 @@ const showSubmissionConfirmation = async () => {
                   };
                   
                   // Regular document types
+                  const existingFile = uploadedFiles?.[docType.id] || uploadedFiles?.[String(docType.id)];
+                  const existingFiles = existingFile ? [existingFile] : [];
+
                   return (
                     <div key={docType.id} id={`file-upload-${docType.id}`} className="border border-gray-200 rounded-lg p-4">
                       <label className="block text-sm font-medium text-gray-700 mb-2">
                         {getDocumentNameWithEnglish(docType.name)}
                         {docType.required && <span className="text-red-500 ml-1">*</span>}
                       </label>
-                      
+
                       <FileUpload
                         onFileSelect={(files) => handleFileUpload(docType.id, files)}
                         accept=".pdf"
                         multiple={false}
                         error={errors[`file_${docType.id}`]}
                         label={`doc_${docType.id}`}
+                        files={existingFiles}
                       />
                     </div>
                   );
