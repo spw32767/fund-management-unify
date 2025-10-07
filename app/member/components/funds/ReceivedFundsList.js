@@ -286,10 +286,6 @@ export default function ReceivedFundsList({ onNavigate }) {
     }
   };
 
-  const handleDownload = (id) => {
-    console.log("Download:", id);
-  };
-
   const statusFilterOptions = useMemo(() => {
     if (!Array.isArray(statusOptions)) return [];
     return statusOptions.filter((status) =>
@@ -358,18 +354,12 @@ export default function ReceivedFundsList({ onNavigate }) {
       render: (_, row) => (
         <div className="flex gap-2">
           <button
-            className="text-blue-600 hover:bg-blue-50 p-1 rounded"
+            className="inline-flex items-center gap-1 px-3 py-1 text-sm text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-md transition-colors"
             title="ดูรายละเอียด"
             onClick={() => handleViewDetail(row.application_id)}
           >
-            <Eye size={18} />
-          </button>
-          <button
-            className="text-green-600 hover:bg-green-50 p-1 rounded"
-            title="ดาวน์โหลดเอกสาร"
-            onClick={() => handleDownload(row.application_id)}
-          >
-            <Download size={18} />
+            <Eye size={16} />
+            ดูรายละเอียด
           </button>
         </div>
       ),
@@ -386,7 +376,7 @@ export default function ReceivedFundsList({ onNavigate }) {
         { label: "ทุนที่เคยได้รับ" },
       ]}
     >
-      <Card title="รายการทุนที่ได้รับ" 
+      <Card title="รายการทุนที่เคยได้รับ" 
       collapsible={false} 
       headerClassName="bg-white"
       action={
@@ -400,6 +390,8 @@ export default function ReceivedFundsList({ onNavigate }) {
           </button>
         }
       >
+
+        {/* Filters */}
         <div className="flex flex-col md:flex-row gap-4 mb-6">
           <div className="flex-1">
             <div className="relative">
@@ -424,11 +416,15 @@ export default function ReceivedFundsList({ onNavigate }) {
             disabled={statusLoading && !statusOptions}
           >
             <option value="all">สถานะทั้งหมด</option>
-            {statusFilterOptions.map((status) => (
-              <option key={status.application_status_id} value={status.application_status_id}>
-                {status.status_name}
-              </option>
-            ))}
+            {Array.isArray(statusOptions) &&
+              statusOptions.map((status) => (
+                <option
+                  key={status.application_status_id}
+                  value={status.application_status_id}
+                >
+                  {status.status_name}
+                </option>
+              ))}
           </select>
 
           <select
