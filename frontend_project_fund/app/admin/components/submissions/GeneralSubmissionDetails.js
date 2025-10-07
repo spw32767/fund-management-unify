@@ -947,15 +947,15 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
         const docsFallback = submission.documents || submission.submission_documents || [];
         const rawDocs = (Array.isArray(docsApi) && docsApi.length > 0) ? docsApi : docsFallback;
 
-        const merged = (rawDocs || []).map((d, i) => {
+        const merged = (rawDocs || []).map((d) => {
           const fileId = d.file_id ?? d.File?.file_id ?? d.file?.file_id ?? d.id;
-          const name = resolveDocumentFileName(d, `เอกสารที่ ${i + 1}`);
+          const resolvedName = resolveDocumentFileName(d, null);
           const docTypeId = d.document_type_id ?? d.DocumentTypeID ?? d.doc_type_id ?? null;
           const docTypeName = d.document_type_name || typeMap[String(docTypeId)] || 'ไม่ระบุหมวด';
           return {
             ...d,
             file_id: fileId,
-            original_name: name,
+            ...(resolvedName ? { display_name: d.display_name || resolvedName } : {}),
             document_type_id: docTypeId,
             document_type_name: docTypeName,
           };

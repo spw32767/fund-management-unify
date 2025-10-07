@@ -1213,9 +1213,9 @@ export default function PublicationSubmissionDetails({ submissionId, onBack }) {
 
         const rawDocs = docsApi.length ? docsApi : docsFallback;
 
-        const merged = rawDocs.map((d, i) => {
+        const merged = rawDocs.map((d) => {
           const fileId = d.file_id ?? d.File?.file_id ?? d.file?.file_id ?? d.id;
-          const name = resolveDocumentFileName(d, `เอกสารที่ ${i + 1}`);
+          const resolvedName = resolveDocumentFileName(d, null);
 
           const docTypeId = d.document_type_id ?? d.DocumentTypeID ?? d.doc_type_id ?? null;
           const docTypeName =
@@ -1224,7 +1224,7 @@ export default function PublicationSubmissionDetails({ submissionId, onBack }) {
           return {
             ...d,
             file_id: fileId,
-            original_name: name,
+            ...(resolvedName ? { display_name: d.display_name || resolvedName } : {}),
             document_type_id: docTypeId,
             document_type_name: docTypeName,
           };
