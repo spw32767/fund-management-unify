@@ -54,22 +54,18 @@ export default function ReceivedFundsList({ onNavigate }) {
       ]);
 
       const subMap = {};
-      if (subRes?.subcategories) {
+      if (Array.isArray(subRes?.subcategories)) {
         subRes.subcategories.forEach((sc) => {
-          const id = sc.original_subcategory_id || sc.subcategory_id;
+          const id = sc.original_subcategory_id ?? sc.subcategory_id;
           if (id != null) {
-            subMap[id] = sc.subcategory_name || "-";
+            subMap[String(id)] = sc.subcategory_name || "-";
           }
         });
       }
 
       if (response.success && Array.isArray(response.submissions)) {
         const transformed = response.submissions.map((sub) => {
-          const subId =
-            sub.subcategory_id ||
-            sub.SubcategoryID ||
-            sub.fund_application_detail?.subcategory_id ||
-            sub.FundApplicationDetail?.subcategory_id;
+          const subId = getSubcategoryId(sub);
 
           const statusId =
             sub.status_id ??
@@ -93,7 +89,8 @@ export default function ReceivedFundsList({ onNavigate }) {
             application_number: sub.submission_number,
             project_title: getProjectTitle(sub),
             category_name: getCategoryName(sub),
-            subcategory_name: getSubcategoryName(sub, subMap[subId]),
+            subcategory_name:
+              getMappedSubcategoryName(subId, subMap) ?? getSubcategoryName(sub),
             requested_amount: getApprovedAmount(sub),
             status_id: statusId,
             status_code: statusCode,
@@ -471,7 +468,7 @@ function getCategoryName(submission) {
   );
 }
 
-function getSubcategoryName(submission, mappedName) {
+function getSubcategoryName(submission) {
   if (!submission || typeof submission !== "object") {
     return "-";
   }
@@ -487,7 +484,6 @@ function getSubcategoryName(submission, mappedName) {
     submission.FundApplicationDetail?.Subcategory?.SubcategoryName ||
     submission.subcategory?.subcategory_name ||
     submission.Subcategory?.SubcategoryName ||
-    mappedName ||
     submission.subcategory_name;
 
   if (typeof rawValue === "string" && rawValue.trim() !== "") {
@@ -496,4 +492,33 @@ function getSubcategoryName(submission, mappedName) {
   }
 
   return "-";
+}
+
+function getSubcategoryId(submission) {
+  if (!submission || typeof submission !== "object") {
+    return null;
+  }
+
+  return (
+    submission.subcategory_id ??
+    submission.SubcategoryID ??
+    submission.fund_application_detail?.subcategory_id ??
+    submission.FundApplicationDetail?.subcategory_id ??
+    null
+  );
+}
+
+function getMappedSubcategoryName(subcategoryId, subMap) {
+  if (subcategoryId == null) {
+    return null;
+  }
+
+  const key = String(subcategoryId);
+  const value = subMap ? subMap[key] : null;
+  if (typeof value === "string") {
+    const [namePart] = value.split(" - ");
+    return namePart?.trim() || null;
+  }
+
+  return value ?? null;
 }

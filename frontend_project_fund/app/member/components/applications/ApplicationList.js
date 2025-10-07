@@ -59,10 +59,12 @@ export default function ApplicationList({ onNavigate }) {
 
       // Map subcategory_id -> subcategory_name
       const subMap = {};
-      if (subRes?.subcategories) {
-        subRes.subcategories.forEach(sc => {
-          const id = sc.original_subcategory_id || sc.subcategory_id;
-          if (id != null) subMap[id] = sc.subcategory_name || '-';
+      if (Array.isArray(subRes?.subcategories)) {
+        subRes.subcategories.forEach((sc) => {
+          const id = sc.original_subcategory_id ?? sc.subcategory_id;
+          if (id != null) {
+            subMap[String(id)] = sc.subcategory_name || "-";
+          }
         });
       }
       
@@ -72,12 +74,8 @@ export default function ApplicationList({ onNavigate }) {
       if (response.success && response.submissions) {
         // Transform data to match existing structure
         const transformedData = response.submissions.map(sub => {
-          const subId =
-            sub.subcategory_id ||
-            sub.SubcategoryID ||
-            sub.fund_application_detail?.subcategory_id ||
-            sub.FundApplicationDetail?.subcategory_id;
-          const subName = getSubcategoryName(sub);
+          const subId = getSubcategoryId(sub);
+          const subName = getMappedSubcategoryName(subId, subMap) ?? getSubcategoryName(sub);
           const statusId =
             sub.status_id ??
             sub.status?.application_status_id ??
@@ -102,10 +100,7 @@ export default function ApplicationList({ onNavigate }) {
             application_number: sub.submission_number,
             project_title: getTitle(sub),
             category_name: getCategoryName(sub),
-            subcategory_name:
-              subName && subName !== '-'
-                ? subName
-                : subMap[subId] || '-',
+            subcategory_name: subName || "-",
             requested_amount: getAmount(sub),
             status_id: statusId,
             status_fallback: fallbackStatusName,
@@ -246,6 +241,35 @@ export default function ApplicationList({ onNavigate }) {
     }
 
     return '-';
+  };
+
+  const getSubcategoryId = (submission) => {
+    if (!submission || typeof submission !== 'object') {
+      return null;
+    }
+
+    return (
+      submission.subcategory_id ??
+      submission.SubcategoryID ??
+      submission.fund_application_detail?.subcategory_id ??
+      submission.FundApplicationDetail?.subcategory_id ??
+      null
+    );
+  };
+
+  const getMappedSubcategoryName = (subcategoryId, subMap) => {
+    if (subcategoryId == null) {
+      return null;
+    }
+
+    const key = String(subcategoryId);
+    const value = subMap ? subMap[key] : null;
+    if (typeof value === 'string') {
+      const [namePart] = value.split(' - ');
+      return namePart?.trim() || null;
+    }
+
+    return value ?? null;
   };
 
   const filterApplications = () => {
