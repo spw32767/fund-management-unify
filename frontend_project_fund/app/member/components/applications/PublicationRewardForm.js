@@ -606,6 +606,7 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
   });
   const previewUrlRef = useRef(null);
   const previewSignatureRef = useRef('');
+  const previewSectionRef = useRef(null);
   const [availableAuthorStatuses, setAvailableAuthorStatuses] = useState([]);
   const [availableQuartiles, setAvailableQuartiles] = useState([]);
   const [quartileConfigs, setQuartileConfigs] = useState({}); // เก็บ config ของแต่ละ quartile
@@ -2419,10 +2420,11 @@ const showSubmissionConfirmation = async () => {
 
   const previewAvailable = previewState.hasPreviewed && !!previewUrl;
   let previewViewed = previewAvailable;
-  const previewButtonInitialLabel = previewAvailable ? '👀 เปิดอีกครั้ง' : '👀 ดูตัวอย่าง';
+  const previewButtonMode = previewAvailable ? 'open' : 'create';
+  const previewButtonInitialLabel = previewAvailable ? '👀 เปิดอีกครั้ง' : '⚙️ สร้างแบบเดียวกับ ดูตัวอย่างเอกสารรวมเลย';
   const previewStatusMarkup = previewAvailable
     ? '<span class="text-green-600">✅ ดูตัวอย่างเอกสารแล้ว</span>'
-    : '<span class="text-red-600">⚠️ กรุณาดูตัวอย่างเอกสารก่อนส่งคำร้อง</span>';
+    : '<span class="text-red-600">⚠️ กรุณาสร้างตัวอย่างเอกสารรวมก่อนส่งคำร้อง</span>';
   const previewButtonInitialClass = previewAvailable
     ? 'px-3 py-1 bg-green-500 text-white text-xs rounded hover:bg-green-600 transition-colors'
     : 'px-3 py-1 bg-blue-500 text-white text-xs rounded hover:bg-blue-600 transition-colors';
@@ -2523,6 +2525,7 @@ const showSubmissionConfirmation = async () => {
               id="preview-pdf-btn"
               type="button"
               class="${previewButtonInitialClass}"
+              data-mode="${previewButtonMode}"
             >
               ${previewButtonInitialLabel}
             </button>
@@ -2575,40 +2578,82 @@ const showSubmissionConfirmation = async () => {
           const previewStatus = document.getElementById('preview-status');
 
           if (previewBtn) {
-            const originalLabel = previewBtn.innerHTML;
-            const originalClass = previewBtn.className;
+            const mode = previewBtn.getAttribute('data-mode');
 
-            previewBtn.addEventListener('click', async () => {
-              previewBtn.disabled = true;
-              previewBtn.innerHTML = '⏳ กำลังสร้าง...';
-              previewBtn.className = originalClass;
+            if (mode === 'open') {
+              const originalLabel = previewBtn.innerHTML;
+              const originalClass = previewBtn.className;
 
-              try {
-                await generatePreview({ openWindow: true });
-                previewViewed = true;
-
-                if (previewStatus) {
-                  previewStatus.innerHTML = '<span class="text-green-600">✅ ดูตัวอย่างเอกสารแล้ว</span>';
-                }
-
-                previewBtn.className = 'px-3 py-1 bg-green-500 text-white text-xs rounded hover:bg-green-600 transition-colors';
-                previewBtn.innerHTML = '✅ ดูแล้ว';
-
-                const validationMessage = document.querySelector('.swal2-validation-message');
-                if (validationMessage) {
-                  validationMessage.style.display = 'none';
-                }
-              } catch (error) {
-                const message = error?.message || 'ไม่สามารถสร้างตัวอย่างได้';
-                if (previewStatus) {
-                  previewStatus.innerHTML = `<span class="text-red-600">❌ ${message}</span>`;
-                }
+              previewBtn.addEventListener('click', async () => {
+                previewBtn.disabled = true;
+                previewBtn.innerHTML = '⏳ กำลังเปิด...';
                 previewBtn.className = originalClass;
-                previewBtn.innerHTML = originalLabel;
-              } finally {
-                previewBtn.disabled = false;
-              }
-            });
+
+                try {
+                  await generatePreview({ openWindow: true });
+                  previewViewed = true;
+
+                  if (previewStatus) {
+                    previewStatus.innerHTML = '<span class="text-green-600">✅ ดูตัวอย่างเอกสารแล้ว</span>';
+                  }
+
+                  previewBtn.className = 'px-3 py-1 bg-green-500 text-white text-xs rounded hover:bg-green-600 transition-colors';
+                  previewBtn.innerHTML = '✅ ดูแล้ว';
+
+                  const validationMessage = document.querySelector('.swal2-validation-message');
+                  if (validationMessage) {
+                    validationMessage.style.display = 'none';
+                  }
+
+                  if (!previewState.hasPreviewed) {
+                    setPreviewState((prev) => ({
+                      ...prev,
+                      hasPreviewed: true,
+                    }));
+                  }
+
+                  if (!previewState.blobUrl && previewUrlRef.current) {
+                    setPreviewState((prev) => ({
+                      ...prev,
+                      blobUrl: previewUrlRef.current,
+                    }));
+                  }
+
+                  if (!previewState.timestamp) {
+                    setPreviewState((prev) => ({
+                      ...prev,
+                      timestamp: new Date().toISOString(),
+                    }));
+                  }
+                } catch (error) {
+                  const message = error?.message || 'ไม่สามารถเปิดเอกสารได้';
+                  if (previewStatus) {
+                    previewStatus.innerHTML = `<span class="text-red-600">❌ ${message}</span>`;
+                  }
+                  previewBtn.className = originalClass;
+                  previewBtn.innerHTML = originalLabel;
+                } finally {
+                  previewBtn.disabled = false;
+                }
+              });
+            } else {
+              previewBtn.addEventListener('click', () => {
+                Swal.close();
+
+                setTimeout(() => {
+                  const sectionEl = previewSectionRef.current;
+                  if (sectionEl && typeof sectionEl.scrollIntoView === 'function') {
+                    sectionEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                  }
+
+                  setTimeout(() => {
+                    generatePreview().catch((error) => {
+                      console.error('Failed to generate preview after redirect:', error);
+                    });
+                  }, 150);
+                }, 150);
+              });
+            }
           }
         }
       });
@@ -2753,11 +2798,20 @@ const showSubmissionConfirmation = async () => {
           html: 'กำลังสร้างคำร้อง...'
         });
 
-        const submissionSubcategoryId = getSubcategoryIdForAuthorStatus(formData.author_status) ?? formData.subcategory_id;
+        const optionKey = formData.author_status && formData.journal_quartile
+          ? `${formData.author_status}|${formData.journal_quartile}`
+          : null;
+        const optionContext = optionKey ? budgetOptionMap[optionKey] : null;
+        const submissionSubcategoryId = formData.subcategory_id ?? optionContext?.subcategory_id ?? null;
+        const submissionSubcategoryBudgetId = formData.subcategory_budget_id ?? optionContext?.subcategory_budget_id ?? null;
+
+        if (!submissionSubcategoryId || !submissionSubcategoryBudgetId) {
+          throw new Error('ไม่พบข้อมูลหมวดทุนสำหรับการสร้างคำร้อง');
+        }
 
         console.log('Before POST:', {
           subcategory_id: submissionSubcategoryId,
-          subcategory_budget_id: formData.subcategory_budget_id
+          subcategory_budget_id: submissionSubcategoryBudgetId
         });
 
         const submissionResponse = await submissionAPI.create({
@@ -2765,7 +2819,7 @@ const showSubmissionConfirmation = async () => {
           year_id: formData.year_id,
           category_id: formData.category_id || categoryId,
           subcategory_id: submissionSubcategoryId,        // Dynamic resolved
-          subcategory_budget_id: formData.subcategory_budget_id,  // Dynamic resolved
+          subcategory_budget_id: submissionSubcategoryBudgetId,  // Dynamic resolved
         });
         
         submissionId = submissionResponse.submission.submission_id;
@@ -4273,7 +4327,7 @@ const showSubmissionConfirmation = async () => {
               </div>
             )}
 
-            <div className="border-t border-gray-200 pt-4">
+            <div ref={previewSectionRef} className="border-t border-gray-200 pt-4">
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                 <button
                   type="button"
