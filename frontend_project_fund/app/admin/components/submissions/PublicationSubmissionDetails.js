@@ -317,8 +317,105 @@ function ReadonlyMoney({ value, aria }) {
  * Approval Panel (admin-only)
  * ========================= */
 function ApprovalPanel({ submission, pubDetail, onApprove, onReject }) {
-  const approvable = submission?.status_id === 1; // อยู่ระหว่างการพิจารณา
-  if (!approvable) return null;
+  const statusId = Number(submission?.status_id);
+  const approvable = statusId === 1; // อยู่ระหว่างการพิจารณา
+  if (!approvable) {
+    const requestedTotal = (() => {
+      const candidates = [
+        pubDetail?.total_amount,
+        (pubDetail?.reward_amount != null ||
+          pubDetail?.revision_fee != null ||
+          pubDetail?.editing_fee != null ||
+          pubDetail?.publication_fee != null ||
+          pubDetail?.page_charge != null)
+          ? Number(pubDetail?.reward_amount || 0) +
+            Number(pubDetail?.revision_fee ?? pubDetail?.editing_fee ?? 0) +
+            Number(pubDetail?.publication_fee ?? pubDetail?.page_charge ?? 0)
+          : null,
+        submission?.requested_amount,
+      ];
+      for (const value of candidates) {
+        const num = Number(value);
+        if (Number.isFinite(num) && num >= 0) return num;
+      }
+      return 0;
+    })();
+
+    const approvedTotalRaw =
+      pubDetail?.total_approve_amount ??
+      pubDetail?.approved_amount ??
+      (Number(pubDetail?.reward_approve_amount || 0) +
+        Number(pubDetail?.revision_fee_approve_amount || 0) +
+        Number(pubDetail?.publication_fee_approve_amount || 0));
+    const approvedTotalNumber = Number(approvedTotalRaw);
+
+    const announceValue =
+      pubDetail?.announce_reference_number ||
+      submission?.announce_reference_number ||
+      submission?.announce_reference ||
+      '';
+
+    const adminCommentValue =
+      submission?.admin_comment ??
+      submission?.approval_comment ??
+      submission?.comment ??
+      '';
+
+    const rejectionReason =
+      submission?.rejection_reason ??
+      submission?.admin_rejected ??
+      pubDetail?.rejection_reason ??
+      '';
+
+    return (
+      <Card title="ผลการพิจารณา (Approval Result)" icon={DollarSign} collapsible={false}>
+        <div className="space-y-4 text-sm">
+          <div className="flex items-start justify-between">
+            <span className="text-gray-600">สถานะ</span>
+            <span className="font-medium">
+              <StatusBadge
+                statusId={submission?.status_id}
+                fallbackLabel={submission?.status?.status_name}
+              />
+            </span>
+          </div>
+
+          <div className="flex items-start justify-between">
+            <span className="text-gray-600">จำนวนที่ขอ</span>
+            <span className="font-semibold text-blue-700">฿{formatCurrency(requestedTotal)}</span>
+          </div>
+
+          <div className="flex items-start justify-between">
+            <span className="text-gray-600">จำนวนที่อนุมัติ</span>
+            <span className="font-semibold text-green-700">
+              {Number.isFinite(approvedTotalNumber) ? `฿${formatCurrency(approvedTotalNumber)}` : '—'}
+            </span>
+          </div>
+
+          <div className="flex items-start justify-between">
+            <span className="text-gray-600">หมายเลขอ้างอิงประกาศผลการพิจารณา</span>
+            <span className="font-medium break-all">{announceValue || '—'}</span>
+          </div>
+
+          <div>
+            <div className="text-gray-600 mb-1">หมายเหตุของผู้ดูแลระบบ</div>
+            <div className="rounded-md border border-gray-200 bg-gray-50 p-2 min-h-[40px] whitespace-pre-wrap break-words">
+              {adminCommentValue || '—'}
+            </div>
+          </div>
+
+          {rejectionReason && (
+            <div>
+              <div className="text-gray-600 mb-1">เหตุผลการไม่อนุมัติ</div>
+              <div className="rounded-md border border-gray-200 bg-gray-50 p-2 min-h-[40px] whitespace-pre-wrap break-words">
+                {rejectionReason}
+              </div>
+            </div>
+          )}
+        </div>
+      </Card>
+    );
+  }
 
   // Defaults from "ข้อมูลการเงิน"
   const requestedReward = Number(pubDetail?.reward_amount || 0);
@@ -342,7 +439,12 @@ function ApprovalPanel({ submission, pubDetail, onApprove, onReject }) {
   const [capError, setCapError] = useState(null);
 
   const [manualEdit, setManualEdit] = useState(false);
-  const [rejectReason, setRejectReason] = useState('');
+  const [adminComment, setAdminComment] = useState(
+    submission?.admin_comment ??
+      submission?.approval_comment ??
+      submission?.comment ??
+      ''
+  );
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState({});
 
@@ -356,6 +458,15 @@ function ApprovalPanel({ submission, pubDetail, onApprove, onReject }) {
     // เปลี่ยน submission แล้วให้ hydrate ใหม่
     setHydrated(false);
   }, [submission?.submission_id]);
+
+  useEffect(() => {
+    setAdminComment(
+      submission?.admin_comment ??
+        submission?.approval_comment ??
+        submission?.comment ??
+        ''
+    );
+  }, [submission?.admin_comment, submission?.approval_comment, submission?.comment, submission?.status_id]);
 
   // โหลดเพดานจาก reward config
   useEffect(() => {
@@ -524,6 +635,12 @@ function ApprovalPanel({ submission, pubDetail, onApprove, onReject }) {
     setPublicationApprove(basePublication);
   };
 
+  const escapeHtml = (value = '') =>
+    String(value)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+
   // ยืนยันอนุมัติ
   const confirmApprove = async () => {
     if (!validate()) return;
@@ -535,7 +652,7 @@ function ApprovalPanel({ submission, pubDetail, onApprove, onReject }) {
            </div>`
         : '';
 
-        const html = `
+    const html = `
           <div style="
             text-align:left;
             font-size:14px;
@@ -569,8 +686,17 @@ function ApprovalPanel({ submission, pubDetail, onApprove, onReject }) {
 
             <div style="display:flex;justify-content:space-between;align-items:center;">
               <span style="font-weight:700;">หมายเลขอ้างอิงประกาศผลการพิจารณา</span>
-              <strong>${announceRef ? announceRef.replace(/</g,'&lt;').replace(/>/g,'&gt;') : '—'}</strong>
+              <strong>${announceRef ? escapeHtml(announceRef) : '—'}</strong>
             </div>
+
+            ${adminComment ? `
+              <div style="display:flex;flex-direction:column;gap:.35rem;">
+                <span style="font-weight:500;">หมายเหตุของผู้ดูแลระบบ</span>
+                <div style="border:1px solid #e5e7eb;background:#f9fafb;padding:.75rem;border-radius:.5rem;white-space:pre-wrap;">
+                  ${escapeHtml(adminComment)}
+                </div>
+              </div>
+            ` : ''}
 
             ${capHint}
             <p style="font-size:12px;color:#6b7280;">
@@ -603,6 +729,8 @@ function ApprovalPanel({ submission, pubDetail, onApprove, onReject }) {
             publication_fee_approve_amount: hideSharedFeeFields ? 0 : Number(publicationApprove),
             total_approve_amount: Number(totalApprove),
             announce_reference_number: announceRef.trim() || null,
+            approval_comment: adminComment.trim() || null,
+            admin_comment: adminComment.trim() || null,
           });
 
           // NEW: แจ้งเตือน + ส่งอีเมล (best-effort; ไม่ให้พัง flow อนุมัติ)
@@ -637,22 +765,25 @@ function ApprovalPanel({ submission, pubDetail, onApprove, onReject }) {
 
   // ยืนยันไม่อนุมัติ
   const confirmReject = async () => {
-    if (!rejectReason.trim()) {
-      setErrors((p) => ({ ...p, rejectReason: 'กรุณาระบุเหตุผลการไม่อนุมัติ' }));
-      await Swal.fire({
-        icon: 'error',
-        title: 'ไม่สามารถดำเนินการ',
-        text: 'กรุณาระบุเหตุผลการไม่อนุมัติ',
-        confirmButtonText: 'ตกลง',
-      });
-      return;
-    }
+    const { value: reason } = await Swal.fire({
+      title: 'เหตุผลการไม่อนุมัติ',
+      input: 'textarea',
+      inputPlaceholder: 'โปรดระบุเหตุผล...',
+      inputAttributes: { 'aria-label': 'เหตุผลการไม่อนุมัติ' },
+      showCancelButton: true,
+      confirmButtonText: 'ยืนยันไม่อนุมัติ',
+      cancelButtonText: 'ยกเลิก',
+      inputValidator: (value) => (!value?.trim() ? 'กรุณาระบุเหตุผล' : undefined),
+    });
+    if (!reason) return;
+
+    const trimmedReason = String(reason).trim();
 
     const html = `
       <div style="text-align:left;font-size:14px;">
         <div style="font-weight:500;margin-bottom:.25rem;">เหตุผลการไม่อนุมัติ</div>
         <div style="border:1px solid #e5e7eb;background:#f9fafb;padding:.75rem;border-radius:.5rem;white-space:pre-wrap;">
-          ${rejectReason.replace(/</g,'&lt;').replace(/>/g,'&gt;')}
+          ${escapeHtml(trimmedReason)}
         </div>
         <p style="font-size:12px;color:#6b7280;margin-top:.5rem;">
           ระบบจะบันทึกเหตุผลและเปลี่ยนสถานะคำร้องเป็น “ไม่อนุมัติ”
@@ -673,13 +804,13 @@ function ApprovalPanel({ submission, pubDetail, onApprove, onReject }) {
       preConfirm: async () => {
         try {
           setSaving(true);
-          await onReject(rejectReason.trim());
+          await onReject(trimmedReason);
 
           // NEW: แจ้งเตือน + ส่งอีเมล (best-effort)
           try {
             await notificationsAPI.notifySubmissionRejected(
               submission?.submission_id,
-              { reason: rejectReason?.trim() || '' }
+              { reason: trimmedReason || '' }
             );
           } catch (e) {
             console.warn('notify rejected failed:', e);
@@ -839,6 +970,22 @@ function ApprovalPanel({ submission, pubDetail, onApprove, onReject }) {
           </div>
         </div>
 
+        {/* Admin comment */}
+        <div className="grid grid-cols-2 items-start">
+          <label className="block text-sm font-medium text-gray-700 leading-tight pt-2">
+            หมายเหตุของผู้ดูแลระบบ
+            <br /><span className="text-xs font-normal text-gray-600">Admin Comment</span>
+          </label>
+          <div className="w-full rounded-md border bg-white shadow-sm transition-all border-gray-300 hover:border-blue-300 focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-500">
+            <textarea
+              className="w-full p-3 rounded-md outline-none bg-transparent resize-y min-h-[96px]"
+              value={adminComment}
+              onChange={(e) => setAdminComment(e.target.value)}
+              placeholder="เช่น เงื่อนไขการจ่ายเงิน / หมายเหตุประกอบการพิจารณา"
+            />
+          </div>
+        </div>
+
         {/* Actions */}
         <div className="flex items-center gap-3 pt-2">
           <button
@@ -860,30 +1007,6 @@ function ApprovalPanel({ submission, pubDetail, onApprove, onReject }) {
           </button>
 
           {saving && <span className="text-sm text-gray-500">กำลังดำเนินการ...</span>}
-        </div>
-
-        {/* Reject reason */}
-        <div className="space-y-1">
-          <label className="text-sm text-gray-600">เหตุผลการไม่อนุมัติ (กรณีปฏิเสธ)</label>
-          <div
-            className={[
-              'rounded-md border bg-white shadow-sm transition-all',
-              errors.rejectReason
-                ? 'border-red-400 focus-within:border-red-500 focus-within:ring-2 focus-within:ring-red-500'
-                : 'border-gray-300 hover:border-blue-300 focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-500',
-            ].join(' ')}
-          >
-            <textarea
-              className="w-full p-3 rounded-md outline-none bg-transparent resize-y min-h-[96px]"
-              placeholder="โปรดระบุเหตุผลหากไม่อนุมัติ"
-              value={rejectReason}
-              onChange={(e) => {
-                setRejectReason(e.target.value);
-                if (errors.rejectReason) setErrors((prev) => ({ ...prev, rejectReason: undefined }));
-              }}
-            />
-          </div>
-          {errors.rejectReason && <p className="text-red-600 text-xs">{errors.rejectReason}</p>}
         </div>
       </div>
     </Card>
@@ -1619,6 +1742,11 @@ export default function PublicationSubmissionDetails({ submissionId, onBack }) {
             
             {/* Info grid: วันที่ต่าง ๆ และเลขอ้างอิงประกาศ */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-3 mt-2">
+              <div className="flex items-start gap-2">
+                <span className="text-gray-500 shrink-0">เลขที่คำร้อง:</span>
+                <span className="font-medium">{submission.submission_number || '-'}</span>
+              </div>
+
               {/* วันที่สร้างคำร้อง (ถ้ามี) */}
               {submission.created_at && (
                 <div className="flex items-start gap-2">
