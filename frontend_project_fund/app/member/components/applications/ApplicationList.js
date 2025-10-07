@@ -469,18 +469,12 @@ export default function ApplicationList({ onNavigate }) {
       render: (_, row) => (
         <div className="flex gap-2">
           <button
-            className="text-blue-600 hover:bg-blue-50 p-1 rounded"
+            className="inline-flex items-center gap-1 px-3 py-1 text-sm text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-md transition-colors"
             title="ดูรายละเอียด"
             onClick={() => handleViewDetail(row.application_id)}
           >
-            <Eye size={18} />
-          </button>
-          <button
-            className="text-green-600 hover:bg-green-50 p-1 rounded"
-            title="ดาวน์โหลดเอกสาร"
-            onClick={() => handleDownload(row.application_id)}
-          >
-            <Download size={18} />
+            <Eye size={16} />
+            ดูรายละเอียด
           </button>
         </div>
       )
@@ -528,7 +522,7 @@ export default function ApplicationList({ onNavigate }) {
       ]}
     >
       <Card 
-        title="รายการคำร้อง" 
+        title="รายการคำร้องของฉัน" 
         collapsible={false}
         headerClassName="bg-white"
         action={
@@ -542,11 +536,15 @@ export default function ApplicationList({ onNavigate }) {
           </button>
         }
       >
+
         {/* Filters */}
         <div className="flex flex-col md:flex-row gap-4 mb-6">
           <div className="flex-1">
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
+              <Search
+                className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"
+                size={20}
+              />
               <input
                 type="text"
                 placeholder="ค้นหาเลขที่คำร้อง หรือชื่อโครงการ..."
@@ -556,7 +554,7 @@ export default function ApplicationList({ onNavigate }) {
               />
             </div>
           </div>
-          
+
           <select
             className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
             value={statusFilter}
