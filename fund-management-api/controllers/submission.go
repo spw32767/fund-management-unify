@@ -807,6 +807,7 @@ func UploadFile(c *gin.Context) {
 	fileUpload := models.FileUpload{
 		OriginalName: file.Filename,
 		StoredPath:   storedPath,
+		FolderType:   models.FileFolderTypeTemp,
 		FileSize:     file.Size,
 		MimeType:     file.Header.Get("Content-Type"),
 		FileHash:     "", // ไม่ใช้ hash ในระบบ user-based
@@ -900,6 +901,7 @@ func MoveFileToSubmissionFolder(fileID int, submissionID int, submissionType str
 
 	// Update DB path (เก็บ OriginalName ตามเดิมไว้ เพื่อแสดงชื่อไฟล์เดิมใน UI ได้ถ้าต้องการ)
 	fileUpload.StoredPath = newPath
+	fileUpload.FolderType = models.FileFolderTypeSubmission
 	fileUpload.UpdateAt = time.Now()
 	return config.DB.Save(&fileUpload).Error
 }
