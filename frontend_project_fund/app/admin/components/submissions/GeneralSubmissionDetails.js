@@ -473,7 +473,7 @@ function FundApprovalPanel({ submission, fundDetail, onApprove, onReject }) {
         {/* Comment */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
           <label className="block text-sm font-medium text-gray-700 leading-tight pt-2">
-            หมายเหตุ / คำอธิบายเพิ่มเติม
+            หมายเหตุของผู้ดูแลระบบ
             <br /><span className="text-xs font-normal text-gray-600">Comment</span>
           </label>
           <div className="w-full rounded-md border bg-white shadow-sm transition-all border-gray-300 hover:border-blue-300 focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-500">
@@ -1160,6 +1160,20 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
     submission?.payload ||
     submission;
 
+  const fundName =
+    detail?.fund_name ||
+    submission?.fund_name ||
+    detail?.fund_title ||
+    submission?.fund_title ||
+    detail?.subcategory_name ||
+    submission?.subcategory_name ||
+    detail?.fund_subcategory_name ||
+    submission?.fund_subcategory_name ||
+    detail?.Subcategory?.subcategory_name ||
+    submission?.Subcategory?.subcategory_name ||
+    (submission?.subcategory_id != null ? `ประเภททุน #${submission.subcategory_id}` : '-') ||
+    '-';
+
   const requestedAmount = safeNumber(detail?.requested_amount ?? submission?.requested_amount ?? 0, 0);
   const approvedAmount =
     isApprovedStatus
@@ -1536,10 +1550,15 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
         <div className="flex justify-between items-start">
           <div>
             <div className="flex flex-col gap-3 mt-4 text-sm">
+              <div className="flex flex-wrap items-start gap-2">
+                <span className="text-gray-500 shrink-0 min-w-[80px]">ชื่อทุน:</span>
+                <span className="font-bold text-gray-700 break-words flex-1">{fundName}</span>
+              </div>
+
               {/* ผู้ขอทุน */}
               <div className="flex flex-wrap items-start gap-2">
                 <span className="text-gray-500 shrink-0 min-w-[80px]">ผู้ขอทุน:</span>
-                <span className="font-medium break-words flex-1">{getUserFullName(pickApplicant(submission))}</span>
+                <span className="font-bold text-gray-700 break-words flex-1">{getUserFullName(pickApplicant(submission))}</span>
               </div>
 
               {/* Info grid */}
