@@ -119,7 +119,8 @@ func GetSubmission(c *gin.Context) {
 		Preload("Status").
 		Preload("Documents", func(db *gorm.DB) *gorm.DB {
 			return db.Joins("LEFT JOIN document_types dt ON dt.document_type_id = submission_documents.document_type_id").
-				Select("submission_documents.*, dt.document_type_name").
+				Select("submission_documents.*, dt.document_type_name, dt.code AS document_type_code").
+				Where("submission_documents.deleted_at IS NULL").
 				Order("submission_documents.display_order, submission_documents.created_at")
 		}).
 		Preload("Documents.File").
@@ -807,6 +808,7 @@ func UploadFile(c *gin.Context) {
 	fileUpload := models.FileUpload{
 		OriginalName: file.Filename,
 		StoredPath:   storedPath,
+		FolderType:   models.FileFolderTypeTemp,
 		FileSize:     file.Size,
 		MimeType:     file.Header.Get("Content-Type"),
 		FileHash:     "", // ไม่ใช้ hash ในระบบ user-based
@@ -817,7 +819,7 @@ func UploadFile(c *gin.Context) {
 		UpdateAt:     now,
 	}
 
-	if err := config.DB.Create(&fileUpload).Error; err != nil {
+	if err := config.DB.Omit("Metadata").Create(&fileUpload).Error; err != nil {
 		// Delete uploaded file if database save fails
 		os.Remove(storedPath)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save file info"})
@@ -1206,11 +1208,11 @@ func GetSubmissionDocuments(c *gin.Context) {
 	// Get documents
 	var documents []models.SubmissionDocument
 	if err := config.DB.Joins("LEFT JOIN document_types dt ON dt.document_type_id = submission_documents.document_type_id").
-		Select("submission_documents.*, dt.document_type_name").
+		Select("submission_documents.*, dt.document_type_name, dt.code AS document_type_code").
 		Preload("File").
 		Preload("DocumentType").
-		Where("submission_id = ?", submissionID).
-		Order("display_order, created_at").
+		Where("submission_id = ? AND submission_documents.deleted_at IS NULL", submissionID).
+		Order("submission_documents.display_order, submission_documents.created_at").
 		Find(&documents).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch documents"})
 		return
