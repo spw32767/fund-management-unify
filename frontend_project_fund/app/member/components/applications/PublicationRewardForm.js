@@ -2,7 +2,8 @@
 "use client";
 
 import { useState, useEffect, useRef, useMemo } from "react";
-import { Award, Upload, Users, FileText, Plus, X, Save, Send, AlertCircle, Search, Eye, Calculator, Signature } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Award, Upload, Users, FileText, Plus, X, Save, Send, AlertCircle, Search, Eye, Calculator, Signature, ArrowLeft } from "lucide-react";
 import PageLayout from "../common/PageLayout";
 import SimpleCard from "../common/SimpleCard";
 import apiClient, { systemAPI, authAPI } from '../../../lib/api';
@@ -316,20 +317,38 @@ const getDocumentTypeName = (documentTypeId) => {
 // Save draft to localStorage
 const saveDraftToLocal = (data) => {
   try {
+    const sanitizedFormData = data.formData ? { ...data.formData } : {};
+    const sanitizedCoauthors = Array.isArray(data.coauthors) ? [...data.coauthors] : [];
+    const timestampBase = Date.now();
+    const sanitizedExternalFundings = Array.isArray(data.externalFundings)
+      ? data.externalFundings.map((funding, index) => ({
+          id: funding.id ?? `draft-${index}-${timestampBase}`,
+          fundName: funding.fundName || '',
+          amount: funding.amount || '',
+        }))
+      : [];
+    const hadMainAttachments = data.uploadedFiles
+      ? Object.values(data.uploadedFiles).some(file => Boolean(file))
+      : false;
+    const hadOtherAttachments = Array.isArray(data.otherDocuments) && data.otherDocuments.length > 0;
+    const hadExternalFundingAttachments = Array.isArray(data.externalFundingFiles)
+      ? data.externalFundingFiles.some(doc => Boolean(doc?.file))
+      : false;
+
     const draftData = {
-      formData: data.formData,
-      coauthors: data.coauthors,
-      otherDocuments: data.otherDocuments.map(doc => ({
-        documentTypeId: doc.documentTypeId,
-        description: doc.description,
-        fileName: doc.file?.name || null,
-        fileSize: doc.file?.size || null,
-        fileType: doc.file?.type || null
-      })),
+      formData: sanitizedFormData,
+      coauthors: sanitizedCoauthors,
+      externalFundings: sanitizedExternalFundings,
+      otherDocuments: [],
+      attachmentSummary: {
+        hasMainAttachments: hadMainAttachments,
+        hasOtherAttachments: hadOtherAttachments,
+        hasExternalFundingAttachments: hadExternalFundingAttachments,
+      },
       savedAt: new Date().toISOString(),
       expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString() // 7 days
     };
-    
+
     localStorage.setItem(DRAFT_KEY, JSON.stringify(draftData));
     return true;
   } catch (error) {
@@ -586,6 +605,7 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
   // =================================================================
   // STATE DECLARATIONS
   // =================================================================
+  const router = useRouter();
   const formRef = useRef(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -1150,14 +1170,17 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
         saveDraftToLocal({
           formData,
           coauthors,
-          otherDocuments
+          otherDocuments,
+          uploadedFiles,
+          externalFundings,
+          externalFundingFiles
         });
         console.log('Auto-saved draft');
       }
     }, 10000); // auto-save every 10 seconds
 
     return () => clearTimeout(autoSaveTimer);
-  }, [formData, coauthors, otherDocuments]);
+  }, [formData, coauthors, otherDocuments, uploadedFiles, externalFundings, externalFundingFiles]);
 
   // Check fees limit when quartile or fees change
   useEffect(() => {
@@ -1465,30 +1488,51 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
 
       if (result.isConfirmed) {
         // Load form data
-        setFormData(draft.formData);
+        setFormData(prev => ({
+          ...prev,
+          ...(draft.formData || {})
+        }));
         setCoauthors(draft.coauthors || []);
-        
-        // Show file re-upload notice
-        if (draft.otherDocuments.length > 0) {
-          const fileList = draft.otherDocuments
-            .filter(doc => doc.fileName)
-            .map(doc => `• ${doc.fileName} (${(doc.fileSize / 1024 / 1024).toFixed(2)} MB)`)
-            .join('<br>');
-          
-          if (fileList) {
-            Swal.fire({
-              icon: 'info',
-              title: 'กรุณาเลือกไฟล์ใหม่',
-              html: `
-                <p>ไฟล์ที่เคยเลือกไว้:</p>
-                <div class="text-left mt-2 text-sm">${fileList}</div>
-                <p class="mt-3 text-sm text-gray-600">เนื่องจากความปลอดภัย กรุณาเลือกไฟล์เหล่านี้อีกครั้ง</p>
-              `,
-              confirmButtonColor: '#3085d6'
-            });
+        setUploadedFiles({});
+        setOtherDocuments([]);
+        setExternalFundingFiles([]);
+        setExternalFundings(
+          Array.isArray(draft.externalFundings)
+            ? draft.externalFundings.map((funding, index) => ({
+                id: funding.id ?? `loaded-${index}-${Date.now()}`,
+                fundName: funding.fundName || '',
+                amount: funding.amount || '',
+                file: null,
+              }))
+            : []
+        );
+
+        const hadAttachments = (() => {
+          if (draft.attachmentSummary) {
+            return Object.values(draft.attachmentSummary).some(Boolean);
           }
+          if (Array.isArray(draft.otherDocuments)) {
+            return draft.otherDocuments.some(doc => doc?.fileName);
+          }
+          return false;
+        })();
+
+        if (hadAttachments) {
+          Swal.fire({
+            icon: 'info',
+            title: 'กรุณาอัปโหลดไฟล์อีกครั้ง',
+            html: `
+              <p class="text-sm text-gray-700">
+                เพื่อความปลอดภัย ระบบจะไม่เก็บไฟล์ไว้ในร่างที่บันทึกไว้
+              </p>
+              <p class="text-sm text-gray-600 mt-2">
+                กรุณาเลือกไฟล์แนบใหม่ก่อนส่งคำร้อง
+              </p>
+            `,
+            confirmButtonColor: '#3085d6'
+          });
         }
-        
+
         Toast.fire({
           icon: 'success',
           title: 'โหลดข้อมูลร่างเรียบร้อยแล้ว'
@@ -1502,6 +1546,19 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
   // =================================================================
   // EVENT HANDLERS
   // =================================================================
+
+  const handleGoBack = () => {
+    if (onNavigate) {
+      onNavigate('applications');
+      return;
+    }
+
+    if (typeof window !== 'undefined' && window.history.length > 1) {
+      router.back();
+    } else {
+      router.push('/member/applications');
+    }
+  };
 
   // Handle form input changes
   const handleInputChange = (e) => {
@@ -2297,7 +2354,10 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
       const saved = saveDraftToLocal({
         formData,
         coauthors,
-        otherDocuments
+        otherDocuments,
+        uploadedFiles,
+        externalFundings,
+        externalFundingFiles
       });
 
       Swal.close();
@@ -3251,6 +3311,16 @@ const showSubmissionConfirmation = async () => {
       title="แบบฟอร์มขอเบิกเงินรางวัลการตีพิมพ์เผยแพร่ผลงานวิจัยที่ได้รับการตีพิมพ์ในสาขาวิทยาศาสตร์และเทคโนโลยี"
       subtitle="สำหรับขอเบิกเงินรางวัลและค่าใช้จ่ายในการตีพิมพ์บทความวิชาการ"
       icon={Award}
+      actions={(
+        <button
+          type="button"
+          onClick={handleGoBack}
+          className="inline-flex items-center gap-2 rounded-lg border border-gray-300 px-4 py-2 text-gray-600 transition-colors hover:bg-gray-50"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          <span>ย้อนกลับ</span>
+        </button>
+      )}
       breadcrumbs={[
         { label: "หน้าแรก", href: "/member" },
         { label: "ขอเบิกเงินรางวัลการตีพิมพ์" }
