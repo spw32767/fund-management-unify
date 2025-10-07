@@ -9,10 +9,10 @@ import Navigation from "./components/layout/Navigation";
 import DashboardContent from "./components/dashboard/DashboardContent";
 import ResearchFundContent from "./components/funds/ResearchFundContent";
 import PromotionFundContent from "./components/funds/PromotionFundContent";
-import FundSettingsContent from "./components/settings/FundSettingsContent";
+import FundSettingsContent from "./components/settings";
 import UnderDevelopmentContent from "./components/common/UnderDevelopmentContent";
 import SubmissionsManagement from "./components/submissions/SubmissionsManagement"
-import AdminPublicationsImport from "./components/settings/AdminPublicationsImport";
+import AdminPublicationsImport from "./components/settings/announcement_config/AdminPublicationsImport";
 import ApprovalRecords from "./components/approves/ApprovalRecords";
 
 function AdminPageContent() {
@@ -39,7 +39,7 @@ function AdminPageContent() {
       case 'applications-list':
         return <SubmissionsManagement currentPage={handleNavigate} />;
       case 'fund-settings':
-        return <FundSettingsContent currentPage={handleNavigate} />;
+        return <FundSettingsContent onNavigate={handleNavigate} />;
       case 'approval-records':
         return <ApprovalRecords currentPage={handleNavigate} />;
       case 'publications-import':
