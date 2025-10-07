@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Search, Filter, Eye, Download, FileText, ClipboardList, Plus } from "lucide-react";
+import { Search, Eye, Download, FileText, ClipboardList, Plus } from "lucide-react";
 import { submissionAPI, teacherAPI } from "@/app/lib/member_api";
 import { statusService } from "@/app/lib/status_service";
 import { useStatusMap } from "@/app/hooks/useStatusMap";
@@ -18,7 +18,12 @@ export default function ApplicationList({ onNavigate }) {
   const [statusFilter, setStatusFilter] = useState("all");
   const [yearFilter, setYearFilter] = useState("all");
   const [loading, setLoading] = useState(false);
-  const { statuses: statusOptions, getLabelById, isLoading: statusLoading } = useStatusMap();
+  const {
+    statuses: statusOptions,
+    getLabelById,
+    getCodeById,
+    isLoading: statusLoading,
+  } = useStatusMap();
   
   // Map display year to year_id used by API
   const YEAR_ID_MAP = { "2566": 1, "2567": 2, "2568": 3 };
@@ -79,6 +84,12 @@ export default function ApplicationList({ onNavigate }) {
             sub.Status?.application_status_id ??
             null;
 
+          const statusCode =
+            getCodeById(statusId) ??
+            sub.status?.status_code ??
+            sub.Status?.status_code ??
+            null;
+
           const fallbackStatusName =
             sub.status?.status_name ||
             sub.Status?.status_name ||
@@ -98,6 +109,7 @@ export default function ApplicationList({ onNavigate }) {
             requested_amount: getAmount(sub),
             status_id: statusId,
             status_fallback: fallbackStatusName,
+            status_code: statusCode,
             submitted_at: sub.created_at,
             year: sub.year?.year || sub.Year?.year || '2568',
             year_id: sub.year_id || sub.Year?.year_id,
@@ -107,9 +119,36 @@ export default function ApplicationList({ onNavigate }) {
 
           return transformed;
         });
-        
-        setApplications(transformedData);
-        setFilteredApplications(transformedData);
+
+        const nonApprovedApplications = transformedData.filter((item) => {
+          const statusId = item.status_id ?? item._original?.status_id;
+          const statusCode = item.status_code ?? item._original?.status?.status_code;
+          const fallbackName =
+            item.status_fallback ||
+            item._original?.status?.status_name ||
+            item._original?.Status?.status_name ||
+            "";
+
+          const normalizedId = statusId != null ? Number(statusId) : null;
+          if (normalizedId === 2) {
+            return false;
+          }
+
+          const normalizedCode = statusCode != null ? String(statusCode).toLowerCase() : "";
+          if (normalizedCode === "approved" || normalizedCode === "1" || normalizedCode === "2") {
+            return false;
+          }
+
+          const normalizedName = fallbackName ? fallbackName.toLowerCase() : "";
+          if (normalizedName.includes("อนุมัติ") || normalizedName.includes("approve")) {
+            return false;
+          }
+
+          return true;
+        });
+
+        setApplications(nonApprovedApplications);
+        setFilteredApplications(nonApprovedApplications);
       }
     } catch (error) {
       console.error('Error loading applications:', error);

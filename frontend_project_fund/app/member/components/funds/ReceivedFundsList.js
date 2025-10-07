@@ -18,6 +18,34 @@ export default function ReceivedFundsList({ onNavigate }) {
   const [currentPage, setCurrentPage] = useState(1);
   const ITEMS_PER_PAGE = 10;
 
+  const getProjectTitle = (submission) => {
+    if (!submission || typeof submission !== "object") {
+      return "-";
+    }
+
+    if (submission.submission_type === "publication_reward") {
+      return (
+        submission.publication_reward_detail?.paper_title ||
+        submission.PublicationRewardDetail?.paper_title ||
+        submission.publication_reward_detail?.article_title ||
+        submission.PublicationRewardDetail?.article_title ||
+        submission.title ||
+        submission.project_title ||
+        "-"
+      );
+    }
+
+    return (
+      submission.fund_application_detail?.project_title ||
+      submission.FundApplicationDetail?.project_title ||
+      submission.fund_application_detail?.project_name ||
+      submission.FundApplicationDetail?.project_name ||
+      submission.title ||
+      submission.project_title ||
+      "-"
+    );
+  };
+
   useEffect(() => {
     loadFunds();
   }, []);
@@ -27,35 +55,65 @@ export default function ReceivedFundsList({ onNavigate }) {
     try {
       const response = await submissionAPI.getSubmissions({ status: 2, limit: 1000 });
       if (response.success && Array.isArray(response.submissions)) {
-        const transformed = response.submissions.map((sub) => ({
-          submission_id: sub.submission_id,
-          submission_number: sub.submission_number,
-          category_name: sub.category_name || sub.category?.category_name || "-",
-          subcategory_name: sub.subcategory_name || sub.subcategory?.subcategory_name || "-",
-          year:
-            (typeof sub.year === "object" ? sub.year?.year : sub.year) ||
-            (typeof sub.Year === "object" ? sub.Year?.year : sub.Year) ||
-            "-",
-          year_id:
-            sub.year_id ||
-            sub.Year?.year_id ||
-            (typeof sub.year === "object" ? sub.year?.year_id : undefined),
-          approved_amount:
-            sub.approved_amount ??
-            sub.fund_application_detail?.approved_amount ??
-            sub.publication_reward_detail?.total_approve_amount ??
-            null,
-          status: sub.status?.status_name || "-",
-          status_id: sub.status_id,
-          _original: sub,
-        }));
+        const transformed = response.submissions.map((sub) => {
+          const projectTitle = getProjectTitle(sub);
+          return {
+            submission_id: sub.submission_id,
+            submission_number: sub.submission_number,
+            category_name: sub.category_name || sub.category?.category_name || "-",
+            subcategory_name: sub.subcategory_name || sub.subcategory?.subcategory_name || "-",
+            project_title:
+              projectTitle && projectTitle !== "-" ? String(projectTitle) : "-",
+            year:
+              (typeof sub.year === "object" ? sub.year?.year : sub.year) ||
+              (typeof sub.Year === "object" ? sub.Year?.year : sub.Year) ||
+              "-",
+            year_id:
+              sub.year_id ||
+              sub.Year?.year_id ||
+              (typeof sub.year === "object" ? sub.year?.year_id : undefined),
+            approved_amount:
+              sub.approved_amount ??
+              sub.fund_application_detail?.approved_amount ??
+              sub.publication_reward_detail?.total_approve_amount ??
+              null,
+            status: sub.status?.status_name || "-",
+            status_id: sub.status_id,
+            _original: sub,
+          };
+        });
+        const approvedFunds = transformed.filter((item) => {
+          const statusId = item.status_id ?? item._original?.status_id;
+          const normalizedId = statusId != null ? Number(statusId) : null;
+          if (normalizedId === 2) {
+            return true;
+          }
+
+          const statusCode =
+            item._original?.status?.status_code ??
+            item._original?.Status?.status_code ??
+            null;
+          const normalizedCode = statusCode != null ? String(statusCode).toLowerCase() : "";
+          if (normalizedCode === "approved" || normalizedCode === "1" || normalizedCode === "2") {
+            return true;
+          }
+
+          const statusName =
+            item.status ||
+            item._original?.status?.status_name ||
+            item._original?.Status?.status_name ||
+            "";
+          const normalizedName = statusName ? String(statusName).toLowerCase() : "";
+
+          return normalizedName.includes("อนุมัติ") || normalizedName.includes("approve");
+        });
         // Sort newest first by created_at
-        transformed.sort(
+        approvedFunds.sort(
           (a, b) =>
             new Date(b._original.created_at || b._original.create_at || 0) -
             new Date(a._original.created_at || a._original.create_at || 0)
         );
-        setFunds(transformed);
+        setFunds(approvedFunds);
       } else {
         setFunds([]);
       }
@@ -91,6 +149,7 @@ export default function ReceivedFundsList({ onNavigate }) {
         (f) =>
           f.submission_number?.toLowerCase().includes(term) ||
           f.category_name?.toLowerCase().includes(term) ||
+          f.project_title?.toLowerCase().includes(term) ||
           f.subcategory_name?.toLowerCase().includes(term)
       );
     }
@@ -128,9 +187,19 @@ export default function ReceivedFundsList({ onNavigate }) {
     },
     {
       header: "ชื่อทุน",
-      accessor: "subcategory_name",
+      accessor: "project_title",
       className: "text-sm",
-      render: (v) => (v == null || v === "" ? "-" : v),
+      render: (_, row) => {
+        const title = row.project_title || row.subcategory_name || "-";
+        return (
+          <div
+            className="truncate overflow-hidden whitespace-nowrap max-w-xs"
+            title={title}
+          >
+            {title}
+          </div>
+        );
+      },
     },
     {
       header: "ปี",
