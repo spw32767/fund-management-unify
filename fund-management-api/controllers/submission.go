@@ -864,12 +864,29 @@ func MoveFileToSubmissionFolder(fileID int, submissionID int, submissionType str
 		return err
 	}
 
-	// ===== ตั้งชื่อไฟล์ใหม่: <original-name>_<submission-number><ext>
-	orig := fileUpload.OriginalName
-	ext := filepath.Ext(orig)
-	base := strings.TrimSuffix(orig, ext)
+	// ===== ตั้งชื่อไฟล์ใหม่: <submission-number>_<original-name>
+	originalName := strings.TrimSpace(fileUpload.OriginalName)
+	if originalName == "" {
+		originalName = filepath.Base(fileUpload.StoredPath)
+	}
+	ext := filepath.Ext(originalName)
+	base := strings.TrimSuffix(originalName, ext)
+	if base == "" {
+		base = "attachment"
+	}
+	if ext == "" {
+		ext = filepath.Ext(fileUpload.StoredPath)
+	}
+	if ext == "" {
+		ext = ".dat"
+	}
 
-	desiredName := fmt.Sprintf("%s_%s%s", base, submission.SubmissionNumber, ext)
+	var desiredName string
+	if strings.TrimSpace(submission.SubmissionNumber) != "" {
+		desiredName = fmt.Sprintf("%s_%s%s", strings.TrimSpace(submission.SubmissionNumber), base, ext)
+	} else {
+		desiredName = fmt.Sprintf("%s%s", base, ext)
+	}
 
 	// ให้ utils.GenerateUniqueFilename ช่วยกันชื่อซ้ำ (ส่ง desiredName เข้าไปให้เป็น "ต้นฉบับ")
 	newFilename := utils.GenerateUniqueFilename(submissionFolderPath, desiredName)
