@@ -630,48 +630,6 @@ export default function ResearchFundContent({ onNavigate }) {
         </div>
       </div>
 
-      {/* Summary Stats (เหมือน Promotion แต่ใช้เกณฑ์ isAvailableResearch) */}
-      {filteredFunds.length > 0 && (
-        <div className="mb-4 grid grid-cols-3 gap-4">
-          <div className="bg-white p-4 rounded-lg shadow-sm">
-            <div className="text-sm text-gray-500">จำนวนทุนทั้งหมด</div>
-            <div className="text-2xl font-semibold text-gray-900">
-              {filteredFunds.reduce(
-                (sum, cat) => sum + (cat.subcategories?.length || 0),
-                0
-              )}
-            </div>
-          </div>
-          <div className="bg-white p-4 rounded-lg shadow-sm">
-            <div className="text-sm text-gray-500">ทุนที่มีงบประมาณ</div>
-            <div className="text-2xl font-semibold text-green-600">
-              {filteredFunds.reduce(
-                (sum, cat) =>
-                  sum +
-                  (cat.subcategories?.filter((s) => isAvailableResearch(s)).length || 0),
-                0
-              )}
-            </div>
-          </div>
-          <div className="bg-white p-4 rounded-lg shadow-sm">
-            <div className="text-sm text-gray-500">งบประมาณรวมคงเหลือ</div>
-            <div className="text-xl font-semibold text-blue-600">
-              {formatAmount(
-                filteredFunds.reduce(
-                  (sum, cat) =>
-                    sum +
-                    (cat.subcategories?.reduce(
-                      (subSum, sub) => subSum + (sub.remaining_budget || 0),
-                      0
-                    ) || 0),
-                  0
-                )
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* Funds Table (เหมือน Promotion) */}
       {filteredFunds.length === 0 ? (
         <div className="bg-white rounded-lg shadow-sm p-8 text-center">
