@@ -23,8 +23,6 @@ export default function PromotionFundContent() {
   const [userRole, setUserRole] = useState(null);
 
   const [searchTerm, setSearchTerm] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
-
   const [showConditionModal, setShowConditionModal] = useState(false);
   const [isConditionModalVisible, setIsConditionModalVisible] = useState(false);
   const [selectedCondition, setSelectedCondition] = useState({ title: "", content: "" });
@@ -97,7 +95,7 @@ export default function PromotionFundContent() {
 
   useEffect(() => {
     applyFilters();
-  }, [searchTerm, statusFilter, fundCategories]);
+  }, [searchTerm, fundCategories]);
 
   const computeApplicationOpen = (start, end) => {
     if (!start || !end) return true;
@@ -424,44 +422,11 @@ export default function PromotionFundContent() {
         .filter((category) => category.subcategories && category.subcategories.length > 0);
     }
 
-    if (statusFilter !== "all") {
-      filtered = filtered
-        .map((category) => ({
-          ...category,
-          subcategories: category.subcategories?.filter((sub) => {
-            const remaining = parseBudgetValue(sub.remaining_budget);
-            const isAvailable = remaining > 0;
-            return statusFilter === "available" ? isAvailable : !isAvailable;
-          }) || [],
-        }))
-        .filter((category) => category.subcategories && category.subcategories.length > 0);
-    }
-
     setFilteredFunds(filtered);
   };
 
   const refetch = () => {
     loadFundData(selectedYear);
-  };
-
-  const formatAmount = (amount) => {
-    if (amount === null || amount === undefined || amount === "") {
-      return "ไม่ระบุ";
-    }
-
-    const numeric = parseBudgetValue(amount);
-    if (!Number.isFinite(numeric)) {
-      return "ไม่ระบุ";
-    }
-
-    const hasDecimal = Math.abs(numeric % 1) > 1e-6;
-
-    return (
-      new Intl.NumberFormat("th-TH", {
-        minimumFractionDigits: hasDecimal ? 2 : 0,
-        maximumFractionDigits: 2,
-      }).format(numeric) + " บาท"
-    );
   };
 
   const showCondition = (fundName, condition) => {
@@ -570,37 +535,6 @@ export default function PromotionFundContent() {
 
   const renderFundRow = (fund) => {
     const fundName = fund.subcategory_name || "ไม่ระบุ";
-    const remainingBudget = parseBudgetValue(fund.remaining_budget);
-
-    const hasBudgetValue =
-      fund.remaining_budget !== null &&
-      fund.remaining_budget !== undefined &&
-      String(fund.remaining_budget).trim() !== "";
-    const isBudgetAvailable = remainingBudget > 0;
-
-    const badgeClass = !hasBudgetValue
-      ? "bg-gray-100 text-gray-600"
-      : !isWithinApplicationPeriod
-      ? "bg-gray-100 text-gray-600"
-      : isBudgetAvailable
-      ? "bg-emerald-50 text-emerald-700"
-      : "bg-red-50 text-red-700";
-
-    const budgetStatusText = !hasBudgetValue
-      ? "ไม่มีข้อมูลงบประมาณ"
-      : isBudgetAvailable
-      ? "ยังมีงบประมาณ"
-      : "งบประมาณหมด";
-
-    const budgetStatusClass = !hasBudgetValue
-      ? "text-gray-500"
-      : isBudgetAvailable
-      ? "text-emerald-600"
-      : "text-red-600";
-
-    const periodStatusText = isWithinApplicationPeriod ? "เปิดรับคำขอ" : "ปิดรับคำขอ";
-    const periodStatusClass = isWithinApplicationPeriod ? "text-blue-600" : "text-gray-500";
-
     return (
       <tr key={fund.subcategory_id} className={!isWithinApplicationPeriod ? "bg-gray-50" : ""}>
         <td className="px-6 py-4 align-top">
@@ -614,7 +548,7 @@ export default function PromotionFundContent() {
           )}
         </td>
         <td className="px-6 py-4">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-col gap-2">
             <div className="text-sm text-gray-900">
               {fund.fund_condition ? (
                 <button
@@ -628,15 +562,8 @@ export default function PromotionFundContent() {
                 <span className="text-gray-500">ไม่มีเงื่อนไขเฉพาะ</span>
               )}
             </div>
-
-            <div className="flex flex-col sm:items-end gap-1">
-              <span
-                className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${badgeClass}`}
-              >
-                {hasBudgetValue ? formatAmount(remainingBudget) : "ไม่ระบุ"}
-              </span>
-              <span className={`text-xs ${budgetStatusClass}`}>{budgetStatusText}</span>
-              <span className={`text-xs ${periodStatusClass}`}>{periodStatusText}</span>
+            <div className="text-xs text-gray-500">
+              {isWithinApplicationPeriod ? "เปิดรับคำขอ" : "ปิดรับคำขอ"}
             </div>
           </div>
         </td>
@@ -678,27 +605,15 @@ export default function PromotionFundContent() {
             </select>
           </div>
 
-          <div className="flex flex-col md:flex-row gap-2 w-full md:w-auto">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={16} />
-              <input
-                type="text"
-                placeholder="ค้นหาทุน..."
-                className="text-gray-600 pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-              />
-            </div>
-
-            <select
-              className="px-4 py-2 text-gray-700 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-            >
-              <option value="all">ทั้งหมด</option>
-              <option value="available">มีงบประมาณ</option>
-              <option value="unavailable">งบประมาณหมด</option>
-            </select>
+          <div className="relative w-full md:w-auto">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={16} />
+            <input
+              type="text"
+              placeholder="ค้นหาทุน..."
+              className="text-gray-600 pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 w-full"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
           </div>
         </div>
       </div>
