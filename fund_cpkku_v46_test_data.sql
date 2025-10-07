@@ -1393,6 +1393,7 @@ CREATE TABLE `subcategory_budgets` (
   `allocated_amount` decimal(15,2) DEFAULT NULL COMMENT 'จำนวนทุนต่อไป',
   `remaining_budget` decimal(15,2) DEFAULT NULL,
   `used_amount` decimal(15,2) DEFAULT NULL,
+  `max_amount_per_year` decimal(15,2) DEFAULT NULL COMMENT 'เพดานรวมต่อปี/คนของทุนรอง (ใช้กับ overall)',
   `max_amount_per_grant` decimal(15,2) DEFAULT NULL,
   `max_grants` int(11) DEFAULT NULL,
   `remaining_grant` int(11) DEFAULT NULL,
@@ -1497,6 +1498,64 @@ WHERE sb.delete_at IS NULL
 GROUP BY sb.subcategory_id
 HAVING COUNT(*) > 1
    AND SUM(CASE WHEN sb.record_scope = 'overall' THEN 1 ELSE 0 END) = 0;
+
+-- กำหนดเพดานรวมต่อปีและจำนวนครั้งต่อคนสำหรับแถว overall ที่ใช้ควบคุมโควต้ารวม
+UPDATE subcategory_budgets
+SET max_amount_per_year = 500000.00,
+    max_grants = 5
+WHERE subcategory_id IN (14, 15)
+  AND record_scope = 'overall';
+
+-- ตั้งค่า max_amount_per_year ให้เป็น NULL สำหรับทุกแถวที่เป็น rule เพื่อป้องกันการใช้ yearly cap ราย-rule
+UPDATE subcategory_budgets
+SET max_amount_per_year = NULL
+WHERE record_scope = 'rule';
+
+-- Trigger เพื่อบังคับข้อจำกัดของแถว overall/rule
+DELIMITER $$
+DROP TRIGGER IF EXISTS `trg_subcategory_budgets_before_insert`$$
+CREATE TRIGGER `trg_subcategory_budgets_before_insert`
+BEFORE INSERT ON `subcategory_budgets`
+FOR EACH ROW
+BEGIN
+    IF NEW.record_scope = 'overall' THEN
+        IF EXISTS (
+            SELECT 1
+            FROM subcategory_budgets sb_existing
+            WHERE sb_existing.subcategory_id = NEW.subcategory_id
+              AND sb_existing.record_scope = 'overall'
+              AND (sb_existing.delete_at IS NULL OR sb_existing.delete_at = '0000-00-00 00:00:00')
+        ) THEN
+            SIGNAL SQLSTATE '45000'
+                SET MESSAGE_TEXT = 'Only one overall row is allowed per subcategory';
+        END IF;
+    ELSE
+        SET NEW.max_amount_per_year = NULL;
+    END IF;
+END$$
+
+DROP TRIGGER IF EXISTS `trg_subcategory_budgets_before_update`$$
+CREATE TRIGGER `trg_subcategory_budgets_before_update`
+BEFORE UPDATE ON `subcategory_budgets`
+FOR EACH ROW
+BEGIN
+    IF NEW.record_scope = 'overall' THEN
+        IF EXISTS (
+            SELECT 1
+            FROM subcategory_budgets sb_existing
+            WHERE sb_existing.subcategory_id = NEW.subcategory_id
+              AND sb_existing.record_scope = 'overall'
+              AND sb_existing.subcategory_budget_id <> OLD.subcategory_budget_id
+              AND (sb_existing.delete_at IS NULL OR sb_existing.delete_at = '0000-00-00 00:00:00')
+        ) THEN
+            SIGNAL SQLSTATE '45000'
+                SET MESSAGE_TEXT = 'Only one overall row is allowed per subcategory';
+        END IF;
+    ELSE
+        SET NEW.max_amount_per_year = NULL;
+    END IF;
+END$$
+DELIMITER ;
 
 -- --------------------------------------------------------
 
@@ -2701,11 +2760,48 @@ CREATE TABLE `v_fund_applications` (
 -- (See below for the actual view)
 --
 CREATE TABLE `v_subcategory_user_usage` (
+`subcategory_budget_id` int(11)
+,`subcategory_id` int(11)
+,`user_id` int(11)
+,`year_id` int(11)
+,`used_grants` bigint(21)
+,`used_amount` decimal(32,2)
+);
+
+-- --------------------------------------------------------
+
+--
+-- Stand-in structure for view `v_subcategory_user_usage_total`
+-- (See below for the actual view)
+--
+CREATE TABLE `v_subcategory_user_usage_total` (
 `subcategory_id` int(11)
 ,`user_id` int(11)
-,`usage_year` int(11)
-,`approved_grants` bigint(21)
-,`approved_amount` decimal(32,2)
+,`year_id` int(11)
+,`used_grants` bigint(21)
+,`used_amount` decimal(32,2)
+);
+
+-- --------------------------------------------------------
+
+--
+-- Stand-in structure for view `v_subcategory_policy_rules`
+-- (See below for the actual view)
+--
+CREATE TABLE `v_subcategory_policy_rules` (
+`subcategory_budget_id` int(11)
+,`subcategory_id` int(11)
+,`record_scope` enum('overall','rule')
+,`status` enum('active','disable')
+,`fund_description` text
+,`level` enum('ต้น','กลาง','สูง')
+,`max_amount_per_year` decimal(15,2)
+,`max_grants` int(11)
+,`max_amount_per_grant` decimal(15,2)
+,`remaining_grant` int(11)
+,`allocated_amount` decimal(15,2)
+,`remaining_budget` decimal(15,2)
+,`used_amount` decimal(15,2)
 );
 
 -- --------------------------------------------------------
@@ -2849,8 +2945,30 @@ CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW 
 -- Structure for view `v_subcategory_user_usage`
 --
 DROP TABLE IF EXISTS `v_subcategory_user_usage`;
+DROP TABLE IF EXISTS `v_subcategory_user_usage_total`;
+DROP TABLE IF EXISTS `v_subcategory_policy_rules`;
 
-CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v_subcategory_user_usage`  AS  select `fad`.`subcategory_id` AS `subcategory_id`,`s`.`user_id` AS `user_id`,coalesce(year(`s`.`approved_at`),year(`fad`.`approved_at`),year(`fad`.`closed_at`),year(`s`.`submitted_at`),year(`s`.`created_at`)) AS `usage_year`,count(0) AS `approved_grants`,coalesce(sum(`fad`.`approved_amount`),0) AS `approved_amount` from (`fund_application_details` `fad` join `submissions` `s` on(`fad`.`submission_id` = `s`.`submission_id`)) where `s`.`status_id` = 2 and `s`.`deleted_at` is null group by `fad`.`subcategory_id`,`s`.`user_id`,coalesce(year(`s`.`approved_at`),year(`fad`.`approved_at`),year(`fad`.`closed_at`),year(`s`.`submitted_at`),year(`s`.`created_at`)) ;
+CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v_subcategory_user_usage`  AS  select `r`.`subcategory_budget_id` AS `subcategory_budget_id`,`r`.`subcategory_id` AS `subcategory_id`,`r`.`user_id` AS `user_id`,`r`.`year_id` AS `year_id`,count(0) AS `used_grants`,coalesce(sum(`r`.`approved_amount`),0) AS `used_amount` from `v_approval_records` `r` where `r`.`subcategory_budget_id` is not null group by `r`.`subcategory_budget_id`,`r`.`subcategory_id`,`r`.`user_id`,`r`.`year_id` ;
+
+-- --------------------------------------------------------
+
+--
+-- Structure for view `v_subcategory_user_usage_total`
+--
+DROP TABLE IF EXISTS `v_subcategory_user_usage_total`;
+
+CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v_subcategory_user_usage_total`  AS  select `r`.`subcategory_id` AS `subcategory_id`,`r`.`user_id` AS `user_id`,`r`.`year_id` AS `year_id`,count(0) AS `used_grants`,coalesce(sum(`r`.`approved_amount`),0) AS `used_amount` from `v_approval_records` `r` where `r`.`subcategory_id` is not null group by `r`.`subcategory_id`,`r`.`user_id`,`r`.`year_id` ;
+
+-- --------------------------------------------------------
+
+--
+-- Structure for view `v_subcategory_policy_rules`
+--
+DROP TABLE IF EXISTS `v_subcategory_policy_rules`;
+
+CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v_subcategory_policy_rules`  AS  select `sb`.`subcategory_budget_id` AS `subcategory_budget_id`,`sb`.`subcategory_id` AS `subcategory_id`,`sb`.`record_scope` AS `record_scope`,`sb`.`status` AS `status`,`sb`.`fund_description` AS `fund_description`,`sb`.`level` AS `level`,`sb`.`max_amount_per_year` AS `max_amount_per_year`,`sb`.`max_grants` AS `max_grants`,`sb`.`max_amount_per_grant` AS `max_amount_per_grant`,`sb`.`remaining_grant` AS `remaining_grant`,`sb`.`allocated_amount` AS `allocated_amount`,`sb`.`remaining_budget` AS `remaining_budget`,`sb`.`used_amount` AS `used_amount` from `subcategory_budgets` `sb` where `sb`.`delete_at` is null and `sb`.`status` = 'active' and `sb`.`record_scope` = 'rule'
+UNION ALL
+ select `sb_overall`.`subcategory_budget_id` AS `subcategory_budget_id`,`sb_overall`.`subcategory_id` AS `subcategory_id`,`sb_overall`.`record_scope` AS `record_scope`,`sb_overall`.`status` AS `status`,`sb_overall`.`fund_description` AS `fund_description`,`sb_overall`.`level` AS `level`,`sb_overall`.`max_amount_per_year` AS `max_amount_per_year`,`sb_overall`.`max_grants` AS `max_grants`,`sb_overall`.`max_amount_per_grant` AS `max_amount_per_grant`,`sb_overall`.`remaining_grant` AS `remaining_grant`,`sb_overall`.`allocated_amount` AS `allocated_amount`,`sb_overall`.`remaining_budget` AS `remaining_budget`,`sb_overall`.`used_amount` AS `used_amount` from `subcategory_budgets` `sb_overall` where `sb_overall`.`delete_at` is null and `sb_overall`.`status` = 'active' and `sb_overall`.`record_scope` = 'overall' and not(exists(select 1 from `subcategory_budgets` `sb_rule` where `sb_rule`.`subcategory_id` = `sb_overall`.`subcategory_id` and `sb_rule`.`record_scope` = 'rule' and `sb_rule`.`status` = 'active' and `sb_rule`.`delete_at` is null)) ;
 
 -- --------------------------------------------------------
 

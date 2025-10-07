@@ -528,9 +528,10 @@ func GetTeacherSubcategories(c *gin.Context) {
 			sb.subcategory_budget_id,
 			sb.allocated_amount,
 			sb.used_amount,
-			sb.remaining_budget,
-			sb.max_grants,
-			sb.max_amount_per_grant,
+                        sb.remaining_budget,
+                        sb.max_amount_per_year,
+                        sb.max_grants,
+                        sb.max_amount_per_grant,
 			sb.remaining_grant,
 			sb.level,
 			sb.fund_description,
@@ -603,6 +604,7 @@ func GetTeacherSubcategories(c *gin.Context) {
 			allocatedAmount      *float64
 			usedAmount           *float64
 			remainingBudget      *float64
+			maxAmountPerYear     *float64
 			maxGrants            *int
 			maxAmountPerGrant    *float64
 			remainingGrant       *int
@@ -625,6 +627,7 @@ func GetTeacherSubcategories(c *gin.Context) {
 			&allocatedAmount,
 			&usedAmount,
 			&remainingBudget,
+			&maxAmountPerYear,
 			&maxGrants,
 			&maxAmountPerGrant,
 			&remainingGrant,
@@ -691,6 +694,11 @@ func GetTeacherSubcategories(c *gin.Context) {
 			if remainingBudget != nil {
 				result["remaining_budget"] = *remainingBudget
 			}
+			if maxAmountPerYear != nil {
+				result["max_amount_per_year"] = *maxAmountPerYear
+			} else {
+				result["max_amount_per_year"] = nil
+			}
 			if maxAmountPerGrant != nil {
 				result["max_amount_per_grant"] = *maxAmountPerGrant
 			}
@@ -715,6 +723,7 @@ func GetTeacherSubcategories(c *gin.Context) {
 			result["allocated_amount"] = 0.0
 			result["used_amount"] = 0.0
 			result["remaining_budget"] = 0.0
+			result["max_amount_per_year"] = nil
 			result["max_grants"] = nil
 			result["max_amount_per_grant"] = 0.0
 			result["remaining_grant"] = nil
