@@ -357,11 +357,25 @@ function DeptDecisionPanel({ submission, onApprove, onReject, onBack }) {
   );
   const [saving, setSaving] = useState(false);
 
+  const submissionType = String(
+    submission?.submission_type ?? submission?.SubmissionType ?? ''
+  ).toLowerCase();
+  const isPublicationReward = submissionType === 'publication_reward';
+  const isCommentRequired = isPublicationReward;
+
   const canAct = true;
 
   const handleApprove = async () => {
     const trimmedComment = comment?.trim() || '';
     const trimmedSignature = headSignature?.trim() || '';
+    if (isCommentRequired && !trimmedComment) {
+      await Swal.fire({
+        icon: 'warning',
+        title: 'กรุณาระบุหมายเหตุ',
+        text: 'โปรดกรอกหมายเหตุของหัวหน้าสาขาก่อนอนุมัติคำขอรับเงินรางวัลผลงานตีพิมพ์',
+      });
+      return;
+    }
     if (!trimmedSignature) {
       await Swal.fire({
         icon: 'warning',
@@ -501,7 +515,15 @@ function DeptDecisionPanel({ submission, onApprove, onReject, onBack }) {
       <div className="space-y-4">
         {/* ช่องคอมเมนต์ */}
         <div>
-          <label className="text-sm text-gray-600">หมายเหตุของหัวหน้าสาขา</label>
+          <label className="text-sm text-gray-600">
+            หมายเหตุของหัวหน้าสาขา
+            {isCommentRequired && <span className="text-red-500"> *</span>}
+          </label>
+          {isCommentRequired && (
+            <p className="mt-1 text-xs text-gray-500">
+              จำเป็นสำหรับคำขอรับเงินรางวัลผลงานตีพิมพ์
+            </p>
+          )}
           <textarea
             className="w-full min-h-[100px] rounded-lg border border-gray-300 p-3 outline-none focus:ring-2 focus:ring-blue-500"
             placeholder="เขียนหมายเหตุของหัวหน้าสาขาหรือบันทึกหมายเหตุ (ถ้ามี)"
@@ -606,6 +628,19 @@ export default function PublicationSubmissionDetailsDept({ submissionId, onBack 
   async function handleApprove() {
     try {
       setSaving(true);
+      const submissionType = String(
+        submission?.submission_type ?? submission?.SubmissionType ?? ''
+      ).toLowerCase();
+      if (submissionType === 'publication_reward') {
+        setSaving(false);
+        await Swal.fire({
+          icon: 'info',
+          title: 'กรุณากรอกหมายเหตุและลายเซ็น',
+          text: 'โปรดบันทึกหมายเหตุและลายเซ็นในส่วน “ผลการพิจารณา” ก่อนอนุมัติคำขอรับเงินรางวัลผลงานตีพิมพ์',
+          confirmButtonText: 'เข้าใจแล้ว',
+        });
+        return;
+      }
       await deptHeadAPI.recommendSubmission(submission.submission_id, {});
       await Swal.fire({
         icon: 'success',
