@@ -18,6 +18,8 @@ export default function ReceivedFundsList({ onNavigate }) {
   const [statusFilter, setStatusFilter] = useState("all");
   const [yearFilter, setYearFilter] = useState("all");
   const [loading, setLoading] = useState(false);
+  const [years, setYears] = useState([]);
+  const [yearsLoading, setYearsLoading] = useState(false);
   const {
     statuses: statusOptions,
     getLabelById,
@@ -25,23 +27,113 @@ export default function ReceivedFundsList({ onNavigate }) {
     isLoading: statusLoading,
   } = useStatusMap();
 
-  const YEAR_ID_MAP = { "2566": 1, "2567": 2, "2568": 3 };
+  useEffect(() => {
+    loadYears();
+  }, []);
 
   useEffect(() => {
     loadFunds();
-  }, [yearFilter]);
+  }, [yearFilter, years]);
 
   useEffect(() => {
     filterFunds();
   }, [searchTerm, statusFilter, yearFilter, funds]);
+
+  const loadYears = async () => {
+    setYearsLoading(true);
+    try {
+      const [yearsRes, systemConfigRes] = await Promise.all([
+        fetch('/api/years', { cache: 'no-store' }).then((res) => res.json()).catch((error) => {
+          console.error('Error fetching years list:', error);
+          return null;
+        }),
+        fetch('/api/system-config', { cache: 'no-store' }).then((res) => res.json()).catch((error) => {
+          console.error('Error fetching system config:', error);
+          return null;
+        })
+      ]);
+
+      const rawYears = Array.isArray(yearsRes?.years)
+        ? yearsRes.years
+        : Array.isArray(yearsRes?.data)
+        ? yearsRes.data
+        : [];
+
+      const normalizedYears = rawYears
+        .map((year) => ({
+          year_id: year?.year_id != null ? Number(year.year_id) : null,
+          year: year?.year != null ? String(year.year) : null,
+          budget: year?.budget != null ? Number(year.budget) : 0,
+          status: year?.status ?? 'active',
+        }))
+        .filter((year) => year.year_id != null && year.year);
+
+      setYears(normalizedYears);
+
+      const defaultYearCandidate =
+        systemConfigRes?.current_year ??
+        systemConfigRes?.raw?.current_year ??
+        null;
+
+      if (defaultYearCandidate != null) {
+        const defaultYear = String(defaultYearCandidate);
+        const existsInList = normalizedYears.some((year) => String(year.year) === defaultYear);
+        if (existsInList) {
+          setYearFilter((prev) => (prev === 'all' ? defaultYear : prev));
+        }
+      }
+    } catch (error) {
+      console.error('Error loading years data:', error);
+    } finally {
+      setYearsLoading(false);
+    }
+  };
+
+  const findYearIdByLabel = (label) => {
+    if (!label || !Array.isArray(years)) return null;
+    const match = years.find((year) => String(year.year) === String(label));
+    return match?.year_id ?? null;
+  };
+
+  const findYearLabelById = (yearId) => {
+    if (yearId == null || !Array.isArray(years)) return null;
+    const match = years.find((year) => Number(year.year_id) === Number(yearId));
+    return match?.year ? String(match.year) : null;
+  };
+
+  const resolveSubmissionYear = (submission) => {
+    if (!submission || typeof submission !== 'object') {
+      return null;
+    }
+
+    const directYear =
+      submission.year?.year ??
+      submission.Year?.year ??
+      submission.year ??
+      submission.Year;
+
+    if (directYear != null && directYear !== '') {
+      return String(directYear);
+    }
+
+    const mappedYear =
+      findYearLabelById(submission.year_id) ??
+      findYearLabelById(submission.Year?.year_id);
+
+    if (mappedYear) {
+      return mappedYear;
+    }
+
+    return null;
+  };
 
   const loadFunds = async () => {
     setLoading(true);
     try {
       const params = { limit: 1000 };
       if (yearFilter !== "all") {
-        const mappedYear = YEAR_ID_MAP[yearFilter];
-        if (mappedYear) params.year_id = mappedYear;
+        const yearId = findYearIdByLabel(yearFilter);
+        if (yearId) params.year_id = yearId;
       }
 
       const [response, subRes] = await Promise.all([
@@ -96,7 +188,9 @@ export default function ReceivedFundsList({ onNavigate }) {
             status_code: statusCode,
             status_fallback: fallbackStatusName,
             submitted_at: sub.created_at,
-            year: sub.year?.year || sub.Year?.year || "2568",
+            year:
+              resolveSubmissionYear(sub) ??
+              (yearFilter !== 'all' ? String(yearFilter) : null),
             year_id: sub.year_id || sub.Year?.year_id,
             _original: sub,
           };
@@ -308,11 +402,14 @@ export default function ReceivedFundsList({ onNavigate }) {
             className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
             value={yearFilter}
             onChange={(e) => setYearFilter(e.target.value)}
+            disabled={yearsLoading && !years.length}
           >
             <option value="all">ปีทั้งหมด</option>
-            <option value="2568">2568</option>
-            <option value="2567">2567</option>
-            <option value="2566">2566</option>
+            {years.map((year) => (
+              <option key={year.year_id} value={String(year.year)}>
+                {year.year}
+              </option>
+            ))}
           </select>
         </div>
 
