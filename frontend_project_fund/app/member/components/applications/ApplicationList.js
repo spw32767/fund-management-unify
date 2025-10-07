@@ -130,21 +130,27 @@ export default function ApplicationList({ onNavigate }) {
             "";
 
           const normalizedId = statusId != null ? Number(statusId) : null;
-          if (normalizedId === 2) {
-            return false;
-          }
-
           const normalizedCode = statusCode != null ? String(statusCode).toLowerCase() : "";
-          if (normalizedCode === "approved" || normalizedCode === "1" || normalizedCode === "2") {
-            return false;
-          }
-
           const normalizedName = fallbackName ? fallbackName.toLowerCase() : "";
-          if (normalizedName.includes("อนุมัติ") || normalizedName.includes("approve")) {
-            return false;
-          }
 
-          return true;
+          const isApprovedLike =
+            normalizedId === 2 ||
+            normalizedCode === "approved" ||
+            normalizedCode === "1" ||
+            normalizedCode === "2" ||
+            normalizedName.includes("อนุมัติ") ||
+            normalizedName.includes("approve");
+
+          const isClosedLike =
+            normalizedCode === "closed" ||
+            normalizedCode === "close" ||
+            normalizedCode === "3" ||
+            normalizedName.includes("ปิดทุน") ||
+            normalizedName.includes("ปิดโครงการ") ||
+            normalizedName.includes("ปิด") ||
+            normalizedName.includes("close");
+
+          return !(isApprovedLike || isClosedLike);
         });
 
         setApplications(nonApprovedApplications);
@@ -162,15 +168,34 @@ export default function ApplicationList({ onNavigate }) {
 
   // Helper functions to extract data
   const getTitle = (submission) => {
+    if (!submission || typeof submission !== 'object') {
+      return '−';
+    }
+
     if (submission.submission_type === 'publication_reward') {
       return (
         submission.publication_reward_detail?.paper_title ||
         submission.PublicationRewardDetail?.paper_title ||
+        submission.publication_reward_detail?.article_title ||
+        submission.PublicationRewardDetail?.article_title ||
+        submission.title ||
         '−'
       );
     }
-    // For non-publication types, show dash as title should not be displayed
-    return '−';
+
+    if (submission.submission_type === 'fund_application') {
+      return (
+        submission.fund_application_detail?.project_title ||
+        submission.FundApplicationDetail?.project_title ||
+        submission.fund_application_detail?.project_name ||
+        submission.FundApplicationDetail?.project_name ||
+        submission.project_title ||
+        submission.title ||
+        '−'
+      );
+    }
+
+    return submission.project_title || submission.title || '−';
   };
 
   const getAmount = (submission) => {
@@ -206,7 +231,21 @@ export default function ApplicationList({ onNavigate }) {
       return '-';
     }
 
-    return submission.subcategory_name ?? '-';
+    const rawValue =
+      submission.fund_application_detail?.subcategory?.subcategory_name ||
+      submission.FundApplicationDetail?.Subcategory?.subcategory_name ||
+      submission.fund_application_detail?.subcategory?.SubcategoryName ||
+      submission.FundApplicationDetail?.Subcategory?.SubcategoryName ||
+      submission.subcategory?.subcategory_name ||
+      submission.Subcategory?.SubcategoryName ||
+      submission.subcategory_name;
+
+    if (typeof rawValue === 'string' && rawValue.trim() !== '') {
+      const [namePart] = rawValue.split(' - ');
+      return namePart?.trim() || '-';
+    }
+
+    return '-';
   };
 
   const filterApplications = () => {
