@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { Search, Eye, Download, Gift } from "lucide-react";
 import { submissionAPI, teacherAPI } from "@/app/lib/member_api";
+import { systemAPI } from "@/app/lib/api";
+import { systemConfigAPI } from "@/app/lib/system_config_api";
 import { statusService } from "@/app/lib/status_service";
 import { useStatusMap } from "@/app/hooks/useStatusMap";
 import PageLayout from "../common/PageLayout";
@@ -42,21 +44,27 @@ export default function ReceivedFundsList({ onNavigate }) {
   const loadYears = async () => {
     setYearsLoading(true);
     try {
-      const [yearsRes, systemConfigRes] = await Promise.all([
-        fetch('/api/years', { cache: 'no-store' }).then((res) => res.json()).catch((error) => {
-          console.error('Error fetching years list:', error);
-          return null;
-        }),
-        fetch('/api/system-config', { cache: 'no-store' }).then((res) => res.json()).catch((error) => {
-          console.error('Error fetching system config:', error);
-          return null;
-        })
+      const [yearsRes, currentYearRes] = await Promise.all([
+        systemAPI
+          .getYears()
+          .catch((error) => {
+            console.error('Error fetching years list:', error);
+            return null;
+          }),
+        systemConfigAPI
+          .getCurrentYear()
+          .catch((error) => {
+            console.error('Error fetching current system year:', error);
+            return null;
+          }),
       ]);
 
       const rawYears = Array.isArray(yearsRes?.years)
         ? yearsRes.years
         : Array.isArray(yearsRes?.data)
         ? yearsRes.data
+        : Array.isArray(yearsRes)
+        ? yearsRes
         : [];
 
       const normalizedYears = rawYears
@@ -71,8 +79,9 @@ export default function ReceivedFundsList({ onNavigate }) {
       setYears(normalizedYears);
 
       const defaultYearCandidate =
-        systemConfigRes?.current_year ??
-        systemConfigRes?.raw?.current_year ??
+        currentYearRes?.current_year ??
+        currentYearRes?.data?.current_year ??
+        currentYearRes?.year ??
         null;
 
       if (defaultYearCandidate != null) {
