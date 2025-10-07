@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: localhost:3306
--- Generation Time: 07 ต.ค. 2025 เมื่อ 09:43 PM
+-- Generation Time: 07 ต.ค. 2025 เมื่อ 10:46 PM
 -- เวอร์ชันของเซิร์ฟเวอร์: 11.1.6-MariaDB-ubu2004
 -- PHP Version: 7.4.3-4ubuntu2.29
 
@@ -451,7 +451,13 @@ INSERT INTO `audit_logs` (`log_id`, `user_id`, `action`, `entity_type`, `entity_
 (489, 13, 'review', 'submission', 166, 'PR-2568-0044', NULL, NULL, NULL, '202.28.118.117', NULL, 'comment', '2025-10-07 15:59:49'),
 (490, 8, 'create', 'submission', 167, 'PR-2568-0045', NULL, '{\"submission_type\": \"publication_reward\", \"status_id\": 6, \"year_id\": 3}', NULL, NULL, NULL, 'Created new publication_reward', '2025-10-07 20:32:36'),
 (491, 8, 'create', 'submission', 168, 'PR-2568-0046', NULL, '{\"submission_type\": \"publication_reward\", \"status_id\": 6, \"year_id\": 3}', NULL, NULL, NULL, 'Created new publication_reward', '2025-10-07 20:45:23'),
-(492, 8, 'submit', 'submission', 168, 'PR-2568-0046', NULL, NULL, '', NULL, NULL, 'submit submission', '2025-10-07 20:57:03');
+(492, 8, 'submit', 'submission', 168, 'PR-2568-0046', NULL, NULL, '', NULL, NULL, 'submit submission', '2025-10-07 20:57:03'),
+(493, 8, 'create', 'submission', 169, 'PR-2568-0047', NULL, '{\"submission_type\": \"publication_reward\", \"status_id\": 6, \"year_id\": 3}', NULL, NULL, NULL, 'Created new publication_reward', '2025-10-07 22:07:17'),
+(494, 8, 'submit', 'submission', 169, 'PR-2568-0047', NULL, NULL, '', NULL, NULL, 'submit submission', '2025-10-07 22:07:17'),
+(495, 8, 'create', 'submission', 170, 'PR-2568-0001', NULL, '{\"submission_type\": \"publication_reward\", \"status_id\": 6, \"year_id\": 3}', NULL, NULL, NULL, 'Created new publication_reward', '2025-10-07 22:10:43'),
+(496, 8, 'submit', 'submission', 170, 'PR-2568-0001', NULL, NULL, '', NULL, NULL, 'submit submission', '2025-10-07 22:10:44'),
+(497, 8, 'create', 'submission', 171, 'PR-2568-0002', NULL, '{\"submission_type\": \"publication_reward\", \"status_id\": 6, \"year_id\": 3}', NULL, NULL, NULL, 'Created new publication_reward', '2025-10-07 22:35:40'),
+(498, 8, 'submit', 'submission', 171, 'PR-2568-0002', NULL, NULL, '', NULL, NULL, 'submit submission', '2025-10-07 22:35:42');
 
 -- --------------------------------------------------------
 
@@ -564,146 +570,12 @@ CREATE TABLE `file_uploads` (
 --
 
 INSERT INTO `file_uploads` (`file_id`, `original_name`, `stored_path`, `folder_type`, `submission_id`, `file_size`, `mime_type`, `file_hash`, `is_public`, `uploaded_by`, `uploaded_at`, `create_at`, `update_at`, `delete_at`) VALUES
-(232, 'sample-local-pdf.pdf', 'uploads/users/user_8_สมชาย_ใจด/submissions/pub116_2025-09-25/sample-local-pdf_PR-25680925-0001.pdf', 'temp', NULL, 49672, 'application/pdf', '', 0, 8, '2025-09-25 17:03:36', '2025-09-25 17:03:36', '2025-09-25 17:03:36', NULL),
-(233, 'form.pdf', 'uploads/users/user_8_สมชาย_ใจด/submissions/pub116_2025-09-25/form_PR-25680925-0001.pdf', 'temp', NULL, 1312, 'application/pdf', '', 0, 8, '2025-09-25 17:03:36', '2025-09-25 17:03:36', '2025-09-25 17:03:36', NULL),
-(234, 'sample-local-pdf.pdf', 'uploads/users/user_8_สมชาย_ใจด/submissions/pub117_2025-09-25/sample-local-pdf_PR-25680925-0002.pdf', 'temp', NULL, 49672, 'application/pdf', '', 0, 8, '2025-09-25 17:27:15', '2025-09-25 17:27:15', '2025-09-25 17:27:15', NULL),
-(235, 'form.pdf', 'uploads/users/user_8_สมชาย_ใจด/submissions/pub117_2025-09-25/form_PR-25680925-0002.pdf', 'temp', NULL, 1312, 'application/pdf', '', 0, 8, '2025-09-25 17:27:15', '2025-09-25 17:27:15', '2025-09-25 17:27:15', NULL),
-(236, '1. 1574-68 หลักเกณฑ์การใช้จ่ายเงินกองทุนวิจัย นวัตกรรม และบริการวิชาการ (2568).pdf', 'uploads/users/user_8_สมชาย_ใจด/submissions/pub118_2025-09-25/1._1574-68_หลกเกณฑการใชจายเงนกองทนวจย_นว.pdf', 'temp', NULL, 455138, 'application/pdf', '', 0, 8, '2025-09-25 17:29:17', '2025-09-25 17:29:17', '2025-09-25 17:29:17', NULL),
-(237, 'form.pdf', 'uploads/users/user_8_สมชาย_ใจด/submissions/pub118_2025-09-25/form_PR-25680925-0003.pdf', 'temp', NULL, 1312, 'application/pdf', '', 0, 8, '2025-09-25 17:29:17', '2025-09-25 17:29:17', '2025-09-25 17:29:17', NULL),
-(238, 'sample-local-pdf.pdf', 'uploads/users/user_8_สมชาย_ใจด/submissions/pub119_2025-09-25/sample-local-pdf_PR-25680925-0004.pdf', 'temp', NULL, 49672, 'application/pdf', '', 0, 8, '2025-09-25 17:31:05', '2025-09-25 17:31:05', '2025-09-25 17:31:05', NULL),
-(239, 'form.pdf', 'uploads/users/user_8_สมชาย_ใจด/submissions/pub119_2025-09-25/form_PR-25680925-0004.pdf', 'temp', NULL, 1312, 'application/pdf', '', 0, 8, '2025-09-25 17:31:06', '2025-09-25 17:31:06', '2025-09-25 17:31:06', NULL),
-(240, 'form.pdf', 'uploads/users/user_8_สมชาย_ใจด/submissions/pub120_2025-09-25/form_PR-25680925-0005.pdf', 'temp', NULL, 1312, 'application/pdf', '', 0, 8, '2025-09-25 17:35:31', '2025-09-25 17:35:31', '2025-09-25 17:35:31', NULL),
-(241, '1. 1574-68 หลักเกณฑ์การใช้จ่ายเงินกองทุนวิจัย นวัตกรรม และบริการวิชาการ (2568).pdf', 'uploads/users/user_8_สมชาย_ใจด/submissions/pub120_2025-09-25/1._1574-68_หลกเกณฑการใชจายเงนกองทนวจย_นว.pdf', 'temp', NULL, 455138, 'application/pdf', '', 0, 8, '2025-09-25 17:35:31', '2025-09-25 17:35:31', '2025-09-25 17:35:31', NULL),
-(242, 'sample-local-pdf.pdf', 'uploads/users/user_12_สมชาย_ใจด/submissions/fund121_2025-09-26/sample-local-pdf_FA-25680926-0001.pdf', 'temp', NULL, 49672, 'application/pdf', '', 0, 12, '2025-09-26 08:42:51', '2025-09-26 08:42:51', '2025-09-26 08:42:51', NULL),
-(243, 'sample.pdf', 'uploads/users/user_12_สมชาย_ใจด/submissions/fund121_2025-09-26/sample_FA-25680926-0001.pdf', 'temp', NULL, 18810, 'application/pdf', '', 0, 12, '2025-09-26 08:42:51', '2025-09-26 08:42:51', '2025-09-26 08:42:51', NULL),
-(244, 'file-sample_150kB.pdf', 'uploads/users/user_12_สมชาย_ใจด/submissions/fund121_2025-09-26/file-sample_150kB_FA-25680926-0001.pdf', 'temp', NULL, 142786, 'application/pdf', '', 0, 12, '2025-09-26 08:42:51', '2025-09-26 08:42:51', '2025-09-26 08:42:51', NULL),
-(245, 'c4611_sample_explain.pdf', 'uploads/users/user_12_สมชาย_ใจด/submissions/fund121_2025-09-26/c4611_sample_explain_FA-25680926-0001.pdf', 'temp', NULL, 88226, 'application/pdf', '', 0, 12, '2025-09-26 08:42:51', '2025-09-26 08:42:51', '2025-09-26 08:42:51', NULL),
-(246, 'form.pdf', 'uploads/users/user_8_สมชาย_ใจด/submissions/pub122_2025-09-26/form_PR-25680926-0006.pdf', 'temp', NULL, 1312, 'application/pdf', '', 0, 8, '2025-09-26 23:33:11', '2025-09-26 23:33:11', '2025-09-26 23:33:11', NULL),
-(247, 'form.pdf', 'uploads/users/user_8_สมชาย_ใจด/submissions/pub123_2025-09-30/form_PR-25680930-0007.pdf', 'temp', NULL, 1312, 'application/pdf', '', 0, 8, '2025-09-30 13:41:38', '2025-09-30 13:41:38', '2025-09-30 13:41:38', NULL),
-(248, 'sample-local-pdf.pdf', 'uploads/users/user_8_สมชาย_ใจด/submissions/pub123_2025-09-30/sample-local-pdf_PR-25680930-0007.pdf', 'temp', NULL, 49672, 'application/pdf', '', 0, 8, '2025-09-30 13:41:38', '2025-09-30 13:41:38', '2025-09-30 13:41:38', NULL),
-(249, 'PR-25680930-0007_publication_reward_form.docx', 'uploads/users/user_8_สมชาย_ใจด/submissions/pub123_2025-09-30/PR-25680930-0007_publication_reward_form.docx', 'temp', NULL, 25552, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', '', 0, 8, '2025-09-30 13:41:38', '2025-09-30 13:41:38', '2025-09-30 13:41:38', NULL),
-(250, 'sample-local-pdf.pdf', 'uploads/users/user_8_สมชาย_ใจด/submissions/pub124_2025-10-01/sample-local-pdf_PR-25681001-0008.pdf', 'temp', NULL, 49672, 'application/pdf', '', 0, 8, '2025-10-01 13:16:58', '2025-10-01 13:16:58', '2025-10-01 13:16:58', NULL),
-(251, 'form.pdf', 'uploads/users/user_8_สมชาย_ใจด/submissions/pub124_2025-10-01/form_PR-25681001-0008.pdf', 'temp', NULL, 1312, 'application/pdf', '', 0, 8, '2025-10-01 13:16:58', '2025-10-01 13:16:58', '2025-10-01 13:16:58', NULL),
-(252, 'PR-25681001-0008_publication_reward_form.docx', 'uploads/users/user_8_สมชาย_ใจด/submissions/pub124_2025-10-01/PR-25681001-0008_publication_reward_form.docx', 'temp', NULL, 25556, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', '', 0, 8, '2025-10-01 13:16:58', '2025-10-01 13:16:58', '2025-10-01 13:16:58', NULL),
-(253, 'form.pdf', 'uploads/users/user_8_สมชาย_ใจด/submissions/pub125_2025-10-01/form_PR-25681001-0009.pdf', 'temp', NULL, 1312, 'application/pdf', '', 0, 8, '2025-10-01 20:52:43', '2025-10-01 20:52:43', '2025-10-01 20:52:43', NULL),
-(254, 'sample-local-pdf.pdf', 'uploads/users/user_8_สมชาย_ใจด/submissions/pub125_2025-10-01/sample-local-pdf_PR-25681001-0009.pdf', 'temp', NULL, 49672, 'application/pdf', '', 0, 8, '2025-10-01 20:52:43', '2025-10-01 20:52:43', '2025-10-01 20:52:43', NULL),
-(255, 'PR-25681001-0009_publication_reward_form.docx', 'uploads/users/user_8_สมชาย_ใจด/submissions/pub125_2025-10-01/PR-25681001-0009_publication_reward_form.docx', 'temp', NULL, 25620, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', '', 0, 8, '2025-10-01 20:52:43', '2025-10-01 20:52:43', '2025-10-01 20:52:43', NULL),
-(256, 'sample-local-pdf.pdf', 'uploads/users/user_8_สมชาย_ใจด/submissions/pub126_2025-10-02/sample-local-pdf_PR-25681002-0010.pdf', 'temp', NULL, 49672, 'application/pdf', '', 0, 8, '2025-10-02 00:33:52', '2025-10-02 00:33:52', '2025-10-02 00:33:52', NULL),
-(257, 'form.pdf', 'uploads/users/user_8_สมชาย_ใจด/submissions/pub126_2025-10-02/form_PR-25681002-0010.pdf', 'temp', NULL, 1312, 'application/pdf', '', 0, 8, '2025-10-02 00:33:52', '2025-10-02 00:33:52', '2025-10-02 00:33:52', NULL),
-(258, 'PR-25681002-0010_publication_reward_form.docx', 'uploads/users/user_8_สมชาย_ใจด/submissions/pub126_2025-10-02/PR-25681002-0010_publication_reward_form.docx', 'temp', NULL, 25808, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', '', 0, 8, '2025-10-02 00:33:52', '2025-10-02 00:33:52', '2025-10-02 00:33:52', NULL),
-(259, 'sample-local-pdf.pdf', 'uploads/users/user_8_สมชาย_ใจด/submissions/pub127_2025-10-02/sample-local-pdf_PR-25681002-0011.pdf', 'temp', NULL, 49672, 'application/pdf', '', 0, 8, '2025-10-02 12:12:36', '2025-10-02 12:12:36', '2025-10-02 12:12:36', NULL),
-(260, 'form.pdf', 'uploads/users/user_8_สมชาย_ใจด/submissions/pub127_2025-10-02/form_PR-25681002-0011.pdf', 'temp', NULL, 1312, 'application/pdf', '', 0, 8, '2025-10-02 12:12:36', '2025-10-02 12:12:36', '2025-10-02 12:12:36', NULL),
-(261, 'PR-25681002-0011_publication_reward_form.docx', 'uploads/users/user_8_สมชาย_ใจด/submissions/pub127_2025-10-02/PR-25681002-0011_publication_reward_form.docx', 'temp', NULL, 25729, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', '', 0, 8, '2025-10-02 12:12:36', '2025-10-02 12:12:36', '2025-10-02 12:12:36', NULL),
-(262, 'sample-local-pdf.pdf', 'uploads/users/user_8_สมชาย_ใจด/submissions/pub128_2025-10-02/sample-local-pdf_PR-25681002-0012.pdf', 'temp', NULL, 49672, 'application/pdf', '', 0, 8, '2025-10-02 12:21:39', '2025-10-02 12:21:39', '2025-10-02 12:21:39', NULL),
-(263, 'form.pdf', 'uploads/users/user_8_สมชาย_ใจด/submissions/pub128_2025-10-02/form_PR-25681002-0012.pdf', 'temp', NULL, 1312, 'application/pdf', '', 0, 8, '2025-10-02 12:21:39', '2025-10-02 12:21:39', '2025-10-02 12:21:39', NULL),
-(264, 'PR-25681002-0012_publication_reward_form.docx', 'uploads/users/user_8_สมชาย_ใจด/submissions/pub128_2025-10-02/PR-25681002-0012_publication_reward_form.docx', 'temp', NULL, 25753, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', '', 0, 8, '2025-10-02 12:21:39', '2025-10-02 12:21:39', '2025-10-02 12:21:39', NULL),
-(265, 'form.pdf', 'uploads/users/user_8_สมชาย_ใจด/submissions/pub129_2025-10-02/form_PR-25681002-0013.pdf', 'temp', NULL, 1312, 'application/pdf', '', 0, 8, '2025-10-02 12:40:26', '2025-10-02 12:40:26', '2025-10-02 12:40:26', NULL),
-(266, 'sample-local-pdf.pdf', 'uploads/users/user_8_สมชาย_ใจด/submissions/pub129_2025-10-02/sample-local-pdf_PR-25681002-0013.pdf', 'temp', NULL, 49672, 'application/pdf', '', 0, 8, '2025-10-02 12:40:26', '2025-10-02 12:40:26', '2025-10-02 12:40:26', NULL),
-(267, 'PR-25681002-0013_publication_reward_form.docx', 'uploads/users/user_8_สมชาย_ใจด/submissions/pub129_2025-10-02/PR-25681002-0013_publication_reward_form.docx', 'temp', NULL, 25816, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', '', 0, 8, '2025-10-02 12:40:26', '2025-10-02 12:40:26', '2025-10-02 12:40:26', NULL),
-(268, 'form.pdf', 'uploads/users/user_8_สมชาย_ใจด/submissions/fund130_2025-10-02/form_FA-25681002-0002.pdf', 'temp', NULL, 1312, 'application/pdf', '', 0, 8, '2025-10-02 14:11:19', '2025-10-02 14:11:19', '2025-10-02 14:11:19', NULL),
-(269, 'form.pdf', 'uploads/users/user_8_สมชาย_ใจด/submissions/fund130_2025-10-02/form_FA-25681002-0002_1.pdf', 'temp', NULL, 1312, 'application/pdf', '', 0, 8, '2025-10-02 14:11:19', '2025-10-02 14:11:19', '2025-10-02 14:11:19', NULL),
-(270, 'form.pdf', 'uploads/users/user_8_สมชาย_ใจด/submissions/fund130_2025-10-02/form_FA-25681002-0002_3.pdf', 'temp', NULL, 1312, 'application/pdf', '', 0, 8, '2025-10-02 14:11:19', '2025-10-02 14:11:19', '2025-10-02 14:11:19', NULL),
-(271, 'form.pdf', 'uploads/users/user_8_สมชาย_ใจด/submissions/fund130_2025-10-02/form_FA-25681002-0002_2.pdf', 'temp', NULL, 1312, 'application/pdf', '', 0, 8, '2025-10-02 14:11:19', '2025-10-02 14:11:19', '2025-10-02 14:11:19', NULL),
-(272, 'form_sample.pdf', 'uploads/users/user_8_สมชาย_ใจด/submissions/fund131_2025-10-02/form_sample_FA-25681002-0003.pdf', 'temp', NULL, 1312, 'application/pdf', '', 0, 8, '2025-10-02 14:40:48', '2025-10-02 14:40:48', '2025-10-02 14:40:48', NULL),
-(273, 'form.pdf', 'uploads/users/user_8_สมชาย_ใจด/submissions/fund131_2025-10-02/form_FA-25681002-0003_1.pdf', 'temp', NULL, 1312, 'application/pdf', '', 0, 8, '2025-10-02 14:40:48', '2025-10-02 14:40:48', '2025-10-02 14:40:48', NULL),
-(274, 'form.pdf', 'uploads/users/user_8_สมชาย_ใจด/submissions/fund131_2025-10-02/form_FA-25681002-0003.pdf', 'temp', NULL, 1312, 'application/pdf', '', 0, 8, '2025-10-02 14:40:48', '2025-10-02 14:40:48', '2025-10-02 14:40:48', NULL),
-(275, 'form_sample.pdf', 'uploads/users/user_8_สมชาย_ใจด/submissions/fund131_2025-10-02/form_sample_FA-25681002-0003_1.pdf', 'temp', NULL, 1312, 'application/pdf', '', 0, 8, '2025-10-02 14:40:48', '2025-10-02 14:40:48', '2025-10-02 14:40:48', NULL),
-(276, 'form_sample.pdf', 'uploads/users/user_8_สมชาย_ใจด/submissions/fund132_2025-10-02/form_sample_FA-25681002-0004.pdf', 'temp', NULL, 1312, 'application/pdf', '', 0, 8, '2025-10-02 14:55:31', '2025-10-02 14:55:31', '2025-10-02 14:55:31', NULL),
-(277, 'form_sample.pdf', 'uploads/users/user_8_สมชาย_ใจด/submissions/fund132_2025-10-02/form_sample_FA-25681002-0004_2.pdf', 'temp', NULL, 1312, 'application/pdf', '', 0, 8, '2025-10-02 14:55:31', '2025-10-02 14:55:31', '2025-10-02 14:55:31', NULL),
-(278, 'form_sample.pdf', 'uploads/users/user_8_สมชาย_ใจด/submissions/fund132_2025-10-02/form_sample_FA-25681002-0004_1.pdf', 'temp', NULL, 1312, 'application/pdf', '', 0, 8, '2025-10-02 14:55:31', '2025-10-02 14:55:31', '2025-10-02 14:55:31', NULL),
-(279, 'form_sample.pdf', 'uploads/users/user_8_สมชาย_ใจด/submissions/fund133_2025-10-02/form_sample_FA-25681002-0005.pdf', 'temp', NULL, 1312, 'application/pdf', '', 0, 8, '2025-10-02 15:11:00', '2025-10-02 15:11:00', '2025-10-02 15:11:00', NULL),
-(280, 'form_sample.pdf', 'uploads/users/user_8_สมชาย_ใจด/submissions/fund133_2025-10-02/form_sample_FA-25681002-0005_2.pdf', 'temp', NULL, 1312, 'application/pdf', '', 0, 8, '2025-10-02 15:11:00', '2025-10-02 15:11:00', '2025-10-02 15:11:00', NULL),
-(281, 'form_sample.pdf', 'uploads/users/user_8_สมชาย_ใจด/submissions/fund133_2025-10-02/form_sample_FA-25681002-0005_1.pdf', 'temp', NULL, 1312, 'application/pdf', '', 0, 8, '2025-10-02 15:11:00', '2025-10-02 15:11:00', '2025-10-02 15:11:00', NULL),
-(282, 'form_sample.pdf', 'uploads/users/user_8_สมชาย_ใจด/submissions/fund134_2025-10-02/form_sample_FA-25681002-0006_2.pdf', 'temp', NULL, 1312, 'application/pdf', '', 0, 8, '2025-10-02 15:26:43', '2025-10-02 15:26:43', '2025-10-02 15:26:43', NULL),
-(283, 'form_sample.pdf', 'uploads/users/user_8_สมชาย_ใจด/submissions/fund134_2025-10-02/form_sample_FA-25681002-0006_1.pdf', 'temp', NULL, 1312, 'application/pdf', '', 0, 8, '2025-10-02 15:26:43', '2025-10-02 15:26:43', '2025-10-02 15:26:43', NULL),
-(284, 'form_sample.pdf', 'uploads/users/user_8_สมชาย_ใจด/submissions/fund134_2025-10-02/form_sample_FA-25681002-0006.pdf', 'temp', NULL, 1312, 'application/pdf', '', 0, 8, '2025-10-02 15:26:43', '2025-10-02 15:26:43', '2025-10-02 15:26:43', NULL),
-(285, 'form_sample.pdf', 'uploads/users/user_8_สมชาย_ใจด/submissions/fund135_2025-10-02/form_sample_FA-25681002-0007.pdf', 'temp', NULL, 1312, 'application/pdf', '', 0, 8, '2025-10-02 15:42:15', '2025-10-02 15:42:15', '2025-10-02 15:42:15', NULL),
-(286, 'form_sample.pdf', 'uploads/users/user_8_สมชาย_ใจด/submissions/fund135_2025-10-02/form_sample_FA-25681002-0007_2.pdf', 'temp', NULL, 1312, 'application/pdf', '', 0, 8, '2025-10-02 15:42:15', '2025-10-02 15:42:15', '2025-10-02 15:42:15', NULL),
-(287, 'form_sample.pdf', 'uploads/users/user_8_สมชาย_ใจด/submissions/fund135_2025-10-02/form_sample_FA-25681002-0007_1.pdf', 'temp', NULL, 1312, 'application/pdf', '', 0, 8, '2025-10-02 15:42:15', '2025-10-02 15:42:15', '2025-10-02 15:42:15', NULL),
-(288, 'sample.pdf', 'uploads/users/user_13_หวหนา_สาขา/submissions/pub136_2025-10-03/sample_PR-25681003-0014.pdf', 'temp', NULL, 18810, 'application/pdf', '', 0, 13, '2025-10-03 15:49:50', '2025-10-03 15:49:50', '2025-10-03 15:49:50', NULL),
-(289, 'sample-local-pdf.pdf', 'uploads/users/user_13_หวหนา_สาขา/submissions/pub136_2025-10-03/sample-local-pdf_PR-25681003-0014.pdf', 'temp', NULL, 49672, 'application/pdf', '', 0, 13, '2025-10-03 15:49:50', '2025-10-03 15:49:50', '2025-10-03 15:49:50', NULL),
-(290, 'PR-25681003-0014_publication_reward_form.docx', 'uploads/users/user_13_หวหนา_สาขา/submissions/pub136_2025-10-03/PR-25681003-0014_publication_reward_form.docx', 'temp', NULL, 25767, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', '', 0, 13, '2025-10-03 15:49:50', '2025-10-03 15:49:50', '2025-10-03 15:49:50', NULL),
-(291, 'form_sample (1).pdf', 'uploads/users/user_8_สมชาย_ใจดี/submissions/pub137_2025-10-05/form_sample_1_PR-2568-0015.pdf', 'temp', NULL, 1312, 'application/pdf', '', 0, 8, '2025-10-05 15:56:14', '2025-10-05 15:56:14', '2025-10-05 15:56:14', NULL),
-(292, 'PR-2568-0015_publication_reward_form.docx', 'uploads/users/user_8_สมชาย_ใจดี/submissions/pub137_2025-10-05/PR-2568-0015_publication_reward_form.docx', 'temp', NULL, 25815, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', '', 0, 8, '2025-10-05 15:56:14', '2025-10-05 15:56:14', '2025-10-05 15:56:14', NULL),
-(293, 'form_sample (1).pdf', 'uploads/users/user_8_สมชาย_ใจดี/submissions/pub138_2025-10-05/form_sample_1_PR-2568-0016.pdf', 'temp', NULL, 1312, 'application/pdf', '', 0, 8, '2025-10-05 15:58:15', '2025-10-05 15:58:15', '2025-10-05 15:58:15', NULL),
-(294, 'PR-2568-0016_publication_reward_form.docx', 'uploads/users/user_8_สมชาย_ใจดี/submissions/pub138_2025-10-05/PR-2568-0016_publication_reward_form.docx', 'temp', NULL, 25756, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', '', 0, 8, '2025-10-05 15:58:15', '2025-10-05 15:58:15', '2025-10-05 15:58:15', NULL),
-(295, 'form_sample (1).pdf', 'uploads/users/user_8_สมชาย_ใจดี/submissions/pub139_2025-10-05/form_sample_1_PR-2568-0017.pdf', 'temp', NULL, 1312, 'application/pdf', '', 0, 8, '2025-10-05 15:59:47', '2025-10-05 15:59:47', '2025-10-05 15:59:47', NULL),
-(296, 'PR-2568-0017_publication_reward_form.docx', 'uploads/users/user_8_สมชาย_ใจดี/submissions/pub139_2025-10-05/PR-2568-0017_publication_reward_form.docx', 'temp', NULL, 25767, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', '', 0, 8, '2025-10-05 15:59:47', '2025-10-05 15:59:47', '2025-10-05 15:59:47', NULL),
-(297, 'form_sample (1).pdf', 'uploads/users/user_8_สมชาย_ใจดี/submissions/pub140_2025-10-05/form_sample_1_PR-2568-0018.pdf', 'temp', NULL, 1312, 'application/pdf', '', 0, 8, '2025-10-05 16:00:48', '2025-10-05 16:00:48', '2025-10-05 16:00:48', NULL),
-(298, 'PR-2568-0018_publication_reward_form.docx', 'uploads/users/user_8_สมชาย_ใจดี/submissions/pub140_2025-10-05/PR-2568-0018_publication_reward_form.docx', 'temp', NULL, 25767, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', '', 0, 8, '2025-10-05 16:00:48', '2025-10-05 16:00:48', '2025-10-05 16:00:48', NULL),
-(299, 'form_sample (1).pdf', 'uploads/users/user_8_สมชาย_ใจดี/submissions/pub141_2025-10-05/form_sample_1_PR-2568-0019.pdf', 'temp', NULL, 1312, 'application/pdf', '', 0, 8, '2025-10-05 16:01:57', '2025-10-05 16:01:57', '2025-10-05 16:01:57', NULL),
-(300, 'PR-2568-0019_publication_reward_form.docx', 'uploads/users/user_8_สมชาย_ใจดี/submissions/pub141_2025-10-05/PR-2568-0019_publication_reward_form.docx', 'temp', NULL, 25786, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', '', 0, 8, '2025-10-05 16:01:57', '2025-10-05 16:01:57', '2025-10-05 16:01:57', NULL),
-(301, 'form_sample (1).pdf', 'uploads/users/user_8_สมชาย_ใจดี/submissions/pub142_2025-10-05/form_sample_1_PR-2568-0020.pdf', 'temp', NULL, 1312, 'application/pdf', '', 0, 8, '2025-10-05 17:08:25', '2025-10-05 17:08:25', '2025-10-05 17:08:25', NULL),
-(302, 'PR-2568-0020_publication_reward_form.docx', 'uploads/users/user_8_สมชาย_ใจดี/submissions/pub142_2025-10-05/PR-2568-0020_publication_reward_form.docx', 'temp', NULL, 25767, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', '', 0, 8, '2025-10-05 17:08:25', '2025-10-05 17:08:25', '2025-10-05 17:08:25', NULL),
-(303, 'form_sample (1).pdf', 'uploads/users/user_8_สมชาย_ใจดี/submissions/pub143_2025-10-05/form_sample_1_PR-2568-0021.pdf', 'temp', NULL, 1312, 'application/pdf', '', 0, 8, '2025-10-05 17:21:26', '2025-10-05 17:21:26', '2025-10-05 17:21:26', NULL),
-(304, 'PR-2568-0021_publication_reward_form.docx', 'uploads/users/user_8_สมชาย_ใจดี/submissions/pub143_2025-10-05/PR-2568-0021_publication_reward_form.docx', 'temp', NULL, 25767, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', '', 0, 8, '2025-10-05 17:21:26', '2025-10-05 17:21:26', '2025-10-05 17:21:26', NULL),
-(305, 'form_sample (1).pdf', 'uploads/users/user_8_สมชาย_ใจดี/submissions/pub144_2025-10-05/form_sample_1_PR-2568-0022.pdf', 'temp', NULL, 1312, 'application/pdf', '', 0, 8, '2025-10-05 17:30:59', '2025-10-05 17:30:59', '2025-10-05 17:30:59', NULL),
-(306, 'PR-2568-0022_publication_reward_form.docx', 'uploads/users/user_8_สมชาย_ใจดี/submissions/pub144_2025-10-05/PR-2568-0022_publication_reward_form.docx', 'temp', NULL, 25767, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', '', 0, 8, '2025-10-05 17:30:59', '2025-10-05 17:30:59', '2025-10-05 17:30:59', NULL),
-(307, 'form_sample (1).pdf', 'uploads/users/user_8_สมชาย_ใจดี/submissions/pub145_2025-10-05/form_sample_1_PR-2568-0023.pdf', 'temp', NULL, 1312, 'application/pdf', '', 0, 8, '2025-10-05 17:33:25', '2025-10-05 17:33:25', '2025-10-05 17:33:25', NULL),
-(308, 'PR-2568-0023_publication_reward_form.docx', 'uploads/users/user_8_สมชาย_ใจดี/submissions/pub145_2025-10-05/PR-2568-0023_publication_reward_form.docx', 'temp', NULL, 25766, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', '', 0, 8, '2025-10-05 17:33:25', '2025-10-05 17:33:25', '2025-10-05 17:33:25', NULL),
-(309, 'form_sample (1).pdf', 'uploads/users/user_8_สมชาย_ใจดี/submissions/pub146_2025-10-05/form_sample_1_PR-2568-0024.pdf', 'temp', NULL, 1312, 'application/pdf', '', 0, 8, '2025-10-05 17:34:12', '2025-10-05 17:34:12', '2025-10-05 17:34:12', NULL),
-(310, 'PR-2568-0024_publication_reward_form.docx', 'uploads/users/user_8_สมชาย_ใจดี/submissions/pub146_2025-10-05/PR-2568-0024_publication_reward_form.docx', 'temp', NULL, 25801, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', '', 0, 8, '2025-10-05 17:34:12', '2025-10-05 17:34:12', '2025-10-05 17:34:12', NULL),
-(311, 'form_sample (1).pdf', 'uploads/users/user_8_สมชาย_ใจดี/submissions/pub147_2025-10-05/form_sample_1_PR-2568-0025.pdf', 'temp', NULL, 1312, 'application/pdf', '', 0, 8, '2025-10-05 17:41:26', '2025-10-05 17:41:26', '2025-10-05 17:41:26', NULL),
-(312, 'PR-2568-0025_publication_reward_form.docx', 'uploads/users/user_8_สมชาย_ใจดี/submissions/pub147_2025-10-05/PR-2568-0025_publication_reward_form.docx', 'temp', NULL, 25767, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', '', 0, 8, '2025-10-05 17:41:26', '2025-10-05 17:41:26', '2025-10-05 17:41:26', NULL),
-(313, 'form_sample (1).pdf', 'uploads/users/user_8_สมชาย_ใจดี/submissions/pub148_2025-10-05/form_sample_1_PR-2568-0026.pdf', 'temp', NULL, 1312, 'application/pdf', '', 0, 8, '2025-10-05 17:50:36', '2025-10-05 17:50:36', '2025-10-05 17:50:36', NULL),
-(314, 'form_sample (1).pdf', 'uploads/users/user_8_สมชาย_ใจดี/submissions/pub148_2025-10-05/form_sample_1_PR-2568-0026_1.pdf', 'temp', NULL, 1312, 'application/pdf', '', 0, 8, '2025-10-05 17:50:36', '2025-10-05 17:50:36', '2025-10-05 17:50:36', NULL),
-(315, 'PR-2568-0026_publication_reward_form.docx', 'uploads/users/user_8_สมชาย_ใจดี/submissions/pub148_2025-10-05/PR-2568-0026_publication_reward_form.docx', 'temp', NULL, 25838, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', '', 0, 8, '2025-10-05 17:50:36', '2025-10-05 17:50:36', '2025-10-05 17:50:36', NULL),
-(316, 'form_sample (1).pdf', 'uploads/users/user_8_สมชาย_ใจดี/submissions/pub149_2025-10-05/form_sample_1_PR-2568-0027.pdf', 'temp', NULL, 1312, 'application/pdf', '', 0, 8, '2025-10-05 18:03:19', '2025-10-05 18:03:19', '2025-10-05 18:03:19', NULL),
-(317, 'form_sample (1).pdf', 'uploads/users/user_8_สมชาย_ใจดี/submissions/pub149_2025-10-05/form_sample_1_PR-2568-0027_1.pdf', 'temp', NULL, 1312, 'application/pdf', '', 0, 8, '2025-10-05 18:03:19', '2025-10-05 18:03:19', '2025-10-05 18:03:19', NULL),
-(318, 'PR-2568-0027_publication_reward_form.docx', 'uploads/users/user_8_สมชาย_ใจดี/submissions/pub149_2025-10-05/PR-2568-0027_publication_reward_form.docx', 'temp', NULL, 25852, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', '', 0, 8, '2025-10-05 18:03:19', '2025-10-05 18:03:19', '2025-10-05 18:03:19', NULL),
-(319, 'form_sample (1).pdf', 'uploads/users/user_8_สมชาย_ใจดี/submissions/pub150_2025-10-05/form_sample_1_PR-2568-0028.pdf', 'temp', NULL, 1312, 'application/pdf', '', 0, 8, '2025-10-05 18:04:30', '2025-10-05 18:04:30', '2025-10-05 18:04:30', NULL),
-(320, 'form_sample (1).pdf', 'uploads/users/user_8_สมชาย_ใจดี/submissions/pub150_2025-10-05/form_sample_1_PR-2568-0028_1.pdf', 'temp', NULL, 1312, 'application/pdf', '', 0, 8, '2025-10-05 18:04:30', '2025-10-05 18:04:30', '2025-10-05 18:04:30', NULL),
-(321, 'PR-2568-0028_publication_reward_form.docx', 'uploads/users/user_8_สมชาย_ใจดี/submissions/pub150_2025-10-05/PR-2568-0028_publication_reward_form.docx', 'temp', NULL, 25825, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', '', 0, 8, '2025-10-05 18:04:30', '2025-10-05 18:04:30', '2025-10-05 18:04:30', NULL),
-(322, 'form_sample (1).pdf', 'uploads/users/user_8_สมชาย_ใจดี/submissions/pub151_2025-10-05/form_sample_1_PR-2568-0029.pdf', 'temp', NULL, 1312, 'application/pdf', '', 0, 8, '2025-10-05 18:05:24', '2025-10-05 18:05:24', '2025-10-05 18:05:24', NULL),
-(323, 'form_sample (1).pdf', 'uploads/users/user_8_สมชาย_ใจดี/submissions/pub151_2025-10-05/form_sample_1_PR-2568-0029_1.pdf', 'temp', NULL, 1312, 'application/pdf', '', 0, 8, '2025-10-05 18:05:24', '2025-10-05 18:05:24', '2025-10-05 18:05:24', NULL),
-(324, 'PR-2568-0029_publication_reward_form.docx', 'uploads/users/user_8_สมชาย_ใจดี/submissions/pub151_2025-10-05/PR-2568-0029_publication_reward_form.docx', 'temp', NULL, 25823, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', '', 0, 8, '2025-10-05 18:05:24', '2025-10-05 18:05:24', '2025-10-05 18:05:24', NULL),
-(325, 'form_sample (1).pdf', 'uploads/users/user_8_สมชาย_ใจดี/submissions/pub152_2025-10-05/form_sample_1_PR-2568-0030.pdf', 'temp', NULL, 1312, 'application/pdf', '', 0, 8, '2025-10-05 18:06:18', '2025-10-05 18:06:18', '2025-10-05 18:06:18', NULL),
-(326, 'form_sample (1).pdf', 'uploads/users/user_8_สมชาย_ใจดี/submissions/pub152_2025-10-05/form_sample_1_PR-2568-0030_1.pdf', 'temp', NULL, 1312, 'application/pdf', '', 0, 8, '2025-10-05 18:06:18', '2025-10-05 18:06:18', '2025-10-05 18:06:18', NULL),
-(327, 'PR-2568-0030_publication_reward_form.docx', 'uploads/users/user_8_สมชาย_ใจดี/submissions/pub152_2025-10-05/PR-2568-0030_publication_reward_form.docx', 'temp', NULL, 25824, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', '', 0, 8, '2025-10-05 18:06:18', '2025-10-05 18:06:18', '2025-10-05 18:06:18', NULL),
-(328, 'form_sample (1).pdf', 'uploads/users/user_8_สมชาย_ใจดี/submissions/pub153_2025-10-05/form_sample_1_PR-2568-0031.pdf', 'temp', NULL, 1312, 'application/pdf', '', 0, 8, '2025-10-05 18:15:55', '2025-10-05 18:15:55', '2025-10-05 18:15:55', NULL),
-(329, 'form_sample (1).pdf', 'uploads/users/user_8_สมชาย_ใจดี/submissions/pub153_2025-10-05/form_sample_1_PR-2568-0031_1.pdf', 'temp', NULL, 1312, 'application/pdf', '', 0, 8, '2025-10-05 18:15:55', '2025-10-05 18:15:55', '2025-10-05 18:15:55', NULL),
-(330, 'PR-2568-0031_publication_reward_form.docx', 'uploads/users/user_8_สมชาย_ใจดี/submissions/pub153_2025-10-05/PR-2568-0031_publication_reward_form.docx', 'temp', NULL, 25827, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', '', 0, 8, '2025-10-05 18:15:55', '2025-10-05 18:15:55', '2025-10-05 18:15:55', NULL),
-(331, 'form_sample (1).pdf', 'uploads/users/user_8_สมชาย_ใจดี/submissions/pub154_2025-10-05/form_sample_1_PR-2568-0032.pdf', 'temp', NULL, 1312, 'application/pdf', '', 0, 8, '2025-10-05 18:17:03', '2025-10-05 18:17:03', '2025-10-05 18:17:03', NULL),
-(332, 'form_sample (1).pdf', 'uploads/users/user_8_สมชาย_ใจดี/submissions/pub154_2025-10-05/form_sample_1_PR-2568-0032_1.pdf', 'temp', NULL, 1312, 'application/pdf', '', 0, 8, '2025-10-05 18:17:03', '2025-10-05 18:17:03', '2025-10-05 18:17:03', NULL),
-(333, 'PR-2568-0032_publication_reward_form.docx', 'uploads/users/user_8_สมชาย_ใจดี/submissions/pub154_2025-10-05/PR-2568-0032_publication_reward_form.docx', 'temp', NULL, 25804, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', '', 0, 8, '2025-10-05 18:17:03', '2025-10-05 18:17:03', '2025-10-05 18:17:03', NULL),
-(334, 'form_sample (1).pdf', 'uploads/users/user_8_สมชาย_ใจดี/submissions/pub155_2025-10-05/form_sample_1_PR-2568-0033.pdf', 'temp', NULL, 1312, 'application/pdf', '', 0, 8, '2025-10-05 18:25:41', '2025-10-05 18:25:41', '2025-10-05 18:25:41', NULL),
-(335, 'form_sample (1).pdf', 'uploads/users/user_8_สมชาย_ใจดี/submissions/pub155_2025-10-05/form_sample_1_PR-2568-0033_1.pdf', 'temp', NULL, 1312, 'application/pdf', '', 0, 8, '2025-10-05 18:25:41', '2025-10-05 18:25:41', '2025-10-05 18:25:41', NULL),
-(336, 'PR-2568-0033_publication_reward_form.docx', 'uploads/users/user_8_สมชาย_ใจดี/submissions/pub155_2025-10-05/PR-2568-0033_publication_reward_form.docx', 'temp', NULL, 25828, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', '', 0, 8, '2025-10-05 18:25:41', '2025-10-05 18:25:41', '2025-10-05 18:25:41', NULL),
-(337, 'form_sample (1).pdf', 'uploads/users/user_8_สมชาย_ใจดี/submissions/pub156_2025-10-05/form_sample_1_PR-2568-0034.pdf', 'temp', NULL, 1312, 'application/pdf', '', 0, 8, '2025-10-05 18:26:50', '2025-10-05 18:26:50', '2025-10-05 18:26:50', NULL),
-(338, 'form_sample (1).pdf', 'uploads/users/user_8_สมชาย_ใจดี/submissions/pub156_2025-10-05/form_sample_1_PR-2568-0034_1.pdf', 'temp', NULL, 1312, 'application/pdf', '', 0, 8, '2025-10-05 18:26:50', '2025-10-05 18:26:50', '2025-10-05 18:26:50', NULL),
-(339, 'PR-2568-0034_publication_reward_form.docx', 'uploads/users/user_8_สมชาย_ใจดี/submissions/pub156_2025-10-05/PR-2568-0034_publication_reward_form.docx', 'temp', NULL, 25836, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', '', 0, 8, '2025-10-05 18:26:50', '2025-10-05 18:26:50', '2025-10-05 18:26:50', NULL),
-(340, 'form_sample (1).pdf', 'uploads/users/user_8_สมชาย_ใจดี/submissions/pub157_2025-10-05/form_sample_1_PR-2568-0035.pdf', 'temp', NULL, 1312, 'application/pdf', '', 0, 8, '2025-10-05 18:28:42', '2025-10-05 18:28:42', '2025-10-05 18:28:42', NULL),
-(341, 'PR-2568-0035_publication_reward_form.docx', 'uploads/users/user_8_สมชาย_ใจดี/submissions/pub157_2025-10-05/PR-2568-0035_publication_reward_form.docx', 'temp', NULL, 25807, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', '', 0, 8, '2025-10-05 18:28:42', '2025-10-05 18:28:42', '2025-10-05 18:28:42', NULL),
-(345, 'sample-local-pdf.pdf', 'uploads/users/user_8_สมชาย_ใจดี/submissions/fund130_2025-10-02/หลักฐานการปิดทุน/sample-local-pdf.pdf', 'submission', NULL, 49672, 'application/pdf', '', 0, 7, '2025-10-06 22:32:29', '2025-10-06 22:32:29', '2025-10-06 22:32:29', NULL),
-(346, 'sample.pdf', 'uploads/users/user_8_สมชาย_ใจดี/submissions/fund130_2025-10-02/หลักฐานการปิดทุน/sample.pdf', 'submission', NULL, 18810, 'application/pdf', '', 0, 7, '2025-10-06 22:33:03', '2025-10-06 22:33:03', '2025-10-06 22:33:03', NULL),
-(347, 'c4611_sample_explain.pdf', 'uploads/users/user_8_สมชาย_ใจดี/submissions/fund130_2025-10-02/หลักฐานการปิดทุน/c4611_sample_explain.pdf', 'submission', NULL, 88226, 'application/pdf', '', 0, 7, '2025-10-06 22:34:24', '2025-10-06 22:34:24', '2025-10-06 22:34:24', NULL),
-(348, 'PR-2568-0032_publication_reward_form_head_signed.docx', 'uploads/users/user_8_สมชาย_ใจดี/submissions/pub154_2025-10-05/PR-2568-0032_publication_reward_form_head_signed.docx', 'submission', NULL, 26345, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', '', 0, 13, '2025-10-07 12:44:35', '2025-10-07 12:44:35', '2025-10-07 12:44:35', NULL),
-(349, 'PR-2568-0031_publication_reward_form_head_signed.docx', 'uploads/users/user_8_สมชาย_ใจดี/submissions/pub153_2025-10-05/PR-2568-0031_publication_reward_form_head_signed.docx', 'submission', NULL, 26368, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', '', 0, 13, '2025-10-07 13:05:19', '2025-10-07 13:05:19', '2025-10-07 13:05:19', NULL),
-(350, 'form_sample (1).pdf', 'uploads/users/user_8_สมชาย_ใจดี/submissions/fund135_2025-10-02/หลักฐานการปิดทุน/form_sample_1.pdf', 'submission', NULL, 1312, 'application/pdf', '', 0, 7, '2025-10-07 13:16:04', '2025-10-07 13:16:04', '2025-10-07 13:16:04', NULL),
-(351, 'PR-2568-0032_publication_reward_form_head_signed.docx', 'uploads/users/user_8_สมชาย_ใจดี/submissions/fund135_2025-10-02/หลักฐานการปิดทุน/PR-2568-0032_publication_reward_form_head_signed.docx', 'submission', NULL, 26345, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', '', 0, 7, '2025-10-07 13:20:33', '2025-10-07 13:20:33', '2025-10-07 13:20:33', NULL),
-(352, 'form_sample (1).pdf', 'uploads/users/user_8_สมชาย_ใจดี/temp/form_sample_1.pdf', 'temp', NULL, 1312, 'application/pdf', '', 0, 8, '2025-10-07 13:50:18', '2025-10-07 13:50:18', '2025-10-07 13:50:18', NULL),
-(353, 'form_sample (1).pdf', 'uploads/users/user_8_สมชาย_ใจดี/submissions/pub162_2025-10-07/PR-2568-0040_form_sample_1.pdf', 'temp', NULL, 1312, 'application/pdf', '', 0, 8, '2025-10-07 14:00:42', '2025-10-07 14:00:42', '2025-10-07 14:00:42', NULL),
-(354, 'form_sample (1).pdf', 'uploads/users/user_8_สมชาย_ใจดี/submissions/pub162_2025-10-07/PR-2568-0040_form_sample_1_1.pdf', 'temp', NULL, 1312, 'application/pdf', '', 0, 8, '2025-10-07 14:00:42', '2025-10-07 14:00:42', '2025-10-07 14:00:42', NULL),
-(355, 'PR-2568-0040_publication_reward_form.docx', 'uploads/users/user_8_สมชาย_ใจดี/submissions/pub162_2025-10-07/PR-2568-0040_publication_reward_form.docx', 'submission', NULL, 26323, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', '', 0, 8, '2025-10-07 14:00:42', '2025-10-07 14:00:42', '2025-10-07 14:00:42', NULL),
-(356, 'sample_head_signed.pdf', 'uploads/users/user_8_สมชาย_ใจดี/submissions/pub162_2025-10-07/sample_head_signed.pdf', 'submission', NULL, 26381, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', '', 0, 13, '2025-10-07 14:04:37', '2025-10-07 14:04:37', '2025-10-07 14:04:37', NULL),
-(357, 'form_sample (1).pdf', 'uploads/users/user_8_สมชาย_ใจดี/temp/form_sample_1.pdf', 'temp', NULL, 1312, 'application/pdf', '', 0, 8, '2025-10-07 14:23:20', '2025-10-07 14:23:20', '2025-10-07 14:23:20', NULL),
-(358, 'form_sample (1).pdf', 'uploads/users/user_8_สมชาย_ใจดี/temp/form_sample_1.pdf', 'temp', NULL, 1312, 'application/pdf', '', 0, 8, '2025-10-07 14:25:00', '2025-10-07 14:25:00', '2025-10-07 14:25:00', NULL),
-(359, 'form_sample (1).pdf', 'uploads/users/user_8_สมชาย_ใจดี/submissions/pub163_2025-10-07/PR-2568-0041_form_sample_1_2.pdf', 'submission', NULL, 1312, 'application/pdf', '', 0, 8, '2025-10-07 14:33:37', '2025-10-07 14:33:37', '2025-10-07 14:33:37', NULL),
-(360, 'publication_reward_preview.pdf', 'uploads/users/user_8_สมชาย_ใจดี/submissions/pub163_2025-10-07/PR-2568-0041_publication_reward_preview.pdf', 'submission', NULL, 97578, 'application/pdf', '', 0, 8, '2025-10-07 14:33:37', '2025-10-07 14:33:37', '2025-10-07 14:33:37', NULL),
-(361, 'PR-2568-0041_publication_reward_form.docx', 'uploads/users/user_8_สมชาย_ใจดี/submissions/pub163_2025-10-07/PR-2568-0041_publication_reward_form.docx', 'submission', NULL, 26293, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', '', 0, 8, '2025-10-07 14:33:37', '2025-10-07 14:33:37', '2025-10-07 14:33:37', NULL),
-(362, 'form_sample (1).pdf', 'uploads/users/user_8_สมชาย_ใจดี/submissions/pub164_2025-10-07/PR-2568-0042_form_sample_1.pdf', 'submission', NULL, 1312, 'application/pdf', '', 0, 8, '2025-10-07 14:57:03', '2025-10-07 14:57:03', '2025-10-07 14:57:03', NULL),
-(363, 'form_sample.pdf', 'uploads/users/user_8_สมชาย_ใจดี/submissions/pub164_2025-10-07/PR-2568-0042_form_sample.pdf', 'submission', NULL, 1312, 'application/pdf', '', 0, 8, '2025-10-07 14:57:03', '2025-10-07 14:57:03', '2025-10-07 14:57:03', NULL),
-(364, 'PR-2568-0042_publication_reward_form.docx', 'uploads/users/user_8_สมชาย_ใจดี/submissions/pub164_2025-10-07/PR-2568-0042_publication_reward_form.docx', 'submission', NULL, 26299, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', '', 0, 8, '2025-10-07 14:57:03', '2025-10-07 14:57:03', '2025-10-07 14:57:03', NULL),
-(365, 'form_sample.pdf', 'uploads/users/user_8_สมชาย_ใจดี/submissions/pub165_2025-10-07/PR-2568-0043_form_sample.pdf', 'submission', NULL, 1312, 'application/pdf', '', 0, 8, '2025-10-07 15:08:08', '2025-10-07 15:08:08', '2025-10-07 15:08:08', NULL),
-(366, 'publication_reward_preview.pdf', 'uploads/users/user_8_สมชาย_ใจดี/submissions/pub165_2025-10-07/PR-2568-0043_publication_reward_preview.pdf', 'submission', NULL, 97578, 'application/pdf', '', 0, 8, '2025-10-07 15:08:09', '2025-10-07 15:08:09', '2025-10-07 15:08:09', NULL),
-(367, 'PR-2568-0043_publication_reward_form.docx', 'uploads/users/user_8_สมชาย_ใจดี/submissions/pub165_2025-10-07/PR-2568-0043_publication_reward_form.docx', 'submission', NULL, 26299, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', '', 0, 8, '2025-10-07 15:08:09', '2025-10-07 15:08:09', '2025-10-07 15:08:09', NULL),
-(368, 'form_sample.pdf', 'uploads/users/user_8_สมชาย_ใจดี/submissions/pub166_2025-10-07/PR-2568-0044_form_sample.pdf', 'submission', NULL, 1312, 'application/pdf', '', 0, 8, '2025-10-07 15:45:13', '2025-10-07 15:45:13', '2025-10-07 15:45:13', NULL),
-(369, 'form_sample (1).pdf', 'uploads/users/user_8_สมชาย_ใจดี/submissions/pub166_2025-10-07/PR-2568-0044_form_sample_1.pdf', 'submission', NULL, 1312, 'application/pdf', '', 0, 8, '2025-10-07 15:45:14', '2025-10-07 15:45:14', '2025-10-07 15:45:14', NULL),
-(370, 'PR-2568-0044_publication_reward_form.docx', 'uploads/users/user_8_สมชาย_ใจดี/submissions/pub166_2025-10-07/PR-2568-0044_publication_reward_form.docx', 'submission', NULL, 26301, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', '', 0, 8, '2025-10-07 15:45:14', '2025-10-07 15:45:14', '2025-10-07 15:45:14', NULL),
-(371, 'PR-2568-0041_form_sample_1_2_head_signed.pdf', 'uploads/users/user_8_สมชาย_ใจดี/submissions/pub166_2025-10-07/PR-2568-0041_form_sample_1_2_head_signed.pdf', 'submission', NULL, 26367, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', '', 0, 13, '2025-10-07 15:59:49', '2025-10-07 15:59:49', '2025-10-07 15:59:49', NULL),
-(372, 'form_sample.pdf', 'uploads/users/user_8_สมชาย_ใจดี/submissions/pub168_2025-10-07/form_sample_PR-2568-0046.pdf', 'submission', NULL, 1312, 'application/pdf', '', 0, 8, '2025-10-07 20:57:03', '2025-10-07 20:57:03', '2025-10-07 20:57:03', NULL),
-(373, 'form_sample (1).pdf', 'uploads/users/user_8_สมชาย_ใจดี/submissions/pub168_2025-10-07/form_sample_1_PR-2568-0046.pdf', 'submission', NULL, 1312, 'application/pdf', '', 0, 8, '2025-10-07 20:57:03', '2025-10-07 20:57:03', '2025-10-07 20:57:03', NULL),
-(374, 'PR-2568-0046_publication_reward_form.docx', 'uploads/users/user_8_สมชาย_ใจดี/submissions/pub168_2025-10-07/PR-2568-0046_publication_reward_form.docx', 'submission', NULL, 26302, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', '', 0, 8, '2025-10-07 20:57:03', '2025-10-07 20:57:03', '2025-10-07 20:57:03', NULL);
+(378, 'form_sample_PR-2568-0001.pdf', 'uploads/users/user_8_สมชาย_ใจดี/submissions/pub170_2025-10-07/form_sample_PR-2568-0001.pdf', 'submission', NULL, 1312, 'application/pdf', '', 0, 8, '2025-10-07 22:10:43', '2025-10-07 22:10:43', '2025-10-07 22:10:44', NULL),
+(379, 'form_sample_1_PR-2568-0001.pdf', 'uploads/users/user_8_สมชาย_ใจดี/submissions/pub170_2025-10-07/form_sample_1_PR-2568-0001.pdf', 'submission', NULL, 1312, 'application/pdf', '', 0, 8, '2025-10-07 22:10:44', '2025-10-07 22:10:44', '2025-10-07 22:10:44', NULL),
+(380, 'PR-2568-0001_publication_reward_form.docx', 'uploads/users/user_8_สมชาย_ใจดี/submissions/pub170_2025-10-07/PR-2568-0001_publication_reward_form.docx', 'submission', NULL, 26302, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', '', 0, 8, '2025-10-07 22:10:44', '2025-10-07 22:10:44', '2025-10-07 22:10:44', NULL),
+(381, 'form_sample_PR-2568-0002.pdf', 'uploads/users/user_8_สมชาย_ใจดี/submissions/pub171_2025-10-07/form_sample_PR-2568-0002.pdf', 'submission', NULL, 1312, 'application/pdf', '', 0, 8, '2025-10-07 22:35:41', '2025-10-07 22:35:41', '2025-10-07 22:35:41', NULL),
+(382, 'form_sample_1_PR-2568-0002.pdf', 'uploads/users/user_8_สมชาย_ใจดี/submissions/pub171_2025-10-07/form_sample_1_PR-2568-0002.pdf', 'submission', NULL, 1312, 'application/pdf', '', 0, 8, '2025-10-07 22:35:41', '2025-10-07 22:35:41', '2025-10-07 22:35:41', NULL),
+(383, 'PR-2568-0002_publication_reward_form.docx', 'uploads/users/user_8_สมชาย_ใจดี/submissions/pub171_2025-10-07/PR-2568-0002_publication_reward_form.docx', 'submission', NULL, 26302, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', '', 0, 8, '2025-10-07 22:35:42', '2025-10-07 22:35:42', '2025-10-07 22:35:42', NULL);
 
 -- --------------------------------------------------------
 
@@ -730,19 +602,6 @@ CREATE TABLE `fund_application_details` (
   `activity_support_announcement` int(11) DEFAULT NULL,
   `author_name_list` varchar(500) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
---
--- dump ตาราง `fund_application_details`
---
-
-INSERT INTO `fund_application_details` (`detail_id`, `submission_id`, `subcategory_id`, `project_title`, `project_description`, `requested_amount`, `approved_amount`, `approved_by`, `approved_at`, `rejected_by`, `rejected_at`, `closed_at`, `announce_reference_number`, `comment`, `main_annoucement`, `activity_support_announcement`, `author_name_list`) VALUES
-(16, 121, 1, 'Project Title', '123-312-3123', '5000.00', '0.00', NULL, NULL, NULL, NULL, NULL, '', '', 1, 2, NULL),
-(17, 130, 1, 'สมชาย ใจดี', '081-111-1111', '50000.00', '47000.00', NULL, NULL, NULL, NULL, '2025-10-06 22:34:24', '333', '', 2, 1, NULL),
-(18, 131, 1, 'สมชาย ใจดี', '081-111-1111', '115000.00', '0.00', NULL, NULL, NULL, NULL, NULL, '', '', 3, 1, NULL),
-(19, 132, 1, 'สมชาย ใจดี', '081-111-1111', '50000.00', '0.00', NULL, NULL, NULL, NULL, NULL, '', '', 2, 2, NULL),
-(20, 133, 1, 'สมชาย ใจดี', '081-111-1111', '5000.00', '0.00', NULL, NULL, NULL, NULL, NULL, '', '', 1, 2, NULL),
-(21, 134, 1, 'สมชาย ใจดี', '081-111-1111', '5000.00', '0.00', NULL, NULL, NULL, NULL, NULL, '', '', 1, 1, NULL),
-(22, 135, 1, 'สมชาย ใจดี', '081-111-1111', '15000.00', '10000.00', NULL, NULL, NULL, NULL, NULL, '', '', 1, 2, NULL);
 
 -- --------------------------------------------------------
 
@@ -909,107 +768,10 @@ CREATE TABLE `notifications` (
 --
 
 INSERT INTO `notifications` (`notification_id`, `user_id`, `title`, `message`, `type`, `is_read`, `related_submission_id`, `create_at`, `update_at`, `delete_at`) VALUES
-(95, 8, 'ส่งคำร้องสำเร็จ', 'ระบบได้รับคำร้อง PR-25680925-0001 ของคุณ อาจารย์สมชาย ใจดี แล้ว', 'success', 0, 116, '2025-09-25 17:03:36', '2025-09-25 17:03:36', NULL),
-(96, 7, 'มีคำร้องใหม่', 'มีคำร้องใหม่ PR-25680925-0001 จากอาจารย์ อาจารย์สมชาย ใจดี แล้ว', 'info', 0, 116, '2025-09-25 17:03:36', '2025-09-25 17:03:36', NULL),
-(97, 11, 'มีคำร้องใหม่', 'มีคำร้องใหม่ PR-25680925-0001 จากอาจารย์ อาจารย์สมชาย ใจดี แล้ว', 'info', 0, 116, '2025-09-25 17:03:36', '2025-09-25 17:03:36', NULL),
-(98, 8, 'ส่งคำร้องสำเร็จ', 'ระบบได้รับคำร้อง PR-25680925-0002 ของคุณ อาจารย์สมชาย ใจดี แล้ว', 'success', 0, 117, '2025-09-25 17:27:15', '2025-09-25 17:27:15', NULL),
-(99, 7, 'มีคำร้องใหม่', 'มีคำร้องใหม่ PR-25680925-0002 จากอาจารย์ อาจารย์สมชาย ใจดี แล้ว', 'info', 0, 117, '2025-09-25 17:27:15', '2025-09-25 17:27:15', NULL),
-(100, 11, 'มีคำร้องใหม่', 'มีคำร้องใหม่ PR-25680925-0002 จากอาจารย์ อาจารย์สมชาย ใจดี แล้ว', 'info', 0, 117, '2025-09-25 17:27:15', '2025-09-25 17:27:15', NULL),
-(101, 8, 'ส่งคำร้องสำเร็จ', 'ระบบได้รับคำร้อง PR-25680925-0003 ของคุณ อาจารย์สมชาย ใจดี แล้ว', 'success', 0, 118, '2025-09-25 17:29:17', '2025-09-25 17:29:17', NULL),
-(102, 7, 'มีคำร้องใหม่', 'มีคำร้องใหม่ PR-25680925-0003 จากอาจารย์ อาจารย์สมชาย ใจดี แล้ว', 'info', 0, 118, '2025-09-25 17:29:17', '2025-09-25 17:29:17', NULL),
-(103, 11, 'มีคำร้องใหม่', 'มีคำร้องใหม่ PR-25680925-0003 จากอาจารย์ อาจารย์สมชาย ใจดี แล้ว', 'info', 0, 118, '2025-09-25 17:29:17', '2025-09-25 17:29:17', NULL),
-(104, 8, 'ส่งคำร้องสำเร็จ', 'ระบบได้รับคำร้อง PR-25680925-0004 ของคุณ อาจารย์สมชาย ใจดี แล้ว', 'success', 0, 119, '2025-09-25 17:31:06', '2025-09-25 17:31:06', NULL),
-(105, 7, 'มีคำร้องใหม่', 'มีคำร้องใหม่ PR-25680925-0004 จากอาจารย์ อาจารย์สมชาย ใจดี แล้ว', 'info', 0, 119, '2025-09-25 17:31:06', '2025-09-25 17:31:06', NULL),
-(106, 11, 'มีคำร้องใหม่', 'มีคำร้องใหม่ PR-25680925-0004 จากอาจารย์ อาจารย์สมชาย ใจดี แล้ว', 'info', 0, 119, '2025-09-25 17:31:06', '2025-09-25 17:31:06', NULL),
-(107, 8, 'ส่งคำร้องสำเร็จ', 'ระบบได้รับคำร้อง PR-25680925-0005 ของคุณ อาจารย์สมชาย ใจดี แล้ว', 'success', 0, 120, '2025-09-25 17:35:32', '2025-09-25 17:35:32', NULL),
-(108, 7, 'มีคำร้องใหม่', 'มีคำร้องใหม่ PR-25680925-0005 จากอาจารย์ อาจารย์สมชาย ใจดี แล้ว', 'info', 0, 120, '2025-09-25 17:35:32', '2025-09-25 17:35:32', NULL),
-(109, 11, 'มีคำร้องใหม่', 'มีคำร้องใหม่ PR-25680925-0005 จากอาจารย์ อาจารย์สมชาย ใจดี แล้ว', 'info', 0, 120, '2025-09-25 17:35:32', '2025-09-25 17:35:32', NULL),
-(110, 8, 'ส่งคำร้องสำเร็จ', 'ระบบได้รับคำร้อง PR-25680926-0006 ของคุณ อาจารย์สมชาย ใจดี แล้ว', 'success', 0, 122, '2025-09-26 23:33:11', '2025-09-26 23:33:11', NULL),
-(111, 7, 'มีคำร้องใหม่', 'มีคำร้องใหม่ PR-25680926-0006 จากอาจารย์ อาจารย์สมชาย ใจดี แล้ว', 'info', 0, 122, '2025-09-26 23:33:11', '2025-09-26 23:33:11', NULL),
-(112, 11, 'มีคำร้องใหม่', 'มีคำร้องใหม่ PR-25680926-0006 จากอาจารย์ อาจารย์สมชาย ใจดี แล้ว', 'info', 0, 122, '2025-09-26 23:33:11', '2025-09-26 23:33:11', NULL),
-(113, 8, 'คำร้องได้รับการอนุมัติแล้ว', 'คำร้องหมายเลข PR-25680925-0002 ของคุณได้รับการอนุมัติแล้ว', 'success', 0, 117, '2025-09-29 12:06:57', '2025-09-29 12:06:57', NULL),
-(114, 8, 'ส่งคำร้องสำเร็จ', 'ระบบได้รับคำร้อง PR-25680930-0007 ของคุณ อาจารย์สมชาย ใจดี แล้ว', 'success', 0, 123, '2025-09-30 13:41:38', '2025-09-30 13:41:38', NULL),
-(115, 7, 'มีคำร้องใหม่', 'มีคำร้องใหม่ PR-25680930-0007 จากอาจารย์ อาจารย์สมชาย ใจดี แล้ว', 'info', 0, 123, '2025-09-30 13:41:38', '2025-09-30 13:41:38', NULL),
-(116, 11, 'มีคำร้องใหม่', 'มีคำร้องใหม่ PR-25680930-0007 จากอาจารย์ อาจารย์สมชาย ใจดี แล้ว', 'info', 0, 123, '2025-09-30 13:41:38', '2025-09-30 13:41:38', NULL),
-(117, 8, 'ส่งคำร้องสำเร็จ', 'ระบบได้รับคำร้อง PR-25681001-0008 ของคุณ อาจารย์สมชาย ใจดี แล้ว', 'success', 0, 124, '2025-10-01 13:16:59', '2025-10-01 13:16:59', NULL),
-(118, 7, 'มีคำร้องใหม่', 'มีคำร้องใหม่ PR-25681001-0008 จากอาจารย์ อาจารย์สมชาย ใจดี แล้ว', 'info', 0, 124, '2025-10-01 13:16:59', '2025-10-01 13:16:59', NULL),
-(119, 11, 'มีคำร้องใหม่', 'มีคำร้องใหม่ PR-25681001-0008 จากอาจารย์ อาจารย์สมชาย ใจดี แล้ว', 'info', 0, 124, '2025-10-01 13:16:59', '2025-10-01 13:16:59', NULL),
-(120, 8, 'ส่งคำร้องสำเร็จ', 'ระบบได้รับคำร้อง PR-25681001-0009 ของคุณ อาจารย์สมชาย ใจดี แล้ว', 'success', 0, 125, '2025-10-01 20:52:44', '2025-10-01 20:52:44', NULL),
-(121, 7, 'มีคำร้องใหม่', 'มีคำร้องใหม่ PR-25681001-0009 จากอาจารย์ อาจารย์สมชาย ใจดี แล้ว', 'info', 0, 125, '2025-10-01 20:52:44', '2025-10-01 20:52:44', NULL),
-(122, 11, 'มีคำร้องใหม่', 'มีคำร้องใหม่ PR-25681001-0009 จากอาจารย์ อาจารย์สมชาย ใจดี แล้ว', 'info', 0, 125, '2025-10-01 20:52:44', '2025-10-01 20:52:44', NULL),
-(123, 8, 'ส่งคำร้องสำเร็จ', 'ระบบได้รับคำร้อง PR-25681002-0010 ของคุณ อาจารย์สมชาย ใจดี แล้ว', 'success', 0, 126, '2025-10-02 00:33:52', '2025-10-02 00:33:52', NULL),
-(124, 7, 'มีคำร้องใหม่', 'มีคำร้องใหม่ PR-25681002-0010 จากอาจารย์ อาจารย์สมชาย ใจดี แล้ว', 'info', 0, 126, '2025-10-02 00:33:52', '2025-10-02 00:33:52', NULL),
-(125, 11, 'มีคำร้องใหม่', 'มีคำร้องใหม่ PR-25681002-0010 จากอาจารย์ อาจารย์สมชาย ใจดี แล้ว', 'info', 0, 126, '2025-10-02 00:33:52', '2025-10-02 00:33:52', NULL),
-(126, 8, 'ส่งคำร้องสำเร็จ', 'ระบบได้รับคำร้อง PR-25681002-0011 ของคุณ อาจารย์สมชาย ใจดี แล้ว', 'success', 0, 127, '2025-10-02 12:12:36', '2025-10-02 12:12:36', NULL),
-(127, 7, 'มีคำร้องใหม่', 'มีคำร้องใหม่ PR-25681002-0011 จากอาจารย์ อาจารย์สมชาย ใจดี แล้ว', 'info', 0, 127, '2025-10-02 12:12:36', '2025-10-02 12:12:36', NULL),
-(128, 11, 'มีคำร้องใหม่', 'มีคำร้องใหม่ PR-25681002-0011 จากอาจารย์ อาจารย์สมชาย ใจดี แล้ว', 'info', 0, 127, '2025-10-02 12:12:36', '2025-10-02 12:12:36', NULL),
-(129, 8, 'ส่งคำร้องสำเร็จ', 'ระบบได้รับคำร้อง PR-25681002-0012 ของคุณ อาจารย์สมชาย ใจดี แล้ว', 'success', 0, 128, '2025-10-02 12:21:39', '2025-10-02 12:21:39', NULL),
-(130, 7, 'มีคำร้องใหม่', 'มีคำร้องใหม่ PR-25681002-0012 จากอาจารย์ อาจารย์สมชาย ใจดี แล้ว', 'info', 0, 128, '2025-10-02 12:21:39', '2025-10-02 12:21:39', NULL),
-(131, 11, 'มีคำร้องใหม่', 'มีคำร้องใหม่ PR-25681002-0012 จากอาจารย์ อาจารย์สมชาย ใจดี แล้ว', 'info', 0, 128, '2025-10-02 12:21:39', '2025-10-02 12:21:39', NULL),
-(132, 8, 'ส่งคำร้องสำเร็จ', 'ระบบได้รับคำร้อง PR-25681002-0013 ของคุณ อาจารย์สมชาย ใจดี แล้ว', 'success', 0, 129, '2025-10-02 12:40:26', '2025-10-02 12:40:26', NULL),
-(133, 7, 'มีคำร้องใหม่', 'มีคำร้องใหม่ PR-25681002-0013 จากอาจารย์ อาจารย์สมชาย ใจดี แล้ว', 'info', 0, 129, '2025-10-02 12:40:26', '2025-10-02 12:40:26', NULL),
-(134, 11, 'มีคำร้องใหม่', 'มีคำร้องใหม่ PR-25681002-0013 จากอาจารย์ อาจารย์สมชาย ใจดี แล้ว', 'info', 0, 129, '2025-10-02 12:40:26', '2025-10-02 12:40:26', NULL),
-(135, 13, 'ส่งคำร้องสำเร็จ', 'ระบบได้รับคำร้อง PR-25681003-0014 ของคุณ พนักงานธุรการหัวหน้า สาขา แล้ว', 'success', 0, 136, '2025-10-03 15:49:50', '2025-10-03 15:49:50', NULL),
-(136, 7, 'มีคำร้องใหม่', 'มีคำร้องใหม่ PR-25681003-0014 จากอาจารย์ พนักงานธุรการหัวหน้า สาขา แล้ว', 'info', 0, 136, '2025-10-03 15:49:50', '2025-10-03 15:49:50', NULL),
-(137, 11, 'มีคำร้องใหม่', 'มีคำร้องใหม่ PR-25681003-0014 จากอาจารย์ พนักงานธุรการหัวหน้า สาขา แล้ว', 'info', 0, 136, '2025-10-03 15:49:50', '2025-10-03 15:49:50', NULL),
-(138, 8, 'ส่งคำร้องสำเร็จ', 'ระบบได้รับคำร้อง PR-2568-0015 ของคุณ อาจารย์สมชาย ใจดี แล้ว', 'success', 0, 137, '2025-10-05 15:56:14', '2025-10-05 15:56:14', NULL),
-(139, 13, 'คำร้องใหม่รอพิจารณา (หัวหน้าสาขา)', 'มีคำร้องใหม่ PR-2568-0015 จากอาจารย์ อาจารย์สมชาย ใจดี รอพิจารณา', 'info', 0, 137, '2025-10-05 15:56:14', '2025-10-05 15:56:14', NULL),
-(140, 8, 'ส่งคำร้องสำเร็จ', 'ระบบได้รับคำร้อง PR-2568-0016 ของคุณ อาจารย์สมชาย ใจดี แล้ว', 'success', 0, 138, '2025-10-05 15:58:15', '2025-10-05 15:58:15', NULL),
-(141, 13, 'คำร้องใหม่รอพิจารณา (หัวหน้าสาขา)', 'มีคำร้องใหม่ PR-2568-0016 จากอาจารย์ อาจารย์สมชาย ใจดี รอพิจารณา', 'info', 0, 138, '2025-10-05 15:58:15', '2025-10-05 15:58:15', NULL),
-(142, 8, 'ส่งคำร้องสำเร็จ', 'ระบบได้รับคำร้อง PR-2568-0017 ของคุณ อาจารย์สมชาย ใจดี แล้ว', 'success', 0, 139, '2025-10-05 15:59:47', '2025-10-05 15:59:47', NULL),
-(143, 13, 'คำร้องใหม่รอพิจารณา (หัวหน้าสาขา)', 'มีคำร้องใหม่ PR-2568-0017 จากอาจารย์ อาจารย์สมชาย ใจดี รอพิจารณา', 'info', 0, 139, '2025-10-05 15:59:47', '2025-10-05 15:59:47', NULL),
-(144, 8, 'ส่งคำร้องสำเร็จ', 'ระบบได้รับคำร้อง PR-2568-0018 ของคุณ อาจารย์สมชาย ใจดี แล้ว', 'success', 0, 140, '2025-10-05 16:00:48', '2025-10-05 16:00:48', NULL),
-(145, 13, 'คำร้องใหม่รอพิจารณา (หัวหน้าสาขา)', 'มีคำร้องใหม่ PR-2568-0018 จากอาจารย์ อาจารย์สมชาย ใจดี รอพิจารณา', 'info', 0, 140, '2025-10-05 16:00:48', '2025-10-05 16:00:48', NULL),
-(146, 8, 'ส่งคำร้องสำเร็จ', 'ระบบได้รับคำร้อง PR-2568-0019 ของคุณ อาจารย์สมชาย ใจดี แล้ว', 'success', 0, 141, '2025-10-05 16:01:57', '2025-10-05 16:01:57', NULL),
-(147, 13, 'คำร้องใหม่รอพิจารณา (หัวหน้าสาขา)', 'มีคำร้องใหม่ PR-2568-0019 จากอาจารย์ อาจารย์สมชาย ใจดี รอพิจารณา', 'info', 0, 141, '2025-10-05 16:01:57', '2025-10-05 16:01:57', NULL),
-(148, 8, 'ส่งคำร้องสำเร็จ', 'ระบบได้รับคำร้อง PR-2568-0020 ของคุณ อาจารย์สมชาย ใจดี แล้ว', 'success', 0, 142, '2025-10-05 17:08:25', '2025-10-05 17:08:25', NULL),
-(149, 13, 'คำร้องใหม่รอพิจารณา (หัวหน้าสาขา)', 'มีคำร้องใหม่ PR-2568-0020 จากอาจารย์ อาจารย์สมชาย ใจดี รอพิจารณา', 'info', 0, 142, '2025-10-05 17:08:25', '2025-10-05 17:08:25', NULL),
-(150, 8, 'ส่งคำร้องสำเร็จ', 'ระบบได้รับคำร้อง PR-2568-0021 ของคุณ อาจารย์สมชาย ใจดี แล้ว', 'success', 0, 143, '2025-10-05 17:21:26', '2025-10-05 17:21:26', NULL),
-(151, 13, 'คำร้องใหม่รอพิจารณา (หัวหน้าสาขา)', 'มีคำร้องใหม่ PR-2568-0021 จากอาจารย์ อาจารย์สมชาย ใจดี รอพิจารณา', 'info', 0, 143, '2025-10-05 17:21:26', '2025-10-05 17:21:26', NULL),
-(152, 8, 'ส่งคำร้องสำเร็จ', 'ระบบได้รับคำร้อง PR-2568-0022 ของคุณ อาจารย์สมชาย ใจดี แล้ว', 'success', 0, 144, '2025-10-05 17:30:59', '2025-10-05 17:30:59', NULL),
-(153, 13, 'คำร้องใหม่รอพิจารณา (หัวหน้าสาขา)', 'มีคำร้องใหม่ PR-2568-0022 จากอาจารย์ อาจารย์สมชาย ใจดี รอพิจารณา', 'info', 0, 144, '2025-10-05 17:30:59', '2025-10-05 17:30:59', NULL),
-(154, 8, 'ส่งคำร้องสำเร็จ', 'ระบบได้รับคำร้อง PR-2568-0023 ของคุณ อาจารย์สมชาย ใจดี แล้ว', 'success', 0, 145, '2025-10-05 17:33:25', '2025-10-05 17:33:25', NULL),
-(155, 13, 'คำร้องใหม่รอพิจารณา (หัวหน้าสาขา)', 'มีคำร้องใหม่ PR-2568-0023 จากอาจารย์ อาจารย์สมชาย ใจดี รอพิจารณา', 'info', 0, 145, '2025-10-05 17:33:25', '2025-10-05 17:33:25', NULL),
-(156, 8, 'ส่งคำร้องสำเร็จ', 'ระบบได้รับคำร้อง PR-2568-0024 ของคุณ อาจารย์สมชาย ใจดี แล้ว', 'success', 0, 146, '2025-10-05 17:34:12', '2025-10-05 17:34:12', NULL),
-(157, 13, 'คำร้องใหม่รอพิจารณา (หัวหน้าสาขา)', 'มีคำร้องใหม่ PR-2568-0024 จากอาจารย์ อาจารย์สมชาย ใจดี รอพิจารณา', 'info', 0, 146, '2025-10-05 17:34:12', '2025-10-05 17:34:12', NULL),
-(158, 8, 'ส่งคำร้องสำเร็จ', 'ระบบได้รับคำร้อง PR-2568-0025 ของคุณ อาจารย์สมชาย ใจดี แล้ว', 'success', 0, 147, '2025-10-05 17:41:26', '2025-10-05 17:41:26', NULL),
-(159, 13, 'คำร้องใหม่รอพิจารณา (หัวหน้าสาขา)', 'มีคำร้องใหม่ PR-2568-0025 จากอาจารย์ อาจารย์สมชาย ใจดี รอพิจารณา', 'info', 0, 147, '2025-10-05 17:41:26', '2025-10-05 17:41:26', NULL),
-(160, 8, 'ส่งคำร้องสำเร็จ', 'ระบบได้รับคำร้อง PR-2568-0026 ของคุณ อาจารย์สมชาย ใจดี แล้ว', 'success', 0, 148, '2025-10-05 17:50:36', '2025-10-05 17:50:36', NULL),
-(161, 13, 'คำร้องใหม่รอพิจารณา (หัวหน้าสาขา)', 'มีคำร้องใหม่ PR-2568-0026 จากอาจารย์ อาจารย์สมชาย ใจดี รอพิจารณา', 'info', 0, 148, '2025-10-05 17:50:36', '2025-10-05 17:50:36', NULL),
-(162, 8, 'ส่งคำร้องสำเร็จ', 'ระบบได้รับคำร้อง PR-2568-0027 ของคุณ อาจารย์สมชาย ใจดี แล้ว', 'success', 0, 149, '2025-10-05 18:03:19', '2025-10-05 18:03:19', NULL),
-(163, 13, 'คำร้องใหม่รอพิจารณา (หัวหน้าสาขา)', 'มีคำร้องใหม่ PR-2568-0027 จากอาจารย์ อาจารย์สมชาย ใจดี รอพิจารณา', 'info', 0, 149, '2025-10-05 18:03:19', '2025-10-05 18:03:19', NULL),
-(164, 8, 'ส่งคำร้องสำเร็จ', 'ระบบได้รับคำร้อง PR-2568-0028 ของคุณ อาจารย์สมชาย ใจดี แล้ว', 'success', 0, 150, '2025-10-05 18:04:31', '2025-10-05 18:04:31', NULL),
-(165, 13, 'คำร้องใหม่รอพิจารณา (หัวหน้าสาขา)', 'มีคำร้องใหม่ PR-2568-0028 จากอาจารย์ อาจารย์สมชาย ใจดี รอพิจารณา', 'info', 0, 150, '2025-10-05 18:04:31', '2025-10-05 18:04:31', NULL),
-(166, 8, 'ส่งคำร้องสำเร็จ', 'ระบบได้รับคำร้อง PR-2568-0029 ของคุณ อาจารย์สมชาย ใจดี แล้ว', 'success', 0, 151, '2025-10-05 18:05:24', '2025-10-05 18:05:24', NULL),
-(167, 13, 'คำร้องใหม่รอพิจารณา (หัวหน้าสาขา)', 'มีคำร้องใหม่ PR-2568-0029 จากอาจารย์ อาจารย์สมชาย ใจดี รอพิจารณา', 'info', 0, 151, '2025-10-05 18:05:24', '2025-10-05 18:05:24', NULL),
-(168, 8, 'ส่งคำร้องสำเร็จ', 'ระบบได้รับคำร้อง PR-2568-0030 ของคุณ อาจารย์สมชาย ใจดี แล้ว', 'success', 0, 152, '2025-10-05 18:06:18', '2025-10-05 18:06:18', NULL),
-(169, 13, 'คำร้องใหม่รอพิจารณา (หัวหน้าสาขา)', 'มีคำร้องใหม่ PR-2568-0030 จากอาจารย์ อาจารย์สมชาย ใจดี รอพิจารณา', 'info', 0, 152, '2025-10-05 18:06:18', '2025-10-05 18:06:18', NULL),
-(170, 8, 'ส่งคำร้องสำเร็จ', 'ระบบได้รับคำร้อง PR-2568-0031 ของคุณ อาจารย์สมชาย ใจดี แล้ว', 'success', 0, 153, '2025-10-05 18:15:55', '2025-10-05 18:15:55', NULL),
-(171, 13, 'คำร้องใหม่รอพิจารณา (หัวหน้าสาขา)', 'มีคำร้องใหม่ PR-2568-0031 จากอาจารย์ อาจารย์สมชาย ใจดี รอพิจารณา', 'info', 0, 153, '2025-10-05 18:15:55', '2025-10-05 18:15:55', NULL),
-(172, 8, 'ส่งคำร้องสำเร็จ', 'ระบบได้รับคำร้อง PR-2568-0032 ของคุณ อาจารย์สมชาย ใจดี แล้ว', 'success', 0, 154, '2025-10-05 18:17:03', '2025-10-05 18:17:03', NULL),
-(173, 13, 'คำร้องใหม่รอพิจารณา (หัวหน้าสาขา)', 'มีคำร้องใหม่ PR-2568-0032 จากอาจารย์ อาจารย์สมชาย ใจดี รอพิจารณา', 'info', 0, 154, '2025-10-05 18:17:03', '2025-10-05 18:17:03', NULL),
-(174, 8, 'ส่งคำร้องสำเร็จ', 'ระบบได้รับคำร้อง PR-2568-0033 ของคุณ อาจารย์สมชาย ใจดี แล้ว', 'success', 0, 155, '2025-10-05 18:25:41', '2025-10-05 18:25:41', NULL),
-(175, 13, 'คำร้องใหม่รอพิจารณา (หัวหน้าสาขา)', 'มีคำร้องใหม่ PR-2568-0033 จากอาจารย์ อาจารย์สมชาย ใจดี รอพิจารณา', 'info', 0, 155, '2025-10-05 18:25:41', '2025-10-05 18:25:41', NULL),
-(176, 8, 'ส่งคำร้องสำเร็จ', 'ระบบได้รับคำร้อง PR-2568-0034 ของคุณ อาจารย์สมชาย ใจดี แล้ว', 'success', 0, 156, '2025-10-05 18:26:50', '2025-10-05 18:26:50', NULL),
-(177, 13, 'คำร้องใหม่รอพิจารณา (หัวหน้าสาขา)', 'มีคำร้องใหม่ PR-2568-0034 จากอาจารย์ อาจารย์สมชาย ใจดี รอพิจารณา', 'info', 0, 156, '2025-10-05 18:26:50', '2025-10-05 18:26:50', NULL),
-(178, 8, 'ส่งคำร้องสำเร็จ', 'ระบบได้รับคำร้อง PR-2568-0035 ของคุณ อาจารย์สมชาย ใจดี แล้ว', 'success', 0, 157, '2025-10-05 18:28:42', '2025-10-05 18:28:42', NULL),
-(179, 13, 'คำร้องใหม่รอพิจารณา (หัวหน้าสาขา)', 'มีคำร้องใหม่ PR-2568-0035 จากอาจารย์ อาจารย์สมชาย ใจดี รอพิจารณา', 'info', 0, 157, '2025-10-05 18:28:42', '2025-10-05 18:28:42', NULL),
-(180, 8, 'คำร้องได้รับการอนุมัติ', 'คำร้องหมายเลข FA-25681002-0005 ของคุณได้รับการอนุมัติ เป็นจำนวน 0.00 บาท (เลขอ้างอิงประกาศ: 123)', 'success', 0, 133, '2025-10-05 20:15:31', '2025-10-05 20:15:31', NULL),
-(181, 8, 'คำร้องได้รับการอนุมัติ', 'คำร้องหมายเลข FA-25681002-0007 ของคุณได้รับการอนุมัติ เป็นจำนวน 0.00 บาท (เลขอ้างอิงประกาศ: 123)', 'success', 0, 135, '2025-10-05 20:19:12', '2025-10-05 20:19:12', NULL),
-(182, 8, 'คำร้องได้รับการอนุมัติ', 'คำร้องหมายเลข FA-25681002-0002 ของคุณได้รับการอนุมัติ เป็นจำนวน 47000.00 บาท (เลขอ้างอิงประกาศ: 333)', 'success', 0, 130, '2025-10-05 20:51:37', '2025-10-05 20:51:37', NULL),
-(183, 8, 'คำร้องได้รับการอนุมัติ', 'คำร้องหมายเลข PR-2568-0031 ของคุณได้รับการอนุมัติ เป็นจำนวน 10000.00 บาท (เลขอ้างอิงประกาศ: 132/568)', 'success', 0, 153, '2025-10-07 13:10:35', '2025-10-07 13:10:35', NULL),
-(184, 8, 'ส่งคำร้องสำเร็จ', 'ระบบได้รับคำร้อง PR-2568-0040 ของคุณ อาจารย์สมชาย ใจดี แล้ว', 'success', 0, 162, '2025-10-07 14:00:42', '2025-10-07 14:00:42', NULL),
-(185, 13, 'คำร้องใหม่รอพิจารณา (หัวหน้าสาขา)', 'มีคำร้องใหม่ PR-2568-0040 จากอาจารย์ อาจารย์สมชาย ใจดี รอพิจารณา', 'info', 0, 162, '2025-10-07 14:00:42', '2025-10-07 14:00:42', NULL),
-(186, 8, 'ส่งคำร้องสำเร็จ', 'ระบบได้รับคำร้อง PR-2568-0041 ของคุณ อาจารย์สมชาย ใจดี แล้ว', 'success', 0, 163, '2025-10-07 14:33:38', '2025-10-07 14:33:38', NULL),
-(187, 13, 'คำร้องใหม่รอพิจารณา (หัวหน้าสาขา)', 'มีคำร้องใหม่ PR-2568-0041 จากอาจารย์ อาจารย์สมชาย ใจดี รอพิจารณา', 'info', 0, 163, '2025-10-07 14:33:38', '2025-10-07 14:33:38', NULL),
-(188, 8, 'ส่งคำร้องสำเร็จ', 'ระบบได้รับคำร้อง PR-2568-0042 ของคุณ อาจารย์สมชาย ใจดี แล้ว', 'success', 0, 164, '2025-10-07 14:57:04', '2025-10-07 14:57:04', NULL),
-(189, 13, 'คำร้องใหม่รอพิจารณา (หัวหน้าสาขา)', 'มีคำร้องใหม่ PR-2568-0042 จากอาจารย์ อาจารย์สมชาย ใจดี รอพิจารณา', 'info', 0, 164, '2025-10-07 14:57:04', '2025-10-07 14:57:04', NULL),
-(190, 8, 'ส่งคำร้องสำเร็จ', 'ระบบได้รับคำร้อง PR-2568-0043 ของคุณ อาจารย์สมชาย ใจดี แล้ว', 'success', 0, 165, '2025-10-07 15:08:09', '2025-10-07 15:08:09', NULL),
-(191, 13, 'คำร้องใหม่รอพิจารณา (หัวหน้าสาขา)', 'มีคำร้องใหม่ PR-2568-0043 จากอาจารย์ อาจารย์สมชาย ใจดี รอพิจารณา', 'info', 0, 165, '2025-10-07 15:08:09', '2025-10-07 15:08:09', NULL),
-(192, 8, 'ส่งคำร้องสำเร็จ', 'ระบบได้รับคำร้อง PR-2568-0044 ของคุณ อาจารย์สมชาย ใจดี แล้ว', 'success', 0, 166, '2025-10-07 15:45:14', '2025-10-07 15:45:14', NULL),
-(193, 13, 'คำร้องใหม่รอพิจารณา (หัวหน้าสาขา)', 'มีคำร้องใหม่ PR-2568-0044 จากอาจารย์ อาจารย์สมชาย ใจดี รอพิจารณา', 'info', 0, 166, '2025-10-07 15:45:14', '2025-10-07 15:45:14', NULL),
-(194, 8, 'ส่งคำร้องสำเร็จ', 'ระบบได้รับคำร้อง PR-2568-0046 ของคุณ อาจารย์สมชาย ใจดี แล้ว', 'success', 0, 168, '2025-10-07 20:57:03', '2025-10-07 20:57:03', NULL),
-(195, 13, 'คำร้องใหม่รอพิจารณา (หัวหน้าสาขา)', 'มีคำร้องใหม่ PR-2568-0046 จากอาจารย์ อาจารย์สมชาย ใจดี รอพิจารณา', 'info', 0, 168, '2025-10-07 20:57:03', '2025-10-07 20:57:03', NULL);
+(198, 8, 'ส่งคำร้องสำเร็จ', 'ระบบได้รับคำร้อง PR-2568-0001 ของคุณ อาจารย์สมชาย ใจดี แล้ว', 'success', 0, 170, '2025-10-07 22:10:44', '2025-10-07 22:10:44', NULL),
+(199, 13, 'คำร้องใหม่รอพิจารณา (หัวหน้าสาขา)', 'มีคำร้องใหม่ PR-2568-0001 จากอาจารย์ อาจารย์สมชาย ใจดี รอพิจารณา', 'info', 0, 170, '2025-10-07 22:10:44', '2025-10-07 22:10:44', NULL),
+(200, 8, 'ส่งคำร้องสำเร็จ', 'ระบบได้รับคำร้อง PR-2568-0002 ของคุณ อาจารย์สมชาย ใจดี แล้ว', 'success', 0, 171, '2025-10-07 22:35:42', '2025-10-07 22:35:42', NULL),
+(201, 13, 'คำร้องใหม่รอพิจารณา (หัวหน้าสาขา)', 'มีคำร้องใหม่ PR-2568-0002 จากอาจารย์ อาจารย์สมชาย ใจดี รอพิจารณา', 'info', 0, 171, '2025-10-07 22:35:42', '2025-10-07 22:35:42', NULL);
 
 -- --------------------------------------------------------
 
@@ -1147,52 +909,8 @@ CREATE TABLE `publication_reward_details` (
 --
 
 INSERT INTO `publication_reward_details` (`detail_id`, `submission_id`, `paper_title`, `journal_name`, `publication_date`, `publication_type`, `quartile`, `impact_factor`, `doi`, `url`, `page_numbers`, `volume_issue`, `indexing`, `reward_amount`, `reward_approve_amount`, `revision_fee`, `revision_fee_approve_amount`, `publication_fee`, `publication_fee_approve_amount`, `external_funding_amount`, `total_amount`, `total_approve_amount`, `announce_reference_number`, `author_count`, `author_type`, `has_university_funding`, `funding_references`, `university_rankings`, `approved_amount`, `approval_comment`, `approved_by`, `approved_at`, `rejection_reason`, `rejected_by`, `rejected_at`, `revision_request`, `revision_requested_by`, `revision_requested_at`, `create_at`, `update_at`, `delete_at`, `main_annoucement`, `reward_announcement`, `author_name_list`, `signature`) VALUES
-(81, 116, 'Test Article Title', 'Test Journal Name', '2025-10-01', 'journal', 'T10', '0.000', '10.10.16', 'test.artical.url', '123-456', 'Vol.Test', 'Scopus', '45000.00', '0.00', '0.00', '0.00', '0.00', '0.00', '0.00', '45000.00', '0.00', '', 2, 'first_author', 'yes', 'FA-777', 'QS #500', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-09-25 17:03:36', '2025-09-25 17:03:36', NULL, 1, 2, 'ab', 'somchai jaidee'),
-(82, 117, 'Test Article Title', 'Test Journal Name', '2025-05-01', 'journal', 'Q2', '0.000', '10.10.16', 'test.artical.url', '123-456', 'Vol.Test', 'Web of Science, TCI', '30000.00', '30000.00', '0.00', '0.00', '0.00', '0.00', '0.00', '30000.00', '30000.00', '', 2, 'first_author', 'yes', 'FA-777', 'QS #500', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-09-25 17:27:15', '2025-09-29 12:06:57', NULL, 1, 2, 'a b', 'somchai jaidee'),
-(83, 118, 'Test Article Title', 'Test Journal Name', '2025-09-01', 'journal', 'T5', '0.000', '10.10.16', 'test.artical.url', '123-456', 'Vol.Test', 'Web of Science, TCI', '50000.00', '0.00', '0.00', '0.00', '0.00', '0.00', '0.00', '50000.00', '0.00', '', 2, 'first_author', 'yes', 'FA-777', 'QS #500', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-09-25 17:29:17', '2025-09-25 17:29:17', NULL, 1, 2, 'aq', 'somchai jaidee'),
-(84, 119, 'Test Article Title', 'Test Journal Name', '2025-09-01', 'journal', 'Q3', '0.000', '10.10.16', 'test.artical.url', '123-456', 'Vol.Test', 'Web of Science, TCI', '20000.00', '0.00', '0.00', '0.00', '0.00', '0.00', '0.00', '20000.00', '0.00', '', 2, 'corresponding_author', 'yes', 'FA-777', NULL, NULL, NULL, NULL, NULL, 'asdasd', 13, '2025-09-26 15:58:43', NULL, NULL, NULL, '2025-09-25 17:31:05', '2025-09-26 15:58:43', NULL, 1, 2, 'a b', 'spw'),
-(85, 120, 'Test Article Title', 'Test Journal Name', '2025-10-01', 'journal', 'T10', '0.000', '10.10.16', 'test.artical.url', '123-456', 'Vol.Test', 'Web of Science, TCI', '45000.00', '0.00', '0.00', '0.00', '0.00', '0.00', '0.00', '45000.00', '0.00', '', 2, 'first_author', 'yes', 'FA-777', 'QS #500', NULL, NULL, NULL, NULL, 'asad', 13, '2025-09-26 07:28:05', NULL, NULL, NULL, '2025-09-25 17:35:31', '2025-09-26 07:28:05', NULL, 1, 2, 'a', 'somchai jaidee'),
-(86, 122, 'Test Article Title', 'Test Journal Name', '2025-03-01', 'journal', 'Q1', '0.000', '10.10.16', 'test.artical.url', '123-456', 'Vol.Test', 'Web of Science, TCI', '40000.00', '0.00', '0.00', '0.00', '0.00', '0.00', '0.00', '40000.00', '0.00', '', 2, 'first_author', 'yes', 'FA-777', 'QS #500', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-09-26 23:33:11', '2025-09-26 23:33:11', NULL, 3, 8, 'ab', 'somchai jaidee'),
-(87, 123, 'Test Article Title', 'Test Journal Name', '2025-09-01', 'journal', 'T5', '0.000', '10.10.16', 'test.artical.url', '123-456', 'Vol.Test', 'Web of Science, TCI', '50000.00', '0.00', '0.00', '0.00', '0.00', '0.00', '0.00', '50000.00', '0.00', '', 2, 'first_author', 'yes', 'FA-777', 'QS #500', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-09-30 13:41:38', '2025-09-30 13:41:38', NULL, 3, 8, 'ab', 'somchai jaidee'),
-(88, 124, 'Test Article Title', 'Test Journal Name', '2025-03-01', 'journal', 'Q1', '0.000', '10.10.16', 'test.artical.url', '123-456', 'Vol.Test', 'Web of Science, TCI', '40000.00', '0.00', '0.00', '0.00', '0.00', '0.00', '0.00', '40000.00', '0.00', '', 2, 'corresponding_author', 'no', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-10-01 13:16:58', '2025-10-01 13:16:58', NULL, 3, 8, 'ab', 'somchai jaidee'),
-(89, 125, 'Test Article Title', 'Test Journal Name', '2025-08-01', 'journal', 'T5', '0.000', '10.10.16', 'test.artical.url', '123-456', 'Vol.Test', 'Web of Science, TCI', '50000.00', '0.00', '0.00', '0.00', '0.00', '0.00', '0.00', '50000.00', '0.00', '', 2, 'first_author', 'no', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-10-01 20:52:43', '2025-10-01 20:52:43', NULL, 3, 8, 'ab', 'somchai jaidee'),
-(90, 126, 'Test Article Title', 'Test Journal Name', '2025-10-01', 'journal', 'T5', '0.000', '10.10.16', 'test.artical.url', '123-456', 'Vol.Test', 'Scopus, Web of Science', '50000.00', '0.00', '0.00', '0.00', '0.00', '0.00', '0.00', '50000.00', '0.00', '', 2, 'first_author', 'no', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-10-02 00:33:52', '2025-10-02 00:33:52', NULL, 3, 8, 'ab', 'somchai jaidee'),
-(91, 127, 'Test Article Title', 'Test Journal Name', '2025-10-01', 'journal', 'Q2', '0.000', '10.10.16', 'test.artical.url', '123-456', 'Vol.Test', 'Web of Science, TCI', '30000.00', '0.00', '0.00', '0.00', '0.00', '0.00', '0.00', '30000.00', '0.00', '', 2, 'first_author', 'yes', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-10-02 12:12:36', '2025-10-02 12:12:36', NULL, 3, 8, 'ab', 'somchai jaidee'),
-(92, 128, 'Test Article Title', 'Test Journal Name', '2025-04-01', 'journal', 'T10', '0.000', '10.10.16', 'test.artical.url', '123-456', 'Vol.Test', 'ISI, Web of Science', '45000.00', '0.00', '0.00', '0.00', '0.00', '0.00', '0.00', '45000.00', '0.00', '', 1, 'first_author', 'no', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-10-02 12:21:39', '2025-10-02 12:21:39', NULL, 3, 8, 'ab', 'somchai jaidee'),
-(93, 129, 'Test Article Title', 'Test Journal Name', '2025-04-01', 'journal', 'T10', '0.000', '10.10.16', 'test.artical.url', '123-456', 'Vol.Test', 'Web of Science, TCI', '45000.00', '0.00', '0.00', '0.00', '0.00', '0.00', '0.00', '45000.00', '0.00', '', 1, 'first_author', 'no', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-10-02 12:40:26', '2025-10-02 12:40:26', NULL, 3, 8, 'ab', 'somchai jaidee'),
-(94, 136, 'Test Article Title', 'Test Journal Name', '2025-11-01', 'journal', 'Q3', '0.000', '', '', '123-145', 'Vol.10', '', '20000.00', '0.00', '0.00', '0.00', '0.00', '0.00', '0.00', '20000.00', '0.00', '', 2, 'first_author', 'no', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-10-03 15:49:50', '2025-10-03 15:49:50', NULL, 3, 8, 'a a a', 'กฤ'),
-(95, 137, 'Test Article Title', 'Test Journal Name', '2025-09-01', 'journal', 'T10', '0.000', '10.10.16', 'test.artical.url', '123-456', 'Vol.Test', 'Web of Science', '45000.00', '0.00', '0.00', '0.00', '0.00', '0.00', '0.00', '45000.00', '0.00', '', 1, 'corresponding_author', 'no', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-10-05 15:56:14', '2025-10-05 15:56:14', NULL, 3, 2, 'ab', 'somchai jaidee'),
-(96, 138, 'Test Article Title', 'Test Journal Name', '2025-10-01', 'journal', 'TCI', '0.000', '10.10.16', 'test.artical.url', '123-456', 'Vol.Test', 'Web of Science, TCI', '5000.00', '0.00', '0.00', '0.00', '0.00', '0.00', '0.00', '5000.00', '0.00', '', 1, 'first_author', 'no', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-10-05 15:58:15', '2025-10-05 15:58:15', NULL, 3, 2, 'AB', 'somchai jaidee'),
-(97, 139, 'Test Article Title', 'Test Journal Name', '2025-10-01', 'journal', 'TCI', '0.000', '10.10.16', 'test.artical.url', '123-456', 'Vol.Test', 'Web of Science, TCI', '5000.00', '0.00', '0.00', '0.00', '0.00', '0.00', '0.00', '5000.00', '0.00', '', 1, 'corresponding_author', 'no', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-10-05 15:59:47', '2025-10-05 15:59:47', NULL, 3, 2, 'AB', 'somchai jaidee'),
-(98, 140, 'Test Article Title', 'Test Journal Name', '2025-04-01', 'journal', 'TCI', '0.000', '10.10.16', 'test.artical.url', '123-456', 'Vol.Test', 'Web of Science, TCI', '5000.00', '0.00', '0.00', '0.00', '0.00', '0.00', '0.00', '5000.00', '0.00', '', 1, 'corresponding_author', 'no', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-10-05 16:00:48', '2025-10-05 16:00:48', NULL, 3, 2, 'AB', 'somchai jaidee'),
-(99, 141, 'Test Article Title', 'Test Journal Name', '2025-11-01', 'journal', 'Q2', '0.000', '10.10.16', 'test.artical.url', '123-456', 'Vol.Test', 'Web of Science', '30000.00', '0.00', '0.00', '0.00', '0.00', '0.00', '0.00', '30000.00', '0.00', '', 1, 'corresponding_author', 'no', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-10-05 16:01:57', '2025-10-05 16:01:57', NULL, 3, 2, 'AB', 'somchai jaidee'),
-(100, 142, 'Test Article Title', 'Test Journal Name', '2025-11-01', 'journal', 'TCI', '0.000', '10.10.16', 'test.artical.url', '123-456', 'Vol.Test', 'Web of Science, TCI', '5000.00', '0.00', '0.00', '0.00', '0.00', '0.00', '0.00', '5000.00', '0.00', '', 1, 'corresponding_author', 'no', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-10-05 17:08:25', '2025-10-05 17:08:25', NULL, 3, 2, 'AB', 'somchai jaidee'),
-(101, 143, 'Test Article Title', 'Test Journal Name', '2025-05-01', 'journal', 'TCI', '0.000', '10.10.16', 'test.artical.url', '123-456', 'Vol.Test', 'TCI', '5000.00', '0.00', '0.00', '0.00', '0.00', '0.00', '0.00', '5000.00', '0.00', '', 1, 'corresponding_author', 'no', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-10-05 17:21:26', '2025-10-05 17:21:26', NULL, 3, 2, 'ab', 'somchai jaidee'),
-(102, 144, 'Test Article Title', 'Test Journal Name', '2025-06-01', 'journal', 'TCI', '0.000', '10.10.16', 'test.artical.url', '123-456', 'Vol.Test', 'Web of Science', '5000.00', '0.00', '0.00', '0.00', '0.00', '0.00', '0.00', '5000.00', '0.00', '', 1, 'corresponding_author', 'no', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-10-05 17:30:59', '2025-10-05 17:30:59', NULL, 3, 2, 'ab', 'somchai jaidee'),
-(103, 145, 'Test Article Title', 'Test Journal Name', '2025-08-01', 'journal', 'TCI', '0.000', '10.10.16', 'test.artical.url', '123-456', 'Vol.Test', 'Web of Science', '5000.00', '0.00', '0.00', '0.00', '0.00', '0.00', '0.00', '5000.00', '0.00', '', 1, 'corresponding_author', 'no', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-10-05 17:33:25', '2025-10-05 17:33:25', NULL, 3, 2, 'a', 'somchai jaidee'),
-(104, 146, 'Test Article Title', 'Test Journal Name', '2025-01-01', 'journal', 'T5', '0.000', '10.10.16', 'test.artical.url', '', 'Vol.Test', 'Web of Science', '50000.00', '0.00', '0.00', '0.00', '0.00', '0.00', '0.00', '50000.00', '0.00', '', 1, 'corresponding_author', 'no', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-10-05 17:34:12', '2025-10-05 17:34:12', NULL, 3, 2, 'ab', 'somchai jaidee'),
-(105, 147, 'Test Article Title', 'Test Journal Name', '2025-04-01', 'journal', 'TCI', '0.000', '10.10.16', 'test.artical.url', '123-456', 'Vol.Test', 'Web of Science', '5000.00', '0.00', '0.00', '0.00', '0.00', '0.00', '0.00', '5000.00', '0.00', '', 1, 'corresponding_author', 'no', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-10-05 17:41:26', '2025-10-05 17:41:26', NULL, 3, 2, 'ab', 'somchai jaidee'),
-(106, 148, 'Test Article Title', 'Test Journal Name', '2025-07-01', 'journal', 'T5', '0.000', '10.10.16', 'test.artical.url', '', 'Vol.Test', 'Web of Science', '50000.00', '0.00', '0.00', '0.00', '0.00', '0.00', '0.00', '50000.00', '0.00', '', 1, 'corresponding_author', 'no', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-10-05 17:50:36', '2025-10-05 17:50:36', NULL, 3, 2, 'ab', 'somchai jaidee'),
-(107, 149, 'Test Article Title', 'Test Journal Name', '2025-01-01', 'journal', 'T10', '0.000', '10.10.16', 'test.artical.url', '123-456', 'Vol.Test', 'Web of Science', '45000.00', '0.00', '0.00', '0.00', '0.00', '0.00', '0.00', '45000.00', '0.00', '', 1, 'corresponding_author', 'no', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-10-05 18:03:19', '2025-10-05 18:03:19', NULL, 3, 2, 'AB', 'somchai jaidee'),
-(108, 150, 'Test Article Title', 'Test Journal Name', '2025-01-01', 'journal', 'Q1', '0.000', '10.10.16', 'test.artical.url', '123-456', 'Vol.Test', 'Web of Science', '40000.00', '0.00', '0.00', '0.00', '0.00', '0.00', '0.00', '40000.00', '0.00', '', 1, 'corresponding_author', 'no', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-10-05 18:04:30', '2025-10-05 18:04:30', NULL, 3, 2, 'AB', 'somchai jaidee'),
-(109, 151, 'Test Article Title', 'Test Journal Name', '2025-04-01', 'journal', 'Q2', '0.000', '10.10.16', 'test.artical.url', '123-456', 'Vol.Test', 'Web of Science', '30000.00', '0.00', '0.00', '0.00', '0.00', '0.00', '0.00', '30000.00', '0.00', '', 1, 'corresponding_author', 'no', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-10-05 18:05:24', '2025-10-05 18:05:24', NULL, 3, 2, 'AB', 'somchai jaidee'),
-(110, 152, 'Test Article Title', 'Test Journal Name', '2025-01-01', 'journal', 'Q3', '0.000', '10.10.16', 'test.artical.url', '123-456', 'Vol.Test', 'Web of Science', '20000.00', '0.00', '0.00', '0.00', '0.00', '0.00', '0.00', '20000.00', '0.00', '', 1, 'corresponding_author', 'no', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-10-05 18:06:18', '2025-10-05 18:06:18', NULL, 3, 2, 'AB', 'somchai jaidee'),
-(111, 153, 'Test Article Title', 'Test Journal Name', '2025-11-01', 'journal', 'Q4', '0.000', '10.10.16', 'test.artical.url', '123-456', 'Vol.Test', 'Web of Science', '10000.00', '10000.00', '3000.00', '0.00', '5000.00', '6000.00', '0.00', '10000.00', '10000.00', '132/568', 1, 'corresponding_author', 'no', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-10-05 18:15:55', '2025-10-07 13:46:12', NULL, 3, 2, 'AB', 'somchai jaidee'),
-(112, 154, 'Test Article Title', 'Test Journal Name', '2025-04-01', 'journal', 'TCI', '0.000', '10.10.16', 'test.artical.url', '123-456', 'Vol.Test', 'Web of Science', '5000.00', '0.00', '0.00', '0.00', '0.00', '0.00', '0.00', '5000.00', '0.00', '', 1, 'corresponding_author', 'no', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-10-05 18:17:03', '2025-10-05 18:17:03', NULL, 3, 2, 'AB', 'somchai jaidee'),
-(113, 155, 'Test Article Title', 'Test Journal Name', '2025-09-01', 'journal', 'T5', '0.000', '10.10.16', 'test.artical.url', '123-456', 'Vol.Test', 'Web of Science, TCI', '50000.00', '0.00', '0.00', '0.00', '0.00', '0.00', '0.00', '50000.00', '0.00', '', 1, 'first_author', 'no', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-10-05 18:25:41', '2025-10-05 18:25:41', NULL, 3, 2, 'ab', 'somchai jaidee'),
-(114, 156, 'Test Article Title', 'Test Journal Name', '2025-01-01', 'journal', 'T10', '0.000', '10.10.16', 'test.artical.url', '123-456', 'Vol.Test', 'TCI', '45000.00', '0.00', '0.00', '0.00', '0.00', '0.00', '0.00', '45000.00', '0.00', '', 1, 'first_author', 'no', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-10-05 18:26:50', '2025-10-05 18:26:50', NULL, 3, 2, 'ab', 'somchai jaidee'),
-(115, 157, 'Test Article Title', 'Test Journal Name', '2025-12-01', 'journal', 'T5', '0.000', '10.10.16', 'test.artical.url', '123-456', 'Vol.Test', 'TCI', '50000.00', '0.00', '0.00', '0.00', '0.00', '0.00', '0.00', '50000.00', '0.00', '', 1, 'corresponding_author', 'no', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-10-05 18:28:42', '2025-10-05 18:28:42', NULL, 3, 2, 'AB', 'somchai jaidee'),
-(116, 158, 'Test Article', 'Test Journal', '2025-06-01', 'journal', 'T5', '0.000', '10.10.10', 'www.test.com', '123-456', 'Vol.Test', 'ISI', '50000.00', '0.00', '0.00', '0.00', '0.00', '0.00', '0.00', '50000.00', '0.00', '', 1, 'first_author', 'yes', 'F-123456', 'QS 500', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-10-07 13:01:58', '2025-10-07 13:02:21', NULL, 3, 2, 'ab', 'somchai jaidee'),
-(117, 159, 'Test Article', 'Test Journal', '2025-02-01', 'journal', 'T5', '0.000', '10.10.10', 'www.test.com', '123-456', 'Vol.Test', 'TCI', '50000.00', '0.00', '0.00', '0.00', '0.00', '0.00', '0.00', '50000.00', '0.00', '', 1, 'first_author', 'no', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-10-07 13:28:55', '2025-10-07 13:28:55', NULL, 3, 2, 'ab', 'somchai jaidee'),
-(118, 160, 'Test Article', 'Test Journal', '2025-02-01', 'journal', 'T10', '0.000', '10.10.10', 'www.test.com', '123-456', 'Vol.Test', 'TCI', '45000.00', '0.00', '0.00', '0.00', '19898.00', '0.00', '1000.00', '63898.00', '0.00', '', 1, 'first_author', 'yes', 'F-123456', 'QS 500', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-10-07 13:43:12', '2025-10-07 13:43:12', NULL, 3, 2, 'ab', 'somchai jaidee'),
-(119, 161, 'Test Article', 'Test Journal', '2025-02-01', 'journal', 'T10', '0.000', '10.10.10', 'www.test.com', '123-456', 'Vol.Test', 'TCI', '45000.00', '0.00', '0.00', '0.00', '19898.00', '0.00', '0.00', '64898.00', '0.00', '', 1, 'first_author', 'yes', 'F-123456', 'QS 500', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-10-07 13:50:18', '2025-10-07 13:50:18', NULL, 3, 2, 'ab', 'somchai jaidee'),
-(120, 162, 'Test Article', 'Test Journal', '2025-02-01', 'journal', 'T10', '0.000', '10.10.10', 'www.test.com', '123-456', 'Vol.Test', 'TCI', '45000.00', '0.00', '0.00', '0.00', '19898.00', '0.00', '0.00', '64898.00', '0.00', '', 1, 'first_author', 'yes', 'F-123456', 'QS 500', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-10-07 14:00:42', '2025-10-07 14:00:42', NULL, 3, 2, 'ab', 'somchai jaidee'),
-(121, 163, 'Test Article', 'Test Journal', '2025-03-01', 'journal', 'T5', '0.000', '10.10.10', 'www.test.com', '123-456', 'Vol.Test', 'ISI', '50000.00', '0.00', '0.00', '0.00', '20000.00', '0.00', '0.00', '70000.00', '0.00', '', 1, 'first_author', 'yes', NULL, 'QS 500', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-10-07 14:23:20', '2025-10-07 14:33:37', NULL, 3, 2, 'ab', 'somchai jaidee'),
-(122, 164, 'Test Article', 'Test Journal', '2025-02-01', 'journal', 'T10', '0.000', '10.10.10', 'www.test.com', '123-456', 'Vol.Test', 'Web of Science', '45000.00', '0.00', '0.00', '0.00', '0.00', '0.00', '0.00', '45000.00', '0.00', '', 1, 'first_author', 'no', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-10-07 14:57:03', '2025-10-07 14:57:03', NULL, 3, 2, 'AB', 'somchai jaidee'),
-(123, 165, 'Test Article', 'Test Journal', '2025-03-01', 'journal', 'T10', '0.000', '10.10.10', 'www.test.com', '123-456', 'Vol.Test', 'ISI', '45000.00', '0.00', '0.00', '0.00', '0.00', '0.00', '0.00', '45000.00', '0.00', '', 1, 'first_author', 'yes', 'F-123456', 'QS 500', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-10-07 15:08:08', '2025-10-07 15:08:08', NULL, 3, 2, 'AB', 'somchai jaidee'),
-(124, 166, 'Test Article', 'Test Journal', '2025-06-01', 'journal', 'T10', '0.000', '10.10.10', 'www.test.com', '123-456', 'Vol.Test', 'Scopus, Web of Science', '45000.00', '0.00', '0.00', '0.00', '0.00', '0.00', '0.00', '45000.00', '0.00', '', 1, 'first_author', 'yes', 'F-123456', 'QS 500', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-10-07 15:45:13', '2025-10-07 15:45:13', NULL, 3, 2, 'abv', 'somchai jaidee'),
-(125, 167, 'Test Article Title', 'Test Journal Name', '2025-01-01', 'journal', 'T5', '0.000', '10.10.16', 'test.artical.url', '123-456', 'Vol.Test', 'Web of Science', '50000.00', '0.00', '0.00', '0.00', '0.00', '0.00', '0.00', '50000.00', '0.00', '', 1, 'first_author', 'yes', 'FA-777', 'QS #500', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-10-07 20:32:36', '2025-10-07 20:44:39', NULL, 3, 2, 'ab', 'somchai jaidee'),
-(126, 168, 'Test Article Title', 'Test Journal Name', '2025-01-01', 'journal', 'T5', '0.000', '10.10.16', 'test.artical.url', '123-456', 'Vol.Test', 'Web of Science', '50000.00', '0.00', '0.00', '0.00', '0.00', '0.00', '0.00', '50000.00', '0.00', '', 1, 'first_author', 'yes', 'FA-777', 'QS #500', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-10-07 20:45:23', '2025-10-07 20:57:03', NULL, 3, 2, 'ab', 'somchai jaidee');
+(128, 170, 'Test Article Title', 'Test Journal Name', '2025-02-01', 'journal', 'T5', '0.000', '10.10.16', 'test.artical.url', '123-456', 'Vol.Test', 'Scopus, Web of Science', '50000.00', '0.00', '0.00', '0.00', '0.00', '0.00', '0.00', '50000.00', '0.00', '', 1, 'first_author', 'no', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-10-07 22:10:43', '2025-10-07 22:10:43', NULL, 3, 2, 'AB', 'somchai jaidee'),
+(129, 171, 'Test Article Title', 'Test Journal Name', '2025-07-01', 'journal', 'T5', '0.000', '10.10.16', 'test.artical.url', '123-456', 'Vol.Test', 'Web of Science', '50000.00', '0.00', '0.00', '0.00', '0.00', '0.00', '0.00', '50000.00', '0.00', '', 1, 'first_author', 'no', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-10-07 22:35:41', '2025-10-07 22:35:41', NULL, 3, 2, 'AB', 'somchai jaidee');
 
 -- --------------------------------------------------------
 
@@ -1261,17 +979,6 @@ CREATE TABLE `research_fund_admin_events` (
   `created_at` datetime DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
---
--- dump ตาราง `research_fund_admin_events`
---
-
-INSERT INTO `research_fund_admin_events` (`event_id`, `submission_id`, `status_after_id`, `amount`, `comment`, `created_by`, `created_at`) VALUES
-(17, 130, 2, '12000.00', 'จ่ายทุนงวดแรก', 7, '2025-10-06 22:32:29'),
-(18, 130, 2, '15000.00', 'จ่ายทุนงวดที่ 2', 7, '2025-10-06 22:33:03'),
-(19, 130, 7, '20000.00', 'จ่ายงวดสุดท้าย', 7, '2025-10-06 22:34:24'),
-(20, 135, 2, '5000.00', 'ให้ 5000', 7, '2025-10-07 13:16:04'),
-(21, 135, 2, '5000.00', 'test', 7, '2025-10-07 13:20:33');
-
 -- --------------------------------------------------------
 
 --
@@ -1284,17 +991,6 @@ CREATE TABLE `research_fund_event_files` (
   `file_id` int(11) NOT NULL,
   `created_at` datetime DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
---
--- dump ตาราง `research_fund_event_files`
---
-
-INSERT INTO `research_fund_event_files` (`event_file_id`, `event_id`, `file_id`, `created_at`) VALUES
-(4, 17, 345, '2025-10-06 22:32:29'),
-(5, 18, 346, '2025-10-06 22:33:03'),
-(6, 19, 347, '2025-10-06 22:34:24'),
-(7, 20, 350, '2025-10-07 13:16:04'),
-(8, 21, 351, '2025-10-07 13:20:33');
 
 -- --------------------------------------------------------
 
@@ -1412,7 +1108,7 @@ CREATE TABLE `subcategory_budgets` (
   `subcategory_budget_id` int(11) NOT NULL,
   `subcategory_id` int(11) NOT NULL,
   `record_scope` enum('overall','rule') NOT NULL DEFAULT 'rule',
-  `allocated_amount` decimal(15,2) DEFAULT NULL COMMENT 'ไม่ได้ใช้',
+  `allocated_amount` decimal(15,2) DEFAULT NULL COMMENT 'งบทั้งหมดประมาณของทุน',
   `remaining_budget` decimal(15,2) DEFAULT NULL COMMENT 'ไม่ได้ใช้',
   `used_amount` decimal(15,2) DEFAULT NULL COMMENT 'ไม่ได้ใช้',
   `max_amount_per_grant` decimal(15,2) DEFAULT NULL,
@@ -1451,11 +1147,11 @@ INSERT INTO `subcategory_budgets` (`subcategory_budget_id`, `subcategory_id`, `r
 (16, 12, 'overall', '200000.00', '200000.00', '0.00', '100000.00', NULL, 2, 2, NULL, 'active', NULL, 'ไม่เกิน 10% ของเงินทุนที่ได้รับจากภายนอก แต่ไม่เกิน 100,000 บาท', '2025-06-30 11:48:03', '2025-10-07 19:55:10', NULL),
 (17, 13, 'overall', '400000.00', '400000.00', '0.00', '150000.00', NULL, NULL, NULL, NULL, 'active', 'ประเทศต่างๆ ยกเว้นประเทศกลุ่มอาเซียน', 'กรณีเดินทางไปทําวิจัยในสถาบันการศึกษาที่อยู่ในอันดับ 1-300 ของโลกหรือสถาบันวิจัยที่มีชื่อเสียง', '2025-06-30 11:48:03', '2025-10-07 19:55:10', NULL),
 (18, 13, 'rule', NULL, NULL, NULL, '100000.00', NULL, NULL, NULL, NULL, 'active', 'ประเทศกลุ่มอาเซียน', 'กรณีเดินทางไปทําวิจัยในสถาบันการศึกษาที่อยู่ในอันดับ 1-300 ของโลกหรือสถาบันวิจัยที่มีชื่อเสียง', '2025-06-30 11:48:03', '2025-10-07 19:55:33', NULL),
-(19, 14, 'rule', NULL, NULL, NULL, '150000.00', NULL, NULL, NULL, NULL, 'active', 'วารสารระดับนานาชาติในฐานข้อมูล WOS หรือ ISI หรือ SCOPUS (ลําดับ 5% แรก)', NULL, '2025-06-30 11:48:03', '2025-10-07 21:41:09', NULL),
+(19, 14, 'rule', '10000000.00', '10000000.00', NULL, '150000.00', NULL, NULL, NULL, NULL, 'active', 'วารสารระดับนานาชาติในฐานข้อมูล WOS หรือ ISI หรือ SCOPUS (ลําดับ 5% แรก)', NULL, '2025-06-30 11:48:03', '2025-10-07 22:43:45', NULL),
 (20, 14, 'rule', NULL, NULL, NULL, '125000.00', NULL, NULL, NULL, NULL, 'active', 'วารสารระดับนานาชาติในฐานข้อมูล WOS หรือ ISI หรือ SCOPUS (ลําดับ 10% แรก)', NULL, '2025-06-30 11:48:03', '2025-10-07 19:55:33', NULL),
 (21, 14, 'rule', NULL, NULL, NULL, '100000.00', NULL, NULL, NULL, NULL, 'active', 'วารสารระดับนานาชาติในฐานข้อมูล WOS หรือ ISI หรือ SCOPUS ควอร์ไทล์ 1', NULL, '2025-06-30 11:48:03', '2025-10-07 19:55:33', NULL),
 (22, 14, 'rule', NULL, NULL, NULL, '75000.00', NULL, NULL, NULL, NULL, 'active', 'วารสารระดับนานาชาติในฐานข้อมูล WOS หรือ ISI หรือ SCOPUS ควอร์ไทล์ 2', NULL, '2025-06-30 11:48:03', '2025-10-07 19:55:33', NULL),
-(23, 15, 'rule', NULL, NULL, NULL, '80000.00', NULL, NULL, NULL, NULL, 'active', 'วารสารระดับนานาชาติในฐานข้อมูล WOS หรือ ISI หรือ SCOPUS (ลําดับ 5% แรก)', NULL, '2025-06-30 11:48:03', '2025-10-07 21:42:19', NULL),
+(23, 15, 'rule', '10000000.00', '10000000.00', NULL, '80000.00', NULL, NULL, NULL, NULL, 'active', 'วารสารระดับนานาชาติในฐานข้อมูล WOS หรือ ISI หรือ SCOPUS (ลําดับ 5% แรก)', NULL, '2025-06-30 11:48:03', '2025-10-07 22:43:46', NULL),
 (24, 15, 'rule', NULL, NULL, NULL, '60000.00', NULL, NULL, NULL, NULL, 'active', 'วารสารระดับนานาชาติในฐานข้อมูล WOS หรือ ISI หรือ SCOPUS (ลําดับ 10% แรก)', NULL, '2025-06-30 11:48:03', '2025-10-07 19:55:33', NULL),
 (25, 15, 'rule', NULL, NULL, NULL, '50000.00', NULL, NULL, NULL, NULL, 'active', 'วารสารระดับนานาชาติในฐานข้อมูล WOS หรือ ISI หรือ SCOPUS ควอร์ไทล์ 1', NULL, '2025-06-30 11:48:03', '2025-10-07 19:55:33', NULL),
 (31, 14, 'rule', NULL, NULL, NULL, '50000.00', NULL, NULL, NULL, NULL, 'active', 'วารสารระดับนานาชาติในฐานข้อมูล WOS หรือ ISI หรือ SCOPUS ควอร์ไทล์ 3', NULL, '2025-06-30 11:48:03', '2025-10-07 19:55:33', NULL),
@@ -1513,8 +1209,8 @@ INSERT INTO `subcategory_budgets` (`subcategory_budget_id`, `subcategory_id`, `r
 (115, 2, 'rule', NULL, NULL, NULL, '20000.00', NULL, NULL, NULL, NULL, 'active', 'บทความตีพิมพ์ในวารสารระดับนานาชาติ ควอร์ไทล์ 3 ที่สามารถสืบค้นได้ในฐานข้อมูล WOS หรือ ISI หรือ SCOPUS', NULL, '2025-10-07 21:22:07', '2025-10-07 21:22:07', NULL),
 (116, 2, 'rule', NULL, NULL, NULL, '10000.00', NULL, NULL, NULL, NULL, 'active', 'บทความตีพิมพ์ในวารสารระดับนานาชาติ ควอร์ไทล์ 4 ที่สามารถสืบค้นได้ในฐานข้อมูล WOS หรือ ISI หรือ SCOPUS', NULL, '2025-10-07 21:22:07', '2025-10-07 21:22:07', NULL),
 (117, 2, 'rule', NULL, NULL, NULL, '5000.00', NULL, NULL, NULL, NULL, 'active', 'วารสารที่อยู่ในฐานข้อมูล TCI กลุ่มที่ 1 สาขาวิทยาศาสตร์เทคโนโลยี', NULL, '2025-10-07 21:22:07', '2025-10-07 21:22:07', NULL),
-(118, 14, 'overall', NULL, NULL, NULL, NULL, '500000.00', 5, NULL, NULL, 'active', 'เงินรางวัลการตีพิมพ์เผยแพร่ผลงานวิจัยที่ได้รับการตีพิมพ์ในสาขาวิทยาศาสตร์และเทคโนโลยี (กรณีเป็นผู้แต่งชื่อแรก)', '', '2025-10-07 21:41:09', '2025-10-07 21:42:33', NULL),
-(119, 15, 'overall', NULL, NULL, NULL, NULL, '500000.00', 5, NULL, NULL, 'active', 'เงินรางวัลการตีพิมพ์เผยแพร่ผลงานวิจัยที่ได้รับการตีพิมพ์ในสาขาวิทยาศาสตร์และเทคโนโลยี (กรณีเป็นผู้ประพันธ์บรรณกิจ)', '', '2025-10-07 21:42:19', '2025-10-07 21:42:35', NULL);
+(118, 14, 'overall', '10000000.00', '10000000.00', NULL, NULL, '500000.00', 5, NULL, NULL, 'active', 'เงินรางวัลการตีพิมพ์เผยแพร่ผลงานวิจัยที่ได้รับการตีพิมพ์ในสาขาวิทยาศาสตร์และเทคโนโลยี (กรณีเป็นผู้แต่งชื่อแรก)', '', '2025-10-07 21:41:09', '2025-10-07 22:02:43', NULL),
+(119, 15, 'overall', '10000000.00', '10000000.00', NULL, NULL, '500000.00', 5, NULL, NULL, 'active', 'เงินรางวัลการตีพิมพ์เผยแพร่ผลงานวิจัยที่ได้รับการตีพิมพ์ในสาขาวิทยาศาสตร์และเทคโนโลยี (กรณีเป็นผู้ประพันธ์บรรณกิจ)', '', '2025-10-07 21:42:19', '2025-10-07 22:02:45', NULL);
 
 --
 -- ทริกเกอร์ `subcategory_budgets`
@@ -1613,59 +1309,8 @@ CREATE TABLE `submissions` (
 --
 
 INSERT INTO `submissions` (`submission_id`, `submission_type`, `submission_number`, `user_id`, `year_id`, `category_id`, `subcategory_id`, `subcategory_budget_id`, `status_id`, `submitted_at`, `reviewed_at`, `head_rejected_by`, `head_rejected_at`, `head_rejection_reason`, `head_approved_by`, `head_approved_at`, `head_comment`, `head_signature`, `admin_approved_by`, `admin_approved_at`, `admin_rejected_by`, `admin_rejected_at`, `admin_rejection_reason`, `admin_comment`, `rejected_by`, `rejected_at`, `rejection_reason`, `approved_at`, `approved_by`, `completed_at`, `closed_at`, `comment`, `created_at`, `updated_at`, `deleted_at`) VALUES
-(116, 'publication_reward', 'PR-25680925-0001', 8, 3, 2, 14, 20, 1, '2025-09-25 17:03:36', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-09-25 17:03:36', '2025-09-25 17:03:36', NULL),
-(117, 'publication_reward', 'PR-25680925-0002', 8, 3, 2, 14, 22, 2, '2025-09-25 17:27:15', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 7, '2025-09-29 12:06:57', NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-09-29 12:06:57', 7, NULL, NULL, NULL, '2025-09-25 17:27:15', '2025-10-03 12:21:06', NULL),
-(118, 'publication_reward', 'PR-25680925-0003', 8, 3, 2, 14, 19, 1, '2025-09-25 17:29:17', '2025-09-26 12:44:10', NULL, NULL, NULL, 13, '2025-09-26 12:44:10', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-09-25 17:29:17', '2025-10-05 15:54:59', NULL),
-(119, 'publication_reward', 'PR-25680925-0004', 8, 3, 2, 15, 31, 1, '2025-09-25 17:31:06', '2025-09-26 15:58:43', NULL, NULL, NULL, 13, '2025-09-26 15:58:43', 'asdasd', NULL, NULL, NULL, NULL, NULL, NULL, NULL, 13, '2025-09-26 15:58:43', 'asdasd', NULL, NULL, NULL, NULL, NULL, '2025-09-25 17:31:05', '2025-10-05 15:55:14', NULL),
-(120, 'publication_reward', 'PR-25680925-0005', 8, 3, 2, 14, 20, 1, '2025-09-25 17:35:32', '2025-09-26 07:28:05', NULL, NULL, NULL, 13, '2025-09-26 07:28:05', 'asad', NULL, NULL, NULL, NULL, NULL, NULL, NULL, 13, '2025-09-26 07:28:05', 'asad', NULL, NULL, NULL, NULL, NULL, '2025-09-25 17:35:31', '2025-10-05 15:55:17', NULL),
-(121, 'fund_application', 'FA-25680926-0001', 12, 3, 1, 1, 1, 1, '2025-09-26 08:42:51', '2025-10-05 15:09:05', NULL, NULL, NULL, 13, '2025-10-05 15:09:05', 'FA ผ่าน', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-09-26 08:42:51', '2025-10-05 15:37:43', NULL),
-(122, 'publication_reward', 'PR-25680926-0006', 8, 3, 2, 14, 21, 1, '2025-09-26 23:33:11', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-09-26 23:33:11', '2025-10-05 15:55:21', NULL),
-(123, 'publication_reward', 'PR-25680930-0007', 8, 3, 2, 14, 19, 1, '2025-09-30 13:41:38', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-09-30 13:41:38', '2025-10-05 15:55:23', NULL),
-(124, 'publication_reward', 'PR-25681001-0008', 8, 3, 2, 15, 21, 1, '2025-10-01 13:16:58', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-10-01 13:16:58', '2025-10-05 15:55:29', NULL),
-(125, 'publication_reward', 'PR-25681001-0009', 8, 3, 2, 14, 19, 1, '2025-10-01 20:52:43', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-10-01 20:52:43', '2025-10-05 15:55:33', NULL),
-(126, 'publication_reward', 'PR-25681002-0010', 8, 3, 2, 14, 19, 1, '2025-10-02 00:33:52', '2025-10-05 16:00:36', NULL, NULL, NULL, 13, '2025-10-05 16:00:36', 'PR APPROVE', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-10-02 00:33:52', '2025-10-05 16:00:36', NULL),
-(127, 'publication_reward', 'PR-25681002-0011', 8, 3, 2, 14, 22, 3, '2025-10-02 12:12:36', '2025-10-05 16:00:49', 13, '2025-10-05 16:00:49', 'NOOO', NULL, NULL, 'PR REJECT', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-10-02 12:12:36', '2025-10-05 16:00:49', NULL),
-(128, 'publication_reward', 'PR-25681002-0012', 8, 3, 2, 14, 20, 3, '2025-10-02 12:21:39', '2025-10-05 15:00:46', 13, '2025-10-05 15:00:46', 'ข้อมูลหาย', 13, '2025-10-05 15:00:46', 'ไม่ผ่าน2', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-10-02 12:21:39', '2025-10-05 15:38:11', NULL),
-(129, 'publication_reward', 'PR-25681002-0013', 8, 3, 2, 14, 20, 1, '2025-10-02 12:40:26', '2025-10-05 15:00:21', NULL, NULL, NULL, 13, '2025-10-05 15:00:21', 'ผ่าน1', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-10-02 12:40:26', '2025-10-05 15:37:43', NULL),
-(130, 'fund_application', 'FA-25681002-0002', 8, 3, 1, 1, 1, 7, '2025-10-02 14:11:19', NULL, NULL, NULL, NULL, NULL, NULL, 'ผ่านเลย', NULL, 7, '2025-10-05 20:51:37', NULL, NULL, NULL, 'No Comment', NULL, NULL, NULL, NULL, NULL, NULL, '2025-10-06 22:34:24', NULL, '2025-10-02 14:11:19', '2025-10-06 23:44:06', NULL),
-(131, 'fund_application', 'FA-25681002-0003', 8, 3, 1, 1, 1, 3, '2025-10-02 14:40:48', '2025-10-05 15:11:04', 13, '2025-10-05 15:11:04', 'ข้อมูลไม่ครบ', 13, '2025-10-05 15:11:04', 'FA ไม่ผ่าน', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-10-02 14:40:48', '2025-10-05 15:38:11', NULL),
-(132, 'fund_application', 'FA-25681002-0004', 8, 3, 1, 1, 1, 3, '2025-10-02 14:55:31', '2025-10-05 15:59:38', 13, '2025-10-05 15:59:38', 'NO C', NULL, NULL, 'FA REJECT', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-10-02 14:55:31', '2025-10-05 15:59:38', NULL),
-(133, 'fund_application', 'FA-25681002-0005', 8, 3, 1, 1, 1, 2, '2025-10-02 15:11:00', '2025-10-05 15:56:19', NULL, NULL, NULL, 13, '2025-10-05 15:56:19', 'FA APPROVE', NULL, 7, '2025-10-05 20:15:31', NULL, NULL, NULL, 'ผ่าน', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-10-02 15:10:59', '2025-10-05 20:15:31', NULL),
-(134, 'fund_application', 'FA-25681002-0006', 8, 3, 1, 1, 1, 3, '2025-10-02 15:26:43', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 7, '2025-10-03 13:39:13', 'ไม่อนุมัติ', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-10-02 15:26:43', '2025-10-03 13:39:13', NULL),
-(135, 'fund_application', 'FA-25681002-0007', 8, 3, 1, 1, 1, 2, '2025-10-02 15:42:15', '2025-10-05 14:36:00', NULL, NULL, NULL, 13, '2025-10-05 14:36:00', 'YES APRROVE', NULL, 7, '2025-10-05 20:19:12', NULL, NULL, NULL, 'MOMO', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-10-02 15:42:15', '2025-10-07 13:20:33', NULL),
-(136, 'publication_reward', 'PR-25681003-0014', 13, 3, 2, 14, 31, 1, '2025-10-03 15:49:50', '2025-10-04 14:57:40', NULL, NULL, NULL, 13, '2025-10-04 14:57:40', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-10-03 15:49:50', '2025-10-04 14:57:40', NULL),
-(137, 'publication_reward', 'PR-2568-0015', 8, 3, 2, 15, 20, 6, '2025-10-05 15:56:14', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-10-05 15:56:14', '2025-10-05 15:56:14', NULL),
-(138, 'publication_reward', 'PR-2568-0016', 8, 3, 2, 14, 33, 6, '2025-10-05 15:58:15', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-10-05 15:58:15', '2025-10-05 15:58:15', NULL),
-(139, 'publication_reward', 'PR-2568-0017', 8, 3, 2, 14, 33, 6, '2025-10-05 15:59:47', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-10-05 15:59:47', '2025-10-05 19:27:54', NULL),
-(140, 'publication_reward', 'PR-2568-0018', 8, 3, 2, 14, 33, 6, '2025-10-05 16:00:48', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-10-05 16:00:48', '2025-10-05 19:27:56', NULL),
-(141, 'publication_reward', 'PR-2568-0019', 8, 3, 2, 14, 22, 6, '2025-10-05 16:01:57', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-10-05 16:01:57', '2025-10-05 16:01:57', NULL),
-(142, 'publication_reward', 'PR-2568-0020', 8, 3, 2, 14, 33, 6, '2025-10-05 17:08:25', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-10-05 17:08:25', '2025-10-05 17:08:25', NULL),
-(143, 'publication_reward', 'PR-2568-0021', 8, 3, 2, 14, 33, 6, '2025-10-05 17:21:26', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-10-05 17:21:26', '2025-10-05 17:21:26', NULL),
-(144, 'publication_reward', 'PR-2568-0022', 8, 3, 2, 14, 33, 6, '2025-10-05 17:30:59', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-10-05 17:30:59', '2025-10-05 17:30:59', NULL),
-(145, 'publication_reward', 'PR-2568-0023', 8, 3, 2, 14, 33, 6, '2025-10-05 17:33:25', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-10-05 17:33:24', '2025-10-05 17:33:25', NULL),
-(146, 'publication_reward', 'PR-2568-0024', 8, 3, 2, 14, 19, 6, '2025-10-05 17:34:12', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-10-05 17:34:12', '2025-10-05 17:34:12', NULL),
-(147, 'publication_reward', 'PR-2568-0025', 8, 3, 2, 14, 33, 6, '2025-10-05 17:41:26', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-10-05 17:41:26', '2025-10-05 17:41:26', NULL),
-(148, 'publication_reward', 'PR-2568-0026', 8, 3, 2, 15, 19, 6, '2025-10-05 17:50:36', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-10-05 17:50:36', '2025-10-05 17:50:36', NULL),
-(149, 'publication_reward', 'PR-2568-0027', 8, 3, 2, 15, 20, 6, '2025-10-05 18:03:19', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-10-05 18:03:19', '2025-10-05 18:03:19', NULL),
-(150, 'publication_reward', 'PR-2568-0028', 8, 3, 2, 15, 21, 6, '2025-10-05 18:04:30', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-10-05 18:04:30', '2025-10-05 18:04:30', NULL),
-(151, 'publication_reward', 'PR-2568-0029', 8, 3, 2, 15, 22, 6, '2025-10-05 18:05:24', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-10-05 18:05:24', '2025-10-05 18:05:24', NULL),
-(152, 'publication_reward', 'PR-2568-0030', 8, 3, 2, 15, 31, 6, '2025-10-05 18:06:18', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-10-05 18:06:18', '2025-10-05 18:06:18', NULL),
-(153, 'publication_reward', 'PR-2568-0031', 8, 3, 2, 15, 32, 2, '2025-10-05 18:15:55', '2025-10-07 13:05:19', NULL, NULL, NULL, 13, '2025-10-07 13:05:19', 'test comment', 'test sign', 7, '2025-10-07 13:10:34', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-10-05 18:15:55', '2025-10-07 13:10:34', NULL),
-(154, 'publication_reward', 'PR-2568-0032', 8, 3, 2, 15, 33, 1, '2025-10-05 18:17:03', '2025-10-07 12:44:35', NULL, NULL, NULL, 13, '2025-10-07 12:44:35', 'test comment', 'test sign', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-10-05 18:17:03', '2025-10-07 12:44:35', NULL),
-(155, 'publication_reward', 'PR-2568-0033', 8, 3, 2, 14, 19, 3, '2025-10-05 18:25:41', '2025-10-06 23:02:30', 13, '2025-10-06 23:02:30', 'not approve from popup window', NULL, NULL, 'not approve', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-10-05 18:25:41', '2025-10-06 23:02:30', NULL),
-(156, 'publication_reward', 'PR-2568-0034', 8, 3, 2, 14, 20, 1, '2025-10-05 18:26:50', '2025-10-06 22:50:09', NULL, NULL, NULL, 13, '2025-10-06 22:50:09', 'test comment', 'test sign', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-10-05 18:26:50', '2025-10-06 22:50:09', NULL),
-(157, 'publication_reward', 'PR-2568-0035', 8, 3, 2, 14, 19, 1, '2025-10-05 18:28:42', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-10-05 18:28:42', '2025-10-05 19:28:21', NULL),
-(158, 'publication_reward', 'PR-2568-0036', 8, 3, 2, 14, 19, 6, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-10-07 13:01:57', '2025-10-07 13:01:57', NULL),
-(159, 'publication_reward', 'PR-2568-0037', 8, 3, 2, 14, 19, 6, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-10-07 13:28:28', '2025-10-07 13:28:28', NULL),
-(160, 'publication_reward', 'PR-2568-0038', 8, 3, 2, 14, 20, 6, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-10-07 13:43:11', '2025-10-07 13:43:11', NULL),
-(161, 'publication_reward', 'PR-2568-0039', 8, 3, 2, 14, 20, 6, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-10-07 13:50:18', '2025-10-07 13:50:18', NULL),
-(162, 'publication_reward', 'PR-2568-0040', 8, 3, 2, 14, 20, 1, '2025-10-07 14:00:42', '2025-10-07 14:04:37', NULL, NULL, NULL, 13, '2025-10-07 14:04:37', 'Test', 'Test', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-10-07 14:00:41', '2025-10-07 14:04:37', NULL),
-(163, 'publication_reward', 'PR-2568-0041', 8, 3, 2, 14, 19, 6, '2025-10-07 14:33:37', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-10-07 14:23:19', '2025-10-07 14:33:37', NULL),
-(164, 'publication_reward', 'PR-2568-0042', 8, 3, 2, 14, 20, 6, '2025-10-07 14:57:03', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-10-07 14:57:02', '2025-10-07 14:57:03', NULL),
-(165, 'publication_reward', 'PR-2568-0043', 8, 3, 2, 14, 20, 6, '2025-10-07 15:08:09', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-10-07 15:08:07', '2025-10-07 15:08:09', NULL),
-(166, 'publication_reward', 'PR-2568-0044', 8, 3, 2, 14, 20, 1, '2025-10-07 15:45:14', '2025-10-07 15:59:49', NULL, NULL, NULL, 13, '2025-10-07 15:59:49', 'comment', 'sign head', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-10-07 15:45:13', '2025-10-07 15:59:49', NULL),
-(167, 'publication_reward', 'PR-2568-0045', 8, 3, 2, 14, 19, 6, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-10-07 20:32:36', '2025-10-07 20:32:36', NULL),
-(168, 'publication_reward', 'PR-2568-0046', 8, 3, 2, 14, 19, 6, '2025-10-07 20:57:03', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-10-07 20:45:23', '2025-10-07 20:57:03', NULL);
+(170, 'publication_reward', 'PR-2568-0001', 8, 3, 2, 14, 19, 6, '2025-10-07 22:10:44', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-10-07 22:10:43', '2025-10-07 22:10:44', NULL),
+(171, 'publication_reward', 'PR-2568-0002', 8, 3, 2, 14, 19, 6, '2025-10-07 22:35:42', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-10-07 22:35:40', '2025-10-07 22:35:42', NULL);
 
 --
 -- ทริกเกอร์ `submissions`
@@ -1820,138 +1465,12 @@ CREATE TABLE `submission_documents` (
 --
 
 INSERT INTO `submission_documents` (`document_id`, `submission_id`, `file_id`, `document_type_id`, `description`, `display_order`, `is_required`, `is_verified`, `verified_by`, `verified_at`, `created_at`) VALUES
-(232, 116, 232, 2, 'sample-local-pdf.pdf (ประเภท 2)', 1, 0, 0, NULL, NULL, '2025-09-25 17:03:36'),
-(233, 116, 233, 3, 'form.pdf (ประเภท 3)', 2, 0, 0, NULL, NULL, '2025-09-25 17:03:36'),
-(234, 117, 234, 2, 'sample-local-pdf.pdf (ประเภท 2)', 1, 0, 0, NULL, NULL, '2025-09-25 17:27:15'),
-(235, 117, 235, 3, 'form.pdf (ประเภท 3)', 2, 0, 0, NULL, NULL, '2025-09-25 17:27:15'),
-(236, 118, 236, 2, '1. 1574-68 หลักเกณฑ์การใช้จ่ายเงินกองทุนวิจัย นวัตกรรม และบริการวิชาการ (2568).pdf (ประเภท 2)', 1, 0, 0, NULL, NULL, '2025-09-25 17:29:17'),
-(237, 118, 237, 3, 'form.pdf (ประเภท 3)', 2, 0, 0, NULL, NULL, '2025-09-25 17:29:17'),
-(238, 119, 238, 2, 'sample-local-pdf.pdf (ประเภท 2)', 1, 0, 0, NULL, NULL, '2025-09-25 17:31:05'),
-(239, 119, 239, 3, 'form.pdf (ประเภท 3)', 2, 0, 0, NULL, NULL, '2025-09-25 17:31:06'),
-(240, 120, 240, 2, 'form.pdf (ประเภท 2)', 1, 0, 0, NULL, NULL, '2025-09-25 17:35:31'),
-(241, 120, 241, 3, '1. 1574-68 หลักเกณฑ์การใช้จ่ายเงินกองทุนวิจัย นวัตกรรม และบริการวิชาการ (2568).pdf (ประเภท 3)', 2, 0, 0, NULL, NULL, '2025-09-25 17:35:31'),
-(242, 121, 245, 4, 'c4611_sample_explain.pdf', 3, 0, 0, NULL, NULL, '2025-09-26 08:42:51'),
-(243, 121, 244, 3, 'file-sample_150kB.pdf', 2, 0, 0, NULL, NULL, '2025-09-26 08:42:51'),
-(244, 121, 243, 2, 'sample.pdf', 1, 0, 0, NULL, NULL, '2025-09-26 08:42:51'),
-(245, 121, 242, 13, 'sample-local-pdf.pdf', 4, 0, 0, NULL, NULL, '2025-09-26 08:42:51'),
-(246, 122, 246, 2, 'form.pdf (ประเภท 2)', 1, 0, 0, NULL, NULL, '2025-09-26 23:33:11'),
-(247, 123, 247, 2, 'form.pdf (ประเภท 2)', 1, 0, 0, NULL, NULL, '2025-09-30 13:41:38'),
-(248, 123, 248, 3, 'sample-local-pdf.pdf (ประเภท 3)', 2, 0, 0, NULL, NULL, '2025-09-30 13:41:38'),
-(249, 123, 249, 16, '', 3, 0, 0, NULL, NULL, '2025-09-30 13:41:38'),
-(250, 124, 250, 2, 'sample-local-pdf.pdf (ประเภท 2)', 1, 0, 0, NULL, NULL, '2025-10-01 13:16:58'),
-(251, 124, 251, 3, 'form.pdf (ประเภท 3)', 2, 0, 0, NULL, NULL, '2025-10-01 13:16:58'),
-(252, 124, 252, 16, '', 3, 0, 0, NULL, NULL, '2025-10-01 13:16:58'),
-(253, 125, 253, 2, 'form.pdf (ประเภท 2)', 1, 0, 0, NULL, NULL, '2025-10-01 20:52:43'),
-(254, 125, 254, 3, 'sample-local-pdf.pdf (ประเภท 3)', 2, 0, 0, NULL, NULL, '2025-10-01 20:52:43'),
-(255, 125, 255, 16, '', 3, 0, 0, NULL, NULL, '2025-10-01 20:52:43'),
-(256, 126, 256, 2, 'sample-local-pdf.pdf (ประเภท 2)', 1, 0, 0, NULL, NULL, '2025-10-02 00:33:52'),
-(257, 126, 257, 3, 'form.pdf (ประเภท 3)', 2, 0, 0, NULL, NULL, '2025-10-02 00:33:52'),
-(258, 126, 258, 16, '', 3, 0, 0, NULL, NULL, '2025-10-02 00:33:52'),
-(259, 127, 259, 2, 'sample-local-pdf.pdf (ประเภท 2)', 1, 0, 0, NULL, NULL, '2025-10-02 12:12:36'),
-(260, 127, 260, 3, 'form.pdf (ประเภท 3)', 2, 0, 0, NULL, NULL, '2025-10-02 12:12:36'),
-(261, 127, 261, 16, '', 3, 0, 0, NULL, NULL, '2025-10-02 12:12:36'),
-(262, 128, 262, 2, 'sample-local-pdf.pdf (ประเภท 2)', 1, 0, 0, NULL, NULL, '2025-10-02 12:21:39'),
-(263, 128, 263, 3, 'form.pdf (ประเภท 3)', 2, 0, 0, NULL, NULL, '2025-10-02 12:21:39'),
-(264, 128, 264, 16, '', 3, 0, 0, NULL, NULL, '2025-10-02 12:21:39'),
-(265, 129, 265, 2, 'form.pdf (ประเภท 2)', 1, 0, 0, NULL, NULL, '2025-10-02 12:40:26'),
-(266, 129, 266, 3, 'sample-local-pdf.pdf (ประเภท 3)', 2, 0, 0, NULL, NULL, '2025-10-02 12:40:26'),
-(267, 129, 267, 16, '', 3, 0, 0, NULL, NULL, '2025-10-02 12:40:26'),
-(268, 130, 268, 3, 'form.pdf', 2, 0, 0, NULL, NULL, '2025-10-02 14:11:19'),
-(269, 130, 270, 4, 'form.pdf', 3, 0, 0, NULL, NULL, '2025-10-02 14:11:19'),
-(270, 130, 269, 2, 'form.pdf', 1, 0, 0, NULL, NULL, '2025-10-02 14:11:19'),
-(271, 130, 271, 13, 'form.pdf', 4, 0, 0, NULL, NULL, '2025-10-02 14:11:19'),
-(272, 131, 274, 13, 'form.pdf', 4, 0, 0, NULL, NULL, '2025-10-02 14:40:48'),
-(273, 131, 273, 2, 'form.pdf', 1, 0, 0, NULL, NULL, '2025-10-02 14:40:48'),
-(274, 131, 272, 3, 'form_sample.pdf', 2, 0, 0, NULL, NULL, '2025-10-02 14:40:48'),
-(275, 131, 275, 4, 'form_sample.pdf', 3, 0, 0, NULL, NULL, '2025-10-02 14:40:48'),
-(276, 132, 276, 4, 'form_sample.pdf', 3, 0, 0, NULL, NULL, '2025-10-02 14:55:31'),
-(277, 132, 278, 3, 'form_sample.pdf', 2, 0, 0, NULL, NULL, '2025-10-02 14:55:31'),
-(278, 132, 277, 2, 'form_sample.pdf', 1, 0, 0, NULL, NULL, '2025-10-02 14:55:31'),
-(279, 133, 279, 2, 'form_sample.pdf', 1, 0, 0, NULL, NULL, '2025-10-02 15:11:00'),
-(280, 133, 281, 4, 'form_sample.pdf', 3, 0, 0, NULL, NULL, '2025-10-02 15:11:00'),
-(281, 133, 280, 3, 'form_sample.pdf', 2, 0, 0, NULL, NULL, '2025-10-02 15:11:00'),
-(282, 134, 284, 2, 'form_sample.pdf', 1, 0, 0, NULL, NULL, '2025-10-02 15:26:43'),
-(283, 134, 283, 4, 'form_sample.pdf', 3, 0, 0, NULL, NULL, '2025-10-02 15:26:43'),
-(284, 134, 282, 3, 'form_sample.pdf', 2, 0, 0, NULL, NULL, '2025-10-02 15:26:43'),
-(285, 135, 285, 2, 'form_sample.pdf', 1, 0, 0, NULL, NULL, '2025-10-02 15:42:15'),
-(286, 135, 287, 4, 'form_sample.pdf', 3, 0, 0, NULL, NULL, '2025-10-02 15:42:15'),
-(287, 135, 286, 3, 'form_sample.pdf', 2, 0, 0, NULL, NULL, '2025-10-02 15:42:15'),
-(288, 136, 288, 2, 'sample.pdf (ประเภท 2)', 1, 0, 0, NULL, NULL, '2025-10-03 15:49:50'),
-(289, 136, 289, 3, 'sample-local-pdf.pdf (ประเภท 3)', 2, 0, 0, NULL, NULL, '2025-10-03 15:49:50'),
-(290, 136, 290, 16, '', 3, 0, 0, NULL, NULL, '2025-10-03 15:49:50'),
-(291, 137, 291, 2, 'form_sample (1).pdf (ประเภท 2)', 1, 0, 0, NULL, NULL, '2025-10-05 15:56:14'),
-(292, 137, 292, 16, '', 2, 0, 0, NULL, NULL, '2025-10-05 15:56:14'),
-(293, 138, 293, 2, 'form_sample (1).pdf (ประเภท 2)', 1, 0, 0, NULL, NULL, '2025-10-05 15:58:15'),
-(294, 138, 294, 16, '', 2, 0, 0, NULL, NULL, '2025-10-05 15:58:15'),
-(295, 139, 295, 2, 'form_sample (1).pdf (ประเภท 2)', 1, 0, 0, NULL, NULL, '2025-10-05 15:59:47'),
-(296, 139, 296, 16, '', 2, 0, 0, NULL, NULL, '2025-10-05 15:59:47'),
-(297, 140, 297, 2, 'form_sample (1).pdf (ประเภท 2)', 1, 0, 0, NULL, NULL, '2025-10-05 16:00:48'),
-(298, 140, 298, 16, '', 2, 0, 0, NULL, NULL, '2025-10-05 16:00:48'),
-(299, 141, 299, 2, 'form_sample (1).pdf (ประเภท 2)', 1, 0, 0, NULL, NULL, '2025-10-05 16:01:57'),
-(300, 141, 300, 16, '', 2, 0, 0, NULL, NULL, '2025-10-05 16:01:57'),
-(301, 142, 301, 2, 'form_sample (1).pdf (ประเภท 2)', 1, 0, 0, NULL, NULL, '2025-10-05 17:08:25'),
-(302, 142, 302, 16, '', 2, 0, 0, NULL, NULL, '2025-10-05 17:08:25'),
-(303, 143, 303, 2, 'form_sample (1).pdf (ประเภท 2)', 1, 0, 0, NULL, NULL, '2025-10-05 17:21:26'),
-(304, 143, 304, 16, '', 2, 0, 0, NULL, NULL, '2025-10-05 17:21:26'),
-(305, 144, 305, 2, 'form_sample (1).pdf (ประเภท 2)', 1, 0, 0, NULL, NULL, '2025-10-05 17:30:59'),
-(306, 144, 306, 16, '', 2, 0, 0, NULL, NULL, '2025-10-05 17:30:59'),
-(307, 145, 307, 2, 'form_sample (1).pdf (ประเภท 2)', 1, 0, 0, NULL, NULL, '2025-10-05 17:33:25'),
-(308, 145, 308, 16, '', 2, 0, 0, NULL, NULL, '2025-10-05 17:33:25'),
-(309, 146, 309, 2, 'form_sample (1).pdf (ประเภท 2)', 1, 0, 0, NULL, NULL, '2025-10-05 17:34:12'),
-(310, 146, 310, 16, '', 2, 0, 0, NULL, NULL, '2025-10-05 17:34:12'),
-(311, 147, 311, 2, 'form_sample (1).pdf (ประเภท 2)', 1, 0, 0, NULL, NULL, '2025-10-05 17:41:26'),
-(312, 147, 312, 16, '', 2, 0, 0, NULL, NULL, '2025-10-05 17:41:26'),
-(313, 148, 313, 2, 'form_sample (1).pdf (ประเภท 2)', 1, 0, 0, NULL, NULL, '2025-10-05 17:50:36'),
-(314, 148, 314, 3, 'form_sample (1).pdf (ประเภท 3)', 2, 0, 0, NULL, NULL, '2025-10-05 17:50:36'),
-(315, 148, 315, 16, '', 3, 0, 0, NULL, NULL, '2025-10-05 17:50:36'),
-(316, 149, 316, 2, 'form_sample (1).pdf (ประเภท 2)', 1, 0, 0, NULL, NULL, '2025-10-05 18:03:19'),
-(317, 149, 317, 3, 'form_sample (1).pdf (ประเภท 3)', 2, 0, 0, NULL, NULL, '2025-10-05 18:03:19'),
-(318, 149, 318, 16, '', 3, 0, 0, NULL, NULL, '2025-10-05 18:03:19'),
-(319, 150, 319, 2, 'form_sample (1).pdf (ประเภท 2)', 1, 0, 0, NULL, NULL, '2025-10-05 18:04:30'),
-(320, 150, 320, 3, 'form_sample (1).pdf (ประเภท 3)', 2, 0, 0, NULL, NULL, '2025-10-05 18:04:30'),
-(321, 150, 321, 16, '', 3, 0, 0, NULL, NULL, '2025-10-05 18:04:30'),
-(322, 151, 322, 2, 'form_sample (1).pdf (ประเภท 2)', 1, 0, 0, NULL, NULL, '2025-10-05 18:05:24'),
-(323, 151, 323, 3, 'form_sample (1).pdf (ประเภท 3)', 2, 0, 0, NULL, NULL, '2025-10-05 18:05:24'),
-(324, 151, 324, 16, '', 3, 0, 0, NULL, NULL, '2025-10-05 18:05:24'),
-(325, 152, 325, 2, 'form_sample (1).pdf (ประเภท 2)', 1, 0, 0, NULL, NULL, '2025-10-05 18:06:18'),
-(326, 152, 326, 3, 'form_sample (1).pdf (ประเภท 3)', 2, 0, 0, NULL, NULL, '2025-10-05 18:06:18'),
-(327, 152, 327, 16, '', 3, 0, 0, NULL, NULL, '2025-10-05 18:06:18'),
-(328, 153, 328, 2, 'form_sample (1).pdf (ประเภท 2)', 1, 0, 0, NULL, NULL, '2025-10-05 18:15:55'),
-(329, 153, 329, 3, 'form_sample (1).pdf (ประเภท 3)', 2, 0, 0, NULL, NULL, '2025-10-05 18:15:55'),
-(330, 153, 330, 16, '', 3, 0, 0, NULL, NULL, '2025-10-05 18:15:55'),
-(331, 154, 331, 2, 'form_sample (1).pdf (ประเภท 2)', 1, 0, 0, NULL, NULL, '2025-10-05 18:17:03'),
-(332, 154, 332, 3, 'form_sample (1).pdf (ประเภท 3)', 2, 0, 0, NULL, NULL, '2025-10-05 18:17:03'),
-(333, 154, 333, 16, '', 3, 0, 0, NULL, NULL, '2025-10-05 18:17:03'),
-(334, 155, 334, 2, 'form_sample (1).pdf (ประเภท 2)', 1, 0, 0, NULL, NULL, '2025-10-05 18:25:41'),
-(335, 155, 335, 3, 'form_sample (1).pdf (ประเภท 3)', 2, 0, 0, NULL, NULL, '2025-10-05 18:25:41'),
-(336, 155, 336, 16, '', 3, 0, 0, NULL, NULL, '2025-10-05 18:25:41'),
-(337, 156, 337, 2, 'form_sample (1).pdf (ประเภท 2)', 1, 0, 0, NULL, NULL, '2025-10-05 18:26:50'),
-(338, 156, 338, 3, 'form_sample (1).pdf (ประเภท 3)', 2, 0, 0, NULL, NULL, '2025-10-05 18:26:50'),
-(339, 156, 339, 16, '', 3, 0, 0, NULL, NULL, '2025-10-05 18:26:50'),
-(340, 157, 340, 2, 'form_sample (1).pdf (ประเภท 2)', 1, 0, 0, NULL, NULL, '2025-10-05 18:28:42'),
-(341, 157, 341, 16, '', 2, 0, 0, NULL, NULL, '2025-10-05 18:28:42'),
-(342, 154, 348, 20, '', 4, 0, 0, NULL, NULL, '2025-10-07 12:44:35'),
-(343, 153, 349, 20, '', 4, 0, 0, NULL, NULL, '2025-10-07 13:05:19'),
-(344, 162, 353, 2, 'form_sample (1).pdf (ประเภท 2)', 1, 0, 0, NULL, NULL, '2025-10-07 14:00:42'),
-(345, 162, 354, 3, 'form_sample (1).pdf (ประเภท 3)', 2, 0, 0, NULL, NULL, '2025-10-07 14:00:42'),
-(346, 162, 355, 16, '', 3, 0, 0, NULL, NULL, '2025-10-07 14:00:42'),
-(347, 162, 356, 20, '', 4, 0, 0, NULL, NULL, '2025-10-07 14:04:37'),
-(348, 163, 359, 2, 'form_sample (1).pdf (ประเภท 2)', 1, 0, 0, NULL, NULL, '2025-10-07 14:33:37'),
-(349, 163, 360, 3, 'publication_reward_preview.pdf (ประเภท 3)', 2, 0, 0, NULL, NULL, '2025-10-07 14:33:37'),
-(350, 163, 361, 16, '', 3, 0, 0, NULL, NULL, '2025-10-07 14:33:37'),
-(351, 164, 362, 2, 'form_sample (1).pdf (ประเภท 2)', 1, 0, 0, NULL, NULL, '2025-10-07 14:57:03'),
-(352, 164, 363, 3, 'form_sample.pdf (ประเภท 3)', 2, 0, 0, NULL, NULL, '2025-10-07 14:57:03'),
-(353, 164, 364, 16, '', 3, 0, 0, NULL, NULL, '2025-10-07 14:57:03'),
-(354, 165, 365, 2, 'form_sample.pdf (ประเภท 2)', 1, 0, 0, NULL, NULL, '2025-10-07 15:08:08'),
-(355, 165, 366, 3, 'publication_reward_preview.pdf (ประเภท 3)', 2, 0, 0, NULL, NULL, '2025-10-07 15:08:09'),
-(356, 165, 367, 16, '', 3, 0, 0, NULL, NULL, '2025-10-07 15:08:09'),
-(357, 166, 368, 2, 'form_sample.pdf (ประเภท 2)', 1, 0, 0, NULL, NULL, '2025-10-07 15:45:13'),
-(358, 166, 369, 3, 'form_sample (1).pdf (ประเภท 3)', 2, 0, 0, NULL, NULL, '2025-10-07 15:45:14'),
-(359, 166, 370, 16, '', 3, 0, 0, NULL, NULL, '2025-10-07 15:45:14'),
-(360, 166, 371, 20, '', 4, 0, 0, NULL, NULL, '2025-10-07 15:59:49'),
-(361, 168, 372, 2, 'form_sample.pdf (ประเภท 2)', 1, 0, 0, NULL, NULL, '2025-10-07 20:57:03'),
-(362, 168, 373, 3, 'form_sample (1).pdf (ประเภท 3)', 2, 0, 0, NULL, NULL, '2025-10-07 20:57:03'),
-(363, 168, 374, 16, '', 3, 0, 0, NULL, NULL, '2025-10-07 20:57:03');
+(367, 170, 378, 2, 'form_sample.pdf (ประเภท 2)', 1, 0, 0, NULL, NULL, '2025-10-07 22:10:44'),
+(368, 170, 379, 3, 'form_sample (1).pdf (ประเภท 3)', 2, 0, 0, NULL, NULL, '2025-10-07 22:10:44'),
+(369, 170, 380, 16, '', 3, 0, 0, NULL, NULL, '2025-10-07 22:10:44'),
+(370, 171, 381, 2, 'form_sample.pdf (ประเภท 2)', 1, 0, 0, NULL, NULL, '2025-10-07 22:35:41'),
+(371, 171, 382, 3, 'form_sample (1).pdf (ประเภท 3)', 2, 0, 0, NULL, NULL, '2025-10-07 22:35:41'),
+(372, 171, 383, 16, '', 3, 0, 0, NULL, NULL, '2025-10-07 22:35:42');
 
 -- --------------------------------------------------------
 
@@ -1974,64 +1493,8 @@ CREATE TABLE `submission_users` (
 --
 
 INSERT INTO `submission_users` (`id`, `submission_id`, `user_id`, `role`, `is_primary`, `display_order`, `created_at`) VALUES
-(166, 116, 8, 'owner', 1, 1, '2025-09-25 17:03:36'),
-(167, 116, 1, 'coauthor', 0, 2, '2025-09-25 17:03:36'),
-(168, 117, 8, 'owner', 1, 1, '2025-09-25 17:27:15'),
-(169, 117, 1, 'coauthor', 0, 2, '2025-09-25 17:27:15'),
-(170, 118, 8, 'owner', 1, 1, '2025-09-25 17:29:17'),
-(171, 118, 9, 'coauthor', 0, 2, '2025-09-25 17:29:17'),
-(172, 119, 8, 'owner', 1, 1, '2025-09-25 17:31:05'),
-(173, 119, 1, 'coauthor', 0, 2, '2025-09-25 17:31:05'),
-(174, 120, 8, 'owner', 1, 1, '2025-09-25 17:35:31'),
-(175, 120, 1, 'coauthor', 0, 2, '2025-09-25 17:35:31'),
-(176, 122, 8, 'owner', 1, 1, '2025-09-26 23:33:11'),
-(177, 122, 1, 'coauthor', 0, 2, '2025-09-26 23:33:11'),
-(178, 123, 8, 'owner', 1, 1, '2025-09-30 13:41:38'),
-(179, 123, 12, 'coauthor', 0, 2, '2025-09-30 13:41:38'),
-(180, 124, 8, 'owner', 1, 1, '2025-10-01 13:16:58'),
-(181, 124, 1, 'coauthor', 0, 2, '2025-10-01 13:16:58'),
-(182, 125, 8, 'owner', 1, 1, '2025-10-01 20:52:43'),
-(183, 125, 1, 'coauthor', 0, 2, '2025-10-01 20:52:43'),
-(184, 126, 8, 'owner', 1, 1, '2025-10-02 00:33:52'),
-(185, 126, 1, 'coauthor', 0, 2, '2025-10-02 00:33:52'),
-(186, 127, 8, 'owner', 1, 1, '2025-10-02 12:12:36'),
-(187, 127, 1, 'coauthor', 0, 2, '2025-10-02 12:12:36'),
-(188, 128, 8, 'owner', 1, 1, '2025-10-02 12:21:39'),
-(189, 129, 8, 'owner', 1, 1, '2025-10-02 12:40:26'),
-(190, 136, 13, 'owner', 1, 1, '2025-10-03 15:49:50'),
-(191, 136, 8, 'coauthor', 0, 2, '2025-10-03 15:49:50'),
-(192, 137, 8, 'owner', 1, 1, '2025-10-05 15:56:14'),
-(193, 138, 8, 'owner', 1, 1, '2025-10-05 15:58:15'),
-(194, 139, 8, 'owner', 1, 1, '2025-10-05 15:59:47'),
-(195, 140, 8, 'owner', 1, 1, '2025-10-05 16:00:48'),
-(196, 141, 8, 'owner', 1, 1, '2025-10-05 16:01:57'),
-(197, 142, 8, 'owner', 1, 1, '2025-10-05 17:08:25'),
-(198, 143, 8, 'owner', 1, 1, '2025-10-05 17:21:26'),
-(199, 144, 8, 'owner', 1, 1, '2025-10-05 17:30:59'),
-(200, 145, 8, 'owner', 1, 1, '2025-10-05 17:33:25'),
-(201, 146, 8, 'owner', 1, 1, '2025-10-05 17:34:12'),
-(202, 147, 8, 'owner', 1, 1, '2025-10-05 17:41:26'),
-(203, 148, 8, 'owner', 1, 1, '2025-10-05 17:50:36'),
-(204, 149, 8, 'owner', 1, 1, '2025-10-05 18:03:19'),
-(205, 150, 8, 'owner', 1, 1, '2025-10-05 18:04:30'),
-(206, 151, 8, 'owner', 1, 1, '2025-10-05 18:05:24'),
-(207, 152, 8, 'owner', 1, 1, '2025-10-05 18:06:18'),
-(208, 153, 8, 'owner', 1, 1, '2025-10-05 18:15:55'),
-(209, 154, 8, 'owner', 1, 1, '2025-10-05 18:17:03'),
-(210, 155, 8, 'owner', 1, 1, '2025-10-05 18:25:41'),
-(211, 156, 8, 'owner', 1, 1, '2025-10-05 18:26:50'),
-(212, 157, 8, 'owner', 1, 1, '2025-10-05 18:28:42'),
-(213, 158, 8, 'owner', 1, 1, '2025-10-07 13:01:58'),
-(214, 159, 8, 'owner', 1, 1, '2025-10-07 13:28:28'),
-(215, 160, 8, 'owner', 1, 1, '2025-10-07 13:43:12'),
-(216, 161, 8, 'owner', 1, 1, '2025-10-07 13:50:18'),
-(217, 162, 8, 'owner', 1, 1, '2025-10-07 14:00:41'),
-(218, 163, 8, 'owner', 1, 1, '2025-10-07 14:23:20'),
-(219, 164, 8, 'owner', 1, 1, '2025-10-07 14:57:03'),
-(220, 165, 8, 'owner', 1, 1, '2025-10-07 15:08:08'),
-(221, 166, 8, 'owner', 1, 1, '2025-10-07 15:45:13'),
-(222, 167, 8, 'owner', 1, 1, '2025-10-07 20:32:36'),
-(223, 168, 8, 'owner', 1, 1, '2025-10-07 20:45:23');
+(225, 170, 8, 'owner', 1, 1, '2025-10-07 22:10:43'),
+(226, 171, 8, 'owner', 1, 1, '2025-10-07 22:35:41');
 
 -- --------------------------------------------------------
 
@@ -2378,11 +1841,18 @@ INSERT INTO `user_sessions` (`session_id`, `user_id`, `access_token_jti`, `refre
 (520, 13, '80ad4500-e508-4e2e-b5af-9c6e98c1415d', '8WH75C8Ckl5XrKIzXJMwRm7RHst_LQzq6X3QEl9iwUk=', 'Chrome Browser', 'web', '202.28.118.117', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36', '2025-10-07 15:59:51', '2025-11-06 14:47:39', 1, '2025-10-07 15:47:39', '2025-10-07 15:59:51'),
 (521, 8, '63deb44a-a6a1-49bc-957b-b537b944d3e4', 'nrYy4dYgiPIzJGuu9Bhgdy9gnzq442spdQ-XhyIfQpg=', 'Chrome Browser', 'web', '27.145.211.4', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36', '2025-10-07 20:25:54', '2025-11-06 19:01:24', 0, '2025-10-07 20:01:24', '2025-10-07 20:25:54'),
 (522, 13, 'c6e01119-c25f-4bac-afd0-c5d7ad839c5b', 'h0HgmuXBlv-Y9CSKMFkmKMSSE0ANtozwXGStIce9iSA=', 'Chrome Browser', 'web', '202.28.118.117', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36', '2025-10-07 20:30:03', '2025-11-06 19:22:41', 0, '2025-10-07 20:22:41', '2025-10-07 20:30:03'),
-(523, 8, '8bde045e-bf30-49fe-88b6-334f99c409d4', '6rezq890X9VgSFkoYqL8U0XaL8bVPFhcXdTP3SUHZTY=', 'Chrome Browser', 'web', '27.145.211.4', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36', '2025-10-07 21:42:40', '2025-11-06 19:26:05', 1, '2025-10-07 20:26:05', '2025-10-07 21:42:40'),
+(523, 8, '8bde045e-bf30-49fe-88b6-334f99c409d4', '6rezq890X9VgSFkoYqL8U0XaL8bVPFhcXdTP3SUHZTY=', 'Chrome Browser', 'web', '27.145.211.4', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36', '2025-10-07 22:07:28', '2025-11-06 19:26:05', 1, '2025-10-07 20:26:05', '2025-10-07 22:07:28'),
 (524, 8, '72e99bfb-1178-43ab-ac74-fee75d4ab726', 'BoJr8ObxPxPz-TME2Eb-ai5YI1rcc8poZI790-RMHlM=', 'Chrome Browser', 'web', '202.28.118.117', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36', '2025-10-07 21:34:34', '2025-11-06 19:30:08', 0, '2025-10-07 20:30:08', '2025-10-07 21:34:34'),
 (525, 11, 'bb4a779d-0c55-41cf-9d82-6ed94584a1bc', '6ACSFl7fbZCifo1L7p-KhyljiHFHA_K47Vbg-opMfSY=', 'Chrome Browser', 'web', '202.28.118.117', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36', '2025-10-07 21:34:44', '2025-11-06 20:34:36', 0, '2025-10-07 21:34:36', '2025-10-07 21:34:44'),
 (526, 12, '32d6453e-3811-41f6-ae51-7ba81d3a2d40', 'HeGxNMi0SZWXgg1UwgijkpOlDRgCmXZoRIf0PrvXiso=', 'Chrome Browser', 'web', '202.28.118.117', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36', '2025-10-07 21:34:57', '2025-11-06 20:34:47', 0, '2025-10-07 21:34:47', '2025-10-07 21:34:57'),
-(527, 8, 'cb6947d8-d981-44b2-aa05-74578b17864a', 'ZS1HSfV6EbCHWZjePeQ2y5nYfkAjto9YDIeRMdiiWKI=', 'Chrome Browser', 'web', '202.28.118.117', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36', '2025-10-07 21:41:45', '2025-11-06 20:35:01', 1, '2025-10-07 21:35:01', '2025-10-07 21:41:45');
+(527, 8, 'cb6947d8-d981-44b2-aa05-74578b17864a', 'ZS1HSfV6EbCHWZjePeQ2y5nYfkAjto9YDIeRMdiiWKI=', 'Chrome Browser', 'web', '202.28.118.117', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36', '2025-10-07 22:11:04', '2025-11-06 20:35:01', 0, '2025-10-07 21:35:01', '2025-10-07 22:11:04'),
+(528, 13, '11487839-13bc-4a2b-a438-5035a58d3644', 'qvPszXSELYFEk_wdwwiYwYIBlo3OvMsExASnu6xHt88=', 'Chrome Browser', 'web', '202.28.118.117', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36', '2025-10-07 22:11:25', '2025-11-06 21:11:06', 0, '2025-10-07 22:11:06', '2025-10-07 22:11:25'),
+(529, 11, 'f2e46bc1-189c-4412-a80d-695dda51b76b', 'n52cRFhjArlreIiNFMa25JAEePBCN7spvaffsbSWPFI=', 'Chrome Browser', 'web', '202.28.118.117', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36', '2025-10-07 22:13:27', '2025-11-06 21:11:28', 0, '2025-10-07 22:11:28', '2025-10-07 22:13:27'),
+(530, 13, '8cbefbb0-645a-40d7-8498-2baa405cb6b5', '7-ZQXONlFD6wyiEwBPFNZ2pPRX8rnvV4suuATexk9X0=', 'Chrome Browser', 'web', '202.28.118.117', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36', '2025-10-07 22:20:41', '2025-11-06 21:13:31', 0, '2025-10-07 22:13:31', '2025-10-07 22:20:41'),
+(531, 7, 'e2eb9e36-b459-4bfb-8c12-06508915eb0b', '3sCK85np6SpmRjWRqTPUuiHr6SkIIqCEiEdm6zwLccw=', 'Chrome Browser', 'web', '202.28.118.117', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36', '2025-10-07 22:34:54', '2025-11-06 21:20:43', 0, '2025-10-07 22:20:43', '2025-10-07 22:34:54'),
+(532, 8, '6f7c3397-3d36-44ad-8e5d-deec1224973d', 'lH4JYzu9flScsj3k3EhixhMAauAWcDSBBO2RedqRqOE=', 'Chrome Browser', 'web', '202.28.118.117', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36', '2025-10-07 22:35:52', '2025-11-06 21:34:56', 0, '2025-10-07 22:34:56', '2025-10-07 22:35:52'),
+(533, 7, '115b2608-de70-4de5-b107-0f55c9a65baf', 'kAS0gYM4rZz2AMBN1ry8LBWVKwypb_gBjkaUjD4xj_4=', 'Chrome Browser', 'web', '202.28.118.117', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36', '2025-10-07 22:35:59', '2025-11-06 21:35:55', 1, '2025-10-07 22:35:55', '2025-10-07 22:35:59'),
+(534, 8, '0b0e48e2-4de4-4969-8785-50e6ef4f5dc2', 'Za4irw-5PFCicpPttGn347zFt4LqEDyjduhPON8knUA=', 'Chrome Browser', 'web', '27.145.211.4', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36', '2025-10-07 22:43:55', '2025-11-06 21:42:12', 1, '2025-10-07 22:42:12', '2025-10-07 22:43:55');
 
 -- --------------------------------------------------------
 
@@ -2581,7 +2051,14 @@ INSERT INTO `user_tokens` (`token_id`, `user_id`, `token_type`, `token`, `expire
 (524, 8, 'refresh', 'BoJr8ObxPxPz-TME2Eb-ai5YI1rcc8poZI790-RMHlM=', '2025-11-06 19:30:08', 1, 'Chrome Browser / web', '202.28.118.117', '2025-10-07 20:30:08', '2025-10-07 21:34:34'),
 (525, 11, 'refresh', '6ACSFl7fbZCifo1L7p-KhyljiHFHA_K47Vbg-opMfSY=', '2025-11-06 20:34:36', 1, 'Chrome Browser / web', '202.28.118.117', '2025-10-07 21:34:36', '2025-10-07 21:34:44'),
 (526, 12, 'refresh', 'HeGxNMi0SZWXgg1UwgijkpOlDRgCmXZoRIf0PrvXiso=', '2025-11-06 20:34:47', 1, 'Chrome Browser / web', '202.28.118.117', '2025-10-07 21:34:47', '2025-10-07 21:34:57'),
-(527, 8, 'refresh', 'ZS1HSfV6EbCHWZjePeQ2y5nYfkAjto9YDIeRMdiiWKI=', '2025-11-06 20:35:01', 0, 'Chrome Browser / web', '202.28.118.117', '2025-10-07 21:35:01', '2025-10-07 21:35:01');
+(527, 8, 'refresh', 'ZS1HSfV6EbCHWZjePeQ2y5nYfkAjto9YDIeRMdiiWKI=', '2025-11-06 20:35:01', 1, 'Chrome Browser / web', '202.28.118.117', '2025-10-07 21:35:01', '2025-10-07 22:11:04'),
+(528, 13, 'refresh', 'qvPszXSELYFEk_wdwwiYwYIBlo3OvMsExASnu6xHt88=', '2025-11-06 21:11:06', 1, 'Chrome Browser / web', '202.28.118.117', '2025-10-07 22:11:06', '2025-10-07 22:11:25'),
+(529, 11, 'refresh', 'n52cRFhjArlreIiNFMa25JAEePBCN7spvaffsbSWPFI=', '2025-11-06 21:11:28', 1, 'Chrome Browser / web', '202.28.118.117', '2025-10-07 22:11:28', '2025-10-07 22:13:27'),
+(530, 13, 'refresh', '7-ZQXONlFD6wyiEwBPFNZ2pPRX8rnvV4suuATexk9X0=', '2025-11-06 21:13:31', 1, 'Chrome Browser / web', '202.28.118.117', '2025-10-07 22:13:31', '2025-10-07 22:20:41'),
+(531, 7, 'refresh', '3sCK85np6SpmRjWRqTPUuiHr6SkIIqCEiEdm6zwLccw=', '2025-11-06 21:20:43', 1, 'Chrome Browser / web', '202.28.118.117', '2025-10-07 22:20:43', '2025-10-07 22:34:54'),
+(532, 8, 'refresh', 'lH4JYzu9flScsj3k3EhixhMAauAWcDSBBO2RedqRqOE=', '2025-11-06 21:34:56', 1, 'Chrome Browser / web', '202.28.118.117', '2025-10-07 22:34:56', '2025-10-07 22:35:52'),
+(533, 7, 'refresh', 'kAS0gYM4rZz2AMBN1ry8LBWVKwypb_gBjkaUjD4xj_4=', '2025-11-06 21:35:55', 0, 'Chrome Browser / web', '202.28.118.117', '2025-10-07 22:35:55', '2025-10-07 22:35:55'),
+(534, 8, 'refresh', 'Za4irw-5PFCicpPttGn347zFt4LqEDyjduhPON8knUA=', '2025-11-06 21:42:12', 0, 'Chrome Browser / web', '27.145.211.4', '2025-10-07 22:42:12', '2025-10-07 22:42:12');
 
 -- --------------------------------------------------------
 
@@ -2685,6 +2162,19 @@ CREATE TABLE `v_approval_totals_by_teacher` (
 ,`subcategory_budget_id` int(11)
 ,`subcategory_budget_label` mediumtext
 ,`total_approved_amount` decimal(59,2)
+);
+
+-- --------------------------------------------------------
+
+--
+-- Stand-in structure for view `v_budget_summary`
+-- (See below for the actual view)
+--
+CREATE TABLE `v_budget_summary` (
+`subcategory_id` int(11)
+,`allocated_amount` decimal(15,2)
+,`used_amount` decimal(37,2)
+,`remaining_budget` decimal(38,2)
 );
 
 -- --------------------------------------------------------
@@ -2957,6 +2447,15 @@ CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW 
 -- --------------------------------------------------------
 
 --
+-- Structure for view `v_budget_summary`
+--
+DROP TABLE IF EXISTS `v_budget_summary`;
+
+CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v_budget_summary`  AS  select `sb`.`subcategory_id` AS `subcategory_id`,`sb`.`allocated_amount` AS `allocated_amount`,coalesce(sum(case when `s`.`submission_type` = 'fund_application' then `fad`.`approved_amount` when `s`.`submission_type` = 'publication_reward' then `prd`.`total_approve_amount` else 0 end),0) AS `used_amount`,`sb`.`allocated_amount` - coalesce(sum(case when `s`.`submission_type` = 'fund_application' then `fad`.`approved_amount` when `s`.`submission_type` = 'publication_reward' then `prd`.`total_approve_amount` else 0 end),0) AS `remaining_budget` from (((`subcategory_budgets` `sb` left join `submissions` `s` on(`s`.`subcategory_id` = `sb`.`subcategory_id` and `s`.`status_id` = 2)) left join `fund_application_details` `fad` on(`fad`.`submission_id` = `s`.`submission_id`)) left join `publication_reward_details` `prd` on(`prd`.`submission_id` = `s`.`submission_id`)) where `sb`.`record_scope` = 'overall' group by `sb`.`subcategory_id`,`sb`.`allocated_amount` ;
+
+-- --------------------------------------------------------
+
+--
 -- Structure for view `v_current_announcement_assignments`
 --
 DROP TABLE IF EXISTS `v_current_announcement_assignments`;
@@ -3033,7 +2532,7 @@ CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW 
 --
 DROP TABLE IF EXISTS `v_subcategory_user_usage_total`;
 
-CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v_subcategory_user_usage_total`  AS  select `r`.`user_id` AS `user_id`,`r`.`year_id` AS `year_id`,`r`.`subcategory_id` AS `subcategory_id`,count(0) AS `used_grants`,sum(`r`.`approved_amount`) AS `used_amount` from `v_approval_records` `r` where `r`.`submission_type` = 'fund_application' group by `r`.`user_id`,`r`.`year_id`,`r`.`subcategory_id` ;
+CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v_subcategory_user_usage_total`  AS  select `r`.`user_id` AS `user_id`,`r`.`year_id` AS `year_id`,`r`.`subcategory_id` AS `subcategory_id`,count(0) AS `used_grants`,sum(`r`.`approved_amount`) AS `used_amount` from `v_approval_records` `r` where `r`.`submission_type` in ('fund_application','publication_reward') group by `r`.`user_id`,`r`.`year_id`,`r`.`subcategory_id` ;
 
 -- --------------------------------------------------------
 
@@ -3426,7 +2925,7 @@ ALTER TABLE `application_status`
 -- AUTO_INCREMENT for table `audit_logs`
 --
 ALTER TABLE `audit_logs`
-  MODIFY `log_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=493;
+  MODIFY `log_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=499;
 
 --
 -- AUTO_INCREMENT for table `dept_head_assignments`
@@ -3444,7 +2943,7 @@ ALTER TABLE `document_types`
 -- AUTO_INCREMENT for table `file_uploads`
 --
 ALTER TABLE `file_uploads`
-  MODIFY `file_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=375;
+  MODIFY `file_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=384;
 
 --
 -- AUTO_INCREMENT for table `fund_application_details`
@@ -3480,7 +2979,7 @@ ALTER TABLE `innovations`
 -- AUTO_INCREMENT for table `notifications`
 --
 ALTER TABLE `notifications`
-  MODIFY `notification_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=196;
+  MODIFY `notification_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=202;
 
 --
 -- AUTO_INCREMENT for table `positions`
@@ -3498,7 +2997,7 @@ ALTER TABLE `publications`
 -- AUTO_INCREMENT for table `publication_reward_details`
 --
 ALTER TABLE `publication_reward_details`
-  MODIFY `detail_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=127;
+  MODIFY `detail_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=130;
 
 --
 -- AUTO_INCREMENT for table `publication_reward_rates`
@@ -3546,19 +3045,19 @@ ALTER TABLE `subcategory_budgets`
 -- AUTO_INCREMENT for table `submissions`
 --
 ALTER TABLE `submissions`
-  MODIFY `submission_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=169;
+  MODIFY `submission_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=172;
 
 --
 -- AUTO_INCREMENT for table `submission_documents`
 --
 ALTER TABLE `submission_documents`
-  MODIFY `document_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=364;
+  MODIFY `document_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=373;
 
 --
 -- AUTO_INCREMENT for table `submission_users`
 --
 ALTER TABLE `submission_users`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=224;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=227;
 
 --
 -- AUTO_INCREMENT for table `system_config`
@@ -3582,13 +3081,13 @@ ALTER TABLE `user_fund_eligibilities`
 -- AUTO_INCREMENT for table `user_sessions`
 --
 ALTER TABLE `user_sessions`
-  MODIFY `session_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=528;
+  MODIFY `session_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=535;
 
 --
 -- AUTO_INCREMENT for table `user_tokens`
 --
 ALTER TABLE `user_tokens`
-  MODIFY `token_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=528;
+  MODIFY `token_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=535;
 
 --
 -- AUTO_INCREMENT for table `years`
