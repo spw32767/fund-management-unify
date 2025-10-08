@@ -164,12 +164,26 @@ export default function FundSettingsContent({ onNavigate }) {
 
   const loadCategories = async () => {
     if (!selectedYear) return;
-    
+
     setLoading(true);
     setError(null);
     try {
       const data = await adminAPI.getCategoriesWithDetails(selectedYear.year_id);
-      setCategories(data);
+      const normalized = data.map(category => ({
+        ...category,
+        subcategories: (category.subcategories || []).map(subcategory => ({
+          ...subcategory,
+          budgets: (subcategory.budgets || [])
+            .map(budget => ({ ...budget }))
+            .sort((a, b) => {
+              if (a.record_scope === b.record_scope) {
+                return (a.subcategory_budget_id || 0) - (b.subcategory_budget_id || 0);
+              }
+              return a.record_scope === 'overall' ? -1 : 1;
+            }),
+        })),
+      }));
+      setCategories(normalized);
     } catch (error) {
       console.error("Error loading categories:", error);
       setError("ไม่สามารถโหลดข้อมูลหมวดหมู่ได้");
@@ -588,77 +602,87 @@ export default function FundSettingsContent({ onNavigate }) {
     }
   };
 
-  const handleBudgetSave = async (budgetData) => {
+  const handleBudgetSave = async (budgetFormValues) => {
+    if (!selectedSubcategoryForBudget) {
+      showError('ไม่พบทุนย่อยที่ต้องการบันทึก');
+      return;
+    }
+
+    const toFloat = (value) => {
+      if (value === '' || value === null || value === undefined) return null;
+      const parsed = Number(value);
+      return Number.isNaN(parsed) ? null : parsed;
+    };
+
+    const toInt = (value) => {
+      if (value === '' || value === null || value === undefined) return null;
+      const parsed = parseInt(value, 10);
+      return Number.isNaN(parsed) ? null : parsed;
+    };
+
+    const scope = (budgetFormValues.record_scope || 'rule').toLowerCase();
+
+    const payload = {
+      record_scope: scope,
+    };
+
+    if (budgetFormValues.status) {
+      payload.status = budgetFormValues.status;
+    }
+
+    if (budgetFormValues.fund_description) {
+      payload.fund_description = budgetFormValues.fund_description;
+    }
+
+    if (budgetFormValues.comment) {
+      payload.comment = budgetFormValues.comment;
+    }
+
+    if (scope === 'overall') {
+      const allocated = toFloat(budgetFormValues.allocated_amount);
+      payload.allocated_amount = allocated ?? 0;
+      payload.max_amount_per_year = toFloat(budgetFormValues.max_amount_per_year);
+      payload.max_grants = toInt(budgetFormValues.max_grants);
+      payload.max_amount_per_grant = toFloat(budgetFormValues.max_amount_per_grant);
+    } else {
+      payload.allocated_amount = 0;
+      payload.max_amount_per_year = null;
+      payload.max_grants = null;
+      payload.max_amount_per_grant = toFloat(budgetFormValues.max_amount_per_grant);
+      if (budgetFormValues.level) {
+        payload.level = budgetFormValues.level;
+      }
+    }
+
+    const validationData = {
+      ...payload,
+      subcategory_id: selectedSubcategoryForBudget.subcategory_id,
+    };
+
     setLoading(true);
     try {
-      // Validate data
-      const dataWithSubcategory = { 
-        ...budgetData, 
-        subcategory_id: selectedSubcategoryForBudget.subcategory_id 
-      };
-      adminAPI.validateBudgetData(dataWithSubcategory);
-      
-      if (editingBudget) {
-        // Update existing budget
-        await adminAPI.updateBudget(editingBudget.subcategory_budget_id, budgetData);
-        setCategories(prev => prev.map(cat => ({
-          ...cat,
-          subcategories: cat.subcategories.map(sub => {
-            if (sub.subcategory_id === selectedSubcategoryForBudget.subcategory_id) {
-              return {
-                ...sub,
-                budgets: sub.budgets.map(budget => 
-                  budget.subcategory_budget_id === editingBudget.subcategory_budget_id
-                    ? { 
-                        ...budget, 
-                        ...budgetData,
-                        remaining_budget: budgetData.allocated_amount - (budget.used_amount || 0),
-                        remaining_grant: budgetData.max_grants - (budget.max_grants - (budget.remaining_grant || 0)),
-                        update_at: new Date().toISOString()
-                      }
-                    : budget
-                )
-              };
-            }
-            return sub;
-          })
-        })));
-      } else {
-        // Add new budget
-        const response = await adminAPI.createBudget(dataWithSubcategory);
-        console.log('Create budget response:', response); // Debug log
+      adminAPI.validateBudgetData(validationData);
 
-        // ตรวจสอบ response structure ให้ถูกต้อง
-        const budgetId = response.subcategory_budget_id || response.data?.subcategory_budget_id;
-        if (budgetId) {
-          const newBudget = {
-            subcategory_budget_id: budgetId,
-            ...budgetData,
-            remaining_budget: budgetData.allocated_amount,
-            used_amount: 0,
-            remaining_grant: budgetData.max_grants,
-            create_at: new Date().toISOString(),
-            update_at: new Date().toISOString()
-          };
-          setCategories(prev => prev.map(cat => ({
-            ...cat,
-            subcategories: cat.subcategories.map(sub => 
-              sub.subcategory_id === selectedSubcategoryForBudget.subcategory_id
-                ? { ...sub, budgets: [...(sub.budgets || []), newBudget] }
-                : sub
-            )
-          })));
-        }
+      if (editingBudget) {
+        await adminAPI.updateBudget(editingBudget.subcategory_budget_id, payload);
+      } else {
+        await adminAPI.createBudget({
+          ...payload,
+          subcategory_id: selectedSubcategoryForBudget.subcategory_id,
+        });
       }
-      
+
+      await loadCategories();
+
       setBudgetModalOpen(false);
       setEditingBudget(null);
       setSelectedSubcategoryForBudget(null);
       setSelectedCategoryForSub(null);
-      showSuccess(editingBudget ? "อัปเดตงบประมาณเรียบร้อยแล้ว" : "สร้างงบประมาณใหม่เรียบร้อยแล้ว");
+      showSuccess(editingBudget ? "อัปเดตนโยบายงบประมาณเรียบร้อยแล้ว" : "สร้างนโยบายงบประมาณใหม่เรียบร้อยแล้ว");
     } catch (error) {
       console.error("Error saving budget:", error);
-      showError(`เกิดข้อผิดพลาด: ${error.message}`);
+      const message = error?.message || 'เกิดข้อผิดพลาดในการบันทึกงบประมาณ';
+      showError(`เกิดข้อผิดพลาด: ${message}`);
     } finally {
       setLoading(false);
     }
@@ -666,7 +690,7 @@ export default function FundSettingsContent({ onNavigate }) {
 
   const handleToggleBudgetStatus = async (budget, subcategory, category, nextActive) => {
     // nextActive: boolean -> เราอัปเดต state เองแบบ optimistic
-    const newStatus = nextActive ? "active" : "inactive";
+    const newStatus = nextActive ? "active" : "disable";
 
     try {
       await adminAPI.toggleBudgetStatus(budget.subcategory_budget_id);
@@ -698,8 +722,41 @@ export default function FundSettingsContent({ onNavigate }) {
   };
 
 
+  const handleCopyToNewYear = async (currentYear, destinationYear) => {
+    const sourceYearId = currentYear?.year_id || currentYear;
+    if (!sourceYearId || !destinationYear) {
+      showError('ข้อมูลปีไม่ครบถ้วน ไม่สามารถคัดลอกได้');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const parsedBudget = Number(currentYear?.budget);
+      await adminAPI.copyFundStructure(sourceYearId, destinationYear, {
+        target_budget: Number.isFinite(parsedBudget) ? parsedBudget : 0,
+      });
+
+      const refreshedYears = await adminAPI.getYears();
+      setYears(refreshedYears);
+
+      const targetYearObj = refreshedYears.find(year => `${year.year}` === `${destinationYear}`);
+      if (targetYearObj) {
+        setSelectedYear(targetYearObj);
+      }
+
+      showSuccess(`คัดลอกข้อมูลไปยังปี ${destinationYear} เรียบร้อยแล้ว`);
+    } catch (error) {
+      console.error('Error copying fund structure:', error);
+      const message = error?.message || 'ไม่สามารถคัดลอกข้อมูลได้';
+      showError(message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+
   // ==================== OTHER HANDLERS ====================
-  
+
   const handleYearChange = (yearId) => {
     const year = years.find(y => y.year_id === parseInt(yearId));
     setSelectedYear(year);
@@ -785,6 +842,7 @@ export default function FundSettingsContent({ onNavigate }) {
       handleToggleCategoryStatus(category, next, selectedYear),
     onToggleSubcategoryStatus: handleToggleSubcategoryStatus,
     onToggleBudgetStatus: handleToggleBudgetStatus,
+    onCopyToNewYear: handleCopyToNewYear,
   };
 
   const renderActiveContent = () => {
