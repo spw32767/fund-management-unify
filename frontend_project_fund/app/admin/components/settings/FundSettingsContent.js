@@ -202,6 +202,71 @@ export default function FundSettingsContent({ onNavigate }) {
         return orderA - orderB;
       });
 
+      const normalizeBudgetRecords = (rawBudgets) => {
+        if (!rawBudgets) return [];
+
+        const results = [];
+        const seenIds = new Set();
+        const seenObjects = typeof WeakSet === 'function' ? new WeakSet() : null;
+
+        const addBudget = (budget, fallbackScope) => {
+          if (!budget || typeof budget !== 'object') return;
+
+          if (seenObjects) {
+            if (seenObjects.has(budget)) return;
+            seenObjects.add(budget);
+          }
+
+          const budgetId = budget.subcategory_budget_id ?? budget.budget_id ?? `${fallbackScope || 'unknown'}-${
+            budget.level || budget.fund_description || results.length
+          }`;
+          if (seenIds.has(budgetId)) return;
+
+          seenIds.add(budgetId);
+          results.push({
+            ...budget,
+            record_scope: String(budget.record_scope || fallbackScope || '').toLowerCase(),
+          });
+        };
+
+        if (Array.isArray(rawBudgets)) {
+          rawBudgets.forEach((budget) => addBudget(budget));
+          return results;
+        }
+
+        const overallCandidates = [
+          rawBudgets.overall,
+          rawBudgets.overall_budget,
+          rawBudgets.overallBudget,
+        ];
+
+        overallCandidates.forEach((budget) => addBudget(budget, 'overall'));
+
+        const ruleCandidates = [
+          rawBudgets.rules,
+          rawBudgets.rule_budgets,
+          rawBudgets.ruleBudgets,
+        ];
+
+        ruleCandidates.forEach((group) => {
+          if (Array.isArray(group)) {
+            group.forEach((budget) => addBudget(budget, 'rule'));
+          }
+        });
+
+        if (results.length === 0) {
+          Object.values(rawBudgets).forEach((value) => {
+            if (Array.isArray(value)) {
+              value.forEach((item) => addBudget(item));
+            } else if (value && typeof value === 'object') {
+              addBudget(value);
+            }
+          });
+        }
+
+        return results;
+      };
+
       const normalized = sortedCategories.map((category, categoryIndex) => {
         const categoryNumber = categoryIndex + 1;
 
@@ -214,7 +279,7 @@ export default function FundSettingsContent({ onNavigate }) {
           .map((subcategory, subIndex) => {
             const displayNumber = `${categoryNumber}.${subIndex + 1}`;
 
-            const budgets = (subcategory.budgets || [])
+            const budgets = normalizeBudgetRecords(subcategory.budgets)
               .map((budget) => ({
                 ...budget,
                 record_scope: String(budget.record_scope || '').toLowerCase(),
