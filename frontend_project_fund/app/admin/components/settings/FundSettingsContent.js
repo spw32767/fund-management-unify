@@ -162,6 +162,33 @@ export default function FundSettingsContent({ onNavigate }) {
     }
   };
 
+  const resolveOrder = (entity, fallback) => {
+    if (!entity || typeof entity !== 'object') return fallback;
+
+    const orderKeys = [
+      'display_order',
+      'sort_order',
+      'order',
+      'order_no',
+      'order_index',
+      'category_number',
+      'subcategory_number',
+      'sequence',
+    ];
+
+    for (const key of orderKeys) {
+      const value = entity[key];
+      if (value !== undefined && value !== null && value !== '') {
+        const numeric = Number(value);
+        if (Number.isFinite(numeric)) {
+          return numeric;
+        }
+      }
+    }
+
+    return fallback;
+  };
+
   const loadCategories = async () => {
     if (!selectedYear) return;
 
@@ -169,20 +196,126 @@ export default function FundSettingsContent({ onNavigate }) {
     setError(null);
     try {
       const data = await adminAPI.getCategoriesWithDetails(selectedYear.year_id);
-      const normalized = data.map(category => ({
-        ...category,
-        subcategories: (category.subcategories || []).map(subcategory => ({
-          ...subcategory,
-          budgets: (subcategory.budgets || [])
-            .map(budget => ({ ...budget }))
-            .sort((a, b) => {
-              if (a.record_scope === b.record_scope) {
-                return (a.subcategory_budget_id || 0) - (b.subcategory_budget_id || 0);
-              }
-              return a.record_scope === 'overall' ? -1 : 1;
-            }),
-        })),
-      }));
+      const sortedCategories = [...data].sort((a, b) => {
+        const orderA = resolveOrder(a, a.category_id || 0);
+        const orderB = resolveOrder(b, b.category_id || 0);
+        return orderA - orderB;
+      });
+
+      const normalizeBudgetRecords = (rawBudgets) => {
+        if (!rawBudgets) return [];
+
+        const results = [];
+        const seenIds = new Set();
+        const seenObjects = typeof WeakSet === 'function' ? new WeakSet() : null;
+
+        const addBudget = (budget, fallbackScope) => {
+          if (!budget || typeof budget !== 'object') return;
+
+          if (seenObjects) {
+            if (seenObjects.has(budget)) return;
+            seenObjects.add(budget);
+          }
+
+          const budgetId = budget.subcategory_budget_id ?? budget.budget_id ?? `${fallbackScope || 'unknown'}-${
+            budget.level || budget.fund_description || results.length
+          }`;
+          if (seenIds.has(budgetId)) return;
+
+          seenIds.add(budgetId);
+          results.push({
+            ...budget,
+            record_scope: String(budget.record_scope || fallbackScope || '').toLowerCase(),
+          });
+        };
+
+        if (Array.isArray(rawBudgets)) {
+          rawBudgets.forEach((budget) => addBudget(budget));
+          return results;
+        }
+
+        const overallCandidates = [
+          rawBudgets.overall,
+          rawBudgets.overall_budget,
+          rawBudgets.overallBudget,
+        ];
+
+        overallCandidates.forEach((budget) => addBudget(budget, 'overall'));
+
+        const ruleCandidates = [
+          rawBudgets.rules,
+          rawBudgets.rule_budgets,
+          rawBudgets.ruleBudgets,
+        ];
+
+        ruleCandidates.forEach((group) => {
+          if (Array.isArray(group)) {
+            group.forEach((budget) => addBudget(budget, 'rule'));
+          }
+        });
+
+        if (results.length === 0) {
+          Object.values(rawBudgets).forEach((value) => {
+            if (Array.isArray(value)) {
+              value.forEach((item) => addBudget(item));
+            } else if (value && typeof value === 'object') {
+              addBudget(value);
+            }
+          });
+        }
+
+        return results;
+      };
+
+      const normalized = sortedCategories.map((category, categoryIndex) => {
+        const categoryNumber = categoryIndex + 1;
+
+        const sortedSubcategories = [...(category.subcategories || [])]
+          .sort((a, b) => {
+            const orderA = resolveOrder(a, a.subcategory_id || 0);
+            const orderB = resolveOrder(b, b.subcategory_id || 0);
+            return orderA - orderB;
+          })
+          .map((subcategory, subIndex) => {
+            const displayNumber = `${categoryNumber}.${subIndex + 1}`;
+
+            const budgets = normalizeBudgetRecords(subcategory.budgets)
+              .map((budget) => ({
+                ...budget,
+                record_scope: String(budget.record_scope || '').toLowerCase(),
+              }))
+              .sort((a, b) => {
+                if (a.record_scope === b.record_scope) {
+                  const orderA = resolveOrder(a, a.subcategory_budget_id || 0);
+                  const orderB = resolveOrder(b, b.subcategory_budget_id || 0);
+                  return orderA - orderB;
+                }
+                if (a.record_scope === 'overall') return -1;
+                if (b.record_scope === 'overall') return 1;
+                const orderA = resolveOrder(a, a.subcategory_budget_id || 0);
+                const orderB = resolveOrder(b, b.subcategory_budget_id || 0);
+                return orderA - orderB;
+              })
+              .map((budget, budgetIndex) => ({
+                ...budget,
+                order_index: `${displayNumber}.${budgetIndex + 1}`,
+              }));
+
+            return {
+              ...subcategory,
+              order_index: displayNumber,
+              display_number: displayNumber,
+              budgets,
+            };
+          });
+
+        return {
+          ...category,
+          order_index: `${categoryNumber}`,
+          display_number: `${categoryNumber}`,
+          subcategories: sortedSubcategories,
+        };
+      });
       setCategories(normalized);
     } catch (error) {
       console.error("Error loading categories:", error);
@@ -757,9 +890,30 @@ export default function FundSettingsContent({ onNavigate }) {
 
   // ==================== OTHER HANDLERS ====================
 
-  const handleYearChange = (yearId) => {
-    const year = years.find(y => y.year_id === parseInt(yearId));
-    setSelectedYear(year);
+  const handleYearChange = (yearValue) => {
+    if (!yearValue) {
+      setSelectedYear(null);
+      setCategories([]);
+      setExpandedCategories({});
+      setExpandedSubcategories({});
+      return;
+    }
+
+    const match = years.find((year) => {
+      const idMatch =
+        year.year_id !== undefined && year.year_id !== null && String(year.year_id) === String(yearValue);
+      const yearMatch =
+        year.year !== undefined && year.year !== null && String(year.year) === String(yearValue);
+      return idMatch || yearMatch;
+    });
+
+    if (match) {
+      setSelectedYear(match);
+    } else {
+      setSelectedYear(null);
+      setCategories([]);
+    }
+
     // Reset expanded states when changing year
     setExpandedCategories({});
     setExpandedSubcategories({});
@@ -770,12 +924,38 @@ export default function FundSettingsContent({ onNavigate }) {
   };
 
   // Filter categories based on search term
-  const filteredCategories = categories.filter(category => {
-    const categoryMatch = category.category_name.toLowerCase().includes(searchTerm.toLowerCase());
-    const subcategoryMatch = category.subcategories?.some(sub => 
-      sub.subcategory_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      sub.fund_condition?.toLowerCase().includes(searchTerm.toLowerCase())
-    );
+  const normalizedSearch = (searchTerm || "").toLowerCase().trim();
+  const filteredCategories = categories.filter((category) => {
+    const categoryName = (category?.category_name || "").toLowerCase();
+    const categoryMatch = normalizedSearch ? categoryName.includes(normalizedSearch) : true;
+
+    if (!normalizedSearch) {
+      return true;
+    }
+
+    const subcategories = Array.isArray(category?.subcategories) ? category.subcategories : [];
+
+    const subcategoryMatch = subcategories.some((sub) => {
+      const subName = (sub?.subcategory_name || "").toLowerCase();
+      const condition = (sub?.fund_condition || "").toLowerCase();
+
+      if (subName.includes(normalizedSearch) || condition.includes(normalizedSearch)) {
+        return true;
+      }
+
+      const budgets = Array.isArray(sub?.budgets) ? sub.budgets : [];
+      return budgets.some((budget) => {
+        const description = (budget?.fund_description || "").toLowerCase();
+        const level = (budget?.level || "").toLowerCase();
+        const scope = String(budget?.record_scope || "").toLowerCase();
+        return (
+          description.includes(normalizedSearch) ||
+          level.includes(normalizedSearch) ||
+          scope.includes(normalizedSearch)
+        );
+      });
+    });
+
     return categoryMatch || subcategoryMatch;
   });
 
