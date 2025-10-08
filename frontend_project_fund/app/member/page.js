@@ -96,7 +96,7 @@ export function MemberPageContent({ initialPage = 'profile' }) {
       case 'received-funds':
         return <ReceivedFundsList onNavigate={handleNavigate} />;
       case 'application-form':
-        return <ApplicationForm selectedFund={selectedFundData} />;
+        return <ApplicationForm selectedFund={selectedFundData} onNavigate={handleNavigate} />;
       case 'publication-reward-detail':
         return <PublicationRewardDetail submissionId={selectedFundData?.submissionId} onNavigate={handleNavigate} />;
       case 'fund-application-detail':
