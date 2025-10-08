@@ -100,6 +100,16 @@ const escapeHtml = (value) =>
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;');
 
+const getFileNameFromPath = (value) => {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  const normalized = trimmed.replace(/\\+/g, '/');
+  const parts = normalized.split('/');
+  const last = parts[parts.length - 1];
+  return last && last.trim() ? last.trim() : null;
+};
+
 const formatCurrencyParen = (n) =>
   `(${Number(Math.abs(n || 0)).toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})`;
 
@@ -1176,6 +1186,26 @@ export default function PublicationSubmissionDetailsDept({ submissionId, onBack 
   };
 
   const resolveFileName = (doc, fallback = 'document') => {
+    const pathCandidates = [
+      doc?.stored_path,
+      doc?.File?.stored_path,
+      doc?.file?.stored_path,
+      doc?.path,
+      doc?.File?.path,
+      doc?.file?.path,
+      doc?.download_url,
+      doc?.url,
+      doc?.File?.url,
+      doc?.file?.url,
+    ];
+
+    for (const pathCandidate of pathCandidates) {
+      const fromPath = getFileNameFromPath(pathCandidate);
+      if (fromPath) {
+        return fromPath;
+      }
+    }
+
     const candidates = [
       doc?.original_name,
       doc?.original_filename,
@@ -1189,7 +1219,7 @@ export default function PublicationSubmissionDetailsDept({ submissionId, onBack 
     ];
     for (const candidate of candidates) {
       if (typeof candidate === 'string' && candidate.trim() !== '') {
-        return candidate;
+        return candidate.trim();
       }
     }
     return fallback;
