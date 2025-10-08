@@ -9,6 +9,26 @@ import { targetRolesUtils, filterFundsByRole } from '../../../lib/target_roles_u
 import { FORM_TYPE_CONFIG } from '../../../lib/form_type_config';
 import systemConfigAPI from '../../../lib/system_config_api';
 
+const isPromotionCategory = (category) => {
+  const rawName =
+    category?.category_name ??
+    category?.categoryName ??
+    category?.name ??
+    '';
+  const name = String(rawName).trim().toLowerCase();
+  const categoryId = Number.parseInt(category?.category_id, 10);
+
+  if (!Number.isNaN(categoryId) && (categoryId === 2 || categoryId === 16)) {
+    return true;
+  }
+
+  return (
+    name.includes('ทุนอุดหนุนกิจกรรม') ||
+    name.includes('กิจกรรมส่งเสริม') ||
+    name.includes('promotion')
+  );
+};
+
 export default function PromotionFundContent({ onNavigate }) {
   const [selectedYear, setSelectedYear] = useState("2568");
   const [fundCategories, setFundCategories] = useState([]);
@@ -298,10 +318,8 @@ export default function PromotionFundContent({ onNavigate }) {
         roleContext?.role_id ?? roleContext?.role_name ?? roleContext
       );
 
-      // กรองเฉพาะทุนอุดหนุนกิจกรรม (category_id = 2)
-      const promotionFunds = visibleCategories.filter(
-        (category) => category.category_id === 2
-      );
+      // กรองเฉพาะทุนอุดหนุนกิจกรรม (รองรับรหัส/ชื่อใหม่)
+      const promotionFunds = visibleCategories.filter(isPromotionCategory);
 
       // รวมทุน publication_reward ให้เป็น 1 แถว (คงพฤติกรรมเดิม)
       const mergedPromotionFunds = promotionFunds.map((category) => {
