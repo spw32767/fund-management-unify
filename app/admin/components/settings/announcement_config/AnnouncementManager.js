@@ -6,8 +6,8 @@ import Swal from "sweetalert2";
 import apiClient from "@/app/lib/api";
 import { adminAnnouncementAPI, adminFundFormAPI } from "@/app/lib/admin_announcement_api";
 import { motion, AnimatePresence } from "framer-motion";
-import AnnouncementModal from "@/app/admin/components/settings/AnnouncementModal"; 
-import FundFormModal from "@/app/admin/components/settings/FundFormModal";
+import AnnouncementModal from "@/app/admin/components/settings/announcement_config/AnnouncementModal";
+import FundFormModal from "@/app/admin/components/settings/announcement_config/FundFormModal";
 
 /** ========= Helpers ========= */
 function toast(icon, title) {

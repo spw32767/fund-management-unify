@@ -4,22 +4,30 @@ import { Settings, Calendar, DollarSign, PencilLine, FileText } from "lucide-rea
 import Swal from 'sweetalert2';
 
 // Import separated components
-import PageLayout from "../common/PageLayout";
-import StatusBadge from "./StatusBadge";
-import YearManagementTab from "./YearManagementTab";
-import FundManagementTab from "./FundManagementTab";
-import RewardConfigManager from "./RewardConfigManager";
-import SystemConfigSettings from "./SystemConfigSettings";
-import AnnouncementManager from "./AnnouncementManager";
+import PageLayout from "@/app/admin/components/common/PageLayout";
+import StatusBadge from "@/app/admin/components/settings/StatusBadge";
+import YearManagementTab from "@/app/admin/components/settings/years_config/YearManagementTab";
+import FundManagementTab from "@/app/admin/components/settings/funds_config/FundManagementTab";
+import RewardConfigManager from "@/app/admin/components/settings/reward_config/RewardConfigManager";
+import SystemConfigSettings from "@/app/admin/components/settings/system_config/SystemConfigSettings";
+import AnnouncementManager from "@/app/admin/components/settings/announcement_config/AnnouncementManager";
 
 // Import modals
-import CategoryModal from "./CategoryModal";
-import SubcategoryModal from "./SubcategoryModal";
-import BudgetModal from "./BudgetModal";
-import DeleteConfirmDialog from "./DeleteConfirmDialog";
+import CategoryModal from "@/app/admin/components/settings/funds_config/CategoryModal";
+import SubcategoryModal from "@/app/admin/components/settings/funds_config/SubcategoryModal";
+import BudgetModal from "@/app/admin/components/settings/funds_config/BudgetModal";
+import DeleteConfirmDialog from "@/app/admin/components/settings/funds_config/DeleteConfirmDialog";
 
 // Import real API
-import { adminAPI } from "../../../lib/admin_api";
+import { adminAPI } from "@/app/lib/admin_api";
+
+const TAB_ITEMS = [
+  { id: "funds", label: "จัดการทุน", icon: DollarSign },
+  { id: "years", label: "จัดการปีงบประมาณ", icon: Calendar },
+  { id: "reward-config", label: "จัดการเงินรางวัล", icon: Settings },
+  { id: "system", label: "ตั้งค่าระบบ", icon: PencilLine },
+  { id: "announcements", label: "ประกาศ/ไฟล์", icon: FileText },
+];
 
 // SweetAlert2 configuration
 const Toast = Swal.mixin({
@@ -752,7 +760,56 @@ export default function FundSettingsContent({ onNavigate }) {
   }
 
   // ==================== MAIN RENDER ====================
-  
+
+  const fundManagementTabProps = {
+    selectedYear,
+    years,
+    categories: filteredCategories,
+    searchTerm,
+    expandedCategories,
+    expandedSubcategories,
+    onYearChange: handleYearChange,
+    onSearchChange: handleSearchChange,
+    onToggleCategory: toggleCategory,
+    onToggleSubcategory: toggleSubcategory,
+    onAddCategory: handleAddCategory,
+    onEditCategory: handleEditCategory,
+    onDeleteCategory: handleDeleteCategory,
+    onAddSubcategory: handleAddSubcategory,
+    onEditSubcategory: handleEditSubcategory,
+    onDeleteSubcategory: handleDeleteSubcategory,
+    onAddBudget: handleAddBudget,
+    onEditBudget: handleEditBudget,
+    onDeleteBudget: handleDeleteBudget,
+    onToggleCategoryStatus: (category, next) =>
+      handleToggleCategoryStatus(category, next, selectedYear),
+    onToggleSubcategoryStatus: handleToggleSubcategoryStatus,
+    onToggleBudgetStatus: handleToggleBudgetStatus,
+  };
+
+  const renderActiveContent = () => {
+    switch (activeTab) {
+      case "funds":
+        return <FundManagementTab {...fundManagementTabProps} />;
+      case "years":
+        return (
+          <YearManagementTab
+            years={years}
+            onSaveYear={handleSaveYear}
+            onDeleteYear={handleDeleteYear}
+          />
+        );
+      case "reward-config":
+        return <RewardConfigManager />;
+      case "system":
+        return <SystemConfigSettings />;
+      case "announcements":
+        return <AnnouncementManager />;
+      default:
+        return null;
+    }
+  };
+
   return (
     <PageLayout
       title="การจัดการทุน"
@@ -766,124 +823,28 @@ export default function FundSettingsContent({ onNavigate }) {
     >
       {/* Tab Navigation */}
       <div className="bg-white rounded-lg shadow-sm mb-6">
-        <div className="flex">
-          <button
-            onClick={() => setActiveTab("funds")}
-            className={`px-6 py-3 font-medium transition-colors ${
-              activeTab === "funds"
-                ? "text-blue-600 border-b-2 border-blue-600"
-                : "text-gray-600 hover:text-gray-900"
-            }`}
-          >
-            <div className="flex items-center gap-2">
-              <DollarSign size={20} />
-              จัดการทุน
-            </div>
-          </button>
-          <button
-            onClick={() => setActiveTab("years")}
-            className={`px-6 py-3 font-medium transition-colors ${
-              activeTab === "years"
-                ? "text-blue-600 border-b-2 border-blue-600"
-                : "text-gray-600 hover:text-gray-900"
-            }`}
-          >
-            <div className="flex items-center gap-2">
-              <Calendar size={20} />
-              จัดการปีงบประมาณ
-            </div>
-          </button>
-          <button
-            onClick={() => setActiveTab('reward-config')}
-            className={`px-6 py-3 font-medium transition-colors ${
-              activeTab === 'reward-config'
-                ? "text-blue-600 border-b-2 border-blue-600"
-                : "text-gray-600 hover:text-gray-900"
-            }`}
-          >
-            <div className="flex items-center gap-2">
-              <Settings size={20} />
-                จัดการเงินรางวัล
-            </div>
-          </button>
-          <button
-            onClick={() => setActiveTab("system")}
-            className={`px-6 py-3 font-medium transition-colors ${
-              activeTab === "system"
-              ? "text-blue-600 border-b-2 border-blue-600"
-              : "text-gray-600 hover:text-gray-900"
-            }`}
+        <div className="flex flex-wrap">
+          {TAB_ITEMS.map(({ id, label, icon: Icon }) => (
+            <button
+              key={id}
+              onClick={() => setActiveTab(id)}
+              className={`px-6 py-3 font-medium transition-colors ${
+                activeTab === id
+                  ? "text-blue-600 border-b-2 border-blue-600"
+                  : "text-gray-600 hover:text-gray-900"
+              }`}
             >
               <div className="flex items-center gap-2">
-                <PencilLine size={20} />
-                  ตั้งค่าระบบ
+                <Icon size={20} />
+                {label}
               </div>
-          </button>
-          <button
-            onClick={() => setActiveTab("announcements")}
-            className={`px-6 py-3 font-medium transition-colors ${
-              activeTab === "announcements"
-                ? "text-blue-600 border-b-2 border-blue-600"
-                : "text-gray-600 hover:text-gray-900"
-            }`}
-          >
-            <div className="flex items-center gap-2">
-              <FileText size={20} />
-              ประกาศ/ไฟล์
-            </div>
-          </button>
+            </button>
+          ))}
         </div>
       </div>
 
       {/* Content */}
-      {activeTab === "funds" && (
-        <FundManagementTab
-          selectedYear={selectedYear}
-          years={years}
-          categories={filteredCategories}
-          searchTerm={searchTerm}
-          expandedCategories={expandedCategories}
-          expandedSubcategories={expandedSubcategories}
-          onYearChange={handleYearChange}
-          onSearchChange={handleSearchChange}
-          onToggleCategory={toggleCategory}
-          onToggleSubcategory={toggleSubcategory}
-          onAddCategory={handleAddCategory}
-          onEditCategory={handleEditCategory}
-          onDeleteCategory={handleDeleteCategory}
-          onAddSubcategory={handleAddSubcategory}
-          onEditSubcategory={handleEditSubcategory}
-          onDeleteSubcategory={handleDeleteSubcategory}
-          onAddBudget={handleAddBudget}
-          onEditBudget={handleEditBudget}
-          onDeleteBudget={handleDeleteBudget}
-          onToggleCategoryStatus={(category, next) =>
-            handleToggleCategoryStatus(category, next, selectedYear)
-          }
-          onToggleSubcategoryStatus={handleToggleSubcategoryStatus}
-          onToggleBudgetStatus={handleToggleBudgetStatus}
-          />
-      )}
-      
-      {activeTab === "years" && (
-        <YearManagementTab
-          years={years}
-          onSaveYear={handleSaveYear}
-          onDeleteYear={handleDeleteYear}
-        />
-      )}
-
-      {activeTab === 'reward-config' && (
-        <RewardConfigManager />
-      )}
-
-      {activeTab === "system" && (
-        <SystemConfigSettings />
-      )}
-      
-      {activeTab === "announcements" && (
-        <AnnouncementManager />
-      )}
+      {renderActiveContent()}
 
       {/* Modals */}
       <CategoryModal

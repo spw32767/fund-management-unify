@@ -10,8 +10,8 @@ import {
   Copy,
 } from "lucide-react";
 import Swal from "sweetalert2";
-import { targetRolesUtils } from "../../../lib/target_roles_utils";
-import StatusBadge from "./StatusBadge";
+import { targetRolesUtils } from "@/app/lib/target_roles_utils";
+import StatusBadge from "@/app/admin/components/settings/StatusBadge";
 
 const FundManagementTab = ({
   selectedYear,
