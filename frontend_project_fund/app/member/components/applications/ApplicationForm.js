@@ -2,11 +2,26 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { FileText, Upload, Plus, X, Save, Send, AlertCircle } from "lucide-react";
+import { FileText, Upload, X, Save, Send, AlertCircle, ArrowLeft, Award } from "lucide-react";
 import PageLayout from "../common/PageLayout";
 import SimpleCard from "../common/SimpleCard";
 import { fundApplicationAPI, submissionAPI, fileAPI } from '../../../lib/member_api';
+import { systemAPI, documentTypesAPI } from '../../../lib/api';
+import { systemConfigAPI } from '../../../lib/system_config_api';
 import { notificationsAPI } from '../../../lib/notifications_api';
+import Swal from 'sweetalert2';
+
+const escapeHtml = (value) => {
+  if (value == null) {
+    return '';
+  }
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+};
 
 // File upload component with drag & drop
 const FileUpload = ({ onFileSelect, accept, multiple = false, error }) => {
@@ -113,11 +128,12 @@ const FileUpload = ({ onFileSelect, accept, multiple = false, error }) => {
   );
 };
 
-export default function ApplicationForm({ selectedFund }) {
+export default function ApplicationForm({ selectedFund, onNavigate }) {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState({});
   const [years, setYears] = useState([]);
+  const [defaultYearId, setDefaultYearId] = useState(null);
   const [currentSubmissionId, setCurrentSubmissionId] = useState(null);
 
   // Form data state
@@ -165,27 +181,112 @@ export default function ApplicationForm({ selectedFund }) {
       setLoading(true);
       
       // Load years and document types
-      const [yearsResponse, docTypesResponse] = await Promise.all([
-        fetch('/api/years').then(res => res.json()),
-        fetch('/api/document-types?category=fund_application').then(res => res.json())
+      const [yearsResponse, docTypesResponse, currentYearResponse] = await Promise.all([
+        systemAPI
+          .getYears()
+          .catch((error) => {
+            console.error('Error fetching years list:', error);
+            return null;
+          }),
+        documentTypesAPI
+          .getDocumentTypes({ category: 'fund_application' })
+          .catch((error) => {
+            console.error('Error fetching fund document types:', error);
+            return null;
+          }),
+        systemConfigAPI
+          .getCurrentYear()
+          .catch((error) => {
+            console.error('Error fetching current system year:', error);
+            return null;
+          }),
       ]);
 
-      if (yearsResponse.success) {
-        setYears(yearsResponse.years || []);
-        // Set current year as default
-        const currentYear = yearsResponse.years?.find(y => y.year === '2568');
-        if (currentYear) {
-          setFormData(prev => ({ ...prev, year_id: currentYear.year_id }));
+      const rawYears = Array.isArray(yearsResponse?.years)
+        ? yearsResponse.years
+        : Array.isArray(yearsResponse?.data)
+        ? yearsResponse.data
+        : Array.isArray(yearsResponse)
+        ? yearsResponse
+        : [];
+
+      const normalizedYears = rawYears
+        .map(year => ({
+          year_id: year?.year_id ?? year?.id ?? null,
+          year: year?.year ?? year?.label ?? null,
+          budget: year?.budget ?? null,
+          status: year?.status ?? 'active'
+        }))
+        .filter(year => year.year_id != null && year.year != null);
+
+      setYears(normalizedYears);
+
+      const resolveDefaultYear = () => {
+        const currentYearCandidate =
+          currentYearResponse?.current_year ??
+          currentYearResponse?.data?.current_year ??
+          currentYearResponse?.year ??
+          currentYearResponse?.data?.year ??
+          null;
+
+        if (currentYearCandidate != null) {
+          const candidate = String(currentYearCandidate);
+          const match = normalizedYears.find(year => {
+            return String(year.year) === candidate || String(year.year_id) === candidate;
+          });
+          if (match) {
+            return match.year_id;
+          }
         }
+
+        const activeYear = normalizedYears.find(year => String(year.status).toLowerCase() === 'active');
+        if (activeYear) {
+          return activeYear.year_id;
+        }
+
+        return normalizedYears.length > 0 ? normalizedYears[0].year_id : null;
+      };
+
+      const defaultId = resolveDefaultYear();
+      if (defaultId != null) {
+        setDefaultYearId(defaultId);
+        setFormData(prev => {
+          const hasPrevYear = normalizedYears.some(year => Number(year.year_id) === Number(prev.year_id));
+          if (prev.year_id != null && hasPrevYear) {
+            return prev;
+          }
+          return { ...prev, year_id: defaultId };
+        });
+      } else {
+        setDefaultYearId(null);
+        setFormData(prev => {
+          const hasPrevYear = normalizedYears.some(year => Number(year.year_id) === Number(prev.year_id));
+          if (prev.year_id != null && hasPrevYear) {
+            return prev;
+          }
+          return { ...prev, year_id: null };
+        });
       }
 
-      if (docTypesResponse.success) {
-        setDocumentTypes(docTypesResponse.document_types || []);
-      }
+      const extractedDocTypes = Array.isArray(docTypesResponse?.document_types)
+        ? docTypesResponse.document_types
+        : Array.isArray(docTypesResponse?.data)
+        ? docTypesResponse.data
+        : Array.isArray(docTypesResponse?.items)
+        ? docTypesResponse.items
+        : Array.isArray(docTypesResponse)
+        ? docTypesResponse
+        : [];
+
+      setDocumentTypes(extractedDocTypes);
 
     } catch (error) {
       console.error('Error loading initial data:', error);
-      alert('เกิดข้อผิดพลาดในการโหลดข้อมูล');
+      Swal.fire({
+        icon: 'error',
+        title: 'เกิดข้อผิดพลาด',
+        text: 'เกิดข้อผิดพลาดในการโหลดข้อมูล'
+      });
     } finally {
       setLoading(false);
     }
@@ -275,17 +376,31 @@ export default function ApplicationForm({ selectedFund }) {
       if (currentSubmissionId) {
         // Update existing submission
         await submissionAPI.updateSubmission(currentSubmissionId, applicationData);
-        alert('บันทึกร่างเรียบร้อยแล้ว');
+        await Swal.fire({
+          icon: 'success',
+          title: 'บันทึกร่างเรียบร้อยแล้ว',
+          timer: 1500,
+          showConfirmButton: false
+        });
       } else {
         // Create new submission
         const response = await fundApplicationAPI.createApplication(applicationData);
         setCurrentSubmissionId(response.submission.submission_id);
-        alert('บันทึกร่างเรียบร้อยแล้ว');
+        await Swal.fire({
+          icon: 'success',
+          title: 'บันทึกร่างเรียบร้อยแล้ว',
+          timer: 1500,
+          showConfirmButton: false
+        });
       }
 
     } catch (error) {
       console.error('Error saving draft:', error);
-      alert('เกิดข้อผิดพลาดในการบันทึกร่าง: ' + (error.message || 'กรุณาลองใหม่อีกครั้ง'));
+      Swal.fire({
+        icon: 'error',
+        title: 'เกิดข้อผิดพลาด',
+        text: error.message || 'เกิดข้อผิดพลาดในการบันทึกร่าง กรุณาลองใหม่อีกครั้ง'
+      });
     } finally {
       setSaving(false);
     }
@@ -293,7 +408,11 @@ export default function ApplicationForm({ selectedFund }) {
 
   const submitApplication = async () => {
     if (!validateForm()) {
-      alert('กรุณากรอกข้อมูลให้ครบถ้วน');
+      Swal.fire({
+        icon: 'warning',
+        title: 'ข้อมูลไม่ครบถ้วน',
+        text: 'กรุณากรอกข้อมูลให้ครบถ้วนก่อนส่งคำร้อง'
+      });
       return;
     }
 
@@ -307,15 +426,19 @@ export default function ApplicationForm({ selectedFund }) {
       };
 
       let submissionId = currentSubmissionId;
+      let submissionNumber = null;
 
       if (!submissionId) {
         // Create new application
         const response = await fundApplicationAPI.createApplication(applicationData);
         submissionId = response.submission.submission_id;
+        submissionNumber = response.submission?.submission_number ?? null;
+        setCurrentSubmissionId(submissionId);
       }
 
       // Submit the application
-      await fundApplicationAPI.submitApplication(submissionId);
+      const submitResponse = await fundApplicationAPI.submitApplication(submissionId);
+      submissionNumber = submissionNumber ?? submitResponse?.submission?.submission_number ?? null;
 
       // Fire-and-forget notification to applicant + current dept head
       try {
@@ -324,21 +447,88 @@ export default function ApplicationForm({ selectedFund }) {
         console.warn('notifySubmissionSubmitted failed:', e);
       }
 
-      alert('ส่งคำร้องเรียบร้อยแล้ว');
-      // Reset form or redirect
+      const summaryLines = [];
+      if (submissionNumber) {
+        summaryLines.push(`<p><strong>เลขที่คำร้อง:</strong> ${escapeHtml(submissionNumber)}</p>`);
+      } else if (submissionId) {
+        summaryLines.push(`<p><strong>รหัสคำร้อง:</strong> ${escapeHtml(submissionId)}</p>`);
+      }
+      if (selectedFund?.subcategory_name) {
+        summaryLines.push(`<p><strong>ประเภททุน:</strong> ${escapeHtml(selectedFund.subcategory_name)}</p>`);
+      }
+
+      const successHtml = `
+        <div class="text-left space-y-2">
+          ${summaryLines.join('') || '<p>ระบบบันทึกคำร้องของคุณเรียบร้อยแล้ว</p>'}
+          <p class="text-green-600">ติดตามความคืบหน้าได้ที่หน้าคำร้องของฉัน</p>
+        </div>
+      `;
+
+      await Swal.fire({
+        icon: 'success',
+        title: 'ส่งคำร้องสำเร็จ!',
+        html: successHtml,
+        confirmButtonText: 'ไปที่หน้าคำร้อง',
+        confirmButtonColor: '#2563eb'
+      });
+
       resetForm();
-      
+
+      if (typeof onNavigate === 'function') {
+        onNavigate('applications');
+      } else if (typeof window !== 'undefined') {
+        window.location.href = '/member?initialPage=applications';
+      }
+
     } catch (error) {
       console.error('Error submitting application:', error);
-      alert('เกิดข้อผิดพลาดในการส่งคำร้อง: ' + (error.message || 'กรุณาลองใหม่อีกครั้ง'));
+      Swal.fire({
+        icon: 'error',
+        title: 'เกิดข้อผิดพลาด',
+        text: error.message || 'ไม่สามารถส่งคำร้องได้ กรุณาลองใหม่อีกครั้ง'
+      });
     } finally {
       setLoading(false);
     }
   };
 
+  const handleGoBack = () => {
+    if (typeof onNavigate === 'function') {
+      onNavigate(selectedFund ? 'research-fund' : 'applications');
+      return;
+    }
+    if (typeof window !== 'undefined') {
+      if (window.history.length > 1) {
+        window.history.back();
+      } else {
+        window.location.href = '/member';
+      }
+    }
+  };
+
+  const pageTitle = "แบบฟอร์มขอรับทุนวิจัยและนวัตกรรม";
+  const pageSubtitle = selectedFund?.subcategory_name
+    ? `ยื่นคำร้องสำหรับ “${selectedFund.subcategory_name}”`
+    : "สำหรับยื่นคำร้องขอรับการสนับสนุนงบประมาณโครงการวิจัย";
+  const breadcrumbs = [
+    { label: "หน้าแรก", href: "/member" },
+    { label: "ยื่นคำร้องขอทุนวิจัย" }
+  ];
+  const headerActions = (
+    <button
+      type="button"
+      onClick={handleGoBack}
+      className="inline-flex items-center gap-2 rounded-lg border border-gray-300 px-4 py-2 text-gray-600 transition-colors hover:bg-gray-50 whitespace-nowrap"
+    >
+      <ArrowLeft className="h-4 w-4" />
+      <span>ย้อนกลับ</span>
+    </button>
+  );
+
   const resetForm = () => {
+    const resolvedDefaultYearId = defaultYearId ?? years[0]?.year_id ?? null;
     setFormData({
-      year_id: years.find(y => y.year === '2568')?.year_id || null,
+      year_id: resolvedDefaultYearId,
       priority: 'normal',
       project_title: '',
       project_description: '',
@@ -359,9 +549,11 @@ export default function ApplicationForm({ selectedFund }) {
   if (loading && !years.length) {
     return (
       <PageLayout
-        title="สร้างคำร้องใหม่"
+        title={pageTitle}
         subtitle="กำลังโหลดข้อมูล..."
-        icon={FileText}
+        icon={Award}
+        actions={headerActions}
+        breadcrumbs={breadcrumbs}
       >
         <div className="flex justify-center items-center py-12">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
@@ -372,14 +564,11 @@ export default function ApplicationForm({ selectedFund }) {
 
   return (
     <PageLayout
-      title="แบบฟอร์มขอทุนวิจัย"
-      subtitle={selectedFund ? `${selectedFund.subcategory_name}` : "สร้างคำร้องขอทุนวิจัยใหม่"}
-      icon={FileText}
-      breadcrumbs={[
-        { label: "หน้าแรก", href: "/member" },
-        { label: "ทุนที่สมัครได้", href: "/member/funds" },
-        { label: "สร้างคำร้อง" }
-      ]}
+      title={pageTitle}
+      subtitle={pageSubtitle}
+      icon={Award}
+      actions={headerActions}
+      breadcrumbs={breadcrumbs}
     >
       <form className="space-y-6">
         {/* ข้อมูลพื้นฐาน */}

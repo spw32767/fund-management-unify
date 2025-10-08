@@ -2,7 +2,8 @@
 "use client";
 
 import { useState, useEffect, useRef, useMemo } from "react";
-import { Award, Upload, Users, FileText, Plus, X, Save, Send, AlertCircle, Search, Eye, Calculator, Signature } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Award, Upload, Users, FileText, Plus, X, Save, Send, AlertCircle, Search, Eye, Calculator, Signature, ArrowLeft } from "lucide-react";
 import PageLayout from "../common/PageLayout";
 import SimpleCard from "../common/SimpleCard";
 import apiClient, { systemAPI, authAPI } from '../../../lib/api';
@@ -42,16 +43,6 @@ const Toast = Swal.mixin({
 // Draft storage constants
 const DRAFT_KEY = 'publication_reward_draft';
 
-// Author status to subcategory mapping
-const AUTHOR_STATUS_SUBCATEGORY_MAP = {
-  first_author: 14,
-  corresponding_author: 15
-};
-
-const getSubcategoryIdForAuthorStatus = (status) => {
-  return AUTHOR_STATUS_SUBCATEGORY_MAP[status] ?? null;
-};
-
 // =================================================================
 // UTILITY FUNCTIONS
 // =================================================================
@@ -65,6 +56,79 @@ const formatNumber = (value) => {
 const formatCurrency = (value) => {
   const num = formatNumber(value);
   return num.toLocaleString('th-TH');
+};
+
+const parseNumberOrNull = (value) => {
+  if (value === null || value === undefined || value === '') {
+    return null;
+  }
+  const num = Number(value);
+  return Number.isFinite(num) ? num : null;
+};
+
+const parseIntegerOrNull = (value) => {
+  if (value === null || value === undefined || value === '') {
+    return null;
+  }
+  const intVal = parseInt(value, 10);
+  return Number.isNaN(intVal) ? null : intVal;
+};
+
+const formatCurrencyWithPlaceholder = (value, placeholder = '-') => {
+  const numeric = parseNumberOrNull(value);
+  if (numeric === null) {
+    return placeholder;
+  }
+  return `${formatCurrency(numeric)} บาท`;
+};
+
+const normalizePolicyPayload = (policy = {}) => {
+  if (!policy || typeof policy !== 'object') {
+    return null;
+  }
+
+  const overall = policy.overall || {};
+  const rule = policy.rule || {};
+  const userUsage = policy.user_usage || {};
+  const userRemaining = policy.user_remaining || {};
+
+  return {
+    overall: {
+      subcategory_budget_id: parseIntegerOrNull(overall.subcategory_budget_id),
+      allocated_amount: parseNumberOrNull(overall.allocated_amount),
+      used_amount: parseNumberOrNull(overall.used_amount),
+      remaining_amount: parseNumberOrNull(overall.remaining_amount),
+      max_amount_per_year: parseNumberOrNull(overall.max_amount_per_year),
+      max_grants: parseIntegerOrNull(overall.max_grants),
+      max_amount_per_grant: parseNumberOrNull(overall.max_amount_per_grant),
+    },
+    rule: {
+      subcategory_budget_id: parseIntegerOrNull(rule.subcategory_budget_id),
+      fund_description: rule.fund_description || '',
+      max_amount_per_grant: parseNumberOrNull(rule.max_amount_per_grant),
+    },
+    user_usage: {
+      total_grants: parseIntegerOrNull(userUsage.total_grants) ?? 0,
+      total_amount: parseNumberOrNull(userUsage.total_amount) ?? 0,
+      publication_grants: parseIntegerOrNull(userUsage.publication_grants) ?? 0,
+      publication_amount: parseNumberOrNull(userUsage.publication_amount) ?? 0,
+    },
+    user_remaining: {
+      grants: parseIntegerOrNull(userRemaining.grants),
+      amount: parseNumberOrNull(userRemaining.amount),
+    }
+  };
+};
+
+const formatGrantLimit = (value) => {
+  if (value === null || value === undefined) {
+    return 'ไม่จำกัด';
+  }
+  try {
+    return `${Number(value).toLocaleString('th-TH')} ครั้ง`;
+  } catch (error) {
+    return `${value} ครั้ง`;
+  }
 };
 
 // Phone number formatting
@@ -253,20 +317,38 @@ const getDocumentTypeName = (documentTypeId) => {
 // Save draft to localStorage
 const saveDraftToLocal = (data) => {
   try {
+    const sanitizedFormData = data.formData ? { ...data.formData } : {};
+    const sanitizedCoauthors = Array.isArray(data.coauthors) ? [...data.coauthors] : [];
+    const timestampBase = Date.now();
+    const sanitizedExternalFundings = Array.isArray(data.externalFundings)
+      ? data.externalFundings.map((funding, index) => ({
+          id: funding.id ?? `draft-${index}-${timestampBase}`,
+          fundName: funding.fundName || '',
+          amount: funding.amount || '',
+        }))
+      : [];
+    const hadMainAttachments = data.uploadedFiles
+      ? Object.values(data.uploadedFiles).some(file => Boolean(file))
+      : false;
+    const hadOtherAttachments = Array.isArray(data.otherDocuments) && data.otherDocuments.length > 0;
+    const hadExternalFundingAttachments = Array.isArray(data.externalFundingFiles)
+      ? data.externalFundingFiles.some(doc => Boolean(doc?.file))
+      : false;
+
     const draftData = {
-      formData: data.formData,
-      coauthors: data.coauthors,
-      otherDocuments: data.otherDocuments.map(doc => ({
-        documentTypeId: doc.documentTypeId,
-        description: doc.description,
-        fileName: doc.file?.name || null,
-        fileSize: doc.file?.size || null,
-        fileType: doc.file?.type || null
-      })),
+      formData: sanitizedFormData,
+      coauthors: sanitizedCoauthors,
+      externalFundings: sanitizedExternalFundings,
+      otherDocuments: [],
+      attachmentSummary: {
+        hasMainAttachments: hadMainAttachments,
+        hasOtherAttachments: hadOtherAttachments,
+        hasExternalFundingAttachments: hadExternalFundingAttachments,
+      },
       savedAt: new Date().toISOString(),
       expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString() // 7 days
     };
-    
+
     localStorage.setItem(DRAFT_KEY, JSON.stringify(draftData));
     return true;
   } catch (error) {
@@ -523,6 +605,7 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
   // =================================================================
   // STATE DECLARATIONS
   // =================================================================
+  const router = useRouter();
   const formRef = useRef(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -541,8 +624,10 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
     hasPreviewed: false,
     timestamp: null,
   });
+  const [previewAcknowledged, setPreviewAcknowledged] = useState(false);
   const previewUrlRef = useRef(null);
   const previewSignatureRef = useRef('');
+  const previewSectionRef = useRef(null);
   const [availableAuthorStatuses, setAvailableAuthorStatuses] = useState([]);
   const [availableQuartiles, setAvailableQuartiles] = useState([]);
   const [quartileConfigs, setQuartileConfigs] = useState({}); // เก็บ config ของแต่ละ quartile
@@ -553,6 +638,9 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
   const [enabledYears, setEnabledYears] = useState([]);
   const [enabledPairs, setEnabledPairs] = useState([]);
   const [resolutionError, setResolutionError] = useState('');
+  const [rewardRateMap, setRewardRateMap] = useState({});
+  const [budgetOptionMap, setBudgetOptionMap] = useState({});
+  const [policyContext, setPolicyContext] = useState(null);
 
   // Form data state
   const [formData, setFormData] = useState({
@@ -691,24 +779,43 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
     try {
       const resp = await publicationBudgetAPI.getValidOptions(category_id, year_id);
       const options = resp.options || resp.data || [];
-      const pairs = options.map(o => ({ author_status: o.author_status, journal_quartile: o.journal_quartile }));
-      return { pairs };
+      const pairs = [];
+      const rateMap = {};
+      const budgetMap = {};
+
+      options.forEach(opt => {
+        if (!opt) return;
+        const author_status = opt.author_status;
+        const journal_quartile = opt.journal_quartile;
+        if (!author_status || !journal_quartile) return;
+
+        const key = `${author_status}|${journal_quartile}`;
+        pairs.push({ author_status, journal_quartile });
+
+        const rewardAmount = parseNumberOrNull(opt.reward_amount);
+        if (rewardAmount !== null) {
+          rateMap[key] = rewardAmount;
+        }
+
+        budgetMap[key] = {
+          subcategory_id: opt.subcategory_id ?? null,
+          subcategory_budget_id: opt.subcategory_budget_id ?? null,
+          fund_description: opt.fund_description || '',
+          overall_subcategory_budget_id: opt.overall_subcategory_budget_id ?? null,
+          max_amount_per_year: parseNumberOrNull(opt.max_amount_per_year),
+          max_grants: parseIntegerOrNull(opt.max_grants),
+          max_amount_per_grant: parseNumberOrNull(opt.max_amount_per_grant),
+        };
+      });
+
+      return { pairs, rateMap, budgetMap };
 
     } catch (err) {
       console.error('getEnabledAuthorStatusQuartiles error:', err);
-      return { pairs: [] };
+      return { pairs: [], rateMap: {}, budgetMap: {} };
     }
   };
-  
-  const getRewardContext = (authorStatus, quartile) => {
-    const amount = ratesMap[`${authorStatus}|${quartile}`] || 0;
-    const mapping = budgetMap[`${authorStatus}|${quartile}`] || {
-      subcategory_id: null,
-      subcategory_budget_id: null,
-      fund_description: null
-    };
-    return { amount, ...mapping };
-  };
+
 
   // =================================================================
   // EFFECT HOOKS
@@ -831,6 +938,7 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
           timestamp: null,
         };
       });
+      setPreviewAcknowledged(false);
     }
   }, [previewDataSignature]);
 
@@ -892,16 +1000,19 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
   useEffect(() => {
     const recompute = async () => {
       if (categoryId && formData.year_id) {
-        const { pairs } = await getEnabledAuthorStatusQuartiles({
+        const { pairs, rateMap, budgetMap } = await getEnabledAuthorStatusQuartiles({
           category_id: categoryId,
           year_id: formData.year_id
         });
         setEnabledPairs(pairs);
+        setRewardRateMap(rateMap);
+        setBudgetOptionMap(budgetMap);
         const uniqueStatuses = [...new Set(pairs.map(p => p.author_status))];
         setAvailableAuthorStatuses(uniqueStatuses);
         setAvailableQuartiles([]);
         setFormData(prev => ({ ...prev, author_status: '', journal_quartile: '', subcategory_id: null, subcategory_budget_id: null, publication_reward: 0, reward_amount: 0 }));
         setResolutionError(pairs.length === 0 ? 'ไม่พบทุนสำหรับปี/สถานะ/ควอร์ไทล์ที่เลือก' : '');
+        setPolicyContext(null);
       }
     };
     recompute();
@@ -913,18 +1024,20 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
       const quartiles = enabledPairs.filter(p => p.author_status === formData.author_status).map(p => p.journal_quartile);
       const sorted = sortQuartiles(quartiles);
       setAvailableQuartiles(sorted);
-      const mappedSubcategoryId = getSubcategoryIdForAuthorStatus(formData.author_status);
       setFormData(prev => ({
         ...prev,
         journal_quartile: '',
-        subcategory_id: mappedSubcategoryId,
-        subcategory_budget_id: null
+        subcategory_id: null,
+        subcategory_budget_id: null,
+        publication_reward: 0,
+        reward_amount: 0
       }));
       if (sorted.length === 0) {
         setResolutionError('ไม่พบทุนสำหรับปี/สถานะ/ควอร์ไทล์ที่เลือก');
       } else {
         setResolutionError('');
       }
+      setPolicyContext(null);
     }
   }, [formData.author_status, enabledPairs]);
 
@@ -933,6 +1046,10 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
     const resolve = async () => {
       if (formData.author_status && formData.journal_quartile && formData.year_id) {
         try {
+          const key = `${formData.author_status}|${formData.journal_quartile}`;
+          const optionContext = budgetOptionMap[key] || {};
+          const fallbackReward = rewardRateMap[key] ?? 0;
+          setPolicyContext(null);
           const result = await resolveBudgetAndSubcategory({
             category_id: categoryId,
             year_id: formData.year_id,
@@ -940,16 +1057,38 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
             journal_quartile: formData.journal_quartile
           });
           if (result) {
-            const mappedSubcategoryId = getSubcategoryIdForAuthorStatus(formData.author_status);
-            const resolvedSubcategoryId = mappedSubcategoryId ?? result?.subcategory_id ?? null;
+            const resolvedSubcategoryId = parseIntegerOrNull(result?.subcategory_id ?? optionContext.subcategory_id);
+            const resolvedBudgetId = parseIntegerOrNull(result?.subcategory_budget_id ?? optionContext.subcategory_budget_id);
+            const resolvedReward = parseNumberOrNull(result?.reward_amount);
+            const normalizedPolicy = normalizePolicyPayload(result.policy);
+            setPolicyContext(normalizedPolicy);
             setFormData(prev => ({
               ...prev,
               subcategory_id: resolvedSubcategoryId,
-              subcategory_budget_id: result.subcategory_budget_id,
-              publication_reward: result.reward_amount,
-              reward_amount: result.reward_amount,
+              subcategory_budget_id: resolvedBudgetId,
+              publication_reward: resolvedReward ?? fallbackReward,
+              reward_amount: resolvedReward ?? fallbackReward,
             }));
-            setResolutionError(result.remaining_budget > 0 ? '' : 'งบประมาณสำหรับทุนนี้หมดแล้ว');
+            let resolutionMessage = '';
+            const overallRemaining = normalizedPolicy?.overall?.remaining_amount;
+            if (overallRemaining !== null && overallRemaining !== undefined && overallRemaining <= 0) {
+              resolutionMessage = 'งบประมาณสำหรับทุนนี้หมดแล้ว';
+            }
+            const userRemainingGrants = normalizedPolicy?.user_remaining?.grants;
+            if (!resolutionMessage && userRemainingGrants === 0) {
+              resolutionMessage = 'คุณใช้สิทธิ์จำนวนครั้งครบตามโควตาประจำปีแล้ว';
+            }
+            const userRemainingAmount = normalizedPolicy?.user_remaining?.amount;
+            if (!resolutionMessage && userRemainingAmount !== null && userRemainingAmount !== undefined && userRemainingAmount <= 0) {
+              resolutionMessage = 'คุณใช้วงเงินประจำปีครบแล้ว';
+            }
+            if (!resolutionMessage && result?.remaining_budget !== undefined && result?.remaining_budget !== null) {
+              const remainingBudget = Number(result.remaining_budget);
+              if (!Number.isNaN(remainingBudget) && remainingBudget <= 0) {
+                resolutionMessage = 'งบประมาณสำหรับทุนนี้หมดแล้ว';
+              }
+            }
+            setResolutionError(resolutionMessage);
           } else {
             setFormData(prev => ({
               ...prev,
@@ -959,6 +1098,7 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
               reward_amount: 0,
             }));
             setResolutionError('ไม่พบทุนสำหรับปี/สถานะ/ควอร์ไทล์ที่เลือก');
+            setPolicyContext(null);
           }
         } catch (error) {
           console.error('resolveBudgetAndSubcategory error:', error);
@@ -968,11 +1108,12 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
             subcategory_budget_id: null
           }));
           setResolutionError('ไม่สามารถตรวจสอบทุนได้');
+          setPolicyContext(null);
         }
       }
     };
     resolve();
-  }, [formData.author_status, formData.journal_quartile, formData.year_id, categoryId]);
+  }, [formData.author_status, formData.journal_quartile, formData.year_id, categoryId, budgetOptionMap, rewardRateMap]);
 
   // Update fee limits when quartile changes
   useEffect(() => {
@@ -1031,14 +1172,17 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
         saveDraftToLocal({
           formData,
           coauthors,
-          otherDocuments
+          otherDocuments,
+          uploadedFiles,
+          externalFundings,
+          externalFundingFiles
         });
         console.log('Auto-saved draft');
       }
     }, 10000); // auto-save every 10 seconds
 
     return () => clearTimeout(autoSaveTimer);
-  }, [formData, coauthors, otherDocuments]);
+  }, [formData, coauthors, otherDocuments, uploadedFiles, externalFundings, externalFundingFiles]);
 
   // Check fees limit when quartile or fees change
   useEffect(() => {
@@ -1304,11 +1448,13 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
 
       // Load enabled author status & quartile pairs
       if (categoryId && currentYear) {
-        const { pairs, rMap, bMap } = await getEnabledAuthorStatusQuartiles({
+        const { pairs, rateMap, budgetMap } = await getEnabledAuthorStatusQuartiles({
           category_id: categoryId,
           year_id: currentYear.year_id
         });
         setEnabledPairs(pairs);
+        setRewardRateMap(rateMap);
+        setBudgetOptionMap(budgetMap);
         const uniqueStatuses = [...new Set(pairs.map(p => p.author_status))];
         setAvailableAuthorStatuses(uniqueStatuses);
         setAvailableQuartiles([]);
@@ -1344,30 +1490,51 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
 
       if (result.isConfirmed) {
         // Load form data
-        setFormData(draft.formData);
+        setFormData(prev => ({
+          ...prev,
+          ...(draft.formData || {})
+        }));
         setCoauthors(draft.coauthors || []);
-        
-        // Show file re-upload notice
-        if (draft.otherDocuments.length > 0) {
-          const fileList = draft.otherDocuments
-            .filter(doc => doc.fileName)
-            .map(doc => `• ${doc.fileName} (${(doc.fileSize / 1024 / 1024).toFixed(2)} MB)`)
-            .join('<br>');
-          
-          if (fileList) {
-            Swal.fire({
-              icon: 'info',
-              title: 'กรุณาเลือกไฟล์ใหม่',
-              html: `
-                <p>ไฟล์ที่เคยเลือกไว้:</p>
-                <div class="text-left mt-2 text-sm">${fileList}</div>
-                <p class="mt-3 text-sm text-gray-600">เนื่องจากความปลอดภัย กรุณาเลือกไฟล์เหล่านี้อีกครั้ง</p>
-              `,
-              confirmButtonColor: '#3085d6'
-            });
+        setUploadedFiles({});
+        setOtherDocuments([]);
+        setExternalFundingFiles([]);
+        setExternalFundings(
+          Array.isArray(draft.externalFundings)
+            ? draft.externalFundings.map((funding, index) => ({
+                id: funding.id ?? `loaded-${index}-${Date.now()}`,
+                fundName: funding.fundName || '',
+                amount: funding.amount || '',
+                file: null,
+              }))
+            : []
+        );
+
+        const hadAttachments = (() => {
+          if (draft.attachmentSummary) {
+            return Object.values(draft.attachmentSummary).some(Boolean);
           }
+          if (Array.isArray(draft.otherDocuments)) {
+            return draft.otherDocuments.some(doc => doc?.fileName);
+          }
+          return false;
+        })();
+
+        if (hadAttachments) {
+          Swal.fire({
+            icon: 'info',
+            title: 'กรุณาอัปโหลดไฟล์อีกครั้ง',
+            html: `
+              <p class="text-sm text-gray-700">
+                เพื่อความปลอดภัย ระบบจะไม่เก็บไฟล์ไว้ในร่างที่บันทึกไว้
+              </p>
+              <p class="text-sm text-gray-600 mt-2">
+                กรุณาเลือกไฟล์แนบใหม่ก่อนส่งคำร้อง
+              </p>
+            `,
+            confirmButtonColor: '#3085d6'
+          });
         }
-        
+
         Toast.fire({
           icon: 'success',
           title: 'โหลดข้อมูลร่างเรียบร้อยแล้ว'
@@ -1381,6 +1548,19 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
   // =================================================================
   // EVENT HANDLERS
   // =================================================================
+
+  const handleGoBack = () => {
+    if (onNavigate) {
+      onNavigate('applications');
+      return;
+    }
+
+    if (typeof window !== 'undefined' && window.history.length > 1) {
+      router.back();
+    } else {
+      router.push('/member/applications');
+    }
+  };
 
   // Handle form input changes
   const handleInputChange = (e) => {
@@ -1411,6 +1591,7 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
       }));
       if (['author_status', 'journal_quartile'].includes(name)) {
         setResolutionError('');
+        setPolicyContext(null);
       }
     }
 
@@ -1687,6 +1868,7 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
         hasPreviewed: false,
         loading: false,
       }));
+      setPreviewAcknowledged(false);
       Toast.fire({ icon: 'warning', title: message });
       throw new Error(message);
     }
@@ -1861,6 +2043,7 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
         hasPreviewed: true,
         timestamp: Date.now(),
       });
+      setPreviewAcknowledged(true);
 
       if (previewWindow) {
         previewWindow.location = blobUrl;
@@ -1888,6 +2071,7 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
         error: message,
         hasPreviewed: false,
       }));
+      setPreviewAcknowledged(false);
 
       Toast.fire({ icon: 'error', title: 'ไม่สามารถสร้างตัวอย่างได้', text: message });
       throw error;
@@ -2175,7 +2359,10 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
       const saved = saveDraftToLocal({
         formData,
         coauthors,
-        otherDocuments
+        otherDocuments,
+        uploadedFiles,
+        externalFundings,
+        externalFundingFiles
       });
 
       Swal.close();
@@ -2266,6 +2453,7 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
     setExternalFundings([]);
     setErrors({});
     setCurrentSubmissionId(null);
+    setPreviewAcknowledged(false);
     deleteDraftFromLocal();
   };
 
@@ -2296,12 +2484,13 @@ const showSubmissionConfirmation = async () => {
     return false;
   }
 
-  const previewAvailable = previewState.hasPreviewed && !!previewUrl;
+  const previewAvailable = previewAcknowledged && !!previewUrl;
   let previewViewed = previewAvailable;
-  const previewButtonInitialLabel = previewAvailable ? '👀 เปิดอีกครั้ง' : '👀 ดูตัวอย่าง';
+  const previewButtonMode = previewAvailable ? 'open' : 'create';
+  const previewButtonInitialLabel = previewAvailable ? '👀 ดูอีกครั้ง' : '⚙️ สร้างตัวอย่างเอกสารรวม';
   const previewStatusMarkup = previewAvailable
     ? '<span class="text-green-600">✅ ดูตัวอย่างเอกสารแล้ว</span>'
-    : '<span class="text-red-600">⚠️ กรุณาดูตัวอย่างเอกสารก่อนส่งคำร้อง</span>';
+    : '<span class="text-red-600">⚠️ กรุณาสร้างตัวอย่างเอกสารรวมก่อนส่งคำร้อง</span>';
   const previewButtonInitialClass = previewAvailable
     ? 'px-3 py-1 bg-green-500 text-white text-xs rounded hover:bg-green-600 transition-colors'
     : 'px-3 py-1 bg-blue-500 text-white text-xs rounded hover:bg-blue-600 transition-colors';
@@ -2402,6 +2591,7 @@ const showSubmissionConfirmation = async () => {
               id="preview-pdf-btn"
               type="button"
               class="${previewButtonInitialClass}"
+              data-mode="${previewButtonMode}"
             >
               ${previewButtonInitialLabel}
             </button>
@@ -2442,7 +2632,8 @@ const showSubmissionConfirmation = async () => {
         },
         // Dynamic validation
         preConfirm: () => {
-          if (currentAttachments.length > 0 && !previewViewed) {
+          const previewReady = previewViewed || previewAcknowledged;
+          if (currentAttachments.length > 0 && !previewReady) {
             Swal.showValidationMessage('กรุณาดูตัวอย่างเอกสารรวมก่อนส่งคำร้อง');
             return false;
           }
@@ -2454,40 +2645,83 @@ const showSubmissionConfirmation = async () => {
           const previewStatus = document.getElementById('preview-status');
 
           if (previewBtn) {
-            const originalLabel = previewBtn.innerHTML;
-            const originalClass = previewBtn.className;
+            const mode = previewBtn.getAttribute('data-mode');
 
-            previewBtn.addEventListener('click', async () => {
-              previewBtn.disabled = true;
-              previewBtn.innerHTML = '⏳ กำลังสร้าง...';
-              previewBtn.className = originalClass;
+            if (mode === 'open') {
+              const originalLabel = previewBtn.innerHTML;
+              const originalClass = previewBtn.className;
 
-              try {
-                await generatePreview({ openWindow: true });
-                previewViewed = true;
-
-                if (previewStatus) {
-                  previewStatus.innerHTML = '<span class="text-green-600">✅ ดูตัวอย่างเอกสารแล้ว</span>';
-                }
-
-                previewBtn.className = 'px-3 py-1 bg-green-500 text-white text-xs rounded hover:bg-green-600 transition-colors';
-                previewBtn.innerHTML = '✅ ดูแล้ว';
-
-                const validationMessage = document.querySelector('.swal2-validation-message');
-                if (validationMessage) {
-                  validationMessage.style.display = 'none';
-                }
-              } catch (error) {
-                const message = error?.message || 'ไม่สามารถสร้างตัวอย่างได้';
-                if (previewStatus) {
-                  previewStatus.innerHTML = `<span class="text-red-600">❌ ${message}</span>`;
-                }
+              previewBtn.addEventListener('click', async () => {
+                previewBtn.disabled = true;
+                previewBtn.innerHTML = '⏳ กำลังเปิด...';
                 previewBtn.className = originalClass;
-                previewBtn.innerHTML = originalLabel;
-              } finally {
-                previewBtn.disabled = false;
-              }
-            });
+
+                try {
+                  await generatePreview({ openWindow: true });
+                  previewViewed = true;
+                  setPreviewAcknowledged(true);
+
+                  if (previewStatus) {
+                    previewStatus.innerHTML = '<span class="text-green-600">✅ ดูตัวอย่างเอกสารแล้ว</span>';
+                  }
+
+                  previewBtn.className = 'px-3 py-1 bg-green-500 text-white text-xs rounded hover:bg-green-600 transition-colors';
+                  previewBtn.innerHTML = '✅ ดูแล้ว';
+
+                  const validationMessage = document.querySelector('.swal2-validation-message');
+                  if (validationMessage) {
+                    validationMessage.style.display = 'none';
+                  }
+
+                  if (!previewState.hasPreviewed) {
+                    setPreviewState((prev) => ({
+                      ...prev,
+                      hasPreviewed: true,
+                    }));
+                  }
+
+                  if (!previewState.blobUrl && previewUrlRef.current) {
+                    setPreviewState((prev) => ({
+                      ...prev,
+                      blobUrl: previewUrlRef.current,
+                    }));
+                  }
+
+                  if (!previewState.timestamp) {
+                    setPreviewState((prev) => ({
+                      ...prev,
+                      timestamp: new Date().toISOString(),
+                    }));
+                  }
+                } catch (error) {
+                  const message = error?.message || 'ไม่สามารถเปิดเอกสารได้';
+                  if (previewStatus) {
+                    previewStatus.innerHTML = `<span class="text-red-600">❌ ${message}</span>`;
+                  }
+                  previewBtn.className = originalClass;
+                  previewBtn.innerHTML = originalLabel;
+                } finally {
+                  previewBtn.disabled = false;
+                }
+              });
+            } else {
+              previewBtn.addEventListener('click', () => {
+                Swal.close();
+
+                setTimeout(() => {
+                  const sectionEl = previewSectionRef.current;
+                  if (sectionEl && typeof sectionEl.scrollIntoView === 'function') {
+                    sectionEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                  }
+
+                  setTimeout(() => {
+                    generatePreview().catch((error) => {
+                      console.error('Failed to generate preview after redirect:', error);
+                    });
+                  }, 150);
+                }, 150);
+              });
+            }
           }
         }
       });
@@ -2632,11 +2866,20 @@ const showSubmissionConfirmation = async () => {
           html: 'กำลังสร้างคำร้อง...'
         });
 
-        const submissionSubcategoryId = getSubcategoryIdForAuthorStatus(formData.author_status) ?? formData.subcategory_id;
+        const optionKey = formData.author_status && formData.journal_quartile
+          ? `${formData.author_status}|${formData.journal_quartile}`
+          : null;
+        const optionContext = optionKey ? budgetOptionMap[optionKey] : null;
+        const submissionSubcategoryId = formData.subcategory_id ?? optionContext?.subcategory_id ?? null;
+        const submissionSubcategoryBudgetId = formData.subcategory_budget_id ?? optionContext?.subcategory_budget_id ?? null;
+
+        if (!submissionSubcategoryId || !submissionSubcategoryBudgetId) {
+          throw new Error('ไม่พบข้อมูลหมวดทุนสำหรับการสร้างคำร้อง');
+        }
 
         console.log('Before POST:', {
           subcategory_id: submissionSubcategoryId,
-          subcategory_budget_id: formData.subcategory_budget_id
+          subcategory_budget_id: submissionSubcategoryBudgetId
         });
 
         const submissionResponse = await submissionAPI.create({
@@ -2644,7 +2887,7 @@ const showSubmissionConfirmation = async () => {
           year_id: formData.year_id,
           category_id: formData.category_id || categoryId,
           subcategory_id: submissionSubcategoryId,        // Dynamic resolved
-          subcategory_budget_id: formData.subcategory_budget_id,  // Dynamic resolved
+          subcategory_budget_id: submissionSubcategoryBudgetId,  // Dynamic resolved
         });
         
         submissionId = submissionResponse.submission.submission_id;
@@ -3074,8 +3317,18 @@ const showSubmissionConfirmation = async () => {
   return (
     <PageLayout
       title="แบบฟอร์มขอเบิกเงินรางวัลการตีพิมพ์เผยแพร่ผลงานวิจัยที่ได้รับการตีพิมพ์ในสาขาวิทยาศาสตร์และเทคโนโลยี"
-      subtitle="สำหรับขอเบิกเงินรางวัลและค่าใช้จ่ายในการตีพิมพ์บทความวิชาการ"
+      subtitle="แบบฟอร์มสำหรับขอเบิกเงินรางวัลและค่าใช้จ่าย"
       icon={Award}
+      actions={(
+        <button
+          type="button"
+          onClick={handleGoBack}
+          className="inline-flex items-center gap-2 rounded-lg border border-gray-300 px-4 py-2 text-gray-600 transition-colors hover:bg-gray-50 whitespace-nowrap"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          <span>ย้อนกลับ</span>
+        </button>
+      )}
       breadcrumbs={[
         { label: "หน้าแรก", href: "/member" },
         { label: "ขอเบิกเงินรางวัลการตีพิมพ์" }
@@ -3329,6 +3582,49 @@ const showSubmissionConfirmation = async () => {
                   <p id="resolution-journal_quartile" className="text-red-500 text-sm mt-1">{resolutionError}</p>
                 )}
               </div>
+
+              {policyContext && (
+                <div className="md:col-span-2">
+                  <div className="mt-1 rounded-lg border border-blue-200 bg-blue-50 p-4 text-blue-900">
+                    <div className="flex items-center gap-2 font-semibold">
+                      <Calculator className="h-4 w-4" />
+                      <span>สรุปสิทธิ์และงบประมาณประจำปี</span>
+                    </div>
+                    <div className="mt-3 grid gap-3 md:grid-cols-3">
+                      <div>
+                        <p className="text-xs uppercase tracking-wide text-blue-700">งบประมาณคงเหลือ (ภาพรวม)</p>
+                        <p className="text-lg font-semibold">{formatCurrencyWithPlaceholder(policyContext?.overall?.remaining_amount)}</p>
+                        {policyContext?.overall?.allocated_amount !== null && policyContext?.overall?.allocated_amount !== undefined && (
+                          <p className="text-xs text-blue-700">จากงบรวม {formatCurrency(policyContext.overall.allocated_amount)} บาท</p>
+                        )}
+                      </div>
+                      <div>
+                        <p className="text-xs uppercase tracking-wide text-blue-700">สิทธิจำนวนครั้งที่เหลือ</p>
+                        <p className="text-lg font-semibold">{formatGrantLimit(policyContext?.user_remaining?.grants)}</p>
+                        {policyContext?.overall?.max_grants !== null && policyContext?.overall?.max_grants !== undefined && (
+                          <p className="text-xs text-blue-700">สิทธิ์รวม {policyContext.overall.max_grants.toLocaleString('th-TH')} ครั้ง</p>
+                        )}
+                      </div>
+                      <div>
+                        <p className="text-xs uppercase tracking-wide text-blue-700">วงเงินที่ยังสามารถยื่นได้</p>
+                        <p className="text-lg font-semibold">
+                          {policyContext?.overall?.max_amount_per_year !== null && policyContext?.overall?.max_amount_per_year !== undefined
+                            ? formatCurrencyWithPlaceholder(policyContext?.user_remaining?.amount)
+                            : 'ไม่จำกัด'}
+                        </p>
+                        {policyContext?.overall?.max_amount_per_year !== null && policyContext?.overall?.max_amount_per_year !== undefined && (
+                          <p className="text-xs text-blue-700">วงเงินต่อปีไม่เกิน {formatCurrency(policyContext.overall.max_amount_per_year)} บาท</p>
+                        )}
+                      </div>
+                    </div>
+                    {policyContext?.rule?.max_amount_per_grant !== null && policyContext?.rule?.max_amount_per_grant !== undefined && (
+                      <p className="mt-2 text-xs text-blue-700">
+                        วงเงินต่อครั้งไม่เกิน {formatCurrency(policyContext.rule.max_amount_per_grant)} บาท ({policyContext?.rule?.fund_description || 'ตามประกาศ'})
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
 
               {/* Volume/Issue */}
               <div>
@@ -4109,7 +4405,7 @@ const showSubmissionConfirmation = async () => {
               </div>
             )}
 
-            <div className="border-t border-gray-200 pt-4">
+            <div ref={previewSectionRef} className="border-t border-gray-200 pt-4">
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                 <button
                   type="button"

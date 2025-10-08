@@ -11,7 +11,7 @@ import {
   ArrowDown,
 } from "lucide-react";
 import Swal from "sweetalert2";
-import StatusBadge from "./StatusBadge";
+import StatusBadge from "@/app/admin/components/settings/StatusBadge";
 
 const YearManagementTab = ({ years = [], onSaveYear, onDeleteYear }) => {
   // ====== Editing + Form state (keep original names) ======
