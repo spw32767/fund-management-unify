@@ -10,7 +10,7 @@ import { FORM_TYPE_CONFIG } from '../../../lib/form_type_config';
 import systemConfigAPI from '../../../lib/system_config_api';
 
 export default function PromotionFundContent({ onNavigate }) {
-  const [selectedYear, setSelectedYear] = useState("2568");
+  const [selectedYear, setSelectedYear] = useState("");
   const [fundCategories, setFundCategories] = useState([]);
   const [filteredFunds, setFilteredFunds] = useState([]);
   const [years, setYears] = useState([]);
@@ -38,6 +38,21 @@ export default function PromotionFundContent({ onNavigate }) {
     }
   }, [showConditionModal]);
 
+  const resolveYearSelection = (targetYear, yearList) => {
+    if (!Array.isArray(yearList) || yearList.length === 0) {
+      return targetYear ? String(targetYear) : "";
+    }
+
+    if (targetYear !== null && targetYear !== undefined) {
+      const match = yearList.find((y) => String(y.year) === String(targetYear));
+      if (match) {
+        return String(match.year);
+      }
+    }
+
+    return String(yearList[0].year);
+  };
+
   useEffect(() => {
     loadInitialData();
   }, []);
@@ -47,6 +62,15 @@ export default function PromotionFundContent({ onNavigate }) {
       loadFundData(selectedYear, userRole);
     }
   }, [selectedYear, userRole, isWithinApplicationPeriod, endDateLabel]); // reload when window status/label changes
+
+  useEffect(() => {
+    if (!selectedYear && years.length > 0) {
+      const fallbackYear = resolveYearSelection(null, years);
+      if (fallbackYear) {
+        setSelectedYear(fallbackYear);
+      }
+    }
+  }, [selectedYear, years]);
 
   useEffect(() => {
     applyFilters();
@@ -113,6 +137,12 @@ export default function PromotionFundContent({ onNavigate }) {
       setUserRole(roleInfo);
       setYears(yearsData);
       setSystemConfig(configData);
+
+      const preferredYear = configData?.current_year ?? null;
+      const resolvedYear = resolveYearSelection(preferredYear, yearsData);
+      if (resolvedYear) {
+        setSelectedYear(resolvedYear);
+      }
 
       // funds will reload via selectedYear effect
     } catch (err) {

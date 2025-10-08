@@ -13,7 +13,7 @@ import systemConfigAPI from "../../../lib/system_config_api";
 import apiClient from "../../../lib/api";
 
 export default function ResearchFundContent({ onNavigate }) {
-  const [selectedYear, setSelectedYear] = useState("2568");
+  const [selectedYear, setSelectedYear] = useState("");
   const [yearId, setYearId] = useState(null);
   const [fundCategories, setFundCategories] = useState([]);
   const [filteredFunds, setFilteredFunds] = useState([]);
@@ -54,6 +54,15 @@ export default function ResearchFundContent({ onNavigate }) {
       loadFundData(selectedYear, userRole);
     }
   }, [selectedYear, userRole, isWithinApplicationPeriod, endDateLabel]);
+
+  useEffect(() => {
+    if (!selectedYear && years.length > 0) {
+      const fallbackYear = resolveYearSelection(null, years);
+      if (fallbackYear) {
+        setSelectedYear(fallbackYear);
+      }
+    }
+  }, [selectedYear, years]);
 
   useEffect(() => {
     applyFilters();
@@ -124,6 +133,21 @@ export default function ResearchFundContent({ onNavigate }) {
     return `${d.getDate()} ${thaiMonths[d.getMonth()]} ${d.getFullYear() + 543}`;
   };
 
+  const resolveYearSelection = (targetYear, yearList) => {
+    if (!Array.isArray(yearList) || yearList.length === 0) {
+      return targetYear ? String(targetYear) : "";
+    }
+
+    if (targetYear !== null && targetYear !== undefined) {
+      const match = yearList.find((y) => String(y.year) === String(targetYear));
+      if (match) {
+        return String(match.year);
+      }
+    }
+
+    return String(yearList[0].year);
+  };
+
   const loadInitialData = async () => {
     try {
       setLoading(true);
@@ -140,11 +164,15 @@ export default function ResearchFundContent({ onNavigate }) {
       setYears(yearsData);
       setSystemConfig(winData);
 
-      const currentYear = currentYearRes?.current_year
-        ? String(currentYearRes.current_year)
-        : selectedYear;
+      const preferredYear =
+        currentYearRes?.current_year ??
+        winData?.current_year ??
+        null;
 
-      setSelectedYear(currentYear);
+      const resolvedYear = resolveYearSelection(preferredYear, yearsData);
+      if (resolvedYear) {
+        setSelectedYear(resolvedYear);
+      }
       // loadFundData will be triggered by effect on selectedYear
     } catch (err) {
       console.error("Error loading initial data:", err);
@@ -320,12 +348,39 @@ export default function ResearchFundContent({ onNavigate }) {
   };
 
   // ---------- filtering (keep original availability condition) ----------
+  const computeRemainingGrants = (sub) => {
+    if (!sub) return null;
+
+    const hasDirectRemaining = sub.remaining_grant !== null && sub.remaining_grant !== undefined;
+    if (hasDirectRemaining) {
+      if (typeof sub.remaining_grant === "number") {
+        return sub.remaining_grant;
+      }
+      return parseCountValue(sub.remaining_grant);
+    }
+
+    if (sub.max_grants === null || sub.max_grants === undefined) {
+      return null;
+    }
+
+    const maxGrants = typeof sub.max_grants === "number" ? sub.max_grants : parseCountValue(sub.max_grants);
+    const usedGrants =
+      sub.used_grants === null || sub.used_grants === undefined
+        ? 0
+        : typeof sub.used_grants === "number"
+        ? sub.used_grants
+        : parseCountValue(sub.used_grants);
+
+    return Math.max(maxGrants - usedGrants, 0);
+  };
+
   const isAvailableResearch = (sub) => {
     const hasBudget = parseBudgetValue(sub.remaining_budget) > 0;
+    const remainingGrant = computeRemainingGrants(sub);
     const grantsOk =
-      sub.remaining_grant === null ||
-      sub.remaining_grant === undefined ||
-      parseCountValue(sub.remaining_grant) > 0;
+      remainingGrant === null ||
+      remainingGrant === undefined ||
+      remainingGrant > 0;
     return hasBudget && grantsOk;
   };
 
