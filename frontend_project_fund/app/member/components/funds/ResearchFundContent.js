@@ -12,6 +12,26 @@ import { FORM_TYPE_CONFIG } from "../../../lib/form_type_config";
 import systemConfigAPI from "../../../lib/system_config_api";
 import apiClient from "../../../lib/api";
 
+const isResearchCategory = (category) => {
+  const rawName =
+    category?.category_name ??
+    category?.categoryName ??
+    category?.name ??
+    "";
+  const name = String(rawName).trim().toLowerCase();
+  const categoryId = Number.parseInt(category?.category_id, 10);
+
+  if (!Number.isNaN(categoryId) && (categoryId === 1 || categoryId === 15)) {
+    return true;
+  }
+
+  return (
+    name.includes("ทุนส่งเสริมการวิจัย") ||
+    name.includes("วิจัยและนวัตกรรม") ||
+    name.includes("research")
+  );
+};
+
 export default function ResearchFundContent({ onNavigate }) {
   const [selectedYear, setSelectedYear] = useState("2568");
   const [yearId, setYearId] = useState(null);
@@ -291,8 +311,8 @@ export default function ResearchFundContent({ onNavigate }) {
         roleContext?.role_id ?? roleContext?.role_name ?? roleContext
       );
 
-      // keep: research category only (category_id = 1)
-      const researchFunds = visibleCategories.filter((category) => category.category_id === 1);
+      // keep: research category only (support legacy + new IDs & names)
+      const researchFunds = visibleCategories.filter(isResearchCategory);
 
       // ถ้าอยู่นอกช่วงเวลา ให้เติม “สิ้นสุดรับคำขอ: …” ต่อท้าย fund_condition (เหมือน Promotion)
       const adjusted = researchFunds.map((category) => {

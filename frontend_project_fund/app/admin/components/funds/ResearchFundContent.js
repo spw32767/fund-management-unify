@@ -11,6 +11,26 @@ import {
 import systemConfigAPI from "../../../lib/system_config_api";
 import apiClient from "../../../lib/api";
 
+const isResearchCategory = (category) => {
+  const rawName =
+    category?.category_name ??
+    category?.categoryName ??
+    category?.name ??
+    "";
+  const name = String(rawName).trim().toLowerCase();
+  const categoryId = Number.parseInt(category?.category_id, 10);
+
+  if (!Number.isNaN(categoryId) && (categoryId === 1 || categoryId === 15)) {
+    return true;
+  }
+
+  return (
+    name.includes("ทุนส่งเสริมการวิจัย") ||
+    name.includes("วิจัยและนวัตกรรม") ||
+    name.includes("research")
+  );
+};
+
 export default function ResearchFundContent() {
   const [selectedYear, setSelectedYear] = useState("2568");
   const [fundCategories, setFundCategories] = useState([]);
@@ -273,9 +293,7 @@ export default function ResearchFundContent() {
         roleContext?.role_id ?? roleContext?.role_name ?? roleContext
       );
 
-      const researchFunds = visibleCategories.filter(
-        (category) => category.category_id === 1
-      );
+      const researchFunds = visibleCategories.filter(isResearchCategory);
 
       const adjusted = researchFunds.map((category) => {
         const updatedSubs = (category.subcategories || []).map((sub) => {
