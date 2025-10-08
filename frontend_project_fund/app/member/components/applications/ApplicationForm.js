@@ -193,13 +193,21 @@ export default function ApplicationForm({ selectedFund }) {
 
     const userGrantRemaining = pickFirstNumber(
       selectedFund?.policy?.user_remaining?.grants,
-      selectedFund?.remaining_grant
+      selectedFund?.user_remaining?.grants,
+      selectedFund?.user_grant_remaining,
+      selectedFund?.user_remaining_grants,
+      selectedFund?.remaining_grant_per_user,
+      selectedFund?.remaining_grants_per_user
     );
 
     const userAmountRemaining = pickFirstNumber(
       selectedFund?.policy?.user_remaining?.amount,
+      selectedFund?.user_remaining?.amount,
+      selectedFund?.user_amount_remaining,
+      selectedFund?.user_remaining_amount,
       selectedFund?.remaining_amount_per_user,
-      selectedFund?.remaining_amount
+      selectedFund?.remaining_amount_user,
+      selectedFund?.remaining_amount_for_user
     );
 
     const warnings = [];

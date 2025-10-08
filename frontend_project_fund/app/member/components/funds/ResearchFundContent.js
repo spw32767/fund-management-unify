@@ -4,7 +4,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { DollarSign, FileText, Search, Download, X, Info, Clock, AlertTriangle } from "lucide-react";
+import { DollarSign, FileText, Search, X, Info, Clock, AlertTriangle, AlertCircle } from "lucide-react";
 import PageLayout from "../common/PageLayout";
 import { teacherAPI } from "../../../lib/member_api";
 import { targetRolesUtils, filterFundsByRole } from "../../../lib/target_roles_utils";
@@ -60,17 +60,27 @@ export default function ResearchFundContent({ onNavigate }) {
     applyFilters();
   }, [searchTerm, fundCategories]);
 
-  const parseCountValue = (value) => {
-    if (value === null || value === undefined || value === "") return 0;
+  const parseOptionalNumber = (value) => {
+    if (value === null || value === undefined || value === "") return null;
     if (typeof value === "number") {
-      return Number.isFinite(value) ? value : 0;
+      return Number.isFinite(value) ? value : null;
     }
 
     const cleaned = String(value).replace(/,/g, "").trim();
-    if (cleaned === "") return 0;
+    if (cleaned === "") return null;
 
-    const numeric = Number.parseInt(cleaned, 10);
-    return Number.isNaN(numeric) ? 0 : numeric;
+    const numeric = Number.parseFloat(cleaned);
+    return Number.isNaN(numeric) ? null : numeric;
+  };
+
+  const pickFirstNumeric = (...values) => {
+    for (const value of values) {
+      const numeric = parseOptionalNumber(value);
+      if (numeric !== null) {
+        return numeric;
+      }
+    }
+    return null;
   };
 
   // ---------- helpers ----------
@@ -310,11 +320,32 @@ export default function ResearchFundContent({ onNavigate }) {
   // ---------- filtering (keep original availability condition) ----------
   const getAvailabilityWarnings = (sub) => {
     const warnings = [];
-    if (sub?.remaining_grant !== null && sub?.remaining_grant !== undefined) {
-      const remainingGrant = parseCountValue(sub.remaining_grant);
-      if (Number.isFinite(remainingGrant) && remainingGrant <= 0) {
-        warnings.push("จำนวนทุนที่เปิดรับครบแล้ว");
-      }
+
+    const userGrantRemaining = pickFirstNumeric(
+      sub?.policy?.user_remaining?.grants,
+      sub?.user_remaining?.grants,
+      sub?.user_grant_remaining,
+      sub?.user_remaining_grants,
+      sub?.remaining_grant_per_user,
+      sub?.remaining_grants_per_user
+    );
+
+    if (userGrantRemaining !== null && userGrantRemaining <= 0) {
+      warnings.push("คุณใช้จำนวนสิทธิ์การรับทุนครบตามที่กำหนดแล้ว");
+    }
+
+    const userAmountRemaining = pickFirstNumeric(
+      sub?.policy?.user_remaining?.amount,
+      sub?.user_remaining?.amount,
+      sub?.user_amount_remaining,
+      sub?.user_remaining_amount,
+      sub?.remaining_amount_per_user,
+      sub?.remaining_amount_user,
+      sub?.remaining_amount_for_user
+    );
+
+    if (userAmountRemaining !== null && userAmountRemaining <= 0) {
+      warnings.push("คุณใช้วงเงินสูงสุดต่อปีของทุนนี้ครบแล้ว");
     }
 
     return warnings;
@@ -510,7 +541,7 @@ export default function ResearchFundContent({ onNavigate }) {
     const applyButtonTitle = !isWithinApplicationPeriod
       ? "อยู่นอกช่วงเวลายื่นขอ"
       : hasAvailabilityWarnings
-      ? "โควตาการขอทุนครบแล้ว (ยังสามารถยื่นคำร้องได้)"
+      ? `คำเตือนสิทธิ์การขอทุน: ${availabilityWarnings.join(" / ")} (ยังสามารถยื่นคำร้องได้)`
       : "ยื่นขอทุน";
 
     return (
@@ -569,6 +600,16 @@ export default function ResearchFundContent({ onNavigate }) {
               ยื่นขอทุน
             </button>
           </div>
+          {hasAvailabilityWarnings && (
+            <div className="mt-2 space-y-1 text-xs text-yellow-700" role="status" aria-live="polite">
+              {availabilityWarnings.map((msg, index) => (
+                <div key={index} className="flex items-start gap-1 justify-center">
+                  <AlertCircle className="h-3.5 w-3.5 mt-0.5" />
+                  <span className="text-left whitespace-pre-line">{msg}</span>
+                </div>
+              ))}
+            </div>
+          )}
         </td>
       </tr>
     );
