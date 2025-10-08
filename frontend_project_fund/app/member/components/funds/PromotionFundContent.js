@@ -146,19 +146,6 @@ export default function PromotionFundContent({ onNavigate }) {
     applyFilters();
   }, [searchTerm, fundCategories]);
 
-  const parseBudgetValue = (value) => {
-    if (value === null || value === undefined || value === "") return 0;
-    if (typeof value === "number") {
-      return Number.isFinite(value) ? value : 0;
-    }
-
-    const cleaned = String(value).replace(/,/g, "").trim();
-    if (cleaned === "") return 0;
-
-    const numeric = Number.parseFloat(cleaned);
-    return Number.isNaN(numeric) ? 0 : numeric;
-  };
-
   // ---------- helpers ----------
   // Accepts "YYYY-MM-DD HH:mm:ss" (treated as local) or ISO (respects Z/offset)
   const computeApplicationOpen = (start, end) => {
@@ -446,14 +433,11 @@ export default function PromotionFundContent({ onNavigate }) {
         );
 
         if (publicationSubs.length > 1) {
+          // remaining_budget / used_amount / remaining_grant ถูกย้ายไปคำนวณจาก table view
           const merged = {
             ...publicationSubs[0],
             category_id: category.category_id,
             subcategory_name: "เงินรางวัลการตีพิมพ์เผยแพร่ผลงานวิจัย",
-            remaining_budget: publicationSubs.reduce(
-              (sum, s) => sum + (s.remaining_budget || 0),
-              0
-            ),
             has_multiple_levels: publicationSubs.some((s) => s.has_multiple_levels),
             budget_count: publicationSubs.reduce(
               (sum, s) => sum + (s.budget_count || 0),
@@ -556,8 +540,7 @@ export default function PromotionFundContent({ onNavigate }) {
       window.open(docUrl, '_blank');
       return;
     }
-    if (!isWithinApplicationPeriod) return;
-
+    // ไม่ปิดปุ่มยื่นขอที่นี่แล้ว ระบบจะตรวจสอบในฟอร์มโดยอิงจาก table view ใหม่
     const categoryId = findParentCategoryId(subcategory.subcategory_id);
     const yearObj = years.find(y => y.year === selectedYear);
     const yearId = yearObj?.year_id;
@@ -676,20 +659,17 @@ export default function PromotionFundContent({ onNavigate }) {
   }
 
   const renderFundRow = (fund) => {
-    const fundName = fund.subcategory_name || 'ไม่ระบุ';
-    const remainingBudget = parseBudgetValue(fund.remaining_budget);
-    const hasBudgetValue =
-      fund.remaining_budget !== null &&
-      fund.remaining_budget !== undefined &&
-      String(fund.remaining_budget).trim() !== '';
-
-    const formType = fund.form_type || 'download';
+    const fundName = fund.subcategory_name || "ไม่ระบุ";
+    const formType = fund.form_type || "download";
     const formConfig = FORM_TYPE_CONFIG[formType] || {};
     const ButtonIcon = formConfig.icon || FileText;
     const isOnlineForm = !!formConfig.isOnlineForm;
 
+    // remaining_budget / used_amount / remaining_grant are not referenced anymore;
+    // rely on the database table views when budget availability is needed.
+
     return (
-      <tr key={fund.subcategory_id} className={!isWithinApplicationPeriod ? 'bg-gray-50' : ''}>
+      <tr key={fund.subcategory_id} className={!isWithinApplicationPeriod ? "bg-gray-50" : ""}>
         <td className="px-6 py-4 align-top">
           <div className="text-sm font-medium text-gray-900 max-w-lg break-words leading-relaxed">
             {fundName}
@@ -718,67 +698,39 @@ export default function PromotionFundContent({ onNavigate }) {
           </div>
         </td>
         <td className="px-6 py-4 text-center">
-          {(() => {
-            const isOnlineForm =
-              (FORM_TYPE_CONFIG[fund.form_type] || FORM_TYPE_CONFIG["download"])
-                ?.isOnlineForm === true;
-            const applyDisabled = !isWithinApplicationPeriod || remainingBudget <= 0;
-
-            if (isOnlineForm) {
-              return (
-                <div className="inline-flex items-center gap-3">
-                  {/* ดูรายละเอียด (อ่านอย่างเดียวเสมอ) */}
-                  <button
-                    onClick={() => handleViewDetails(fund)}
-                    className="inline-flex items-center gap-2 px-1 py-2 text-sm font-medium text-blue-600 hover:text-blue-700"
-                    title="เปิดดูรายละเอียด (อ่านอย่างเดียว)"
-                  >
-                    <Search size={16} />
-                    ดูรายละเอียด
-                  </button>
-
-                  {/* ปุ่มหลัก: กรอกแบบฟอร์ม */}
-                  <button
-                    onClick={() => handleApplyForm(fund)}
-                    className={`inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg ${
-                      applyDisabled
-                        ? "bg-gray-200 text-gray-500 cursor-not-allowed"
-                        : "bg-blue-600 text-white hover:bg-blue-700"
-                    }`}
-                    disabled={applyDisabled}
-                    title={
-                      !isWithinApplicationPeriod
-                        ? "อยู่นอกช่วงเวลายื่นขอ"
-                        : remainingBudget <= 0
-                        ? hasBudgetValue
-                          ? "งบประมาณหมดแล้ว"
-                          : "ไม่มีข้อมูลงบประมาณ"
-                        : "ยื่นขอทุน"
-                    }
-                  >
-                    <ButtonIcon size={16} />
-                    ยื่นขอทุน
-                  </button>
-                </div>
-              );
-            }
-
-            // แบบ download: คงพฤติกรรมเดิม
-            return (
+          {isOnlineForm ? (
+            <div className="inline-flex items-center gap-3">
               <button
-                onClick={() => {
-                  const docUrl =
-                    fund.form_url || "/documents/default-fund-form.docx";
-                  window.open(docUrl, "_blank");
-                }}
-                className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-blue-600 hover:text-blue-700"
-                title="ดาวน์โหลดแบบฟอร์ม"
+                onClick={() => handleViewDetails(fund)}
+                className="inline-flex items-center gap-2 px-1 py-2 text-sm font-medium text-blue-600 hover:text-blue-700"
+                title="เปิดดูรายละเอียด (อ่านอย่างเดียว)"
               >
-                <Download size={16} />
-                ดาวน์โหลดฟอร์ม
+                <Search size={16} />
+                ดูรายละเอียด
               </button>
-            );
-          })()}
+
+              <button
+                onClick={() => handleApplyForm(fund)}
+                className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg bg-blue-600 text-white hover:bg-blue-700"
+                title="ยื่นขอทุน"
+              >
+                <ButtonIcon size={16} />
+                ยื่นขอทุน
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={() => {
+                const docUrl = fund.form_url || "/documents/default-fund-form.docx";
+                window.open(docUrl, "_blank");
+              }}
+              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-blue-600 hover:text-blue-700"
+              title="ดาวน์โหลดแบบฟอร์ม"
+            >
+              <Download size={16} />
+              ดาวน์โหลดฟอร์ม
+            </button>
+          )}
         </td>
       </tr>
     );

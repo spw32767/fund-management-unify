@@ -122,52 +122,16 @@ export default function PromotionFundContent() {
   const [selectedCondition, setSelectedCondition] = useState({ title: "", content: "" });
   const modalRef = useRef(null);
 
-  const parseBudgetValue = (value) => {
-    if (value === null || value === undefined || value === "") return 0;
-    if (typeof value === "number") {
-      return Number.isFinite(value) ? value : 0;
-    }
-
-    const cleaned = String(value).replace(/,/g, "").trim();
-    if (cleaned === "") return 0;
-
-    const numeric = Number.parseFloat(cleaned);
-    return Number.isNaN(numeric) ? 0 : numeric;
-  };
-
-  const parseCountValue = (value) => {
-    if (value === null || value === undefined || value === "") return 0;
-    if (typeof value === "number") {
-      return Number.isFinite(value) ? value : 0;
-    }
-
-    const cleaned = String(value).replace(/,/g, "").trim();
-    if (cleaned === "") return 0;
-
-    const numeric = Number.parseInt(cleaned, 10);
-    return Number.isNaN(numeric) ? 0 : numeric;
-  };
-
   const normalizeSubcategoryBudgets = (subcategory) => {
     if (!subcategory) return subcategory;
 
-    const normalizedLevels = Array.isArray(subcategory.budget_levels)
-      ? subcategory.budget_levels.map((level) => ({
-          ...level,
-          remaining_budget: parseBudgetValue(level?.remaining_budget),
-          total_budget: parseBudgetValue(level?.total_budget),
-        }))
-      : subcategory.budget_levels;
-    const normalizedCount = parseCountValue(subcategory.budget_count);
-
     return {
       ...subcategory,
-      remaining_budget: parseBudgetValue(subcategory.remaining_budget),
-      total_budget: parseBudgetValue(subcategory.total_budget),
-      allocated_budget: parseBudgetValue(subcategory.allocated_budget),
-      budget_levels: normalizedLevels,
-      budget_count:
-        normalizedCount || (Array.isArray(normalizedLevels) ? normalizedLevels.length : 0),
+      // remaining_budget / used_amount / remaining_grant are not normalized here anymore;
+      // rely on the database table views for consolidated budget numbers instead.
+      budget_levels: Array.isArray(subcategory.budget_levels)
+        ? subcategory.budget_levels.map((level) => ({ ...level }))
+        : subcategory.budget_levels,
     };
   };
 
@@ -471,33 +435,16 @@ export default function PromotionFundContent() {
           const combinedLevels = publicationSubs.flatMap((sub) =>
             Array.isArray(sub.budget_levels) ? sub.budget_levels : []
           );
-          const remainingBudgetTotal = publicationSubs.reduce(
-            (sum, s) => sum + parseBudgetValue(s.remaining_budget),
-            0
-          );
-          const totalBudgetTotal = publicationSubs.reduce(
-            (sum, s) => sum + parseBudgetValue(s.total_budget),
-            0
-          );
-          const allocatedBudgetTotal = publicationSubs.reduce(
-            (sum, s) => sum + parseBudgetValue(s.allocated_budget),
-            0
-          );
           const combinedCount =
             (Array.isArray(combinedLevels) && combinedLevels.length > 0
               ? combinedLevels.length
-              : publicationSubs.reduce(
-                  (sum, s) => sum + parseCountValue(s.budget_count),
-                  0
-                )) || 0;
+              : publicationSubs.length) || 0;
 
+          // remaining_budget / used_amount / remaining_grant ถูกย้ายไปคำนวณจาก table view
           const merged = {
             ...publicationSubs[0],
             category_id: category.category_id,
             subcategory_name: "เงินรางวัลการตีพิมพ์เผยแพร่ผลงานวิจัย",
-            remaining_budget: remainingBudgetTotal,
-            total_budget: totalBudgetTotal,
-            allocated_budget: allocatedBudgetTotal,
             has_multiple_levels:
               combinedLevels.length > 0 || publicationSubs.some((s) => s.has_multiple_levels),
             budget_levels: combinedLevels,

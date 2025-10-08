@@ -153,32 +153,6 @@ export default function ResearchFundContent({ onNavigate }) {
     applyFilters();
   }, [searchTerm, fundCategories]);
 
-  const parseBudgetValue = (value) => {
-    if (value === null || value === undefined || value === "") return 0;
-    if (typeof value === "number") {
-      return Number.isFinite(value) ? value : 0;
-    }
-
-    const cleaned = String(value).replace(/,/g, "").trim();
-    if (cleaned === "") return 0;
-
-    const numeric = Number.parseFloat(cleaned);
-    return Number.isNaN(numeric) ? 0 : numeric;
-  };
-
-  const parseCountValue = (value) => {
-    if (value === null || value === undefined || value === "") return 0;
-    if (typeof value === "number") {
-      return Number.isFinite(value) ? value : 0;
-    }
-
-    const cleaned = String(value).replace(/,/g, "").trim();
-    if (cleaned === "") return 0;
-
-    const numeric = Number.parseInt(cleaned, 10);
-    return Number.isNaN(numeric) ? 0 : numeric;
-  };
-
   // ---------- helpers ----------
   // Accepts "YYYY-MM-DD HH:mm:ss" (treated as local) or ISO (respects Z/offset)
   const computeApplicationOpen = (start, end) => {
@@ -456,15 +430,8 @@ export default function ResearchFundContent({ onNavigate }) {
     }
   };
 
-  // ---------- filtering (keep original availability condition) ----------
-  const isAvailableResearch = (sub) => {
-    const hasBudget = parseBudgetValue(sub.remaining_budget) > 0;
-    const grantsOk =
-      sub.remaining_grant === null ||
-      sub.remaining_grant === undefined ||
-      parseCountValue(sub.remaining_grant) > 0;
-    return hasBudget && grantsOk;
-  };
+  // remaining_budget / used_amount / remaining_grant are no longer read here;
+  // availability should be sourced from the new database table views instead.
 
   const applyFilters = () => {
     let filtered = [...fundCategories];
@@ -527,9 +494,7 @@ export default function ResearchFundContent({ onNavigate }) {
   };
 
   const handleApplyForm = (subcategory) => {
-    if (!isWithinApplicationPeriod || !isAvailableResearch(subcategory)) {
-      return;
-    }
+    // ไม่ปิดปุ่มยื่นขอในหน้านี้แล้ว ให้ระบบไปตรวจสอบในฟอร์มด้วย table view ใหม่
     // ล้าง readonly เพื่อให้กรอกได้
     try {
       sessionStorage.removeItem("fund_form_readonly");
@@ -605,6 +570,8 @@ export default function ResearchFundContent({ onNavigate }) {
 
   // ---------- rendering ----------
   if (loading) {
+    // remaining_budget / used_amount / remaining_grant are no longer displayed here;
+    // rely on aggregated values from the database views when needed.
     return (
       <div className="flex justify-center items-center h-64">
         <div className="text-center">
@@ -633,21 +600,7 @@ export default function ResearchFundContent({ onNavigate }) {
 
   const renderFundRow = (fund) => {
     const fundName = fund.subcategorie_name || fund.subcategory_name || "ไม่ระบุ";
-    const remainingBudget = parseBudgetValue(fund.remaining_budget);
-    const hasBudgetValue =
-      fund.remaining_budget !== null &&
-      fund.remaining_budget !== undefined &&
-      String(fund.remaining_budget).trim() !== "";
-
-    const available = isAvailableResearch(fund);
-    const applyDisabled = !isWithinApplicationPeriod || !available;
-
-    const applyButtonTitle = !isWithinApplicationPeriod
-      ? "อยู่นอกช่วงเวลายื่นขอ"
-      : !available
-      ? (hasBudgetValue ? "งบหมดหรือจำนวนทุนครบแล้ว" : "ไม่พร้อมยื่นขอในขณะนี้")
-      : "ยื่นขอทุน";
-
+    // remaining_budget / used_amount / remaining_grant ไม่ได้ใช้ที่นี่แล้ว ให้ดึงจาก table view แทน
     return (
       <tr key={fund.subcategory_id || fund.subcategorie_id} className={!isWithinApplicationPeriod ? "bg-gray-50" : ""}>
         <td className="px-6 py-4 align-top">
@@ -690,13 +643,8 @@ export default function ResearchFundContent({ onNavigate }) {
 
             <button
               onClick={() => handleApplyForm(fund)}
-              className={`inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg ${
-                applyDisabled
-                  ? "bg-gray-200 text-gray-500 cursor-not-allowed"
-                  : "bg-blue-600 text-white hover:bg-blue-700"
-              }`}
-              disabled={applyDisabled}
-              title={applyButtonTitle}
+              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg bg-blue-600 text-white hover:bg-blue-700"
+              title="ยื่นขอทุน"
             >
               <FileText size={16} />
               ยื่นขอทุน

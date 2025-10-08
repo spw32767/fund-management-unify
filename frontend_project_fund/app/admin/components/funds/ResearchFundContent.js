@@ -146,31 +146,8 @@ export default function ResearchFundContent() {
     applyFilters();
   }, [searchTerm, fundCategories]);
 
-  const parseBudgetValue = (value) => {
-    if (value === null || value === undefined || value === "") return 0;
-    if (typeof value === "number") {
-      return Number.isFinite(value) ? value : 0;
-    }
-
-    const cleaned = String(value).replace(/,/g, "").trim();
-    if (cleaned === "") return 0;
-
-    const numeric = Number.parseFloat(cleaned);
-    return Number.isNaN(numeric) ? 0 : numeric;
-  };
-
-  const parseCountValue = (value) => {
-    if (value === null || value === undefined || value === "") return 0;
-    if (typeof value === "number") {
-      return Number.isFinite(value) ? value : 0;
-    }
-
-    const cleaned = String(value).replace(/,/g, "").trim();
-    if (cleaned === "") return 0;
-
-    const numeric = Number.parseInt(cleaned, 10);
-    return Number.isNaN(numeric) ? 0 : numeric;
-  };
+  // remaining_budget / used_amount / remaining_grant are provided by the new
+  // database table views, so this component no longer parses those fields.
 
   const computeApplicationOpen = (start, end) => {
     if (!start || !end) return true;
