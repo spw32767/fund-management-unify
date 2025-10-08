@@ -21,6 +21,13 @@ import DeleteConfirmDialog from "@/app/admin/components/settings/funds_config/De
 // Import real API
 import { adminAPI } from "@/app/lib/admin_api";
 
+const isDevelopment = process.env.NODE_ENV !== "production";
+const debugLog = (...messages) => {
+  if (isDevelopment) {
+    console.debug("[FundSettingsContent]", ...messages);
+  }
+};
+
 const TAB_ITEMS = [
   { id: "funds", label: "จัดการทุน", icon: DollarSign },
   { id: "years", label: "จัดการปีงบประมาณ", icon: Calendar },
@@ -195,8 +202,23 @@ export default function FundSettingsContent({ onNavigate }) {
     setLoading(true);
     setError(null);
     try {
+      debugLog('Loading categories for year', selectedYear.year_id, selectedYear);
       const data = await adminAPI.getCategoriesWithDetails(selectedYear.year_id);
-      const sortedCategories = [...data].sort((a, b) => {
+      debugLog('Raw categories payload', data);
+
+      const categoriesPayload = Array.isArray(data)
+        ? data
+        : Array.isArray(data?.categories)
+        ? data.categories
+        : [];
+
+      if (!Array.isArray(categoriesPayload)) {
+        debugLog('Resolved categories payload is not an array', data);
+        setCategories([]);
+        return;
+      }
+
+      const sortedCategories = [...categoriesPayload].sort((a, b) => {
         const orderA = resolveOrder(a, a.category_id || 0);
         const orderB = resolveOrder(b, b.category_id || 0);
         return orderA - orderB;
@@ -246,6 +268,9 @@ export default function FundSettingsContent({ onNavigate }) {
           rawBudgets.rules,
           rawBudgets.rule_budgets,
           rawBudgets.ruleBudgets,
+          rawBudgets.items,
+          rawBudgets.entries,
+          rawBudgets.children,
         ];
 
         ruleCandidates.forEach((group) => {
@@ -254,14 +279,25 @@ export default function FundSettingsContent({ onNavigate }) {
           }
         });
 
+        Object.entries(rawBudgets).forEach(([key, value]) => {
+          if (!value) return;
+
+          const lowerKey = key.toLowerCase();
+          const inferredScope = lowerKey.includes('overall')
+            ? 'overall'
+            : lowerKey.includes('rule')
+            ? 'rule'
+            : undefined;
+
+          if (Array.isArray(value)) {
+            value.forEach((item) => addBudget(item, inferredScope));
+          } else if (value && typeof value === 'object') {
+            addBudget(value, inferredScope);
+          }
+        });
+
         if (results.length === 0) {
-          Object.values(rawBudgets).forEach((value) => {
-            if (Array.isArray(value)) {
-              value.forEach((item) => addBudget(item));
-            } else if (value && typeof value === 'object') {
-              addBudget(value);
-            }
-          });
+          debugLog('No budget records detected for subcategory payload', rawBudgets);
         }
 
         return results;
@@ -316,9 +352,11 @@ export default function FundSettingsContent({ onNavigate }) {
           subcategories: sortedSubcategories,
         };
       });
+      debugLog('Normalized categories payload', normalized);
       setCategories(normalized);
     } catch (error) {
       console.error("Error loading categories:", error);
+      debugLog('Error loading categories', error);
       setError("ไม่สามารถโหลดข้อมูลหมวดหมู่ได้");
       showError("ไม่สามารถโหลดข้อมูลหมวดหมู่ได้");
     } finally {
@@ -662,7 +700,11 @@ export default function FundSettingsContent({ onNavigate }) {
     const newStatus = nextActive ? "active" : "disable"; // << สำคัญ: ไม่ใช่ "inactive"
 
     // อ้างอิง SubcategoryModal: ใช้ budget ตัวแรกช่วยหา allocated_amount/remaining_budget
-    const firstBudget = subcategory.budgets?.[0] || {};
+    const budgetList = Array.isArray(subcategory.budgets) ? subcategory.budgets : [];
+    const overallBudget = budgetList.find(
+      (budget) => String(budget.record_scope || '').toLowerCase() === 'overall'
+    );
+    const firstBudget = overallBudget || budgetList[0] || {};
     const payload = {
       subcategory_name: subcategory.subcategory_name ?? "",
       fund_condition: subcategory.fund_condition ?? "",

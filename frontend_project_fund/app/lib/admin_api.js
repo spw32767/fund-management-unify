@@ -3,6 +3,85 @@
 import apiClient from './api';
 import { targetRolesUtils } from './target_roles_utils';
 
+const normalizeBudgetRecord = (budget = {}, fallbackScope = '') => {
+  if (!budget || typeof budget !== 'object') return null;
+
+  const record = { ...budget };
+  const derivedScope = String(record.record_scope || fallbackScope || '').toLowerCase();
+  if (derivedScope) {
+    record.record_scope = derivedScope;
+  }
+
+  return record;
+};
+
+const flattenBudgetCollection = (rawBudgets) => {
+  if (!rawBudgets) return [];
+
+  const results = [];
+  const seenIds = new Set();
+
+  const pushBudget = (budget, fallbackScope) => {
+    const normalized = normalizeBudgetRecord(budget, fallbackScope);
+    if (!normalized) return;
+
+    const key =
+      normalized.subcategory_budget_id ??
+      normalized.budget_id ??
+      `${normalized.record_scope || fallbackScope || 'unknown'}-${normalized.level || normalized.fund_description || ''}`;
+
+    if (seenIds.has(key)) return;
+    seenIds.add(key);
+    results.push(normalized);
+  };
+
+  if (Array.isArray(rawBudgets)) {
+    rawBudgets.forEach((budget) => pushBudget(budget));
+    return results;
+  }
+
+  const candidateGroups = [
+    { value: rawBudgets.overall, scope: 'overall' },
+    { value: rawBudgets.overall_budget, scope: 'overall' },
+    { value: rawBudgets.overallBudget, scope: 'overall' },
+    { value: rawBudgets.rule, scope: 'rule' },
+    { value: rawBudgets.rules, scope: 'rule', isArray: true },
+    { value: rawBudgets.rule_budgets, scope: 'rule', isArray: true },
+    { value: rawBudgets.ruleBudgets, scope: 'rule', isArray: true },
+  ];
+
+  candidateGroups.forEach(({ value, scope, isArray }) => {
+    if (!value) return;
+    if (isArray && Array.isArray(value)) {
+      value.forEach((item) => pushBudget(item, scope));
+    } else if (!isArray) {
+      pushBudget(value, scope);
+    }
+  });
+
+  Object.entries(rawBudgets).forEach(([key, value]) => {
+    if (!value) return;
+
+    const lowerKey = key.toLowerCase();
+    const inferredScope = lowerKey.includes('overall')
+      ? 'overall'
+      : lowerKey.includes('rule')
+      ? 'rule'
+      : undefined;
+
+    if (Array.isArray(value)) {
+      value.forEach((item) => pushBudget(item, inferredScope));
+      return;
+    }
+
+    if (typeof value === 'object' && value !== rawBudgets) {
+      pushBudget(value, inferredScope);
+    }
+  });
+
+  return results;
+};
+
 // Admin API methods for managing funds and roles
 export const adminAPI = {
   
@@ -317,6 +396,13 @@ export const adminAPI = {
         ...params,
       };
       const response = await apiClient.get('/admin/budgets', queryParams);
+      if (response?.budgets) {
+        return {
+          ...response,
+          budgets: flattenBudgetCollection(response.budgets),
+        };
+      }
+
       return response;
     } catch (error) {
       console.error('Error fetching subcategory budgets:', error);
@@ -331,7 +417,11 @@ export const adminAPI = {
         ? { subcategory_id: subcategoryId, record_scope: 'all' }
         : { record_scope: 'all' };
       const response = await apiClient.get('/admin/budgets', params);
-      return response.budgets || [];
+      if (response?.budgets) {
+        return flattenBudgetCollection(response.budgets);
+      }
+
+      return flattenBudgetCollection(response);
     } catch (error) {
       console.error('Error fetching budgets:', error);
       throw error;
@@ -536,24 +626,32 @@ export const adminAPI = {
   async getCategoriesWithDetails(yearId) {
     try {
       // Get categories for the year
-      const categories = await this.getCategories(yearId);
-      
+      const rawCategories = await this.getCategories(yearId);
+      const categories = Array.isArray(rawCategories?.categories)
+        ? rawCategories.categories
+        : rawCategories;
+
       // Get all subcategories and budgets for each category
+      const normalizedCategories = Array.isArray(categories) ? categories : [];
+
       const categoriesWithDetails = await Promise.all(
-        categories.map(async (category) => {
+        normalizedCategories.map(async (category) => {
           try {
             // Get subcategories for this category
             const subcategories = await this.getSubcategories(category.category_id);
-            
+
             // Get budgets for each subcategory
             const subcategoriesWithBudgets = await Promise.all(
               subcategories.map(async (subcategory) => {
                 try {
-                  const budgets = await this.getBudgets(subcategory.subcategory_id);
-                  
+                  const preloadedBudgets = flattenBudgetCollection(subcategory.budgets);
+                  const budgets = preloadedBudgets.length
+                    ? preloadedBudgets
+                    : await this.getBudgets(subcategory.subcategory_id);
+
                   // ใช้ targetRolesUtils แทนการ parse เอง
                   const targetRoles = targetRolesUtils.parseTargetRoles(subcategory.target_roles);
-                  
+
                   return {
                     ...subcategory,
                     target_roles: targetRoles,

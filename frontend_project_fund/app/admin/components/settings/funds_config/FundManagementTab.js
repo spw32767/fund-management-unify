@@ -58,6 +58,55 @@ const describeTargetRoles = (targetRoles) =>
 
 const normalizeScope = (scope) => String(scope || "").toLowerCase();
 
+const ensureBudgetArray = (budgets) => {
+  if (!budgets) return [];
+
+  const results = [];
+  const seenIds = new Set();
+
+  const addBudget = (budget, fallbackScope) => {
+    if (!budget || typeof budget !== 'object') return;
+
+    const scope = normalizeScope(budget.record_scope || fallbackScope);
+    const identifier =
+      budget.subcategory_budget_id ??
+      budget.budget_id ??
+      `${scope}-${budget.level || budget.fund_description || results.length}`;
+
+    if (seenIds.has(identifier)) return;
+    seenIds.add(identifier);
+
+    results.push({
+      ...budget,
+      record_scope: scope,
+    });
+  };
+
+  if (Array.isArray(budgets)) {
+    budgets.forEach((budget) => addBudget(budget));
+    return results;
+  }
+
+  Object.entries(budgets).forEach(([key, value]) => {
+    if (!value) return;
+
+    const lowerKey = String(key).toLowerCase();
+    const fallbackScope = lowerKey.includes('overall')
+      ? 'overall'
+      : lowerKey.includes('rule')
+      ? 'rule'
+      : undefined;
+
+    if (Array.isArray(value)) {
+      value.forEach((item) => addBudget(item, fallbackScope));
+    } else if (typeof value === 'object') {
+      addBudget(value, fallbackScope);
+    }
+  });
+
+  return results;
+};
+
 const resolveBudgetOrder = (budget = {}) => {
   const candidates = [
     budget.display_order,
@@ -77,7 +126,7 @@ const resolveBudgetOrder = (budget = {}) => {
 };
 
 const categorizeBudgets = (budgets = []) => {
-  const normalized = Array.isArray(budgets) ? budgets : [];
+  const normalized = ensureBudgetArray(budgets);
   const overall = normalized.find(
     (budget) => normalizeScope(budget.record_scope) === "overall"
   );
@@ -142,8 +191,10 @@ const FundManagementTab = ({
   }, [selectedYearNumber]);
 
   const hasFundData = React.useMemo(() => {
-    return categories.some(
-      (category) => Array.isArray(category.subcategories) && category.subcategories.length > 0
+    return categories.some((category) =>
+      (category.subcategories || []).some(
+        (subcategory) => ensureBudgetArray(subcategory.budgets).length > 0
+      )
     );
   }, [categories]);
 
