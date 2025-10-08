@@ -9,28 +9,102 @@ import { targetRolesUtils, filterFundsByRole } from '../../../lib/target_roles_u
 import { FORM_TYPE_CONFIG } from '../../../lib/form_type_config';
 import systemConfigAPI from '../../../lib/system_config_api';
 
-const isPromotionCategory = (category) => {
-  const rawName =
-    category?.category_name ??
-    category?.categoryName ??
-    category?.name ??
-    '';
-  const name = String(rawName).trim().toLowerCase();
-  const categoryId = Number.parseInt(category?.category_id, 10);
+const PROMOTION_CATEGORY_KEYWORDS = [
+  'ทุนอุดหนุนกิจกรรม',
+  'กิจกรรม',
+  'กิจกรรมส่งเสริม',
+  'activity',
+  'promotion',
+  'support',
+];
 
-  if (!Number.isNaN(categoryId) && (categoryId === 2 || categoryId === 16)) {
-    return true;
+const normalizeText = (value) =>
+  String(value ?? '')
+    .trim()
+    .toLowerCase();
+
+const extractCategoryTexts = (category) => {
+  if (!category || typeof category !== 'object') {
+    return [];
   }
 
-  return (
-    name.includes('ทุนอุดหนุนกิจกรรม') ||
-    name.includes('กิจกรรมส่งเสริม') ||
-    name.includes('promotion')
+  const baseTexts = [
+    category.category_name,
+    category.categoryName,
+    category.name,
+    category.category_name_en,
+    category.categoryNameEn,
+  ];
+
+  const subTexts = Array.isArray(category.subcategories)
+    ? category.subcategories.flatMap((sub) => [
+        sub?.subcategory_name,
+        sub?.subcategorie_name,
+        sub?.name,
+        sub?.fund_condition,
+      ])
+    : [];
+
+  return [...baseTexts, ...subTexts]
+    .filter((text) => text != null && text !== '')
+    .map(normalizeText);
+};
+
+const matchCategoryByKeywords = (category, keywords = []) => {
+  const texts = extractCategoryTexts(category);
+  if (!texts.length || !Array.isArray(keywords) || !keywords.length) {
+    return false;
+  }
+
+  return keywords.some((keyword) => {
+    const normalizedKeyword = normalizeText(keyword);
+    if (!normalizedKeyword) {
+      return false;
+    }
+
+    return texts.some((text) => text.includes(normalizedKeyword));
+  });
+};
+
+const selectCategoriesByKeywords = (categories = [], keywords = []) => {
+  if (!Array.isArray(categories) || !categories.length) {
+    return [];
+  }
+
+  const directMatches = categories.filter((category) =>
+    matchCategoryByKeywords(category, keywords)
   );
+
+  if (directMatches.length) {
+    return directMatches;
+  }
+
+  const scored = categories
+    .map((category) => {
+      const texts = extractCategoryTexts(category);
+      const score = keywords.reduce((total, keyword) => {
+        const normalizedKeyword = normalizeText(keyword);
+        if (!normalizedKeyword) {
+          return total;
+        }
+        const hit = texts.some((text) => text.includes(normalizedKeyword));
+        return total + (hit ? 1 : 0);
+      }, 0);
+
+      return { category, score };
+    })
+    .filter((entry) => entry.score > 0)
+    .sort((a, b) => b.score - a.score);
+
+  if (scored.length) {
+    return scored.map((entry) => entry.category);
+  }
+
+  return categories.slice(0, 1);
 };
 
 export default function PromotionFundContent({ onNavigate }) {
-  const [selectedYear, setSelectedYear] = useState("2568");
+  const [selectedYear, setSelectedYear] = useState('');
   const [fundCategories, setFundCategories] = useState([]);
   const [filteredFunds, setFilteredFunds] = useState([]);
   const [years, setYears] = useState([]);
@@ -124,15 +198,56 @@ export default function PromotionFundContent({ onNavigate }) {
       setLoading(true);
       setError(null);
 
-      const [roleInfo, yearsData, configData] = await Promise.all([
+      const [roleInfo, yearsData, configData, currentYearRes] = await Promise.all([
         targetRolesUtils.getCurrentUserRole(),
         loadAvailableYears(),
-        loadSystemConfig()
+        loadSystemConfig(),
+        systemConfigAPI
+          .getCurrentYear()
+          .catch((err) => {
+            console.warn('Failed to fetch current system year:', err);
+            return null;
+          })
       ]);
 
       setUserRole(roleInfo);
-      setYears(yearsData);
-      setSystemConfig(configData);
+
+      const normalizedYears = Array.isArray(yearsData)
+        ? [...yearsData].sort((a, b) => {
+            const aYear = Number(a?.year ?? 0);
+            const bYear = Number(b?.year ?? 0);
+            return bYear - aYear;
+          })
+        : [];
+
+      setYears(normalizedYears);
+      setSystemConfig(configData || null);
+
+      const systemYearCandidate =
+        currentYearRes?.current_year ??
+        currentYearRes?.data?.current_year ??
+        configData?.current_year ??
+        null;
+
+      const fallbackYear = normalizedYears.length
+        ? String(normalizedYears[0].year)
+        : '';
+
+      const resolvedYearCandidate = systemYearCandidate
+        ? String(systemYearCandidate)
+        : fallbackYear;
+
+      const hasResolvedYear = normalizedYears.some(
+        (year) => String(year.year) === resolvedYearCandidate
+      );
+
+      const finalYear = hasResolvedYear ? resolvedYearCandidate : fallbackYear;
+
+      if (finalYear) {
+        setSelectedYear(finalYear);
+      } else {
+        setSelectedYear('');
+      }
 
       // funds will reload via selectedYear effect
     } catch (err) {
@@ -204,24 +319,17 @@ export default function PromotionFundContent({ onNavigate }) {
 
       setIsWithinApplicationPeriod(open);
       setEndDateLabel(end_date ? formatThaiDate(end_date) : '');
-      setSystemConfig({
+
+      const payload = {
         start_date,
         end_date,
         is_open_effective: open,
-        current_year: win.current_year,
-        last_updated: win.last_updated,
-        now: win.now,
-      });
+        current_year: win.current_year ?? null,
+        last_updated: win.last_updated ?? null,
+        now: win.now ?? null,
+      };
 
-      // debug ให้ดูบน console
-      console.log('[system-config]', {
-        start_date,
-        end_date,
-        is_open_effective: open,
-        now: win.now,
-      });
-
-      return { start_date, end_date, is_open_effective: open };
+      return payload;
     } catch (e) {
       console.warn('loadSystemConfig failed:', e);
       // อย่าบล็อกหน้า ถ้าโหลดไม่ได้ให้ถือว่าเปิดไว้ก่อน
@@ -303,6 +411,11 @@ export default function PromotionFundContent({ onNavigate }) {
       setLoading(true);
       setError(null);
 
+      if (!year) {
+        setFundCategories([]);
+        return;
+      }
+
       // ใช้ API ใหม่ที่ส่งข้อมูลแบบจัดกลุ่มแล้ว
       const response = await teacherAPI.getVisibleFundsStructure(year);
       console.log("Fund structure response:", response);
@@ -319,7 +432,10 @@ export default function PromotionFundContent({ onNavigate }) {
       );
 
       // กรองเฉพาะทุนอุดหนุนกิจกรรม (รองรับรหัส/ชื่อใหม่)
-      const promotionFunds = visibleCategories.filter(isPromotionCategory);
+      const promotionFunds = selectCategoriesByKeywords(
+        visibleCategories,
+        PROMOTION_CATEGORY_KEYWORDS
+      );
 
       // รวมทุน publication_reward ให้เป็น 1 แถว (คงพฤติกรรมเดิม)
       const mergedPromotionFunds = promotionFunds.map((category) => {

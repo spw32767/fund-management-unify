@@ -9,30 +9,102 @@ import {
   filterFundsByRole,
 } from "../../../lib/target_roles_utils";
 import systemConfigAPI from "../../../lib/system_config_api";
-import apiClient from "../../../lib/api";
 
-const isResearchCategory = (category) => {
-  const rawName =
-    category?.category_name ??
-    category?.categoryName ??
-    category?.name ??
-    "";
-  const name = String(rawName).trim().toLowerCase();
-  const categoryId = Number.parseInt(category?.category_id, 10);
+const RESEARCH_CATEGORY_KEYWORDS = [
+  "ทุนส่งเสริมการวิจัย",
+  "วิจัย",
+  "นวัตกรรม",
+  "research",
+  "innovation",
+];
 
-  if (!Number.isNaN(categoryId) && (categoryId === 1 || categoryId === 15)) {
-    return true;
+const normalizeText = (value) =>
+  String(value ?? "")
+    .trim()
+    .toLowerCase();
+
+const extractCategoryTexts = (category) => {
+  if (!category || typeof category !== "object") {
+    return [];
   }
 
-  return (
-    name.includes("ทุนส่งเสริมการวิจัย") ||
-    name.includes("วิจัยและนวัตกรรม") ||
-    name.includes("research")
+  const baseTexts = [
+    category.category_name,
+    category.categoryName,
+    category.name,
+    category.category_name_en,
+    category.categoryNameEn,
+  ];
+
+  const subTexts = Array.isArray(category.subcategories)
+    ? category.subcategories.flatMap((sub) => [
+        sub?.subcategory_name,
+        sub?.subcategorie_name,
+        sub?.name,
+        sub?.fund_condition,
+      ])
+    : [];
+
+  return [...baseTexts, ...subTexts]
+    .filter((text) => text != null && text !== "")
+    .map(normalizeText);
+};
+
+const matchCategoryByKeywords = (category, keywords = []) => {
+  const texts = extractCategoryTexts(category);
+  if (!texts.length || !Array.isArray(keywords) || !keywords.length) {
+    return false;
+  }
+
+  return keywords.some((keyword) => {
+    const normalizedKeyword = normalizeText(keyword);
+    if (!normalizedKeyword) {
+      return false;
+    }
+
+    return texts.some((text) => text.includes(normalizedKeyword));
+  });
+};
+
+const selectCategoriesByKeywords = (categories = [], keywords = []) => {
+  if (!Array.isArray(categories) || !categories.length) {
+    return [];
+  }
+
+  const directMatches = categories.filter((category) =>
+    matchCategoryByKeywords(category, keywords)
   );
+
+  if (directMatches.length) {
+    return directMatches;
+  }
+
+  const scored = categories
+    .map((category) => {
+      const texts = extractCategoryTexts(category);
+      const score = keywords.reduce((total, keyword) => {
+        const normalizedKeyword = normalizeText(keyword);
+        if (!normalizedKeyword) {
+          return total;
+        }
+        const hit = texts.some((text) => text.includes(normalizedKeyword));
+        return total + (hit ? 1 : 0);
+      }, 0);
+
+      return { category, score };
+    })
+    .filter((entry) => entry.score > 0)
+    .sort((a, b) => b.score - a.score);
+
+  if (scored.length) {
+    return scored.map((entry) => entry.category);
+  }
+
+  return categories.slice(0, 1);
 };
 
 export default function ResearchFundContent() {
-  const [selectedYear, setSelectedYear] = useState("2568");
+  const [selectedYear, setSelectedYear] = useState("");
   const [fundCategories, setFundCategories] = useState([]);
   const [filteredFunds, setFilteredFunds] = useState([]);
   const [years, setYears] = useState([]);
@@ -148,18 +220,52 @@ export default function ResearchFundContent() {
         targetRolesUtils.getCurrentUserRole(),
         loadAvailableYears(),
         loadSystemConfig(),
-        apiClient.get("/system-config/current-year"),
+        systemConfigAPI
+          .getCurrentYear()
+          .catch((err) => {
+            console.warn("Failed to fetch current system year:", err);
+            return null;
+          }),
       ]);
 
       setUserRole(roleInfo);
-      setYears(yearsData);
-      setSystemConfig(winData);
 
-      const currentYear = currentYearRes?.current_year
-        ? String(currentYearRes.current_year)
-        : selectedYear;
+      const normalizedYears = Array.isArray(yearsData)
+        ? [...yearsData].sort((a, b) => {
+            const aYear = Number(a?.year ?? 0);
+            const bYear = Number(b?.year ?? 0);
+            return bYear - aYear;
+          })
+        : [];
 
-      setSelectedYear(currentYear);
+      setYears(normalizedYears);
+      setSystemConfig(winData || null);
+
+      const systemYearCandidate =
+        currentYearRes?.current_year ??
+        currentYearRes?.data?.current_year ??
+        winData?.current_year ??
+        null;
+
+      const fallbackYear = normalizedYears.length
+        ? String(normalizedYears[0].year)
+        : "";
+
+      const resolvedYearCandidate = systemYearCandidate
+        ? String(systemYearCandidate)
+        : fallbackYear;
+
+      const hasResolvedYear = normalizedYears.some(
+        (year) => String(year.year) === resolvedYearCandidate
+      );
+
+      const finalYear = hasResolvedYear ? resolvedYearCandidate : fallbackYear;
+
+      if (finalYear) {
+        setSelectedYear(finalYear);
+      } else {
+        setSelectedYear("");
+      }
     } catch (err) {
       console.error("Error loading initial data:", err);
       setError(err.message || "เกิดข้อผิดพลาดในการโหลดข้อมูล");
@@ -211,16 +317,16 @@ export default function ResearchFundContent() {
 
       setIsWithinApplicationPeriod(open);
       setEndDateLabel(end_date ? formatThaiDate(end_date) : "");
-      setSystemConfig({
+      const payload = {
         start_date,
         end_date,
         is_open_effective: open,
-        current_year: win.current_year,
-        last_updated: win.last_updated,
-        now: win.now,
-      });
+        current_year: win.current_year ?? null,
+        last_updated: win.last_updated ?? null,
+        now: win.now ?? null,
+      };
 
-      return { start_date, end_date, is_open_effective: open };
+      return payload;
     } catch (err) {
       console.warn("loadSystemConfig failed:", err);
       setIsWithinApplicationPeriod(true);
@@ -280,6 +386,11 @@ export default function ResearchFundContent() {
       setLoading(true);
       setError(null);
 
+      if (!year) {
+        setFundCategories([]);
+        return;
+      }
+
       const response = await teacherAPI.getVisibleFundsStructure(year);
 
       if (!response.categories || !Array.isArray(response.categories)) {
@@ -293,7 +404,10 @@ export default function ResearchFundContent() {
         roleContext?.role_id ?? roleContext?.role_name ?? roleContext
       );
 
-      const researchFunds = visibleCategories.filter(isResearchCategory);
+      const researchFunds = selectCategoriesByKeywords(
+        visibleCategories,
+        RESEARCH_CATEGORY_KEYWORDS
+      );
 
       const adjusted = researchFunds.map((category) => {
         const updatedSubs = (category.subcategories || []).map((sub) => {
