@@ -133,6 +133,21 @@ const sortQuartiles = (quartiles) => {
   });
 };
 
+const parseOptionalNumber = (value) => {
+  if (value === null || value === undefined) {
+    return null;
+  }
+  if (typeof value === 'number') {
+    return Number.isFinite(value) ? value : null;
+  }
+  const cleaned = String(value).replace(/,/g, '').trim();
+  if (cleaned === '') {
+    return null;
+  }
+  const parsed = Number.parseFloat(cleaned);
+  return Number.isNaN(parsed) ? null : parsed;
+};
+
 // Get maximum fee limit based on quartile
 const getMaxFeeLimit = async (quartile, year = null) => {
   if (!quartile) return 0;
@@ -543,6 +558,7 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
   });
   const previewUrlRef = useRef(null);
   const previewSignatureRef = useRef('');
+  const budgetWarningRef = useRef('');
   const [availableAuthorStatuses, setAvailableAuthorStatuses] = useState([]);
   const [availableQuartiles, setAvailableQuartiles] = useState([]);
   const [quartileConfigs, setQuartileConfigs] = useState({}); // เก็บ config ของแต่ละ quartile
@@ -553,6 +569,7 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
   const [enabledYears, setEnabledYears] = useState([]);
   const [enabledPairs, setEnabledPairs] = useState([]);
   const [resolutionError, setResolutionError] = useState('');
+  const [resolutionWarning, setResolutionWarning] = useState('');
 
   // Form data state
   const [formData, setFormData] = useState({
@@ -901,7 +918,10 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
         setAvailableAuthorStatuses(uniqueStatuses);
         setAvailableQuartiles([]);
         setFormData(prev => ({ ...prev, author_status: '', journal_quartile: '', subcategory_id: null, subcategory_budget_id: null, publication_reward: 0, reward_amount: 0 }));
-        setResolutionError(pairs.length === 0 ? 'ไม่พบทุนสำหรับปี/สถานะ/ควอร์ไทล์ที่เลือก' : '');
+        const message = pairs.length === 0 ? 'ไม่พบทุนสำหรับปี/สถานะ/ควอร์ไทล์ที่เลือก' : '';
+        setResolutionError(message);
+        setResolutionWarning('');
+        budgetWarningRef.current = '';
       }
     };
     recompute();
@@ -922,8 +942,12 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
       }));
       if (sorted.length === 0) {
         setResolutionError('ไม่พบทุนสำหรับปี/สถานะ/ควอร์ไทล์ที่เลือก');
+        setResolutionWarning('');
+        budgetWarningRef.current = '';
       } else {
         setResolutionError('');
+        setResolutionWarning('');
+        budgetWarningRef.current = '';
       }
     }
   }, [formData.author_status, enabledPairs]);
@@ -949,7 +973,36 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
               publication_reward: result.reward_amount,
               reward_amount: result.reward_amount,
             }));
-            setResolutionError(result.remaining_budget > 0 ? '' : 'งบประมาณสำหรับทุนนี้หมดแล้ว');
+            const userGrantRemaining = parseOptionalNumber(result?.policy?.user_remaining?.grants);
+            const userAmountRemaining = parseOptionalNumber(result?.policy?.user_remaining?.amount);
+
+            const warnings = [];
+            if (userGrantRemaining !== null && userGrantRemaining <= 0) {
+              warnings.push('คุณใช้จำนวนสิทธิ์การรับทุนครบตามที่กำหนดแล้ว');
+            }
+            if (userAmountRemaining !== null && userAmountRemaining <= 0) {
+              warnings.push('คุณใช้วงเงินสูงสุดต่อปีของทุนนี้ครบแล้ว');
+            }
+
+            if (warnings.length > 0) {
+              const warningMessage = warnings.join('\n');
+              setResolutionWarning(warningMessage);
+              setResolutionError('');
+              const warningKey = warnings.join('|');
+              if (budgetWarningRef.current !== warningKey) {
+                Swal.fire({
+                  icon: 'warning',
+                  title: 'คำเตือนสิทธิ์การขอทุน',
+                  html: warnings.map(text => `<div>${text}</div>`).join(''),
+                  confirmButtonText: 'รับทราบ'
+                });
+                budgetWarningRef.current = warningKey;
+              }
+            } else {
+              setResolutionWarning('');
+              setResolutionError('');
+              budgetWarningRef.current = '';
+            }
           } else {
             setFormData(prev => ({
               ...prev,
@@ -959,6 +1012,8 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
               reward_amount: 0,
             }));
             setResolutionError('ไม่พบทุนสำหรับปี/สถานะ/ควอร์ไทล์ที่เลือก');
+            setResolutionWarning('');
+            budgetWarningRef.current = '';
           }
         } catch (error) {
           console.error('resolveBudgetAndSubcategory error:', error);
@@ -968,6 +1023,8 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
             subcategory_budget_id: null
           }));
           setResolutionError('ไม่สามารถตรวจสอบทุนได้');
+          setResolutionWarning('');
+          budgetWarningRef.current = '';
         }
       }
     };
@@ -1411,6 +1468,8 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
       }));
       if (['author_status', 'journal_quartile'].includes(name)) {
         setResolutionError('');
+        setResolutionWarning('');
+        budgetWarningRef.current = '';
       }
     }
 
@@ -2141,6 +2200,10 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
     }
 
     setResolutionError(resolutionMessage);
+    if (resolutionMessage) {
+      setResolutionWarning('');
+      budgetWarningRef.current = '';
+    }
     setFeeError(feesMessage);
 
     return {
@@ -3327,6 +3390,16 @@ const showSubmissionConfirmation = async () => {
                 )}
                 {resolutionError && (
                   <p id="resolution-journal_quartile" className="text-red-500 text-sm mt-1">{resolutionError}</p>
+                )}
+                {!resolutionError && resolutionWarning && (
+                  <div className="mt-1 space-y-1 text-sm text-yellow-700" role="status" aria-live="polite">
+                    {resolutionWarning.split('\n').map((msg, index) => (
+                      <div key={index} className="flex items-start gap-2">
+                        <AlertCircle className="h-4 w-4 text-yellow-600 mt-0.5 flex-shrink-0" />
+                        <span>{msg}</span>
+                      </div>
+                    ))}
+                  </div>
                 )}
               </div>
 

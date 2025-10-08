@@ -11,6 +11,7 @@ import { targetRolesUtils, filterFundsByRole } from "../../../lib/target_roles_u
 import { FORM_TYPE_CONFIG } from "../../../lib/form_type_config";
 import systemConfigAPI from "../../../lib/system_config_api";
 import apiClient from "../../../lib/api";
+import Swal from 'sweetalert2';
 
 export default function ResearchFundContent({ onNavigate }) {
   const [selectedYear, setSelectedYear] = useState("2568");
@@ -58,19 +59,6 @@ export default function ResearchFundContent({ onNavigate }) {
   useEffect(() => {
     applyFilters();
   }, [searchTerm, fundCategories]);
-
-  const parseBudgetValue = (value) => {
-    if (value === null || value === undefined || value === "") return 0;
-    if (typeof value === "number") {
-      return Number.isFinite(value) ? value : 0;
-    }
-
-    const cleaned = String(value).replace(/,/g, "").trim();
-    if (cleaned === "") return 0;
-
-    const numeric = Number.parseFloat(cleaned);
-    return Number.isNaN(numeric) ? 0 : numeric;
-  };
 
   const parseCountValue = (value) => {
     if (value === null || value === undefined || value === "") return 0;
@@ -320,13 +308,16 @@ export default function ResearchFundContent({ onNavigate }) {
   };
 
   // ---------- filtering (keep original availability condition) ----------
-  const isAvailableResearch = (sub) => {
-    const hasBudget = parseBudgetValue(sub.remaining_budget) > 0;
-    const grantsOk =
-      sub.remaining_grant === null ||
-      sub.remaining_grant === undefined ||
-      parseCountValue(sub.remaining_grant) > 0;
-    return hasBudget && grantsOk;
+  const getAvailabilityWarnings = (sub) => {
+    const warnings = [];
+    if (sub?.remaining_grant !== null && sub?.remaining_grant !== undefined) {
+      const remainingGrant = parseCountValue(sub.remaining_grant);
+      if (Number.isFinite(remainingGrant) && remainingGrant <= 0) {
+        warnings.push("จำนวนทุนที่เปิดรับครบแล้ว");
+      }
+    }
+
+    return warnings;
   };
 
   const applyFilters = () => {
@@ -390,8 +381,24 @@ export default function ResearchFundContent({ onNavigate }) {
   };
 
   const handleApplyForm = (subcategory) => {
-    if (!isWithinApplicationPeriod || !isAvailableResearch(subcategory)) {
+    if (!isWithinApplicationPeriod) {
+      Swal.fire({
+        icon: 'info',
+        title: 'อยู่นอกช่วงเวลายื่นขอ',
+        text: 'ระบบเปิดให้ยื่นคำร้องเฉพาะช่วงเวลาที่กำหนดเท่านั้น',
+        confirmButtonText: 'รับทราบ'
+      });
       return;
+    }
+
+    const availabilityWarnings = getAvailabilityWarnings(subcategory);
+    if (availabilityWarnings.length > 0) {
+      Swal.fire({
+        icon: 'warning',
+        title: 'คำเตือนสิทธิ์การขอทุน',
+        html: availabilityWarnings.map(text => `<div>${text}</div>`).join(''),
+        confirmButtonText: 'ดำเนินการต่อ'
+      });
     }
     // ล้าง readonly เพื่อให้กรอกได้
     try {
@@ -496,19 +503,14 @@ export default function ResearchFundContent({ onNavigate }) {
 
   const renderFundRow = (fund) => {
     const fundName = fund.subcategorie_name || fund.subcategory_name || "ไม่ระบุ";
-    const remainingBudget = parseBudgetValue(fund.remaining_budget);
-    const hasBudgetValue =
-      fund.remaining_budget !== null &&
-      fund.remaining_budget !== undefined &&
-      String(fund.remaining_budget).trim() !== "";
-
-    const available = isAvailableResearch(fund);
-    const applyDisabled = !isWithinApplicationPeriod || !available;
+    const availabilityWarnings = getAvailabilityWarnings(fund);
+    const hasAvailabilityWarnings = availabilityWarnings.length > 0;
+    const applyDisabled = !isWithinApplicationPeriod;
 
     const applyButtonTitle = !isWithinApplicationPeriod
       ? "อยู่นอกช่วงเวลายื่นขอ"
-      : !available
-      ? (hasBudgetValue ? "งบหมดหรือจำนวนทุนครบแล้ว" : "ไม่พร้อมยื่นขอในขณะนี้")
+      : hasAvailabilityWarnings
+      ? "โควตาการขอทุนครบแล้ว (ยังสามารถยื่นคำร้องได้)"
       : "ยื่นขอทุน";
 
     return (
@@ -556,6 +558,8 @@ export default function ResearchFundContent({ onNavigate }) {
               className={`inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg ${
                 applyDisabled
                   ? "bg-gray-200 text-gray-500 cursor-not-allowed"
+                  : hasAvailabilityWarnings
+                  ? "bg-yellow-500 text-white hover:bg-yellow-600"
                   : "bg-blue-600 text-white hover:bg-blue-700"
               }`}
               disabled={applyDisabled}

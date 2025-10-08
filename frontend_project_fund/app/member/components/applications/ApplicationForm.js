@@ -1,12 +1,13 @@
 // app/teacher/components/applications/ApplicationForm.js - Updated with Submission Management API
 "use client";
 
-import { useState, useEffect } from "react";
-import { FileText, Upload, Plus, X, Save, Send, AlertCircle } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
+import { FileText, Upload, X, Save, Send, AlertCircle } from "lucide-react";
 import PageLayout from "../common/PageLayout";
 import SimpleCard from "../common/SimpleCard";
 import { fundApplicationAPI, submissionAPI, fileAPI } from '../../../lib/member_api';
 import { notificationsAPI } from '../../../lib/notifications_api';
+import Swal from 'sweetalert2';
 
 // File upload component with drag & drop
 const FileUpload = ({ onFileSelect, accept, multiple = false, error }) => {
@@ -119,6 +120,8 @@ export default function ApplicationForm({ selectedFund }) {
   const [errors, setErrors] = useState({});
   const [years, setYears] = useState([]);
   const [currentSubmissionId, setCurrentSubmissionId] = useState(null);
+  const [availabilityWarning, setAvailabilityWarning] = useState("");
+  const warningShownRef = useRef("");
 
   // Form data state
   const [formData, setFormData] = useState({
@@ -157,6 +160,72 @@ export default function ApplicationForm({ selectedFund }) {
         ...prev,
         subcategory_id: selectedFund.subcategory_id
       }));
+    }
+  }, [selectedFund]);
+
+  useEffect(() => {
+    const parseNumeric = (value) => {
+      if (value === null || value === undefined) return null;
+      if (typeof value === 'number') {
+        return Number.isFinite(value) ? value : null;
+      }
+      const cleaned = String(value).replace(/,/g, '').trim();
+      if (cleaned === '') return null;
+      const parsed = Number.parseFloat(cleaned);
+      return Number.isNaN(parsed) ? null : parsed;
+    };
+
+    const pickFirstNumber = (...candidates) => {
+      for (const candidate of candidates) {
+        const numeric = parseNumeric(candidate);
+        if (numeric !== null) {
+          return numeric;
+        }
+      }
+      return null;
+    };
+
+    if (!selectedFund) {
+      setAvailabilityWarning("");
+      warningShownRef.current = "";
+      return;
+    }
+
+    const userGrantRemaining = pickFirstNumber(
+      selectedFund?.policy?.user_remaining?.grants,
+      selectedFund?.remaining_grant
+    );
+
+    const userAmountRemaining = pickFirstNumber(
+      selectedFund?.policy?.user_remaining?.amount,
+      selectedFund?.remaining_amount_per_user,
+      selectedFund?.remaining_amount
+    );
+
+    const warnings = [];
+    if (userGrantRemaining !== null && userGrantRemaining <= 0) {
+      warnings.push('คุณใช้จำนวนสิทธิ์การรับทุนครบตามที่กำหนดแล้ว');
+    }
+    if (userAmountRemaining !== null && userAmountRemaining <= 0) {
+      warnings.push('คุณใช้วงเงินสูงสุดต่อปีของทุนนี้ครบแล้ว');
+    }
+
+    if (warnings.length > 0) {
+      const message = warnings.join('\n');
+      setAvailabilityWarning(message);
+      const warningKey = warnings.join('|');
+      if (warningShownRef.current !== warningKey) {
+        Swal.fire({
+          icon: 'warning',
+          title: 'คำเตือนสิทธิ์การขอทุน',
+          html: warnings.map(text => `<div>${text}</div>`).join(''),
+          confirmButtonText: 'รับทราบ'
+        });
+        warningShownRef.current = warningKey;
+      }
+    } else {
+      setAvailabilityWarning("");
+      warningShownRef.current = "";
     }
   }, [selectedFund]);
 
@@ -381,6 +450,21 @@ export default function ApplicationForm({ selectedFund }) {
         { label: "สร้างคำร้อง" }
       ]}
     >
+      {availabilityWarning && (
+        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
+          <div className="flex items-start gap-3">
+            <AlertCircle className="h-5 w-5 text-yellow-600 mt-0.5" />
+            <div>
+              <p className="text-sm font-medium text-yellow-800">คำเตือน:</p>
+              <ul className="mt-2 list-disc list-inside text-sm text-yellow-700 space-y-1">
+                {availabilityWarning.split('\n').map((msg, index) => (
+                  <li key={index}>{msg}</li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        </div>
+      )}
       <form className="space-y-6">
         {/* ข้อมูลพื้นฐาน */}
         <SimpleCard title="ข้อมูลพื้นฐาน" icon={FileText}>
