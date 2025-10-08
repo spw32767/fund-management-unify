@@ -890,9 +890,30 @@ export default function FundSettingsContent({ onNavigate }) {
 
   // ==================== OTHER HANDLERS ====================
 
-  const handleYearChange = (yearId) => {
-    const year = years.find(y => y.year_id === parseInt(yearId));
-    setSelectedYear(year);
+  const handleYearChange = (yearValue) => {
+    if (!yearValue) {
+      setSelectedYear(null);
+      setCategories([]);
+      setExpandedCategories({});
+      setExpandedSubcategories({});
+      return;
+    }
+
+    const match = years.find((year) => {
+      const idMatch =
+        year.year_id !== undefined && year.year_id !== null && String(year.year_id) === String(yearValue);
+      const yearMatch =
+        year.year !== undefined && year.year !== null && String(year.year) === String(yearValue);
+      return idMatch || yearMatch;
+    });
+
+    if (match) {
+      setSelectedYear(match);
+    } else {
+      setSelectedYear(null);
+      setCategories([]);
+    }
+
     // Reset expanded states when changing year
     setExpandedCategories({});
     setExpandedSubcategories({});
@@ -903,12 +924,38 @@ export default function FundSettingsContent({ onNavigate }) {
   };
 
   // Filter categories based on search term
-  const filteredCategories = categories.filter(category => {
-    const categoryMatch = category.category_name.toLowerCase().includes(searchTerm.toLowerCase());
-    const subcategoryMatch = category.subcategories?.some(sub => 
-      sub.subcategory_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      sub.fund_condition?.toLowerCase().includes(searchTerm.toLowerCase())
-    );
+  const normalizedSearch = (searchTerm || "").toLowerCase().trim();
+  const filteredCategories = categories.filter((category) => {
+    const categoryName = (category?.category_name || "").toLowerCase();
+    const categoryMatch = normalizedSearch ? categoryName.includes(normalizedSearch) : true;
+
+    if (!normalizedSearch) {
+      return true;
+    }
+
+    const subcategories = Array.isArray(category?.subcategories) ? category.subcategories : [];
+
+    const subcategoryMatch = subcategories.some((sub) => {
+      const subName = (sub?.subcategory_name || "").toLowerCase();
+      const condition = (sub?.fund_condition || "").toLowerCase();
+
+      if (subName.includes(normalizedSearch) || condition.includes(normalizedSearch)) {
+        return true;
+      }
+
+      const budgets = Array.isArray(sub?.budgets) ? sub.budgets : [];
+      return budgets.some((budget) => {
+        const description = (budget?.fund_description || "").toLowerCase();
+        const level = (budget?.level || "").toLowerCase();
+        const scope = String(budget?.record_scope || "").toLowerCase();
+        return (
+          description.includes(normalizedSearch) ||
+          level.includes(normalizedSearch) ||
+          scope.includes(normalizedSearch)
+        );
+      });
+    });
+
     return categoryMatch || subcategoryMatch;
   });
 

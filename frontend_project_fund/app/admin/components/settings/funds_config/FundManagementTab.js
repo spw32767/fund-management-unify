@@ -253,14 +253,24 @@ const FundManagementTab = ({
       await Swal.fire({
         icon: "info",
         title: "ลบหมวดหมู่ไม่ได้",
-        text: `หมวดหมู่ "${category.category_name}" ยังมีทุนย่อยอยู่ ${subCount} รายการ กรุณาลบทุนย่อยทั้งหมดก่อน`,
+        text: [
+          'หมวดหมู่ "',
+          category.category_name || '-',
+          '" ยังมีทุนย่อยอยู่ ',
+          subCount,
+          ' รายการ กรุณาลบทุนย่อยทั้งหมดก่อน'
+        ].join(''),
       });
       return;
     }
 
     const res = await Swal.fire({
       title: "ยืนยันการลบหมวดหมู่?",
-      text: `ต้องการลบหมวดหมู่ "${category.category_name}" หรือไม่?",
+      text: [
+        'ต้องการลบหมวดหมู่ "',
+        category.category_name || '-',
+        '" หรือไม่?'
+      ].join(''),
       icon: "warning",
       showCancelButton: true,
       confirmButtonText: "ลบ",
@@ -279,14 +289,24 @@ const FundManagementTab = ({
       await Swal.fire({
         icon: "info",
         title: "ลบทุนย่อยไม่ได้",
-        text: `ทุนย่อย "${subcategory.subcategory_name}" ยังมีนโยบายงบประมาณ ${budgetsCount} รายการ กรุณาลบงบประมาณทั้งหมดก่อน`,
+        text: [
+          'ทุนย่อย "',
+          subcategory.subcategory_name || '-',
+          '" ยังมีนโยบายงบประมาณ ',
+          budgetsCount,
+          ' รายการ กรุณาลบงบประมาณทั้งหมดก่อน'
+        ].join(''),
       });
       return;
     }
 
     const res = await Swal.fire({
       title: "ยืนยันการลบทุนย่อย?",
-      text: `ต้องการลบทุนย่อย "${subcategory.subcategory_name}" หรือไม่?",
+      text: [
+        'ต้องการลบทุนย่อย "',
+        subcategory.subcategory_name || '-',
+        '" หรือไม่?'
+      ].join(''),
       icon: "warning",
       showCancelButton: true,
       confirmButtonText: "ลบ",
