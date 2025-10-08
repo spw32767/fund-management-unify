@@ -10,7 +10,7 @@ import { FORM_TYPE_CONFIG } from '../../../lib/form_type_config';
 import systemConfigAPI from '../../../lib/system_config_api';
 
 export default function PromotionFundContent({ onNavigate }) {
-  const [selectedYear, setSelectedYear] = useState("2568");
+  const [selectedYear, setSelectedYear] = useState("");
   const [fundCategories, setFundCategories] = useState([]);
   const [filteredFunds, setFilteredFunds] = useState([]);
   const [years, setYears] = useState([]);
@@ -38,6 +38,21 @@ export default function PromotionFundContent({ onNavigate }) {
     }
   }, [showConditionModal]);
 
+  const resolveYearSelection = (targetYear, yearList) => {
+    if (!Array.isArray(yearList) || yearList.length === 0) {
+      return targetYear ? String(targetYear) : "";
+    }
+
+    if (targetYear !== null && targetYear !== undefined) {
+      const match = yearList.find((y) => String(y.year) === String(targetYear));
+      if (match) {
+        return String(match.year);
+      }
+    }
+
+    return String(yearList[0].year);
+  };
+
   useEffect(() => {
     loadInitialData();
   }, []);
@@ -49,21 +64,17 @@ export default function PromotionFundContent({ onNavigate }) {
   }, [selectedYear, userRole, isWithinApplicationPeriod, endDateLabel]); // reload when window status/label changes
 
   useEffect(() => {
+    if (!selectedYear && years.length > 0) {
+      const fallbackYear = resolveYearSelection(null, years);
+      if (fallbackYear) {
+        setSelectedYear(fallbackYear);
+      }
+    }
+  }, [selectedYear, years]);
+
+  useEffect(() => {
     applyFilters();
   }, [searchTerm, fundCategories]);
-
-  const parseBudgetValue = (value) => {
-    if (value === null || value === undefined || value === "") return 0;
-    if (typeof value === "number") {
-      return Number.isFinite(value) ? value : 0;
-    }
-
-    const cleaned = String(value).replace(/,/g, "").trim();
-    if (cleaned === "") return 0;
-
-    const numeric = Number.parseFloat(cleaned);
-    return Number.isNaN(numeric) ? 0 : numeric;
-  };
 
   // ---------- helpers ----------
   // Accepts "YYYY-MM-DD HH:mm:ss" (treated as local) or ISO (respects Z/offset)
@@ -113,6 +124,12 @@ export default function PromotionFundContent({ onNavigate }) {
       setUserRole(roleInfo);
       setYears(yearsData);
       setSystemConfig(configData);
+
+      const preferredYear = configData?.current_year ?? null;
+      const resolvedYear = resolveYearSelection(preferredYear, yearsData);
+      if (resolvedYear) {
+        setSelectedYear(resolvedYear);
+      }
 
       // funds will reload via selectedYear effect
     } catch (err) {
@@ -543,12 +560,6 @@ export default function PromotionFundContent({ onNavigate }) {
 
   const renderFundRow = (fund) => {
     const fundName = fund.subcategory_name || 'ไม่ระบุ';
-    const remainingBudget = parseBudgetValue(fund.remaining_budget);
-    const hasBudgetValue =
-      fund.remaining_budget !== null &&
-      fund.remaining_budget !== undefined &&
-      String(fund.remaining_budget).trim() !== '';
-
     const formType = fund.form_type || 'download';
     const formConfig = FORM_TYPE_CONFIG[formType] || {};
     const ButtonIcon = formConfig.icon || FileText;
@@ -588,7 +599,7 @@ export default function PromotionFundContent({ onNavigate }) {
             const isOnlineForm =
               (FORM_TYPE_CONFIG[fund.form_type] || FORM_TYPE_CONFIG["download"])
                 ?.isOnlineForm === true;
-            const applyDisabled = !isWithinApplicationPeriod || remainingBudget <= 0;
+            const applyDisabled = !isWithinApplicationPeriod;
 
             if (isOnlineForm) {
               return (
@@ -615,10 +626,6 @@ export default function PromotionFundContent({ onNavigate }) {
                     title={
                       !isWithinApplicationPeriod
                         ? "อยู่นอกช่วงเวลายื่นขอ"
-                        : remainingBudget <= 0
-                        ? hasBudgetValue
-                          ? "งบประมาณหมดแล้ว"
-                          : "ไม่มีข้อมูลงบประมาณ"
                         : "ยื่นขอทุน"
                     }
                   >
