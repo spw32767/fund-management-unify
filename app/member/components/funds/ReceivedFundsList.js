@@ -312,22 +312,25 @@ export default function ReceivedFundsList({ onNavigate }) {
       header: "ชื่อทุน",
       accessor: "subcategory_name",
       className: "text-sm",
-      render: (value) => {
-        const display = value == null || value === "" ? "-" : String(value);
+      render: (value, row) => {
+        const fundName = value == null || value === "" ? "-" : String(value);
+        const projectTitle = row?.project_title;
+        const hasProjectTitle =
+          projectTitle != null && String(projectTitle).trim() !== "" && projectTitle !== "-";
+
         return (
-          <div
-            className="truncate overflow-hidden whitespace-nowrap max-w-xs"
-            title={display}
-          >
-            {display}
+          <div className="flex flex-col gap-1 max-w-xs">
+            <span className="truncate" title={fundName}>
+              {fundName}
+            </span>
+            {hasProjectTitle && (
+              <span className="text-xs text-gray-600 break-words" title={String(projectTitle)}>
+                {projectTitle}
+              </span>
+            )}
           </div>
         );
       },
-    },
-    {
-      header: "ชื่อโครงการ/บทความ",
-      accessor: "project_title",
-      className: "max-w-xs truncate",
     },
     {
       header: "จำนวนเงิน",

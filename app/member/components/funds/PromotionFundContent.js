@@ -9,8 +9,97 @@ import { targetRolesUtils, filterFundsByRole } from '../../../lib/target_roles_u
 import { FORM_TYPE_CONFIG } from '../../../lib/form_type_config';
 import systemConfigAPI from '../../../lib/system_config_api';
 
+const PROMOTION_CATEGORY_KEYWORDS = [
+  'ทุนอุดหนุนกิจกรรม'
+];
+
+const normalizeText = (value) =>
+  String(value ?? '')
+    .trim()
+    .toLowerCase();
+
+const extractCategoryTexts = (category) => {
+  if (!category || typeof category !== 'object') {
+    return [];
+  }
+
+  const baseTexts = [
+    category.category_name,
+    category.categoryName,
+    category.name,
+    category.category_name_en,
+    category.categoryNameEn,
+  ];
+
+  const subTexts = Array.isArray(category.subcategories)
+    ? category.subcategories.flatMap((sub) => [
+        sub?.subcategory_name,
+        sub?.subcategorie_name,
+        sub?.name,
+        sub?.fund_condition,
+      ])
+    : [];
+
+  return [...baseTexts, ...subTexts]
+    .filter((text) => text != null && text !== '')
+    .map(normalizeText);
+};
+
+const matchCategoryByKeywords = (category, keywords = []) => {
+  const texts = extractCategoryTexts(category);
+  if (!texts.length || !Array.isArray(keywords) || !keywords.length) {
+    return false;
+  }
+
+  return keywords.some((keyword) => {
+    const normalizedKeyword = normalizeText(keyword);
+    if (!normalizedKeyword) {
+      return false;
+    }
+
+    return texts.some((text) => text.includes(normalizedKeyword));
+  });
+};
+
+const selectCategoriesByKeywords = (categories = [], keywords = []) => {
+  if (!Array.isArray(categories) || !categories.length) {
+    return [];
+  }
+
+  const directMatches = categories.filter((category) =>
+    matchCategoryByKeywords(category, keywords)
+  );
+
+  if (directMatches.length) {
+    return directMatches;
+  }
+
+  const scored = categories
+    .map((category) => {
+      const texts = extractCategoryTexts(category);
+      const score = keywords.reduce((total, keyword) => {
+        const normalizedKeyword = normalizeText(keyword);
+        if (!normalizedKeyword) {
+          return total;
+        }
+        const hit = texts.some((text) => text.includes(normalizedKeyword));
+        return total + (hit ? 1 : 0);
+      }, 0);
+
+      return { category, score };
+    })
+    .filter((entry) => entry.score > 0)
+    .sort((a, b) => b.score - a.score);
+
+  if (scored.length) {
+    return scored.map((entry) => entry.category);
+  }
+
+  return categories.slice(0, 1);
+};
+
 export default function PromotionFundContent({ onNavigate }) {
-  const [selectedYear, setSelectedYear] = useState("2568");
+  const [selectedYear, setSelectedYear] = useState('');
   const [fundCategories, setFundCategories] = useState([]);
   const [filteredFunds, setFilteredFunds] = useState([]);
   const [years, setYears] = useState([]);
@@ -52,19 +141,6 @@ export default function PromotionFundContent({ onNavigate }) {
     applyFilters();
   }, [searchTerm, fundCategories]);
 
-  const parseBudgetValue = (value) => {
-    if (value === null || value === undefined || value === "") return 0;
-    if (typeof value === "number") {
-      return Number.isFinite(value) ? value : 0;
-    }
-
-    const cleaned = String(value).replace(/,/g, "").trim();
-    if (cleaned === "") return 0;
-
-    const numeric = Number.parseFloat(cleaned);
-    return Number.isNaN(numeric) ? 0 : numeric;
-  };
-
   // ---------- helpers ----------
   // Accepts "YYYY-MM-DD HH:mm:ss" (treated as local) or ISO (respects Z/offset)
   const computeApplicationOpen = (start, end) => {
@@ -104,15 +180,56 @@ export default function PromotionFundContent({ onNavigate }) {
       setLoading(true);
       setError(null);
 
-      const [roleInfo, yearsData, configData] = await Promise.all([
+      const [roleInfo, yearsData, configData, currentYearRes] = await Promise.all([
         targetRolesUtils.getCurrentUserRole(),
         loadAvailableYears(),
-        loadSystemConfig()
+        loadSystemConfig(),
+        systemConfigAPI
+          .getCurrentYear()
+          .catch((err) => {
+            console.warn('Failed to fetch current system year:', err);
+            return null;
+          })
       ]);
 
       setUserRole(roleInfo);
-      setYears(yearsData);
-      setSystemConfig(configData);
+
+      const normalizedYears = Array.isArray(yearsData)
+        ? [...yearsData].sort((a, b) => {
+            const aYear = Number(a?.year ?? 0);
+            const bYear = Number(b?.year ?? 0);
+            return bYear - aYear;
+          })
+        : [];
+
+      setYears(normalizedYears);
+      setSystemConfig(configData || null);
+
+      const systemYearCandidate =
+        currentYearRes?.current_year ??
+        currentYearRes?.data?.current_year ??
+        configData?.current_year ??
+        null;
+
+      const fallbackYear = normalizedYears.length
+        ? String(normalizedYears[0].year)
+        : '';
+
+      const resolvedYearCandidate = systemYearCandidate
+        ? String(systemYearCandidate)
+        : fallbackYear;
+
+      const hasResolvedYear = normalizedYears.some(
+        (year) => String(year.year) === resolvedYearCandidate
+      );
+
+      const finalYear = hasResolvedYear ? resolvedYearCandidate : fallbackYear;
+
+      if (finalYear) {
+        setSelectedYear(finalYear);
+      } else {
+        setSelectedYear('');
+      }
 
       // funds will reload via selectedYear effect
     } catch (err) {
@@ -184,24 +301,17 @@ export default function PromotionFundContent({ onNavigate }) {
 
       setIsWithinApplicationPeriod(open);
       setEndDateLabel(end_date ? formatThaiDate(end_date) : '');
-      setSystemConfig({
+
+      const payload = {
         start_date,
         end_date,
         is_open_effective: open,
-        current_year: win.current_year,
-        last_updated: win.last_updated,
-        now: win.now,
-      });
+        current_year: win.current_year ?? null,
+        last_updated: win.last_updated ?? null,
+        now: win.now ?? null,
+      };
 
-      // debug ให้ดูบน console
-      console.log('[system-config]', {
-        start_date,
-        end_date,
-        is_open_effective: open,
-        now: win.now,
-      });
-
-      return { start_date, end_date, is_open_effective: open };
+      return payload;
     } catch (e) {
       console.warn('loadSystemConfig failed:', e);
       // อย่าบล็อกหน้า ถ้าโหลดไม่ได้ให้ถือว่าเปิดไว้ก่อน
@@ -283,6 +393,11 @@ export default function PromotionFundContent({ onNavigate }) {
       setLoading(true);
       setError(null);
 
+      if (!year) {
+        setFundCategories([]);
+        return;
+      }
+
       // ใช้ API ใหม่ที่ส่งข้อมูลแบบจัดกลุ่มแล้ว
       const response = await teacherAPI.getVisibleFundsStructure(year);
       console.log("Fund structure response:", response);
@@ -298,9 +413,10 @@ export default function PromotionFundContent({ onNavigate }) {
         roleContext?.role_id ?? roleContext?.role_name ?? roleContext
       );
 
-      // กรองเฉพาะทุนอุดหนุนกิจกรรม (category_id = 2)
-      const promotionFunds = visibleCategories.filter(
-        (category) => category.category_id === 2
+      // กรองเฉพาะทุนอุดหนุนกิจกรรม (รองรับรหัส/ชื่อใหม่)
+      const promotionFunds = selectCategoriesByKeywords(
+        visibleCategories,
+        PROMOTION_CATEGORY_KEYWORDS
       );
 
       // รวมทุน publication_reward ให้เป็น 1 แถว (คงพฤติกรรมเดิม)
@@ -311,28 +427,6 @@ export default function PromotionFundContent({ onNavigate }) {
           (sub) => sub.form_type === "publication_reward"
         );
 
-        if (publicationSubs.length > 1) {
-          const merged = {
-            ...publicationSubs[0],
-            category_id: category.category_id,
-            subcategory_name: "เงินรางวัลการตีพิมพ์เผยแพร่ผลงานวิจัย",
-            remaining_budget: publicationSubs.reduce(
-              (sum, s) => sum + (s.remaining_budget || 0),
-              0
-            ),
-            has_multiple_levels: publicationSubs.some((s) => s.has_multiple_levels),
-            budget_count: publicationSubs.reduce(
-              (sum, s) => sum + (s.budget_count || 0),
-              0
-            ),
-            merged_subcategories: publicationSubs,
-          };
-
-          const others = category.subcategories.filter(
-            (sub) => sub.form_type !== "publication_reward"
-          );
-          return { ...category, subcategories: [merged, ...others] };
-        }
         return category;
       });
 
@@ -422,8 +516,7 @@ export default function PromotionFundContent({ onNavigate }) {
       window.open(docUrl, '_blank');
       return;
     }
-    if (!isWithinApplicationPeriod) return;
-
+    // ไม่ปิดปุ่มยื่นขอที่นี่แล้ว ระบบจะตรวจสอบในฟอร์มโดยอิงจาก table view ใหม่
     const categoryId = findParentCategoryId(subcategory.subcategory_id);
     const yearObj = years.find(y => y.year === selectedYear);
     const yearId = yearObj?.year_id;
@@ -542,20 +635,17 @@ export default function PromotionFundContent({ onNavigate }) {
   }
 
   const renderFundRow = (fund) => {
-    const fundName = fund.subcategory_name || 'ไม่ระบุ';
-    const remainingBudget = parseBudgetValue(fund.remaining_budget);
-    const hasBudgetValue =
-      fund.remaining_budget !== null &&
-      fund.remaining_budget !== undefined &&
-      String(fund.remaining_budget).trim() !== '';
-
-    const formType = fund.form_type || 'download';
+    const fundName = fund.subcategory_name || "ไม่ระบุ";
+    const formType = fund.form_type || "download";
     const formConfig = FORM_TYPE_CONFIG[formType] || {};
     const ButtonIcon = formConfig.icon || FileText;
     const isOnlineForm = !!formConfig.isOnlineForm;
 
+    // remaining_budget / used_amount / remaining_grant are not referenced anymore;
+    // rely on the database table views when budget availability is needed.
+
     return (
-      <tr key={fund.subcategory_id} className={!isWithinApplicationPeriod ? 'bg-gray-50' : ''}>
+      <tr key={fund.subcategory_id} className={!isWithinApplicationPeriod ? "bg-gray-50" : ""}>
         <td className="px-6 py-4 align-top">
           <div className="text-sm font-medium text-gray-900 max-w-lg break-words leading-relaxed">
             {fundName}
@@ -584,67 +674,39 @@ export default function PromotionFundContent({ onNavigate }) {
           </div>
         </td>
         <td className="px-6 py-4 text-center">
-          {(() => {
-            const isOnlineForm =
-              (FORM_TYPE_CONFIG[fund.form_type] || FORM_TYPE_CONFIG["download"])
-                ?.isOnlineForm === true;
-            const applyDisabled = !isWithinApplicationPeriod || remainingBudget <= 0;
-
-            if (isOnlineForm) {
-              return (
-                <div className="inline-flex items-center gap-3">
-                  {/* ดูรายละเอียด (อ่านอย่างเดียวเสมอ) */}
-                  <button
-                    onClick={() => handleViewDetails(fund)}
-                    className="inline-flex items-center gap-2 px-1 py-2 text-sm font-medium text-blue-600 hover:text-blue-700"
-                    title="เปิดดูรายละเอียด (อ่านอย่างเดียว)"
-                  >
-                    <Search size={16} />
-                    ดูรายละเอียด
-                  </button>
-
-                  {/* ปุ่มหลัก: กรอกแบบฟอร์ม */}
-                  <button
-                    onClick={() => handleApplyForm(fund)}
-                    className={`inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg ${
-                      applyDisabled
-                        ? "bg-gray-200 text-gray-500 cursor-not-allowed"
-                        : "bg-blue-600 text-white hover:bg-blue-700"
-                    }`}
-                    disabled={applyDisabled}
-                    title={
-                      !isWithinApplicationPeriod
-                        ? "อยู่นอกช่วงเวลายื่นขอ"
-                        : remainingBudget <= 0
-                        ? hasBudgetValue
-                          ? "งบประมาณหมดแล้ว"
-                          : "ไม่มีข้อมูลงบประมาณ"
-                        : "ยื่นขอทุน"
-                    }
-                  >
-                    <ButtonIcon size={16} />
-                    ยื่นขอทุน
-                  </button>
-                </div>
-              );
-            }
-
-            // แบบ download: คงพฤติกรรมเดิม
-            return (
+          {isOnlineForm ? (
+            <div className="inline-flex items-center gap-3">
               <button
-                onClick={() => {
-                  const docUrl =
-                    fund.form_url || "/documents/default-fund-form.docx";
-                  window.open(docUrl, "_blank");
-                }}
-                className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-blue-600 hover:text-blue-700"
-                title="ดาวน์โหลดแบบฟอร์ม"
+                onClick={() => handleViewDetails(fund)}
+                className="inline-flex items-center gap-2 px-1 py-2 text-sm font-medium text-blue-600 hover:text-blue-700"
+                title="เปิดดูรายละเอียด (อ่านอย่างเดียว)"
               >
-                <Download size={16} />
-                ดาวน์โหลดฟอร์ม
+                <Search size={16} />
+                ดูรายละเอียด
               </button>
-            );
-          })()}
+
+              <button
+                onClick={() => handleApplyForm(fund)}
+                className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg bg-blue-600 text-white hover:bg-blue-700"
+                title="ยื่นขอทุน"
+              >
+                <ButtonIcon size={16} />
+                ยื่นขอทุน
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={() => {
+                const docUrl = fund.form_url || "/documents/default-fund-form.docx";
+                window.open(docUrl, "_blank");
+              }}
+              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-blue-600 hover:text-blue-700"
+              title="ดาวน์โหลดแบบฟอร์ม"
+            >
+              <Download size={16} />
+              ดาวน์โหลดฟอร์ม
+            </button>
+          )}
         </td>
       </tr>
     );

@@ -312,7 +312,11 @@ export const adminAPI = {
   // Get all subcategory budgets
   async getSubcategoryBudgets(params = {}) {
     try {
-      const response = await apiClient.get('/admin/budgets', params);
+      const queryParams = {
+        record_scope: 'all',
+        ...params,
+      };
+      const response = await apiClient.get('/admin/budgets', queryParams);
       return response;
     } catch (error) {
       console.error('Error fetching subcategory budgets:', error);
@@ -323,7 +327,9 @@ export const adminAPI = {
   // Get budgets (alias)
   async getBudgets(subcategoryId = null) {
     try {
-      const params = subcategoryId ? { subcategory_id: subcategoryId } : {};
+      const params = subcategoryId
+        ? { subcategory_id: subcategoryId, record_scope: 'all' }
+        : { record_scope: 'all' };
       const response = await apiClient.get('/admin/budgets', params);
       return response.budgets || [];
     } catch (error) {
@@ -383,6 +389,23 @@ export const adminAPI = {
       return response;
     } catch (error) {
       console.error('Error updating subcategory budget:', error);
+      throw error;
+    }
+  },
+
+  async copyFundStructure(sourceYearId, targetYear, { target_budget } = {}) {
+    try {
+      const payload = {
+        source_year_id: sourceYearId,
+        target_year: targetYear,
+      };
+      if (typeof target_budget === 'number') {
+        payload.target_budget = target_budget;
+      }
+
+      return await apiClient.post('/admin/funds/copy-year', payload);
+    } catch (error) {
+      console.error('Error copying fund structure:', error);
       throw error;
     }
   },
@@ -977,23 +1000,38 @@ export const adminAPI = {
   },
 
   validateBudgetData(budgetData) {
-    const required = ['subcategory_id']; 
-    const missing = required.filter(field => !budgetData[field]);
-    
-    if (missing.length > 0) {
-      throw new Error(`Missing required fields: ${missing.join(', ')}`);
+    if (!budgetData.subcategory_id) {
+      throw new Error('Subcategory ID is required');
     }
-    
-    if (budgetData.allocated_amount && (isNaN(parseFloat(budgetData.allocated_amount)) || parseFloat(budgetData.allocated_amount) <= 0)) {
-      throw new Error('Allocated amount must be a positive number');
-    }
-    
-    if (budgetData.max_amount_per_grant && (isNaN(parseFloat(budgetData.max_amount_per_grant)) || parseFloat(budgetData.max_amount_per_grant) <= 0)) {
-      throw new Error('Max amount per grant must be a positive number');
-    }
-    
-    if (budgetData.max_grants && (isNaN(parseInt(budgetData.max_grants)) || parseInt(budgetData.max_grants) <= 0)) {
-      throw new Error('Max grants must be a positive integer');
+
+    const scope = (budgetData.record_scope || 'rule').toLowerCase();
+
+    const parseNumber = (value) => {
+      if (value === null || value === undefined || value === '') return null;
+      const num = Number(value);
+      return Number.isNaN(num) ? null : num;
+    };
+
+    if (scope === 'overall') {
+      const allocated = parseNumber(budgetData.allocated_amount);
+      if (allocated === null || allocated < 0) {
+        throw new Error('Allocated amount must be zero or a positive number');
+      }
+
+      const yearlyCap = parseNumber(budgetData.max_amount_per_year);
+      if (yearlyCap !== null && yearlyCap <= 0) {
+        throw new Error('Per-year cap must be a positive number');
+      }
+
+      const maxGrants = parseNumber(budgetData.max_grants);
+      if (maxGrants !== null && (!Number.isInteger(maxGrants) || maxGrants <= 0)) {
+        throw new Error('Max grants must be a positive integer');
+      }
+    } else {
+      const perGrant = parseNumber(budgetData.max_amount_per_grant);
+      if (perGrant === null || perGrant <= 0) {
+        throw new Error('Max amount per grant must be a positive number');
+      }
     }
   },
 

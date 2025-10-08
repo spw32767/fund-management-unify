@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useRef, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { Award, Upload, Users, FileText, Plus, X, Save, Send, AlertCircle, Search, Eye, Calculator, Signature, ArrowLeft } from "lucide-react";
+import { Award, Upload, Users, FileText, Plus, X, Save, Send, AlertCircle, Calculator, Search, Eye, Signature, ArrowLeft } from "lucide-react";
 import PageLayout from "../common/PageLayout";
 import SimpleCard from "../common/SimpleCard";
 import apiClient, { systemAPI, authAPI } from '../../../lib/api';
@@ -628,6 +628,7 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
   const previewUrlRef = useRef(null);
   const previewSignatureRef = useRef('');
   const previewSectionRef = useRef(null);
+  const policyWarningRef = useRef({ lastShownKey: null });
   const [availableAuthorStatuses, setAvailableAuthorStatuses] = useState([]);
   const [availableQuartiles, setAvailableQuartiles] = useState([]);
   const [quartileConfigs, setQuartileConfigs] = useState({}); // เก็บ config ของแต่ละ quartile
@@ -640,7 +641,7 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
   const [resolutionError, setResolutionError] = useState('');
   const [rewardRateMap, setRewardRateMap] = useState({});
   const [budgetOptionMap, setBudgetOptionMap] = useState({});
-  const [policyContext, setPolicyContext] = useState(null);
+  const [, setPolicyContext] = useState(null);
 
   // Form data state
   const [formData, setFormData] = useState({
@@ -1069,26 +1070,39 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
               publication_reward: resolvedReward ?? fallbackReward,
               reward_amount: resolvedReward ?? fallbackReward,
             }));
-            let resolutionMessage = '';
-            const overallRemaining = normalizedPolicy?.overall?.remaining_amount;
-            if (overallRemaining !== null && overallRemaining !== undefined && overallRemaining <= 0) {
-              resolutionMessage = 'งบประมาณสำหรับทุนนี้หมดแล้ว';
-            }
+            const warningMessages = [];
             const userRemainingGrants = normalizedPolicy?.user_remaining?.grants;
-            if (!resolutionMessage && userRemainingGrants === 0) {
-              resolutionMessage = 'คุณใช้สิทธิ์จำนวนครั้งครบตามโควตาประจำปีแล้ว';
+            if (userRemainingGrants === 0) {
+              warningMessages.push('คุณใช้สิทธิ์จำนวนครั้งครบตามโควตาประจำปีแล้ว');
             }
             const userRemainingAmount = normalizedPolicy?.user_remaining?.amount;
-            if (!resolutionMessage && userRemainingAmount !== null && userRemainingAmount !== undefined && userRemainingAmount <= 0) {
-              resolutionMessage = 'คุณใช้วงเงินประจำปีครบแล้ว';
+            if (userRemainingAmount !== null && userRemainingAmount !== undefined && userRemainingAmount <= 0) {
+              warningMessages.push('คุณใช้วงเงินประจำปีครบแล้ว');
             }
-            if (!resolutionMessage && result?.remaining_budget !== undefined && result?.remaining_budget !== null) {
-              const remainingBudget = Number(result.remaining_budget);
-              if (!Number.isNaN(remainingBudget) && remainingBudget <= 0) {
-                resolutionMessage = 'งบประมาณสำหรับทุนนี้หมดแล้ว';
+
+            if (warningMessages.length > 0) {
+              const contextKey = [
+                formData.year_id ?? 'unknown-year',
+                formData.author_status ?? 'unknown-status',
+                formData.journal_quartile ?? 'unknown-quartile',
+                ...warningMessages
+              ].join('|');
+
+              if (policyWarningRef.current.lastShownKey !== contextKey) {
+                policyWarningRef.current.lastShownKey = contextKey;
+
+                Swal.fire({
+                  icon: 'warning',
+                  title: 'คำเตือน',
+                  html: warningMessages.map(message => `<div>${message}</div>`).join(''),
+                  confirmButtonText: 'ตกลง'
+                });
               }
+            } else {
+              policyWarningRef.current.lastShownKey = null;
             }
-            setResolutionError(resolutionMessage);
+
+            setResolutionError('');
           } else {
             setFormData(prev => ({
               ...prev,
@@ -1099,6 +1113,7 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
             }));
             setResolutionError('ไม่พบทุนสำหรับปี/สถานะ/ควอร์ไทล์ที่เลือก');
             setPolicyContext(null);
+            policyWarningRef.current.lastShownKey = null;
           }
         } catch (error) {
           console.error('resolveBudgetAndSubcategory error:', error);
@@ -1108,6 +1123,7 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
             subcategory_budget_id: null
           }));
           setResolutionError('ไม่สามารถตรวจสอบทุนได้');
+          policyWarningRef.current.lastShownKey = null;
           setPolicyContext(null);
         }
       }
@@ -3582,49 +3598,6 @@ const showSubmissionConfirmation = async () => {
                   <p id="resolution-journal_quartile" className="text-red-500 text-sm mt-1">{resolutionError}</p>
                 )}
               </div>
-
-              {policyContext && (
-                <div className="md:col-span-2">
-                  <div className="mt-1 rounded-lg border border-blue-200 bg-blue-50 p-4 text-blue-900">
-                    <div className="flex items-center gap-2 font-semibold">
-                      <Calculator className="h-4 w-4" />
-                      <span>สรุปสิทธิ์และงบประมาณประจำปี</span>
-                    </div>
-                    <div className="mt-3 grid gap-3 md:grid-cols-3">
-                      <div>
-                        <p className="text-xs uppercase tracking-wide text-blue-700">งบประมาณคงเหลือ (ภาพรวม)</p>
-                        <p className="text-lg font-semibold">{formatCurrencyWithPlaceholder(policyContext?.overall?.remaining_amount)}</p>
-                        {policyContext?.overall?.allocated_amount !== null && policyContext?.overall?.allocated_amount !== undefined && (
-                          <p className="text-xs text-blue-700">จากงบรวม {formatCurrency(policyContext.overall.allocated_amount)} บาท</p>
-                        )}
-                      </div>
-                      <div>
-                        <p className="text-xs uppercase tracking-wide text-blue-700">สิทธิจำนวนครั้งที่เหลือ</p>
-                        <p className="text-lg font-semibold">{formatGrantLimit(policyContext?.user_remaining?.grants)}</p>
-                        {policyContext?.overall?.max_grants !== null && policyContext?.overall?.max_grants !== undefined && (
-                          <p className="text-xs text-blue-700">สิทธิ์รวม {policyContext.overall.max_grants.toLocaleString('th-TH')} ครั้ง</p>
-                        )}
-                      </div>
-                      <div>
-                        <p className="text-xs uppercase tracking-wide text-blue-700">วงเงินที่ยังสามารถยื่นได้</p>
-                        <p className="text-lg font-semibold">
-                          {policyContext?.overall?.max_amount_per_year !== null && policyContext?.overall?.max_amount_per_year !== undefined
-                            ? formatCurrencyWithPlaceholder(policyContext?.user_remaining?.amount)
-                            : 'ไม่จำกัด'}
-                        </p>
-                        {policyContext?.overall?.max_amount_per_year !== null && policyContext?.overall?.max_amount_per_year !== undefined && (
-                          <p className="text-xs text-blue-700">วงเงินต่อปีไม่เกิน {formatCurrency(policyContext.overall.max_amount_per_year)} บาท</p>
-                        )}
-                      </div>
-                    </div>
-                    {policyContext?.rule?.max_amount_per_grant !== null && policyContext?.rule?.max_amount_per_grant !== undefined && (
-                      <p className="mt-2 text-xs text-blue-700">
-                        วงเงินต่อครั้งไม่เกิน {formatCurrency(policyContext.rule.max_amount_per_grant)} บาท ({policyContext?.rule?.fund_description || 'ตามประกาศ'})
-                      </p>
-                    )}
-                  </div>
-                </div>
-              )}
 
               {/* Volume/Issue */}
               <div>

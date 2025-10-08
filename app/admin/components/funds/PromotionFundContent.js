@@ -8,8 +8,97 @@ import { teacherAPI } from "../../../lib/member_api";
 import { targetRolesUtils, filterFundsByRole } from "../../../lib/target_roles_utils";
 import systemConfigAPI from "../../../lib/system_config_api";
 
+const PROMOTION_CATEGORY_KEYWORDS = [
+  "ทุนอุดหนุนกิจกรรม",
+];
+
+const normalizeText = (value) =>
+  String(value ?? "")
+    .trim()
+    .toLowerCase();
+
+const extractCategoryTexts = (category) => {
+  if (!category || typeof category !== "object") {
+    return [];
+  }
+
+  const baseTexts = [
+    category.category_name,
+    category.categoryName,
+    category.name,
+    category.category_name_en,
+    category.categoryNameEn,
+  ];
+
+  const subTexts = Array.isArray(category.subcategories)
+    ? category.subcategories.flatMap((sub) => [
+        sub?.subcategory_name,
+        sub?.subcategorie_name,
+        sub?.name,
+        sub?.fund_condition,
+      ])
+    : [];
+
+  return [...baseTexts, ...subTexts]
+    .filter((text) => text != null && text !== "")
+    .map(normalizeText);
+};
+
+const matchCategoryByKeywords = (category, keywords = []) => {
+  const texts = extractCategoryTexts(category);
+  if (!texts.length || !Array.isArray(keywords) || !keywords.length) {
+    return false;
+  }
+
+  return keywords.some((keyword) => {
+    const normalizedKeyword = normalizeText(keyword);
+    if (!normalizedKeyword) {
+      return false;
+    }
+
+    return texts.some((text) => text.includes(normalizedKeyword));
+  });
+};
+
+const selectCategoriesByKeywords = (categories = [], keywords = []) => {
+  if (!Array.isArray(categories) || !categories.length) {
+    return [];
+  }
+
+  const directMatches = categories.filter((category) =>
+    matchCategoryByKeywords(category, keywords)
+  );
+
+  if (directMatches.length) {
+    return directMatches;
+  }
+
+  const scored = categories
+    .map((category) => {
+      const texts = extractCategoryTexts(category);
+      const score = keywords.reduce((total, keyword) => {
+        const normalizedKeyword = normalizeText(keyword);
+        if (!normalizedKeyword) {
+          return total;
+        }
+        const hit = texts.some((text) => text.includes(normalizedKeyword));
+        return total + (hit ? 1 : 0);
+      }, 0);
+
+      return { category, score };
+    })
+    .filter((entry) => entry.score > 0)
+    .sort((a, b) => b.score - a.score);
+
+  if (scored.length) {
+    return scored.map((entry) => entry.category);
+  }
+
+  return categories.slice(0, 1);
+};
+
 export default function PromotionFundContent() {
-  const [selectedYear, setSelectedYear] = useState("2568");
+  const [selectedYear, setSelectedYear] = useState("");
   const [fundCategories, setFundCategories] = useState([]);
   const [filteredFunds, setFilteredFunds] = useState([]);
   const [years, setYears] = useState([]);
@@ -28,52 +117,16 @@ export default function PromotionFundContent() {
   const [selectedCondition, setSelectedCondition] = useState({ title: "", content: "" });
   const modalRef = useRef(null);
 
-  const parseBudgetValue = (value) => {
-    if (value === null || value === undefined || value === "") return 0;
-    if (typeof value === "number") {
-      return Number.isFinite(value) ? value : 0;
-    }
-
-    const cleaned = String(value).replace(/,/g, "").trim();
-    if (cleaned === "") return 0;
-
-    const numeric = Number.parseFloat(cleaned);
-    return Number.isNaN(numeric) ? 0 : numeric;
-  };
-
-  const parseCountValue = (value) => {
-    if (value === null || value === undefined || value === "") return 0;
-    if (typeof value === "number") {
-      return Number.isFinite(value) ? value : 0;
-    }
-
-    const cleaned = String(value).replace(/,/g, "").trim();
-    if (cleaned === "") return 0;
-
-    const numeric = Number.parseInt(cleaned, 10);
-    return Number.isNaN(numeric) ? 0 : numeric;
-  };
-
   const normalizeSubcategoryBudgets = (subcategory) => {
     if (!subcategory) return subcategory;
 
-    const normalizedLevels = Array.isArray(subcategory.budget_levels)
-      ? subcategory.budget_levels.map((level) => ({
-          ...level,
-          remaining_budget: parseBudgetValue(level?.remaining_budget),
-          total_budget: parseBudgetValue(level?.total_budget),
-        }))
-      : subcategory.budget_levels;
-    const normalizedCount = parseCountValue(subcategory.budget_count);
-
     return {
       ...subcategory,
-      remaining_budget: parseBudgetValue(subcategory.remaining_budget),
-      total_budget: parseBudgetValue(subcategory.total_budget),
-      allocated_budget: parseBudgetValue(subcategory.allocated_budget),
-      budget_levels: normalizedLevels,
-      budget_count:
-        normalizedCount || (Array.isArray(normalizedLevels) ? normalizedLevels.length : 0),
+      // remaining_budget / used_amount / remaining_grant are not normalized here anymore;
+      // rely on the database table views for consolidated budget numbers instead.
+      budget_levels: Array.isArray(subcategory.budget_levels)
+        ? subcategory.budget_levels.map((level) => ({ ...level }))
+        : subcategory.budget_levels,
     };
   };
 
@@ -129,15 +182,56 @@ export default function PromotionFundContent() {
       setLoading(true);
       setError(null);
 
-      const [roleInfo, yearsData, configData] = await Promise.all([
+      const [roleInfo, yearsData, configData, currentYearRes] = await Promise.all([
         targetRolesUtils.getCurrentUserRole(),
         loadAvailableYears(),
-        loadSystemConfig()
+        loadSystemConfig(),
+        systemConfigAPI
+          .getCurrentYear()
+          .catch((err) => {
+            console.warn("Failed to fetch current system year:", err);
+            return null;
+          })
       ]);
 
       setUserRole(roleInfo);
-      setYears(yearsData);
-      setSystemConfig(configData);
+
+      const normalizedYears = Array.isArray(yearsData)
+        ? [...yearsData].sort((a, b) => {
+            const aYear = Number(a?.year ?? 0);
+            const bYear = Number(b?.year ?? 0);
+            return bYear - aYear;
+          })
+        : [];
+
+      setYears(normalizedYears);
+      setSystemConfig(configData || null);
+
+      const systemYearCandidate =
+        currentYearRes?.current_year ??
+        currentYearRes?.data?.current_year ??
+        configData?.current_year ??
+        null;
+
+      const fallbackYear = normalizedYears.length
+        ? String(normalizedYears[0].year)
+        : "";
+
+      const resolvedYearCandidate = systemYearCandidate
+        ? String(systemYearCandidate)
+        : fallbackYear;
+
+      const hasResolvedYear = normalizedYears.some(
+        (year) => String(year.year) === resolvedYearCandidate
+      );
+
+      const finalYear = hasResolvedYear ? resolvedYearCandidate : fallbackYear;
+
+      if (finalYear) {
+        setSelectedYear(finalYear);
+      } else {
+        setSelectedYear("");
+      }
     } catch (err) {
       console.error("Error loading initial data:", err);
       setError(err.message || "เกิดข้อผิดพลาดในการโหลดข้อมูล");
@@ -191,23 +285,16 @@ export default function PromotionFundContent() {
 
       setIsWithinApplicationPeriod(open);
       setEndDateLabel(end_date ? formatThaiDate(end_date) : "");
-      setSystemConfig({
+      const payload = {
         start_date,
         end_date,
         is_open_effective: open,
-        current_year: win.current_year,
-        last_updated: win.last_updated,
-        now: win.now,
-      });
+        current_year: win.current_year ?? null,
+        last_updated: win.last_updated ?? null,
+        now: win.now ?? null,
+      };
 
-      console.log("[system-config]", {
-        start_date,
-        end_date,
-        is_open_effective: open,
-        now: win.now,
-      });
-
-      return { start_date, end_date, is_open_effective: open };
+      return payload;
     } catch (e) {
       console.warn("loadSystemConfig failed:", e);
       setIsWithinApplicationPeriod(true);
@@ -300,6 +387,11 @@ export default function PromotionFundContent() {
       setLoading(true);
       setError(null);
 
+      if (!year) {
+        setFundCategories([]);
+        return;
+      }
+
       const response = await teacherAPI.getVisibleFundsStructure(year);
       console.log("Fund structure response:", response);
 
@@ -319,12 +411,13 @@ export default function PromotionFundContent() {
             roleContext?.role_id ?? roleContext?.role_name ?? roleContext
           );
 
-      const promotionFunds = visibleCategories
-        .filter((category) => category.category_id === 2)
-        .map((category) => ({
-          ...category,
-          subcategories: category.subcategories?.map(normalizeSubcategoryBudgets) || [],
-        }));
+      const promotionFunds = selectCategoriesByKeywords(
+        visibleCategories,
+        PROMOTION_CATEGORY_KEYWORDS
+      ).map((category) => ({
+        ...category,
+        subcategories: category.subcategories?.map(normalizeSubcategoryBudgets) || [],
+      }));
 
       const mergedPromotionFunds = promotionFunds.map((category) => {
         if (!Array.isArray(category.subcategories)) return category;
@@ -333,49 +426,6 @@ export default function PromotionFundContent() {
           (sub) => sub.form_type === "publication_reward"
         );
 
-        if (publicationSubs.length > 1) {
-          const combinedLevels = publicationSubs.flatMap((sub) =>
-            Array.isArray(sub.budget_levels) ? sub.budget_levels : []
-          );
-          const remainingBudgetTotal = publicationSubs.reduce(
-            (sum, s) => sum + parseBudgetValue(s.remaining_budget),
-            0
-          );
-          const totalBudgetTotal = publicationSubs.reduce(
-            (sum, s) => sum + parseBudgetValue(s.total_budget),
-            0
-          );
-          const allocatedBudgetTotal = publicationSubs.reduce(
-            (sum, s) => sum + parseBudgetValue(s.allocated_budget),
-            0
-          );
-          const combinedCount =
-            (Array.isArray(combinedLevels) && combinedLevels.length > 0
-              ? combinedLevels.length
-              : publicationSubs.reduce(
-                  (sum, s) => sum + parseCountValue(s.budget_count),
-                  0
-                )) || 0;
-
-          const merged = {
-            ...publicationSubs[0],
-            category_id: category.category_id,
-            subcategory_name: "เงินรางวัลการตีพิมพ์เผยแพร่ผลงานวิจัย",
-            remaining_budget: remainingBudgetTotal,
-            total_budget: totalBudgetTotal,
-            allocated_budget: allocatedBudgetTotal,
-            has_multiple_levels:
-              combinedLevels.length > 0 || publicationSubs.some((s) => s.has_multiple_levels),
-            budget_levels: combinedLevels,
-            budget_count: combinedCount,
-            merged_subcategories: publicationSubs,
-          };
-
-          const others = category.subcategories.filter(
-            (sub) => sub.form_type !== "publication_reward"
-          );
-          return { ...category, subcategories: [merged, ...others] };
-        }
         return category;
       });
 
