@@ -46,6 +46,34 @@ const FundManagementTab = ({
     budgets: [],
   });
 
+  const formatCurrency = (value) => {
+    if (value === null || value === undefined || value === '') return '-';
+    const num = Number(value);
+    if (Number.isNaN(num)) return '-';
+    return num.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+  };
+
+  const formatGrantCount = (value) => {
+    if (value === null || value === undefined || value === 0) return 'ไม่จำกัด';
+    const num = Number(value);
+    if (Number.isNaN(num)) return 'ไม่จำกัด';
+    return num.toLocaleString();
+  };
+
+  const describeBudget = (budget) => {
+    if (!budget) return 'งบประมาณ';
+    if (budget.record_scope === 'overall') return 'นโยบายภาพรวม';
+    if (budget.fund_description) return budget.fund_description;
+    if (budget.level) return `ระดับ ${budget.level}`;
+    return `งบประมาณ #${budget.subcategory_budget_id}`;
+  };
+
+  const formatGrantRemaining = (max, remaining) => {
+    if (max === null || max === undefined || Number(max) <= 0) return 'ไม่จำกัด';
+    const remainingValue = remaining === null || remaining === undefined ? max : remaining;
+    return `${Number(remainingValue).toLocaleString()} / ${Number(max).toLocaleString()} ทุน`;
+  };
+
   const toggleBulkMode = () => {
     setBulkMode((v) => !v);
     if (bulkMode) {
@@ -182,9 +210,10 @@ const FundManagementTab = ({
 
 
   const confirmDeleteBudget = async (budget) => {
+    const label = describeBudget(budget);
     const res = await Swal.fire({
       title: "ยืนยันการลบ?",
-      text: `ต้องการลบงบประมาณ "${budget.fund_description || `ระดับ${budget.level || "ทั่วไป"}`}" หรือไม่? การลบนี้ไม่สามารถย้อนกลับได้`,
+      text: `ต้องการลบ${budget.record_scope === 'overall' ? 'นโยบายภาพรวม' : 'งบประมาณ'} "${label}" หรือไม่? การลบนี้ไม่สามารถย้อนกลับได้`,
       icon: "warning",
       showCancelButton: true,
       confirmButtonText: "ลบ",
@@ -619,6 +648,19 @@ const FundManagementTab = ({
                                         selectedItems.budgets.includes(
                                           budget.subcategory_budget_id
                                         );
+                                      const isOverall = budget.record_scope === 'overall';
+                                      const descriptor = describeBudget(budget);
+                                      const perGrantText = formatCurrency(budget.max_amount_per_grant);
+                                      const yearlyCapText = formatCurrency(budget.max_amount_per_year);
+                                      const allocatedText = formatCurrency(budget.allocated_amount);
+                                      const usedAmountText = formatCurrency(budget.used_amount);
+                                      const remainingBudgetText = formatCurrency(budget.remaining_budget);
+                                      const grantText = isOverall
+                                        ? formatGrantRemaining(budget.max_grants, budget.remaining_grant)
+                                        : budget.max_grants && budget.max_grants > 0
+                                          ? formatGrantCount(budget.max_grants)
+                                          : 'ตามนโยบายภาพรวม';
+
                                       return (
                                         <div
                                           key={budget.subcategory_budget_id}
@@ -628,8 +670,8 @@ const FundManagementTab = ({
                                               : "bg-white"
                                           }`}
                                         >
-                                          <div className="flex justify-between items-start">
-                                            <div className="flex items-start gap-3">
+                                          <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+                                            <div className="flex flex-1 gap-3">
                                               {bulkMode && (
                                                 <input
                                                   type="checkbox"
@@ -643,37 +685,88 @@ const FundManagementTab = ({
                                                     )
                                                   }
                                                   className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 mt-1"
-                                                  onClick={(e) =>
-                                                    e.stopPropagation()
-                                                  }
+                                                  onClick={(e) => e.stopPropagation()}
                                                 />
                                               )}
-                                              <div className="space-y-1">
-                                                <div className="font-medium text-gray-800">
-                                                  {budget.fund_description ||
-                                                    `ระดับ${budget.level || "ทั่วไป"}`}
-                                                </div>
-                                                <div className="text-sm text-gray-600">
-                                                  วงเงินต่อทุน:{" "}
-                                                  {Number(
-                                                    budget.max_amount_per_grant ||
-                                                      0
-                                                  ).toLocaleString()}{" "}
-                                                  บาท
-                                                </div>
-                                                <div className="text-sm text-gray-600">
-                                                  จำนวนทุน:{" "}
-                                                  {budget.max_grants === null ||
-                                                  budget.max_grants === 0 ? (
-                                                    <span className="text-green-600 font-medium">
-                                                      ไม่จำกัดทุน
+                                              <div className="space-y-3">
+                                                <div className="flex flex-wrap items-center gap-2">
+                                                  <div className="font-semibold text-gray-900">
+                                                    {descriptor}
+                                                  </div>
+                                                  <span
+                                                    className={`px-2 py-0.5 text-xs rounded-full ${
+                                                      isOverall
+                                                        ? "bg-purple-100 text-purple-700"
+                                                        : "bg-blue-100 text-blue-700"
+                                                    }`}>
+                                                    {isOverall ? "ภาพรวม" : "กฎ"}
+                                                  </span>
+                                                  {!isOverall && budget.level && (
+                                                    <span className="px-2 py-0.5 text-xs rounded-full bg-slate-100 text-slate-700">
+                                                      ระดับ {budget.level}
                                                     </span>
-                                                  ) : (
-                                                    `${budget.remaining_grant || 0} / ${
-                                                      budget.max_grants
-                                                    }`
                                                   )}
                                                 </div>
+
+                                                {isOverall && budget.fund_description && (
+                                                  <div className="text-sm text-gray-600">
+                                                    {budget.fund_description}
+                                                  </div>
+                                                )}
+
+                                                {isOverall ? (
+                                                  <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3 text-sm text-gray-600">
+                                                    <div>
+                                                      งบประมาณรวม:
+                                                      <span className="font-medium text-gray-900"> {allocatedText}</span> บาท
+                                                    </div>
+                                                    <div>
+                                                      วงเงินต่อปี/คน:
+                                                      <span className="font-medium text-gray-900">
+                                                        {yearlyCapText !== '-' ? ` ${yearlyCapText} บาท` : ' -'}
+                                                      </span>
+                                                    </div>
+                                                    <div>
+                                                      จำนวนทุนสูงสุด:
+                                                      <span className="font-medium text-gray-900"> {grantText}</span>
+                                                    </div>
+                                                    {budget.max_amount_per_grant ? (
+                                                      <div>
+                                                        เพดานต่อครั้ง:
+                                                        <span className="font-medium text-gray-900"> {perGrantText}</span> บาท
+                                                      </div>
+                                                    ) : null}
+                                                    {budget.used_amount !== undefined && budget.used_amount !== null ? (
+                                                      <div>
+                                                        ใช้ไปแล้ว:
+                                                        <span className="font-medium text-gray-900"> {usedAmountText}</span> บาท
+                                                      </div>
+                                                    ) : null}
+                                                    {budget.remaining_budget !== undefined && budget.remaining_budget !== null ? (
+                                                      <div>
+                                                        งบคงเหลือ:
+                                                        <span className="font-medium text-gray-900"> {remainingBudgetText}</span> บาท
+                                                      </div>
+                                                    ) : null}
+                                                  </div>
+                                                ) : (
+                                                  <div className="grid gap-2 sm:grid-cols-2 text-sm text-gray-600">
+                                                    <div>
+                                                      วงเงินต่อครั้ง:
+                                                      <span className="font-medium text-gray-900"> {perGrantText}</span> บาท
+                                                    </div>
+                                                    <div>
+                                                      จำนวนทุน:
+                                                      <span className="font-medium text-gray-900"> {grantText}</span>
+                                                    </div>
+                                                  </div>
+                                                )}
+
+                                                {budget.comment && (
+                                                  <div className="text-xs text-gray-500">
+                                                    หมายเหตุ: {budget.comment}
+                                                  </div>
+                                                )}
                                               </div>
                                             </div>
 
@@ -686,18 +779,14 @@ const FundManagementTab = ({
                                               />
                                               <div className="flex gap-2">
                                                 <button
-                                                  onClick={() =>
-                                                    onEditBudget(budget, subcategory)
-                                                  }
+                                                  onClick={() => onEditBudget(budget, subcategory)}
                                                   className="text-blue-600 hover:bg-blue-50 p-2 rounded-lg transition-colors"
                                                   title="แก้ไขงบประมาณ"
                                                 >
                                                   <Edit size={14} />
                                                 </button>
                                                 <button
-                                                  onClick={() =>
-                                                    confirmDeleteBudget(budget)
-                                                  }
+                                                  onClick={() => confirmDeleteBudget(budget)}
                                                   className="text-red-600 hover:bg-red-50 p-2 rounded-lg transition-colors"
                                                   title="ลบงบประมาณ"
                                                 >
@@ -709,15 +798,15 @@ const FundManagementTab = ({
                                         </div>
                                       );
                                     })
-                                  ) : (
-                                    <div className="px-6 py-6 text-sm text-gray-500">
-                                      ยังไม่มีงบประมาณในทุนย่อยนี้
-                                    </div>
-                                  )}
+                                    ) : (
+                                      <div className="px-6 py-6 text-sm text-gray-500">
+                                        ยังไม่มีงบประมาณในทุนย่อยนี้
+                                      </div>
+                                    )}
+                                  </div>
                                 </div>
-                              </div>
-                            )}
-                          </div>
+                              )}
+                            </div>
                         );
                       })
                     ) : (

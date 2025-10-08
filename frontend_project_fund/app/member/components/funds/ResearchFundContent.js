@@ -10,10 +10,100 @@ import { teacherAPI } from "../../../lib/member_api";
 import { targetRolesUtils, filterFundsByRole } from "../../../lib/target_roles_utils";
 import { FORM_TYPE_CONFIG } from "../../../lib/form_type_config";
 import systemConfigAPI from "../../../lib/system_config_api";
-import apiClient from "../../../lib/api";
+
+const RESEARCH_CATEGORY_KEYWORDS = [
+  "ทุนส่งเสริมการวิจัย"
+];
+
+const normalizeText = (value) =>
+  String(value ?? "")
+    .trim()
+    .toLowerCase();
+
+const extractCategoryTexts = (category) => {
+  if (!category || typeof category !== "object") {
+    return [];
+  }
+
+  const baseTexts = [
+    category.category_name,
+    category.categoryName,
+    category.name,
+    category.category_name_en,
+    category.categoryNameEn,
+  ];
+
+  const subTexts = Array.isArray(category.subcategories)
+    ? category.subcategories.flatMap((sub) => [
+        sub?.subcategory_name,
+        sub?.subcategorie_name,
+        sub?.name,
+        sub?.fund_condition,
+      ])
+    : [];
+
+  return [...baseTexts, ...subTexts]
+    .filter((text) => text != null && text !== "")
+    .map(normalizeText);
+};
+
+const matchCategoryByKeywords = (category, keywords = []) => {
+  const texts = extractCategoryTexts(category);
+  if (!texts.length || !Array.isArray(keywords) || !keywords.length) {
+    return false;
+  }
+
+  return keywords.some((keyword) => {
+    const normalizedKeyword = normalizeText(keyword);
+    if (!normalizedKeyword) {
+      return false;
+    }
+
+    return texts.some((text) => text.includes(normalizedKeyword));
+  });
+};
+
+const selectCategoriesByKeywords = (categories = [], keywords = []) => {
+  if (!Array.isArray(categories) || !categories.length) {
+    return [];
+  }
+
+  const directMatches = categories.filter((category) =>
+    matchCategoryByKeywords(category, keywords)
+  );
+
+  if (directMatches.length) {
+    return directMatches;
+  }
+
+  // Fallback: choose categories with highest keyword hit counts (if any)
+  const scored = categories
+    .map((category) => {
+      const texts = extractCategoryTexts(category);
+      const score = keywords.reduce((total, keyword) => {
+        const normalizedKeyword = normalizeText(keyword);
+        if (!normalizedKeyword) {
+          return total;
+        }
+        const hit = texts.some((text) => text.includes(normalizedKeyword));
+        return total + (hit ? 1 : 0);
+      }, 0);
+
+      return { category, score };
+    })
+    .filter((entry) => entry.score > 0)
+    .sort((a, b) => b.score - a.score);
+
+  if (scored.length) {
+    return scored.map((entry) => entry.category);
+  }
+
+  // As a final fallback, return the first category to avoid empty state
+  return categories.slice(0, 1);
+};
 
 export default function ResearchFundContent({ onNavigate }) {
-  const [selectedYear, setSelectedYear] = useState("2568");
+  const [selectedYear, setSelectedYear] = useState("");
   const [yearId, setYearId] = useState(null);
   const [fundCategories, setFundCategories] = useState([]);
   const [filteredFunds, setFilteredFunds] = useState([]);
@@ -58,32 +148,6 @@ export default function ResearchFundContent({ onNavigate }) {
   useEffect(() => {
     applyFilters();
   }, [searchTerm, fundCategories]);
-
-  const parseBudgetValue = (value) => {
-    if (value === null || value === undefined || value === "") return 0;
-    if (typeof value === "number") {
-      return Number.isFinite(value) ? value : 0;
-    }
-
-    const cleaned = String(value).replace(/,/g, "").trim();
-    if (cleaned === "") return 0;
-
-    const numeric = Number.parseFloat(cleaned);
-    return Number.isNaN(numeric) ? 0 : numeric;
-  };
-
-  const parseCountValue = (value) => {
-    if (value === null || value === undefined || value === "") return 0;
-    if (typeof value === "number") {
-      return Number.isFinite(value) ? value : 0;
-    }
-
-    const cleaned = String(value).replace(/,/g, "").trim();
-    if (cleaned === "") return 0;
-
-    const numeric = Number.parseInt(cleaned, 10);
-    return Number.isNaN(numeric) ? 0 : numeric;
-  };
 
   // ---------- helpers ----------
   // Accepts "YYYY-MM-DD HH:mm:ss" (treated as local) or ISO (respects Z/offset)
@@ -133,18 +197,52 @@ export default function ResearchFundContent({ onNavigate }) {
         targetRolesUtils.getCurrentUserRole(),
         loadAvailableYears(),
         loadSystemConfig(),
-        apiClient.get("/system-config/current-year")
+        systemConfigAPI
+          .getCurrentYear()
+          .catch((err) => {
+            console.warn("Failed to fetch current system year:", err);
+            return null;
+          }),
       ]);
 
       setUserRole(roleInfo);
-      setYears(yearsData);
-      setSystemConfig(winData);
 
-      const currentYear = currentYearRes?.current_year
-        ? String(currentYearRes.current_year)
-        : selectedYear;
+      const normalizedYears = Array.isArray(yearsData)
+        ? [...yearsData].sort((a, b) => {
+            const aYear = Number(a?.year ?? 0);
+            const bYear = Number(b?.year ?? 0);
+            return bYear - aYear;
+          })
+        : [];
 
-      setSelectedYear(currentYear);
+      setYears(normalizedYears);
+      setSystemConfig(winData || null);
+
+      const systemYearCandidate =
+        currentYearRes?.current_year ??
+        currentYearRes?.data?.current_year ??
+        winData?.current_year ??
+        null;
+
+      const fallbackYear = normalizedYears.length
+        ? String(normalizedYears[0].year)
+        : "";
+
+      const resolvedYearCandidate = systemYearCandidate
+        ? String(systemYearCandidate)
+        : fallbackYear;
+
+      const hasResolvedYear = normalizedYears.some(
+        (year) => String(year.year) === resolvedYearCandidate
+      );
+
+      const finalYear = hasResolvedYear ? resolvedYearCandidate : fallbackYear;
+
+      if (finalYear) {
+        setSelectedYear(finalYear);
+      } else {
+        setSelectedYear("");
+      }
       // loadFundData will be triggered by effect on selectedYear
     } catch (err) {
       console.error("Error loading initial data:", err);
@@ -199,14 +297,15 @@ export default function ResearchFundContent({ onNavigate }) {
 
       setIsWithinApplicationPeriod(open);
       setEndDateLabel(end_date ? formatThaiDate(end_date) : "");
-      setSystemConfig({
+
+      const payload = {
         start_date,
         end_date,
         is_open_effective: open,
-        current_year: win.current_year,
-        last_updated: win.last_updated,
-        now: win.now,
-      });
+        current_year: win.current_year ?? null,
+        last_updated: win.last_updated ?? null,
+        now: win.now ?? null,
+      };
 
       console.log("[system-config]", {
         start_date,
@@ -215,7 +314,7 @@ export default function ResearchFundContent({ onNavigate }) {
         now: win.now,
       });
 
-      return { start_date, end_date, is_open_effective: open };
+      return payload;
     } catch (e) {
       console.warn("loadSystemConfig failed:", e);
       setIsWithinApplicationPeriod(true);
@@ -276,6 +375,11 @@ export default function ResearchFundContent({ onNavigate }) {
       setLoading(true);
       setError(null);
 
+      if (!year) {
+        setFundCategories([]);
+        return;
+      }
+
       const response = await teacherAPI.getVisibleFundsStructure(year);
       console.log("Fund structure response (research):", response);
       setYearId(response.year_id);
@@ -291,8 +395,11 @@ export default function ResearchFundContent({ onNavigate }) {
         roleContext?.role_id ?? roleContext?.role_name ?? roleContext
       );
 
-      // keep: research category only (category_id = 1)
-      const researchFunds = visibleCategories.filter((category) => category.category_id === 1);
+      // Keep research categories only (matched by keywords with graceful fallback)
+      const researchFunds = selectCategoriesByKeywords(
+        visibleCategories,
+        RESEARCH_CATEGORY_KEYWORDS
+      );
 
       // ถ้าอยู่นอกช่วงเวลา ให้เติม “สิ้นสุดรับคำขอ: …” ต่อท้าย fund_condition (เหมือน Promotion)
       const adjusted = researchFunds.map((category) => {
@@ -319,15 +426,8 @@ export default function ResearchFundContent({ onNavigate }) {
     }
   };
 
-  // ---------- filtering (keep original availability condition) ----------
-  const isAvailableResearch = (sub) => {
-    const hasBudget = parseBudgetValue(sub.remaining_budget) > 0;
-    const grantsOk =
-      sub.remaining_grant === null ||
-      sub.remaining_grant === undefined ||
-      parseCountValue(sub.remaining_grant) > 0;
-    return hasBudget && grantsOk;
-  };
+  // remaining_budget / used_amount / remaining_grant are no longer read here;
+  // availability should be sourced from the new database table views instead.
 
   const applyFilters = () => {
     let filtered = [...fundCategories];
@@ -390,9 +490,7 @@ export default function ResearchFundContent({ onNavigate }) {
   };
 
   const handleApplyForm = (subcategory) => {
-    if (!isWithinApplicationPeriod || !isAvailableResearch(subcategory)) {
-      return;
-    }
+    // ไม่ปิดปุ่มยื่นขอในหน้านี้แล้ว ให้ระบบไปตรวจสอบในฟอร์มด้วย table view ใหม่
     // ล้าง readonly เพื่อให้กรอกได้
     try {
       sessionStorage.removeItem("fund_form_readonly");
@@ -468,6 +566,8 @@ export default function ResearchFundContent({ onNavigate }) {
 
   // ---------- rendering ----------
   if (loading) {
+    // remaining_budget / used_amount / remaining_grant are no longer displayed here;
+    // rely on aggregated values from the database views when needed.
     return (
       <div className="flex justify-center items-center h-64">
         <div className="text-center">
@@ -496,21 +596,7 @@ export default function ResearchFundContent({ onNavigate }) {
 
   const renderFundRow = (fund) => {
     const fundName = fund.subcategorie_name || fund.subcategory_name || "ไม่ระบุ";
-    const remainingBudget = parseBudgetValue(fund.remaining_budget);
-    const hasBudgetValue =
-      fund.remaining_budget !== null &&
-      fund.remaining_budget !== undefined &&
-      String(fund.remaining_budget).trim() !== "";
-
-    const available = isAvailableResearch(fund);
-    const applyDisabled = !isWithinApplicationPeriod || !available;
-
-    const applyButtonTitle = !isWithinApplicationPeriod
-      ? "อยู่นอกช่วงเวลายื่นขอ"
-      : !available
-      ? (hasBudgetValue ? "งบหมดหรือจำนวนทุนครบแล้ว" : "ไม่พร้อมยื่นขอในขณะนี้")
-      : "ยื่นขอทุน";
-
+    // remaining_budget / used_amount / remaining_grant ไม่ได้ใช้ที่นี่แล้ว ให้ดึงจาก table view แทน
     return (
       <tr key={fund.subcategory_id || fund.subcategorie_id} className={!isWithinApplicationPeriod ? "bg-gray-50" : ""}>
         <td className="px-6 py-4 align-top">
@@ -553,13 +639,8 @@ export default function ResearchFundContent({ onNavigate }) {
 
             <button
               onClick={() => handleApplyForm(fund)}
-              className={`inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg ${
-                applyDisabled
-                  ? "bg-gray-200 text-gray-500 cursor-not-allowed"
-                  : "bg-blue-600 text-white hover:bg-blue-700"
-              }`}
-              disabled={applyDisabled}
-              title={applyButtonTitle}
+              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg bg-blue-600 text-white hover:bg-blue-700"
+              title="ยื่นขอทุน"
             >
               <FileText size={16} />
               ยื่นขอทุน
