@@ -798,81 +798,15 @@ const FundManagementTab = ({
                                         </div>
                                       );
                                     })
-                                  ) : (
-                                    <div className="px-6 py-6 text-sm text-gray-500">
-                                      ยังไม่มีงบประมาณในทุนย่อยนี้
-                                    </div>
-                                  )}
-                                              <div className="space-y-1">
-                                                <div className="font-medium text-gray-800">
-                                                  {budget.fund_description ||
-                                                    `ระดับ${budget.level || "ทั่วไป"}`}
-                                                </div>
-                                                <div className="text-sm text-gray-600">
-                                                  วงเงินต่อทุน:{" "}
-                                                  {Number(
-                                                    budget.max_amount_per_grant ||
-                                                      0
-                                                  ).toLocaleString()}{" "}
-                                                  บาท
-                                                </div>
-                                                <div className="text-sm text-gray-600">
-                                                  จำนวนทุน:{" "}
-                                                  {budget.max_grants === null ||
-                                                  budget.max_grants === 0 ? (
-                                                    <span className="text-green-600 font-medium">
-                                                      ไม่จำกัดทุน
-                                                    </span>
-                                                  ) : (
-                                                    `${budget.remaining_grant || 0} / ${
-                                                      budget.max_grants
-                                                    }`
-                                                  )}
-                                                </div>
-                                              </div>
-                                            </div>
-
-                                            <div className="flex items-center gap-4">
-                                              <StatusBadge
-                                                status={budget.status}
-                                                interactive
-                                                confirm
-                                                onChange={(next) => onToggleBudgetStatus?.(budget, subcategory, category, next)}
-                                              />
-                                              <div className="flex gap-2">
-                                                <button
-                                                  onClick={() =>
-                                                    onEditBudget(budget, subcategory)
-                                                  }
-                                                  className="text-blue-600 hover:bg-blue-50 p-2 rounded-lg transition-colors"
-                                                  title="แก้ไขงบประมาณ"
-                                                >
-                                                  <Edit size={14} />
-                                                </button>
-                                                <button
-                                                  onClick={() =>
-                                                    confirmDeleteBudget(budget)
-                                                  }
-                                                  className="text-red-600 hover:bg-red-50 p-2 rounded-lg transition-colors"
-                                                  title="ลบงบประมาณ"
-                                                >
-                                                  <Trash2 size={14} />
-                                                </button>
-                                              </div>
-                                            </div>
-                                          </div>
-                                        </div>
-                                      );
-                                    })
-                                  ) : (
-                                    <div className="px-6 py-6 text-sm text-gray-500">
-                                      ยังไม่มีงบประมาณในทุนย่อยนี้
-                                    </div>
-                                  )}
+                                    ) : (
+                                      <div className="px-6 py-6 text-sm text-gray-500">
+                                        ยังไม่มีงบประมาณในทุนย่อยนี้
+                                      </div>
+                                    )}
+                                  </div>
                                 </div>
-                              </div>
-                            )}
-                          </div>
+                              )}
+                            </div>
                         );
                       })
                     ) : (
