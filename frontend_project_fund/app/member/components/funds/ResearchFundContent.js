@@ -4,13 +4,14 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { DollarSign, FileText, Search, Download, X, Info, Clock, AlertTriangle } from "lucide-react";
+import { DollarSign, FileText, Search, X, Info, Clock, AlertTriangle, AlertCircle } from "lucide-react";
 import PageLayout from "../common/PageLayout";
 import { teacherAPI } from "../../../lib/member_api";
 import { targetRolesUtils, filterFundsByRole } from "../../../lib/target_roles_utils";
 import { FORM_TYPE_CONFIG } from "../../../lib/form_type_config";
 import systemConfigAPI from "../../../lib/system_config_api";
 import apiClient from "../../../lib/api";
+import Swal from 'sweetalert2';
 
 export default function ResearchFundContent({ onNavigate }) {
   const [selectedYear, setSelectedYear] = useState("2568");
@@ -59,30 +60,27 @@ export default function ResearchFundContent({ onNavigate }) {
     applyFilters();
   }, [searchTerm, fundCategories]);
 
-  const parseBudgetValue = (value) => {
-    if (value === null || value === undefined || value === "") return 0;
+  const parseOptionalNumber = (value) => {
+    if (value === null || value === undefined || value === "") return null;
     if (typeof value === "number") {
-      return Number.isFinite(value) ? value : 0;
+      return Number.isFinite(value) ? value : null;
     }
 
     const cleaned = String(value).replace(/,/g, "").trim();
-    if (cleaned === "") return 0;
+    if (cleaned === "") return null;
 
     const numeric = Number.parseFloat(cleaned);
-    return Number.isNaN(numeric) ? 0 : numeric;
+    return Number.isNaN(numeric) ? null : numeric;
   };
 
-  const parseCountValue = (value) => {
-    if (value === null || value === undefined || value === "") return 0;
-    if (typeof value === "number") {
-      return Number.isFinite(value) ? value : 0;
+  const pickFirstNumeric = (...values) => {
+    for (const value of values) {
+      const numeric = parseOptionalNumber(value);
+      if (numeric !== null) {
+        return numeric;
+      }
     }
-
-    const cleaned = String(value).replace(/,/g, "").trim();
-    if (cleaned === "") return 0;
-
-    const numeric = Number.parseInt(cleaned, 10);
-    return Number.isNaN(numeric) ? 0 : numeric;
+    return null;
   };
 
   // ---------- helpers ----------
@@ -320,13 +318,37 @@ export default function ResearchFundContent({ onNavigate }) {
   };
 
   // ---------- filtering (keep original availability condition) ----------
-  const isAvailableResearch = (sub) => {
-    const hasBudget = parseBudgetValue(sub.remaining_budget) > 0;
-    const grantsOk =
-      sub.remaining_grant === null ||
-      sub.remaining_grant === undefined ||
-      parseCountValue(sub.remaining_grant) > 0;
-    return hasBudget && grantsOk;
+  const getAvailabilityWarnings = (sub) => {
+    const warnings = [];
+
+    const userGrantRemaining = pickFirstNumeric(
+      sub?.policy?.user_remaining?.grants,
+      sub?.user_remaining?.grants,
+      sub?.user_grant_remaining,
+      sub?.user_remaining_grants,
+      sub?.remaining_grant_per_user,
+      sub?.remaining_grants_per_user
+    );
+
+    if (userGrantRemaining !== null && userGrantRemaining <= 0) {
+      warnings.push("คุณใช้จำนวนสิทธิ์การรับทุนครบตามที่กำหนดแล้ว");
+    }
+
+    const userAmountRemaining = pickFirstNumeric(
+      sub?.policy?.user_remaining?.amount,
+      sub?.user_remaining?.amount,
+      sub?.user_amount_remaining,
+      sub?.user_remaining_amount,
+      sub?.remaining_amount_per_user,
+      sub?.remaining_amount_user,
+      sub?.remaining_amount_for_user
+    );
+
+    if (userAmountRemaining !== null && userAmountRemaining <= 0) {
+      warnings.push("คุณใช้วงเงินสูงสุดต่อปีของทุนนี้ครบแล้ว");
+    }
+
+    return warnings;
   };
 
   const applyFilters = () => {
@@ -390,8 +412,24 @@ export default function ResearchFundContent({ onNavigate }) {
   };
 
   const handleApplyForm = (subcategory) => {
-    if (!isWithinApplicationPeriod || !isAvailableResearch(subcategory)) {
+    if (!isWithinApplicationPeriod) {
+      Swal.fire({
+        icon: 'info',
+        title: 'อยู่นอกช่วงเวลายื่นขอ',
+        text: 'ระบบเปิดให้ยื่นคำร้องเฉพาะช่วงเวลาที่กำหนดเท่านั้น',
+        confirmButtonText: 'รับทราบ'
+      });
       return;
+    }
+
+    const availabilityWarnings = getAvailabilityWarnings(subcategory);
+    if (availabilityWarnings.length > 0) {
+      Swal.fire({
+        icon: 'warning',
+        title: 'คำเตือนสิทธิ์การขอทุน',
+        html: availabilityWarnings.map(text => `<div>${text}</div>`).join(''),
+        confirmButtonText: 'ดำเนินการต่อ'
+      });
     }
     // ล้าง readonly เพื่อให้กรอกได้
     try {
@@ -496,19 +534,14 @@ export default function ResearchFundContent({ onNavigate }) {
 
   const renderFundRow = (fund) => {
     const fundName = fund.subcategorie_name || fund.subcategory_name || "ไม่ระบุ";
-    const remainingBudget = parseBudgetValue(fund.remaining_budget);
-    const hasBudgetValue =
-      fund.remaining_budget !== null &&
-      fund.remaining_budget !== undefined &&
-      String(fund.remaining_budget).trim() !== "";
-
-    const available = isAvailableResearch(fund);
-    const applyDisabled = !isWithinApplicationPeriod || !available;
+    const availabilityWarnings = getAvailabilityWarnings(fund);
+    const hasAvailabilityWarnings = availabilityWarnings.length > 0;
+    const applyDisabled = !isWithinApplicationPeriod;
 
     const applyButtonTitle = !isWithinApplicationPeriod
       ? "อยู่นอกช่วงเวลายื่นขอ"
-      : !available
-      ? (hasBudgetValue ? "งบหมดหรือจำนวนทุนครบแล้ว" : "ไม่พร้อมยื่นขอในขณะนี้")
+      : hasAvailabilityWarnings
+      ? `คำเตือนสิทธิ์การขอทุน: ${availabilityWarnings.join(" / ")} (ยังสามารถยื่นคำร้องได้)`
       : "ยื่นขอทุน";
 
     return (
@@ -556,6 +589,8 @@ export default function ResearchFundContent({ onNavigate }) {
               className={`inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg ${
                 applyDisabled
                   ? "bg-gray-200 text-gray-500 cursor-not-allowed"
+                  : hasAvailabilityWarnings
+                  ? "bg-yellow-500 text-white hover:bg-yellow-600"
                   : "bg-blue-600 text-white hover:bg-blue-700"
               }`}
               disabled={applyDisabled}
@@ -565,6 +600,16 @@ export default function ResearchFundContent({ onNavigate }) {
               ยื่นขอทุน
             </button>
           </div>
+          {hasAvailabilityWarnings && (
+            <div className="mt-2 space-y-1 text-xs text-yellow-700" role="status" aria-live="polite">
+              {availabilityWarnings.map((msg, index) => (
+                <div key={index} className="flex items-start gap-1 justify-center">
+                  <AlertCircle className="h-3.5 w-3.5 mt-0.5" />
+                  <span className="text-left whitespace-pre-line">{msg}</span>
+                </div>
+              ))}
+            </div>
+          )}
         </td>
       </tr>
     );
