@@ -396,9 +396,14 @@ func CreatePublicationReward(c *gin.Context) {
 		return
 	}
 
+	createdAt := now
+	if reward.CreateAt != nil {
+		createdAt = *reward.CreateAt
+	}
+
 	// สร้าง submission folder
 	submissionFolderPath, err := utils.CreateSubmissionFolder(
-		userFolderPath, "publication", reward.RewardID, time.Now())
+		userFolderPath, "publication_reward", reward.RewardNumber, reward.RewardID, createdAt)
 	if err != nil {
 		tx.Rollback()
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create submission directory"})
@@ -806,9 +811,14 @@ func UploadPublicationDocument(c *gin.Context) {
 		return
 	}
 
+	createdAt := time.Now()
+	if reward.CreateAt != nil {
+		createdAt = *reward.CreateAt
+	}
+
 	// Create publication submission folder
 	submissionFolderPath, err := utils.CreateSubmissionFolder(
-		userFolderPath, "publication", reward.RewardID, time.Now())
+		userFolderPath, "publication_reward", reward.RewardNumber, reward.RewardID, createdAt)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create submission directory"})
 		return

@@ -488,7 +488,7 @@ func regenerateHeadApprovedPublicationDoc(tx *gorm.DB, submission *models.Submis
 		return fmt.Errorf("failed to prepare user directory: %w", err)
 	}
 
-	submissionFolderPath, err := utils.CreateSubmissionFolder(userFolderPath, submission.SubmissionType, submission.SubmissionID, submission.CreatedAt)
+	submissionFolderPath, err := utils.CreateSubmissionFolder(userFolderPath, submission.SubmissionType, submission.SubmissionNumber, submission.SubmissionID, submission.CreatedAt)
 	if err != nil {
 		return fmt.Errorf("failed to prepare submission folder: %w", err)
 	}
