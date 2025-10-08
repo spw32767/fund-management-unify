@@ -389,11 +389,12 @@ export default function ApplicationList({ onNavigate }) {
 
     // Search filter
     if (searchTerm) {
-      filtered = filtered.filter(
-        app =>
-          app.application_number.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          app.project_title.toLowerCase().includes(searchTerm.toLowerCase())
-      );
+      const term = searchTerm.toLowerCase();
+      filtered = filtered.filter((app) => {
+        const appNumber = app.application_number ? String(app.application_number).toLowerCase() : "";
+        const projectTitle = app.project_title ? String(app.project_title).toLowerCase() : "";
+        return appNumber.includes(term) || projectTitle.includes(term);
+      });
     }
 
     // Status filter
@@ -427,19 +428,26 @@ export default function ApplicationList({ onNavigate }) {
       header: "ชื่อทุน",
       accessor: "subcategory_name",
       className: "text-sm",
-      render: (value) => {
-        const v = (value === null || value === undefined || value === '') ? '-' : String(value);
+      render: (value, row) => {
+        const fundName =
+          value === null || value === undefined || value === '' ? '-' : String(value);
+        const projectTitle = row?.project_title;
+        const hasProjectTitle =
+          projectTitle != null && String(projectTitle).trim() !== '' && projectTitle !== '−' && projectTitle !== '-';
+
         return (
-          <div className="truncate overflow-hidden whitespace-nowrap max-w-xs" title={v}>
-            {v}
+          <div className="flex flex-col gap-1 max-w-xs">
+            <span className="truncate" title={fundName}>
+              {fundName}
+            </span>
+            {hasProjectTitle && (
+              <span className="text-xs text-gray-600 break-words" title={String(projectTitle)}>
+                {projectTitle}
+              </span>
+            )}
           </div>
         );
       }
-    },
-    {
-      header: "ชื่อโครงการ/บทความ",
-      accessor: "project_title",
-      className: "max-w-xs truncate"
     },
     {
       header: "จำนวนเงิน",
