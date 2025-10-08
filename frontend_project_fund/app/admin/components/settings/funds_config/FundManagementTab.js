@@ -56,19 +56,53 @@ const getSelectedYearDisplay = (selectedYear, years = []) => {
 const describeTargetRoles = (targetRoles) =>
   targetRolesUtils.formatTargetRolesForDisplay(targetRoles);
 
+const normalizeScope = (scope) => String(scope || "").toLowerCase();
+
+const resolveBudgetOrder = (budget = {}) => {
+  const candidates = [
+    budget.display_order,
+    budget.sort_order,
+    budget.sequence,
+    budget.order,
+    budget.order_index,
+  ];
+
+  for (const candidate of candidates) {
+    if (candidate === undefined || candidate === null || candidate === "") continue;
+    const numeric = Number(candidate);
+    if (Number.isFinite(numeric)) return numeric;
+  }
+
+  return budget.subcategory_budget_id ?? 0;
+};
+
 const categorizeBudgets = (budgets = []) => {
   const normalized = Array.isArray(budgets) ? budgets : [];
   const overall = normalized.find(
-    (budget) => String(budget.record_scope || "").toLowerCase() === "overall"
+    (budget) => normalizeScope(budget.record_scope) === "overall"
   );
   const rules = normalized
-    .filter((budget) => String(budget.record_scope || "").toLowerCase() !== "overall")
-    .sort((a, b) => {
-      const orderA = a.display_order ?? a.sort_order ?? a.subcategory_budget_id ?? 0;
-      const orderB = b.display_order ?? b.sort_order ?? b.subcategory_budget_id ?? 0;
-      return orderA - orderB;
-    });
+    .filter((budget) => normalizeScope(budget.record_scope) !== "overall")
+    .sort((a, b) => resolveBudgetOrder(a) - resolveBudgetOrder(b));
   return { overall, rules };
+};
+
+const getCategoryNumber = (category, index) => {
+  const display = category?.display_number ?? category?.order_index;
+  if (display) return display;
+  const numeric = Number(category?.category_number);
+  if (Number.isFinite(numeric)) return `${numeric}`;
+  return `${index + 1}`;
+};
+
+const getSubcategoryNumber = (categoryNumber, subcategory, index) => {
+  if (subcategory?.display_number) return subcategory.display_number;
+  if (subcategory?.order_index) return subcategory.order_index;
+  const numeric = Number(subcategory?.subcategory_number);
+  if (Number.isFinite(numeric)) {
+    return `${categoryNumber}.${numeric}`;
+  }
+  return `${categoryNumber}.${index + 1}`;
 };
 
 const FundManagementTab = ({
@@ -369,9 +403,10 @@ const FundManagementTab = ({
         </div>
       ) : (
         <div className="space-y-5">
-          {filteredCategories.map((category) => {
+          {filteredCategories.map((category, categoryIndex) => {
             const categoryExpanded = expandedCategories?.[category.category_id];
             const subcategories = category.subcategories || [];
+            const categoryNumber = getCategoryNumber(category, categoryIndex);
 
             return (
               <div key={category.category_id} className="border border-gray-200 rounded-xl">
@@ -434,28 +469,34 @@ const FundManagementTab = ({
                       </div>
                     ) : (
                       <div className="space-y-4">
-                        {subcategories.map((subcategory) => {
+                        {subcategories.map((subcategory, subIndex) => {
                           const subExpanded = expandedSubcategories?.[subcategory.subcategory_id];
                           const { overall, rules } = categorizeBudgets(subcategory.budgets);
                           const targetRoleLabel = describeTargetRoles(subcategory.target_roles);
+                          const subNumber = getSubcategoryNumber(categoryNumber, subcategory, subIndex);
 
                           return (
                             <div key={subcategory.subcategory_id} className="border border-gray-200 rounded-lg">
                               <div className="flex flex-wrap gap-3 items-center justify-between px-4 py-3">
                                 <button
                                   type="button"
-                                  className="flex items-center gap-3 text-left"
+                                  className="flex items-start gap-3 text-left"
                                   onClick={() => onToggleSubcategory?.(subcategory.subcategory_id)}
                                 >
                                   {subExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
-                                  <div>
-                                    <p className="font-medium text-gray-900">{subcategory.subcategory_name}</p>
-                                    <p className="text-xs text-gray-500">
-                                      {subcategory.fund_condition || "ไม่มีเงื่อนไขเพิ่มเติม"}
-                                    </p>
-                                    <p className="text-xs text-gray-500 mt-0.5">
-                                      กลุ่มเป้าหมาย: {targetRoleLabel}
-                                    </p>
+                                  <div className="flex items-start gap-3">
+                                    <span className="text-blue-600 font-semibold text-sm mt-0.5 min-w-[2.5rem]">
+                                      {subNumber}
+                                    </span>
+                                    <div>
+                                      <p className="font-medium text-gray-900">{subcategory.subcategory_name}</p>
+                                      <p className="text-xs text-gray-500">
+                                        {subcategory.fund_condition || "ไม่มีเงื่อนไขเพิ่มเติม"}
+                                      </p>
+                                      <p className="text-xs text-gray-500 mt-0.5">
+                                        กลุ่มเป้าหมาย: {targetRoleLabel}
+                                      </p>
+                                    </div>
                                   </div>
                                 </button>
                                 <div className="flex flex-wrap gap-2 items-center">

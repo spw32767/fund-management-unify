@@ -162,6 +162,33 @@ export default function FundSettingsContent({ onNavigate }) {
     }
   };
 
+  const resolveOrder = (entity, fallback) => {
+    if (!entity || typeof entity !== 'object') return fallback;
+
+    const orderKeys = [
+      'display_order',
+      'sort_order',
+      'order',
+      'order_no',
+      'order_index',
+      'category_number',
+      'subcategory_number',
+      'sequence',
+    ];
+
+    for (const key of orderKeys) {
+      const value = entity[key];
+      if (value !== undefined && value !== null && value !== '') {
+        const numeric = Number(value);
+        if (Number.isFinite(numeric)) {
+          return numeric;
+        }
+      }
+    }
+
+    return fallback;
+  };
+
   const loadCategories = async () => {
     if (!selectedYear) return;
 
@@ -169,20 +196,61 @@ export default function FundSettingsContent({ onNavigate }) {
     setError(null);
     try {
       const data = await adminAPI.getCategoriesWithDetails(selectedYear.year_id);
-      const normalized = data.map(category => ({
-        ...category,
-        subcategories: (category.subcategories || []).map(subcategory => ({
-          ...subcategory,
-          budgets: (subcategory.budgets || [])
-            .map(budget => ({ ...budget }))
-            .sort((a, b) => {
-              if (a.record_scope === b.record_scope) {
-                return (a.subcategory_budget_id || 0) - (b.subcategory_budget_id || 0);
-              }
-              return a.record_scope === 'overall' ? -1 : 1;
-            }),
-        })),
-      }));
+      const sortedCategories = [...data].sort((a, b) => {
+        const orderA = resolveOrder(a, a.category_id || 0);
+        const orderB = resolveOrder(b, b.category_id || 0);
+        return orderA - orderB;
+      });
+
+      const normalized = sortedCategories.map((category, categoryIndex) => {
+        const categoryNumber = categoryIndex + 1;
+
+        const sortedSubcategories = [...(category.subcategories || [])]
+          .sort((a, b) => {
+            const orderA = resolveOrder(a, a.subcategory_id || 0);
+            const orderB = resolveOrder(b, b.subcategory_id || 0);
+            return orderA - orderB;
+          })
+          .map((subcategory, subIndex) => {
+            const displayNumber = `${categoryNumber}.${subIndex + 1}`;
+
+            const budgets = (subcategory.budgets || [])
+              .map((budget) => ({
+                ...budget,
+                record_scope: String(budget.record_scope || '').toLowerCase(),
+              }))
+              .sort((a, b) => {
+                if (a.record_scope === b.record_scope) {
+                  const orderA = resolveOrder(a, a.subcategory_budget_id || 0);
+                  const orderB = resolveOrder(b, b.subcategory_budget_id || 0);
+                  return orderA - orderB;
+                }
+                if (a.record_scope === 'overall') return -1;
+                if (b.record_scope === 'overall') return 1;
+                const orderA = resolveOrder(a, a.subcategory_budget_id || 0);
+                const orderB = resolveOrder(b, b.subcategory_budget_id || 0);
+                return orderA - orderB;
+              })
+              .map((budget, budgetIndex) => ({
+                ...budget,
+                order_index: `${displayNumber}.${budgetIndex + 1}`,
+              }));
+
+            return {
+              ...subcategory,
+              order_index: displayNumber,
+              display_number: displayNumber,
+              budgets,
+            };
+          });
+
+        return {
+          ...category,
+          order_index: `${categoryNumber}`,
+          display_number: `${categoryNumber}`,
+          subcategories: sortedSubcategories,
+        };
+      });
       setCategories(normalized);
     } catch (error) {
       console.error("Error loading categories:", error);
