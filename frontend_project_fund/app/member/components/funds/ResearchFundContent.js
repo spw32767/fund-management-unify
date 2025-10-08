@@ -68,19 +68,6 @@ export default function ResearchFundContent({ onNavigate }) {
     applyFilters();
   }, [searchTerm, fundCategories]);
 
-  const parseBudgetValue = (value) => {
-    if (value === null || value === undefined || value === "") return 0;
-    if (typeof value === "number") {
-      return Number.isFinite(value) ? value : 0;
-    }
-
-    const cleaned = String(value).replace(/,/g, "").trim();
-    if (cleaned === "") return 0;
-
-    const numeric = Number.parseFloat(cleaned);
-    return Number.isNaN(numeric) ? 0 : numeric;
-  };
-
   const parseCountValue = (value) => {
     if (value === null || value === undefined || value === "") return 0;
     if (typeof value === "number") {
@@ -375,13 +362,12 @@ export default function ResearchFundContent({ onNavigate }) {
   };
 
   const isAvailableResearch = (sub) => {
-    const hasBudget = parseBudgetValue(sub.remaining_budget) > 0;
     const remainingGrant = computeRemainingGrants(sub);
-    const grantsOk =
+    return (
       remainingGrant === null ||
       remainingGrant === undefined ||
-      remainingGrant > 0;
-    return hasBudget && grantsOk;
+      remainingGrant > 0
+    );
   };
 
   const applyFilters = () => {
@@ -551,19 +537,13 @@ export default function ResearchFundContent({ onNavigate }) {
 
   const renderFundRow = (fund) => {
     const fundName = fund.subcategorie_name || fund.subcategory_name || "ไม่ระบุ";
-    const remainingBudget = parseBudgetValue(fund.remaining_budget);
-    const hasBudgetValue =
-      fund.remaining_budget !== null &&
-      fund.remaining_budget !== undefined &&
-      String(fund.remaining_budget).trim() !== "";
-
     const available = isAvailableResearch(fund);
     const applyDisabled = !isWithinApplicationPeriod || !available;
 
     const applyButtonTitle = !isWithinApplicationPeriod
       ? "อยู่นอกช่วงเวลายื่นขอ"
       : !available
-      ? (hasBudgetValue ? "งบหมดหรือจำนวนทุนครบแล้ว" : "ไม่พร้อมยื่นขอในขณะนี้")
+      ? "จำนวนทุนครบแล้ว"
       : "ยื่นขอทุน";
 
     return (

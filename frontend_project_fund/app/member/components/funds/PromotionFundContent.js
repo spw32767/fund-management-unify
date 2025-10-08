@@ -76,19 +76,6 @@ export default function PromotionFundContent({ onNavigate }) {
     applyFilters();
   }, [searchTerm, fundCategories]);
 
-  const parseBudgetValue = (value) => {
-    if (value === null || value === undefined || value === "") return 0;
-    if (typeof value === "number") {
-      return Number.isFinite(value) ? value : 0;
-    }
-
-    const cleaned = String(value).replace(/,/g, "").trim();
-    if (cleaned === "") return 0;
-
-    const numeric = Number.parseFloat(cleaned);
-    return Number.isNaN(numeric) ? 0 : numeric;
-  };
-
   // ---------- helpers ----------
   // Accepts "YYYY-MM-DD HH:mm:ss" (treated as local) or ISO (respects Z/offset)
   const computeApplicationOpen = (start, end) => {
@@ -573,12 +560,6 @@ export default function PromotionFundContent({ onNavigate }) {
 
   const renderFundRow = (fund) => {
     const fundName = fund.subcategory_name || 'ไม่ระบุ';
-    const remainingBudget = parseBudgetValue(fund.remaining_budget);
-    const hasBudgetValue =
-      fund.remaining_budget !== null &&
-      fund.remaining_budget !== undefined &&
-      String(fund.remaining_budget).trim() !== '';
-
     const formType = fund.form_type || 'download';
     const formConfig = FORM_TYPE_CONFIG[formType] || {};
     const ButtonIcon = formConfig.icon || FileText;
@@ -618,7 +599,7 @@ export default function PromotionFundContent({ onNavigate }) {
             const isOnlineForm =
               (FORM_TYPE_CONFIG[fund.form_type] || FORM_TYPE_CONFIG["download"])
                 ?.isOnlineForm === true;
-            const applyDisabled = !isWithinApplicationPeriod || remainingBudget <= 0;
+            const applyDisabled = !isWithinApplicationPeriod;
 
             if (isOnlineForm) {
               return (
@@ -645,10 +626,6 @@ export default function PromotionFundContent({ onNavigate }) {
                     title={
                       !isWithinApplicationPeriod
                         ? "อยู่นอกช่วงเวลายื่นขอ"
-                        : remainingBudget <= 0
-                        ? hasBudgetValue
-                          ? "งบประมาณหมดแล้ว"
-                          : "ไม่มีข้อมูลงบประมาณ"
                         : "ยื่นขอทุน"
                     }
                   >
