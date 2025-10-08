@@ -1,4 +1,3 @@
-// components/FundManagementTab.js
 import React from "react";
 import {
   Search,
@@ -8,10 +7,69 @@ import {
   Edit,
   Trash2,
   Copy,
+  ShieldCheck,
+  Layers,
 } from "lucide-react";
 import Swal from "sweetalert2";
 import { targetRolesUtils } from "@/app/lib/target_roles_utils";
 import StatusBadge from "@/app/admin/components/settings/StatusBadge";
+
+const formatCurrency = (value) => {
+  if (value === null || value === undefined || value === "") return "ไม่จำกัด";
+  const number = Number(value);
+  if (Number.isNaN(number)) return "-";
+  return `${number.toLocaleString(undefined, {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+  })} บาท`;
+};
+
+const formatGrantCount = (value) => {
+  if (value === null || value === undefined || Number(value) === 0) {
+    return "ไม่จำกัด";
+  }
+  if (Number.isNaN(Number(value))) {
+    return "-";
+  }
+  return `${Number(value).toLocaleString()} ครั้ง`;
+};
+
+const getSelectedYearValue = (selectedYear) => {
+  if (!selectedYear) return "";
+  if (selectedYear.year_id) return selectedYear.year_id;
+  if (selectedYear.year) return selectedYear.year;
+  return selectedYear;
+};
+
+const getSelectedYearDisplay = (selectedYear, years = []) => {
+  if (!selectedYear) return "";
+  if (selectedYear.year) return selectedYear.year;
+  if (selectedYear.year_id) {
+    const match = years.find((y) => y.year_id === selectedYear.year_id);
+    if (match?.year) {
+      return match.year;
+    }
+  }
+  return selectedYear;
+};
+
+const describeTargetRoles = (targetRoles) =>
+  targetRolesUtils.formatTargetRolesForDisplay(targetRoles);
+
+const categorizeBudgets = (budgets = []) => {
+  const normalized = Array.isArray(budgets) ? budgets : [];
+  const overall = normalized.find(
+    (budget) => String(budget.record_scope || "").toLowerCase() === "overall"
+  );
+  const rules = normalized
+    .filter((budget) => String(budget.record_scope || "").toLowerCase() !== "overall")
+    .sort((a, b) => {
+      const orderA = a.display_order ?? a.sort_order ?? a.subcategory_budget_id ?? 0;
+      const orderB = b.display_order ?? b.sort_order ?? b.subcategory_budget_id ?? 0;
+      return orderA - orderB;
+    });
+  return { overall, rules };
+};
 
 const FundManagementTab = ({
   selectedYear,
@@ -38,780 +96,559 @@ const FundManagementTab = ({
   onToggleBudgetStatus,
   onCopyToNewYear,
 }) => {
+  const selectedYearDisplay = getSelectedYearDisplay(selectedYear, years);
+  const selectedYearNumber = React.useMemo(() => {
+    const parsed = Number(selectedYearDisplay);
+    return Number.isFinite(parsed) ? parsed : null;
+  }, [selectedYearDisplay]);
 
-  const [bulkMode, setBulkMode] = React.useState(false);
-  const [selectedItems, setSelectedItems] = React.useState({
-    categories: [],
-    subcategories: [],
-    budgets: [],
-  });
+  const nextYear = React.useMemo(() => {
+    if (!selectedYearNumber) return null;
+    return selectedYearNumber + 1;
+  }, [selectedYearNumber]);
 
-  const formatCurrency = (value) => {
-    if (value === null || value === undefined || value === '') return '-';
-    const num = Number(value);
-    if (Number.isNaN(num)) return '-';
-    return num.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 });
-  };
+  const hasFundData = React.useMemo(() => {
+    return categories.some(
+      (category) => Array.isArray(category.subcategories) && category.subcategories.length > 0
+    );
+  }, [categories]);
 
-  const formatGrantCount = (value) => {
-    if (value === null || value === undefined || value === 0) return 'ไม่จำกัด';
-    const num = Number(value);
-    if (Number.isNaN(num)) return 'ไม่จำกัด';
-    return num.toLocaleString();
-  };
+  const existingYears = React.useMemo(() => {
+    return years
+      .map((year) => {
+        const value = year?.year ?? year;
+        const parsed = Number(value);
+        return Number.isFinite(parsed) ? parsed : null;
+      })
+      .filter((value) => value !== null);
+  }, [years]);
 
-  const describeBudget = (budget) => {
-    if (!budget) return 'งบประมาณ';
-    if (budget.record_scope === 'overall') return 'นโยบายภาพรวม';
-    if (budget.fund_description) return budget.fund_description;
-    if (budget.level) return `ระดับ ${budget.level}`;
-    return `งบประมาณ #${budget.subcategory_budget_id}`;
-  };
-
-  const formatGrantRemaining = (max, remaining) => {
-    if (max === null || max === undefined || Number(max) <= 0) return 'ไม่จำกัด';
-    const remainingValue = remaining === null || remaining === undefined ? max : remaining;
-    return `${Number(remainingValue).toLocaleString()} / ${Number(max).toLocaleString()} ทุน`;
-  };
-
-  const toggleBulkMode = () => {
-    setBulkMode((v) => !v);
-    if (bulkMode) {
-      setSelectedItems({ categories: [], subcategories: [], budgets: [] });
+  const copyDisabledReason = React.useMemo(() => {
+    if (!selectedYear) return "กรุณาเลือกปีงบประมาณก่อน";
+    if (!hasFundData) return "ปีที่เลือกยังไม่มีข้อมูลทุน";
+    if (!nextYear) return "ไม่พบปีถัดไป";
+    if (existingYears.includes(nextYear)) {
+      return `มีปีงบประมาณ ${nextYear} อยู่แล้ว`;
     }
-  };
+    return null;
+  }, [selectedYear, hasFundData, nextYear, existingYears]);
 
-  const handleItemSelect = (type, id, checked, item = null) => {
-    setSelectedItems((prev) => {
-      const next = { ...prev };
-      if (type === "categories") {
-        if (checked) {
-          next.categories = [...prev.categories, id];
-          const cat = categories.find((c) => c.category_id === id);
-          if (cat?.subcategories?.length) {
-            const subIds = cat.subcategories.map((s) => s.subcategory_id);
-            const budgetIds = cat.subcategories.flatMap(
-              (s) => s.budgets?.map((b) => b.subcategory_budget_id) || []
-            );
-            next.subcategories = [...new Set([...prev.subcategories, ...subIds])];
-            next.budgets = [...new Set([...prev.budgets, ...budgetIds])];
-          }
-        } else {
-          next.categories = prev.categories.filter((x) => x !== id);
-          const cat = categories.find((c) => c.category_id === id);
-          if (cat?.subcategories?.length) {
-            const subIds = cat.subcategories.map((s) => s.subcategory_id);
-            const budgetIds = cat.subcategories.flatMap(
-              (s) => s.budgets?.map((b) => b.subcategory_budget_id) || []
-            );
-            next.subcategories = prev.subcategories.filter(
-              (sid) => !subIds.includes(sid)
-            );
-            next.budgets = prev.budgets.filter((bid) => !budgetIds.includes(bid));
-          }
-        }
-      } else if (type === "subcategories") {
-        if (checked) {
-          next.subcategories = [...prev.subcategories, id];
-          if (item?.budgets?.length) {
-            const bid = item.budgets.map((b) => b.subcategory_budget_id);
-            next.budgets = [...new Set([...prev.budgets, ...bid])];
-          }
-        } else {
-          next.subcategories = prev.subcategories.filter((x) => x !== id);
-          if (item?.budgets?.length) {
-            const bid = item.budgets.map((b) => b.subcategory_budget_id);
-            next.budgets = prev.budgets.filter((x) => !bid.includes(x));
-          }
-          const parentCat = categories.find((c) =>
-            c.subcategories?.some((s) => s.subcategory_id === id)
-          );
-          if (parentCat) {
-            next.categories = prev.categories.filter(
-              (cid) => cid !== parentCat.category_id
-            );
-          }
-        }
-      } else if (type === "budgets") {
-        if (checked) {
-          next.budgets = [...prev.budgets, id];
-        } else {
-          next.budgets = prev.budgets.filter((x) => x !== id);
-          const parentSub = categories
-            .flatMap((c) => c.subcategories || [])
-            .find((s) => s.budgets?.some((b) => b.subcategory_budget_id === id));
-          if (parentSub) {
-            next.subcategories = prev.subcategories.filter(
-              (sid) => sid !== parentSub.subcategory_id
-            );
-            const parentCat = categories.find((c) =>
-              c.subcategories?.some((s) => s.subcategory_id === parentSub.subcategory_id)
-            );
-            if (parentCat) {
-              next.categories = prev.categories.filter(
-                (cid) => cid !== parentCat.category_id
-              );
-            }
-          }
-        }
-      }
-      return next;
-    });
-  };
-
-  // ====== Confirm delete wrappers (SweetAlert2) ======
-  const confirmDeleteCategory = async (category) => {
-    const subCount = Array.isArray(category.subcategories) ? category.subcategories.length : 0;
-    if (subCount > 0) {
+  const handleCopyToNextYear = async () => {
+    if (copyDisabledReason) {
       await Swal.fire({
-        icon: "info",
-        title: "ลบไม่ได้",
-        text: `หมวดหมู่ "${category.category_name}" ยังมีทุนย่อยอยู่ ${subCount} รายการ\nกรุณาลบทุนย่อยทั้งหมดก่อน`,
-        confirmButtonText: "ตกลง"
+        icon: "warning",
+        title: "ไม่สามารถคัดลอกได้",
+        text: copyDisabledReason,
       });
       return;
     }
 
-    const res = await Swal.fire({
-      title: "ยืนยันการลบ?",
-      text: `ต้องการลบหมวดหมู่ "${category.category_name}" หรือไม่?`,
-      icon: "warning",
-      showCancelButton: true,
-      confirmButtonText: "ลบ",
-      cancelButtonText: "ยกเลิก",
-      confirmButtonColor: "#d33",
-    });
-    if (res.isConfirmed) onDeleteCategory(category);
-  };
-
-  const confirmDeleteSubcategory = async (subcategory, category) => {
-    const budgetCount = Array.isArray(subcategory.budgets) ? subcategory.budgets.length : 0;
-    if (budgetCount > 0) {
-      await Swal.fire({
-        icon: "info",
-        title: "ลบไม่ได้",
-        text: `ทุนย่อย "${subcategory.subcategory_name}" ยังมีงบประมาณอยู่ ${budgetCount} รายการ\nกรุณาลบงบประมาณทั้งหมดก่อน`,
-        confirmButtonText: "ตกลง"
-      });
-      return;
-    }
-
-    const res = await Swal.fire({
-      title: "ยืนยันการลบ?",
-      text: `ต้องการลบทุนย่อย "${subcategory.subcategory_name}" หรือไม่?`,
-      icon: "warning",
-      showCancelButton: true,
-      confirmButtonText: "ลบ",
-      cancelButtonText: "ยกเลิก",
-      confirmButtonColor: "#d33",
-    });
-    if (res.isConfirmed) onDeleteSubcategory(subcategory, category);
-  };
-
-
-  const confirmDeleteBudget = async (budget) => {
-    const label = describeBudget(budget);
-    const res = await Swal.fire({
-      title: "ยืนยันการลบ?",
-      text: `ต้องการลบ${budget.record_scope === 'overall' ? 'นโยบายภาพรวม' : 'งบประมาณ'} "${label}" หรือไม่? การลบนี้ไม่สามารถย้อนกลับได้`,
-      icon: "warning",
-      showCancelButton: true,
-      confirmButtonText: "ลบ",
-      cancelButtonText: "ยกเลิก",
-      confirmButtonColor: "#d33",
-    });
-    if (res.isConfirmed) onDeleteBudget(budget);
-  };
-
-  // ====== Copy to new year ======
-  const handleCopyToNewYear = async () => {
-    if (!selectedYear) {
-      Swal.fire("ข้อมูลไม่ครบ", "กรุณาเลือกปีงบประมาณก่อน", "warning");
-      return;
-    }
-
-    const { value: newYear } = await Swal.fire({
-      title: "คัดลอกข้อมูลไปยังปีใหม่",
+    const defaultYear = nextYear?.toString() || "";
+    const { value, isConfirmed } = await Swal.fire({
+      title: "คัดลอกโครงสร้างทุน",
+      html: `ต้องการคัดลอกข้อมูลจากปี <strong>${selectedYearDisplay}</strong> ไปยังปี <strong>${defaultYear}</strong> หรือไม่?`,
       input: "text",
+      inputValue: defaultYear,
       inputLabel: "ระบุปีปลายทาง (พ.ศ.)",
       inputPlaceholder: "เช่น 2569",
       showCancelButton: true,
       confirmButtonText: "คัดลอก",
       cancelButtonText: "ยกเลิก",
       inputValidator: (value) => {
-        if (!value) return "กรุณาระบุปี";
-        if (!/^\d{4}$/.test(value)) return "กรุณาระบุปีในรูปแบบ พ.ศ. 4 หลัก";
-        if (parseInt(value) < 2500) return "ปีต้องมากกว่า 2500";
-        // ตรวจสอบว่าปีนี้มีอยู่แล้วหรือไม่
-        const existingYear = years.find(y => 
-          (y.year === value) || (y.year_id && years.find(yr => yr.year === value))
-        );
-        if (existingYear) return "ปีนี้มีข้อมูลอยู่แล้ว";
-      }
+        if (!value) return "กรุณาระบุปีปลายทาง";
+        if (!/^\d{4}$/.test(value)) return "กรุณาระบุปี พ.ศ. 4 หลัก";
+        const numeric = Number(value);
+        if (!Number.isFinite(numeric) || numeric <= 0) {
+          return "ปีปลายทางไม่ถูกต้อง";
+        }
+        if (numeric <= (selectedYearNumber || 0)) {
+          return "ปีปลายทางต้องมากกว่าปีต้นทาง";
+        }
+        if (existingYears.includes(numeric)) {
+          return "ปีนี้มีอยู่แล้วในระบบ";
+        }
+        return null;
+      },
     });
 
-    if (newYear && onCopyToNewYear) {
-      onCopyToNewYear(selectedYear, newYear);
+    if (isConfirmed && value && onCopyToNewYear) {
+      onCopyToNewYear(selectedYear, value);
     }
   };
 
-  // ====== Filter (เดิม) ======
   const filteredCategories = React.useMemo(() => {
-    const term = (searchTerm || "").trim().toLowerCase();
-    if (!term) return categories;
-    const match = (txt) => String(txt || "").toLowerCase().includes(term);
+    const keyword = (searchTerm || "").toLowerCase().trim();
+    if (!keyword) return categories;
 
     return categories
-      .map((c) => {
-        const sub = (c.subcategories || []).filter(
-          (s) =>
-            match(c.category_name) ||
-            match(s.subcategory_name) ||
-            (s.budgets || []).some(
-              (b) =>
-                match(b.fund_description) ||
-                match(b.level) ||
-                match(b.max_amount_per_grant)
-            )
-        );
-        return { ...c, subcategories: sub };
+      .map((category) => {
+        const matchedCategory = category.category_name?.toLowerCase().includes(keyword);
+        const filteredSubcategories = (category.subcategories || []).filter((sub) => {
+          const baseMatch =
+            sub.subcategory_name?.toLowerCase().includes(keyword) ||
+            sub.fund_condition?.toLowerCase().includes(keyword);
+
+          if (baseMatch) return true;
+
+          return (sub.budgets || []).some((budget) => {
+            const desc = budget.fund_description?.toLowerCase() || "";
+            const level = budget.level?.toLowerCase() || "";
+            const scope = String(budget.record_scope || "").toLowerCase();
+            return (
+              desc.includes(keyword) ||
+              level.includes(keyword) ||
+              scope.includes(keyword)
+            );
+          });
+        });
+
+        if (matchedCategory || filteredSubcategories.length > 0) {
+          return {
+            ...category,
+            subcategories: filteredSubcategories,
+          };
+        }
+        return null;
       })
-      .filter(
-        (c) =>
-          match(c.category_name) ||
-          (c.subcategories && c.subcategories.length > 0)
-      );
+      .filter(Boolean);
   }, [categories, searchTerm]);
 
-  // ====== Get selected year value - รองรับทั้ง 2 แบบ ======
-  const getSelectedYearValue = () => {
-    if (!selectedYear) return "";
-    // ถ้า selectedYear เป็น object ที่มี year_id
-    if (selectedYear.year_id) return selectedYear.year_id;
-    // ถ้า selectedYear เป็น string หรือ number
-    return selectedYear;
+  const confirmDeleteCategory = async (category) => {
+    const subCount = Array.isArray(category.subcategories) ? category.subcategories.length : 0;
+    if (subCount > 0) {
+      await Swal.fire({
+        icon: "info",
+        title: "ลบหมวดหมู่ไม่ได้",
+        text: `หมวดหมู่ "${category.category_name}" ยังมีทุนย่อยอยู่ ${subCount} รายการ กรุณาลบทุนย่อยทั้งหมดก่อน`,
+      });
+      return;
+    }
+
+    const res = await Swal.fire({
+      title: "ยืนยันการลบหมวดหมู่?",
+      text: `ต้องการลบหมวดหมู่ "${category.category_name}" หรือไม่?",
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonText: "ลบ",
+      cancelButtonText: "ยกเลิก",
+      confirmButtonColor: "#d33",
+    });
+
+    if (res.isConfirmed && onDeleteCategory) {
+      onDeleteCategory(category);
+    }
   };
 
-  const getSelectedYearDisplay = () => {
-    if (!selectedYear) return "";
-    // ถ้า selectedYear เป็น object ที่มี year
-    if (selectedYear.year) return selectedYear.year;
-    // ถ้าเป็น year_id ให้หา year จาก array
-    const found = years.find(y => y.year_id === selectedYear);
-    return found ? found.year : selectedYear;
+  const confirmDeleteSubcategory = async (subcategory, category) => {
+    const budgetsCount = Array.isArray(subcategory.budgets) ? subcategory.budgets.length : 0;
+    if (budgetsCount > 0) {
+      await Swal.fire({
+        icon: "info",
+        title: "ลบทุนย่อยไม่ได้",
+        text: `ทุนย่อย "${subcategory.subcategory_name}" ยังมีนโยบายงบประมาณ ${budgetsCount} รายการ กรุณาลบงบประมาณทั้งหมดก่อน`,
+      });
+      return;
+    }
+
+    const res = await Swal.fire({
+      title: "ยืนยันการลบทุนย่อย?",
+      text: `ต้องการลบทุนย่อย "${subcategory.subcategory_name}" หรือไม่?",
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonText: "ลบ",
+      cancelButtonText: "ยกเลิก",
+      confirmButtonColor: "#d33",
+    });
+
+    if (res.isConfirmed && onDeleteSubcategory) {
+      onDeleteSubcategory(subcategory, category);
+    }
+  };
+
+  const confirmDeleteBudget = async (budget, subcategory) => {
+    const scope = String(budget.record_scope || "").toLowerCase();
+    const scopeName = scope === "overall" ? "นโยบายภาพรวม" : "กฎย่อย";
+    const label =
+      budget.fund_description ||
+      budget.level ||
+      (scope === "overall" ? "นโยบายภาพรวม" : `กฎย่อย #${budget.subcategory_budget_id}`);
+
+    const res = await Swal.fire({
+      title: "ยืนยันการลบนโยบายงบประมาณ?",
+      html: `ต้องการลบ${scopeName} "<strong>${label}</strong>" หรือไม่?` +
+        "<br/>การลบนี้ไม่สามารถย้อนกลับได้",
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonText: "ลบ",
+      cancelButtonText: "ยกเลิก",
+      confirmButtonColor: "#d33",
+    });
+
+    if (res.isConfirmed && onDeleteBudget) {
+      onDeleteBudget(budget, subcategory);
+    }
   };
 
   return (
     <div className="bg-white rounded-lg shadow-sm p-8">
-      {/* Header ให้เหมือนอีก 2 หน้า */}
-      <div className="mb-6 flex items-start justify-between">
+      <div className="mb-6 flex flex-wrap gap-4 items-center justify-between">
         <div>
           <h2 className="text-xl font-semibold text-gray-900">จัดการทุน</h2>
-          <p className="text-gray-600 mt-1">
-            เพิ่ม/แก้ไข หมวดหมู่ ทุนย่อย และงบประมาณสำหรับปีงบประมาณที่เลือก
+          <p className="text-sm text-gray-600 mt-1">
+            เพิ่ม/แก้ไข หมวดหมู่ ทุนย่อย และนโยบายงบประมาณตามโครงสร้างใหม่
           </p>
         </div>
-        {years.length > 0 && selectedYear && onCopyToNewYear && (
-          <button
-            onClick={handleCopyToNewYear}
-            className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
-          >
-            <Copy size={16} />
-            คัดลอกไปปีใหม่
-          </button>
-        )}
+        <button
+          type="button"
+          onClick={handleCopyToNextYear}
+          disabled={Boolean(copyDisabledReason) || !onCopyToNewYear}
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
+            copyDisabledReason || !onCopyToNewYear
+              ? "bg-gray-200 text-gray-500 cursor-not-allowed"
+              : "bg-green-600 text-white hover:bg-green-700"
+          }`}
+        >
+          <Copy size={16} />
+          คัดลอกไปปีถัดไป
+        </button>
       </div>
 
-      {/* Year Selector + Search + Add + Bulk */}
-      <div className="mb-5 flex items-center gap-3">
-        <label className="text-sm font-medium text-gray-700">ปีงบประมาณ:</label>
-        <select
-          value={getSelectedYearValue()}
-          onChange={(e) => {
-            const selectedId = e.target.value;
-            if (selectedId && onYearChange) {
-              // ถ้า years เป็น array ของ objects ที่มี year_id
-              if (years[0]?.year_id) {
-                onYearChange(selectedId); // ส่ง year_id
-              } else {
-                // ถ้า years เป็น array ของ objects แบบอื่น
-                const yearObj = years.find(y => y.year_id === selectedId || y.year === selectedId);
-                onYearChange(yearObj || selectedId);
-              }
-            }
-          }}
-          className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-        >
-          {/* ลบ option "เลือกปี" ออก */}
-          {years.map((year) => {
-            // รองรับทั้ง format ที่มี year_id และ year
-            const value = year.year_id || year.year || year;
-            const display = year.year || year;
-            return (
-              <option key={value} value={value}>
-                พ.ศ. {display}
-              </option>
-            );
-          })}
-        </select>
+      <div className="mb-6 flex flex-wrap gap-3 items-center">
+        <div className="flex items-center gap-2">
+          <label className="text-sm font-medium text-gray-700">ปีงบประมาณ</label>
+          <select
+            value={getSelectedYearValue(selectedYear)}
+            onChange={(event) => onYearChange?.(event.target.value)}
+            className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          >
+            {years.map((year) => {
+              const value = year.year_id || year.year || year;
+              const display = year.year || year;
+              return (
+                <option key={value} value={value}>
+                  พ.ศ. {display}
+                </option>
+              );
+            })}
+          </select>
+        </div>
 
-        {/* Search */}
         <div className="relative ml-auto">
-          <Search
-            size={16}
-            className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
-          />
+          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
           <input
             type="text"
-            placeholder="ค้นหาทุน..."
             value={searchTerm}
-            onChange={(e) => onSearchChange(e.target.value)}
+            onChange={(event) => onSearchChange?.(event.target.value)}
+            placeholder="ค้นหาหมวดหมู่หรือทุนย่อย"
             className="pl-9 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent w-72"
           />
         </div>
 
-        {categories.length > 0 && selectedYear && (
-          <button
-            onClick={toggleBulkMode}
-            className={`px-3 py-2 rounded-lg border transition-colors ${
-              bulkMode
-                ? "bg-orange-100 border-orange-300 text-orange-700 hover:bg-orange-200"
-                : "bg-gray-100 border-gray-300 text-gray-700 hover:bg-gray-200"
-            }`}
-          >
-            {bulkMode ? "✓ เลือกหลายรายการ" : "เลือกหลายรายการ"}
-          </button>
-        )}
-
         <button
+          type="button"
           onClick={onAddCategory}
           disabled={!selectedYear}
-          className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
+          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
         >
           <Plus size={16} />
           เพิ่มหมวดหมู่
         </button>
       </div>
 
-      {/* Empty state */}
       {!selectedYear ? (
-        <div className="text-center py-16 border rounded-lg">
+        <div className="text-center py-16 border border-dashed rounded-lg">
           <div className="text-4xl mb-2">📅</div>
-          <h3 className="text-lg font-medium text-gray-900 mb-2">
-            เลือกปีงบประมาณ
-          </h3>
-          <p className="text-gray-500">
-            กรุณาเลือกปีงบประมาณเพื่อจัดการข้อมูลทุน
-          </p>
+          <h3 className="text-lg font-medium text-gray-900 mb-2">กรุณาเลือกปีงบประมาณ</h3>
+          <p className="text-gray-600">เลือกปีงบประมาณเพื่อจัดการโครงสร้างทุน</p>
         </div>
       ) : filteredCategories.length === 0 ? (
-        <div className="text-center py-16 border rounded-lg">
-          <div className="text-4xl mb-2">📂</div>
-          <h3 className="text-lg font-medium text-gray-900 mb-2">
-            ยังไม่มีข้อมูลหมวดหมู่
-          </h3>
-          <p className="text-gray-500 mb-4">
-            เริ่มต้นโดยการเพิ่มหมวดหมู่ใหม่สำหรับปี {getSelectedYearDisplay() || "-"}
-          </p>
-          <button
-            onClick={onAddCategory}
-            className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
-          >
-            เพิ่มหมวดหมู่แรก
-          </button>
+        <div className="text-center py-16 border border-dashed rounded-lg">
+          <div className="text-4xl mb-2">🔍</div>
+          <h3 className="text-lg font-medium text-gray-900 mb-2">ไม่พบรายการที่ตรงกับการค้นหา</h3>
+          <p className="text-gray-600">ลองเปลี่ยนคำค้นหาหรือเพิ่มหมวดหมู่ใหม่</p>
         </div>
       ) : (
-        <div className="space-y-4">
+        <div className="space-y-5">
           {filteredCategories.map((category) => {
-            const isCatExpanded = expandedCategories[category.category_id];
+            const categoryExpanded = expandedCategories?.[category.category_id];
+            const subcategories = category.subcategories || [];
 
             return (
-              <div
-                key={category.category_id}
-                className={`rounded-lg border border-gray-200 overflow-hidden ${
-                  bulkMode &&
-                  selectedItems.categories.includes(category.category_id)
-                    ? "bg-blue-50"
-                    : "bg-white"
-                }`}
-              >
-                {/* Category Header */}
-                <div className="p-4 bg-gray-50 flex justify-between items-center">
-                  <div className="flex items-center gap-3 flex-1">
-                    {bulkMode && (
-                      <input
-                        type="checkbox"
-                        checked={selectedItems.categories.includes(
-                          category.category_id
-                        )}
-                        onChange={(e) =>
-                          handleItemSelect(
-                            "categories",
-                            category.category_id,
-                            e.target.checked,
-                            category
-                          )
-                        }
-                        className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                        onClick={(e) => e.stopPropagation()}
-                      />
-                    )}
-
+              <div key={category.category_id} className="border border-gray-200 rounded-xl">
+                <div className="flex flex-wrap gap-3 items-center justify-between px-5 py-4 bg-gray-50 rounded-t-xl">
+                  <button
+                    type="button"
+                    className="flex items-center gap-3 text-left"
+                    onClick={() => onToggleCategory?.(category.category_id)}
+                  >
+                    {categoryExpanded ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
+                    <div>
+                      <p className="text-base font-semibold text-gray-900">{category.category_name}</p>
+                      <p className="text-sm text-gray-500">
+                        {subcategories.length > 0
+                          ? `${subcategories.length} ทุนย่อย`
+                          : "ยังไม่มีทุนย่อย"}
+                      </p>
+                    </div>
+                  </button>
+                  <div className="flex flex-wrap gap-2 items-center">
+                    <StatusBadge
+                      status={category.status}
+                      interactive
+                      onChange={(next) => onToggleCategoryStatus?.(category, next)}
+                      activeLabel="เปิดใช้งาน"
+                      inactiveLabel="ปิดใช้งาน"
+                    />
                     <button
                       type="button"
-                      className="flex items-center gap-3 cursor-pointer"
-                      onClick={() => onToggleCategory(category.category_id)}
+                      onClick={() => onEditCategory?.(category)}
+                      className="px-3 py-1.5 text-sm rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-100"
                     >
-                      {isCatExpanded ? (
-                        <ChevronDown size={20} className="text-gray-500" />
-                      ) : (
-                        <ChevronRight size={20} className="text-gray-500" />
-                      )}
-                      <h3 className="font-semibold text-lg text-gray-900">
-                        {category.category_name}
-                      </h3>
-                      <span className="text-sm text-gray-500">
-                        ({category.subcategories?.length || 0} ทุนย่อย)
-                      </span>
+                      <Edit size={16} className="inline mr-1" /> แก้ไข
                     </button>
-                  </div>
-
-                  <div className="flex items-center gap-4">
-                  <StatusBadge
-                    status={category.status}
-                    interactive
-                    confirm
-                    onChange={(next) => onToggleCategoryStatus?.(category, next)}
-                  />
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => onEditCategory(category)}
-                        className="text-blue-600 hover:bg-blue-50 p-2 rounded-lg transition-colors"
-                        title="แก้ไขหมวดหมู่"
-                      >
-                        <Edit size={14} />
-                      </button>
-                      <button
-                        onClick={() => confirmDeleteCategory(category)}
-                        className="text-red-600 hover:bg-red-50 p-2 rounded-lg transition-colors"
-                        title="ลบหมวดหมู่"
-                      >
-                        <Trash2 size={14} />
-                      </button>
-
-                      <button
-                        onClick={() => onAddSubcategory(category)}
-                        className="text-green-700 hover:bg-green-50 p-2 rounded-lg transition-colors"
-                        title="เพิ่มทุนย่อย"
-                      >
-                        <Plus size={14} />
-                      </button>
-                    </div>
+                    <button
+                      type="button"
+                      onClick={() => confirmDeleteCategory(category)}
+                      className="px-3 py-1.5 text-sm rounded-lg border border-red-200 text-red-600 hover:bg-red-50"
+                    >
+                      <Trash2 size={16} className="inline mr-1" /> ลบ
+                    </button>
                   </div>
                 </div>
 
-                {/* Subcategories */}
-                {isCatExpanded && (
-                  <div className="divide-y divide-gray-200">
-                    {category.subcategories && category.subcategories.length > 0 ? (
-                      category.subcategories.map((subcategory) => {
-                        const isExpanded =
-                          expandedSubcategories[subcategory.subcategory_id];
+                {categoryExpanded && (
+                  <div className="px-5 py-4 space-y-4">
+                    <div className="flex justify-end">
+                      <button
+                        type="button"
+                        onClick={() => onAddSubcategory?.(category)}
+                        className="flex items-center gap-2 px-3 py-2 text-sm bg-blue-50 text-blue-700 border border-blue-200 rounded-lg hover:bg-blue-100"
+                      >
+                        <Plus size={14} /> เพิ่มทุนย่อย
+                      </button>
+                    </div>
 
-                        return (
-                          <div
-                            key={subcategory.subcategory_id}
-                            className={`${
-                              bulkMode &&
-                              selectedItems.subcategories.includes(
-                                subcategory.subcategory_id
-                              )
-                                ? "bg-blue-50"
-                                : "bg-white"
-                            }`}
-                          >
-                            {/* Subcategory Header */}
-                            <div className="px-6 py-3 flex justify-between items-center">
-                              <div className="flex items-center gap-3 flex-1">
-                                {bulkMode && (
-                                  <input
-                                    type="checkbox"
-                                    checked={selectedItems.subcategories.includes(
-                                      subcategory.subcategory_id
-                                    )}
-                                    onChange={(e) =>
-                                      handleItemSelect(
-                                        "subcategories",
-                                        subcategory.subcategory_id,
-                                        e.target.checked,
-                                        subcategory
-                                      )
-                                    }
-                                    className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                                    onClick={(e) => e.stopPropagation()}
-                                  />
-                                )}
+                    {subcategories.length === 0 ? (
+                      <div className="border border-dashed border-gray-300 rounded-lg p-6 text-center text-sm text-gray-500">
+                        ยังไม่มีทุนย่อยในหมวดหมู่นี้ คลิก "เพิ่มทุนย่อย" เพื่อสร้างทุนใหม่
+                      </div>
+                    ) : (
+                      <div className="space-y-4">
+                        {subcategories.map((subcategory) => {
+                          const subExpanded = expandedSubcategories?.[subcategory.subcategory_id];
+                          const { overall, rules } = categorizeBudgets(subcategory.budgets);
+                          const targetRoleLabel = describeTargetRoles(subcategory.target_roles);
 
+                          return (
+                            <div key={subcategory.subcategory_id} className="border border-gray-200 rounded-lg">
+                              <div className="flex flex-wrap gap-3 items-center justify-between px-4 py-3">
                                 <button
-                                  className="flex items-center gap-2 flex-1 text-left"
-                                  onClick={() => onToggleSubcategory(subcategory.subcategory_id)}
+                                  type="button"
+                                  className="flex items-center gap-3 text-left"
+                                  onClick={() => onToggleSubcategory?.(subcategory.subcategory_id)}
                                 >
-                                  {isExpanded ? (
-                                    <ChevronDown size={18} className="text-gray-500" />
-                                  ) : (
-                                    <ChevronRight size={18} className="text-gray-500" />
-                                  )}
-                                  <h4 className="font-medium text-gray-900">
-                                    {subcategory.subcategory_name}
-                                  </h4>
-                                  <span className="text-sm text-gray-500">
-                                    ({subcategory.budgets?.length || 0} งบประมาณ)
-                                  </span>
-                                  <span className="text-xs text-gray-300">•</span>
-                                  <span className="hidden md:inline-flex items-center gap-1">
-                                    {(() => {
-                                      const parsedRoles = targetRolesUtils.parseTargetRoles(subcategory.target_roles);
-
-                                      // ถ้าไม่มี target_roles แสดง "-"
-                                      if (!parsedRoles || parsedRoles.length === 0) {
-                                        return "";
-                                      }
-
-                                      // แปลง roleId -> display name
-                                      const roleNames = parsedRoles.map(
-                                        (roleId) => targetRolesUtils.getRoleDisplayName(roleId) || `Role ${roleId}`
-                                      );
-
-                                      // fix สีเฉพาะบทบาท
-                                      const colorMap = {
-                                        "อาจารย์": "bg-blue-100 text-blue-800 border-blue-200",
-                                        "เจ้าหน้าที่": "bg-yellow-100 text-yellow-800 border-yellow-200",
-                                        "ผู้ดูแลระบบ": "bg-gray-100 text-gray-800 border-gray-200"
-                                      };
-                                      const fallback = "bg-gray-100 text-gray-700 border-gray-200";
-
-                                      return roleNames.map((name) => (
-                                        <span
-                                          key={name}
-                                          className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs border ${colorMap[name] || fallback}`}
-                                        >
-                                          {name}
-                                        </span>
-                                      ));
-                                    })()}
-                                  </span>
+                                  {subExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                                  <div>
+                                    <p className="font-medium text-gray-900">{subcategory.subcategory_name}</p>
+                                    <p className="text-xs text-gray-500">
+                                      {subcategory.fund_condition || "ไม่มีเงื่อนไขเพิ่มเติม"}
+                                    </p>
+                                    <p className="text-xs text-gray-500 mt-0.5">
+                                      กลุ่มเป้าหมาย: {targetRoleLabel}
+                                    </p>
+                                  </div>
                                 </button>
-                              </div>
-
-                              <div className="flex items-center gap-4">
-                                <StatusBadge
-                                  status={subcategory.status}
-                                  interactive
-                                  confirm
-                                  onChange={(next) => onToggleSubcategoryStatus?.(subcategory, category, next)}
-                                />
-                                  <div className="flex items-center gap-2">
+                                <div className="flex flex-wrap gap-2 items-center">
+                                  <StatusBadge
+                                    status={subcategory.status}
+                                    interactive
+                                    onChange={(next) => onToggleSubcategoryStatus?.(subcategory, category, next)}
+                                    activeLabel="เปิดใช้งาน"
+                                    inactiveLabel="ปิดใช้งาน"
+                                  />
                                   <button
-                                    onClick={() => onEditSubcategory(subcategory, category)}
-                                    className="text-blue-600 hover:bg-blue-50 p-2 rounded-lg transition-colors"
-                                    title="แก้ไขทุนย่อย"
+                                    type="button"
+                                    onClick={() => onEditSubcategory?.(subcategory, category)}
+                                    className="px-3 py-1.5 text-xs sm:text-sm rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-100"
                                   >
-                                    <Edit size={14} />
+                                    <Edit size={14} className="inline mr-1" /> แก้ไข
                                   </button>
                                   <button
+                                    type="button"
                                     onClick={() => confirmDeleteSubcategory(subcategory, category)}
-                                    className="text-red-600 hover:bg-red-50 p-2 rounded-lg transition-colors"
-                                    title="ลบทุนย่อย"
+                                    className="px-3 py-1.5 text-xs sm:text-sm rounded-lg border border-red-200 text-red-600 hover:bg-red-50"
                                   >
-                                    <Trash2 size={14} />
-                                  </button>
-                                  {/* ปุ่มเพิ่มงบประมาณย้ายมาที่นี่ */}
-                                  <button
-                                    onClick={() => onAddBudget(subcategory, category)}
-                                    className="text-green-700 hover:bg-green-50 p-2 rounded-lg transition-colors"
-                                    title="เพิ่มงบประมาณ"
-                                  >
-                                    <Plus size={14} />
+                                    <Trash2 size={14} className="inline mr-1" /> ลบ
                                   </button>
                                 </div>
                               </div>
-                            </div>
 
-                            {/* Budgets */}
-                            {isExpanded && (
-                              <div className="bg-gray-50">
-                                <div className="divide-y divide-gray-200">
-                                  {subcategory.budgets &&
-                                  subcategory.budgets.length > 0 ? (
-                                    subcategory.budgets.map((budget) => {
-                                      const isSelected =
-                                        selectedItems.budgets.includes(
-                                          budget.subcategory_budget_id
-                                        );
-                                      const isOverall = budget.record_scope === 'overall';
-                                      const descriptor = describeBudget(budget);
-                                      const perGrantText = formatCurrency(budget.max_amount_per_grant);
-                                      const yearlyCapText = formatCurrency(budget.max_amount_per_year);
-                                      const allocatedText = formatCurrency(budget.allocated_amount);
-                                      const usedAmountText = formatCurrency(budget.used_amount);
-                                      const remainingBudgetText = formatCurrency(budget.remaining_budget);
-                                      const grantText = isOverall
-                                        ? formatGrantRemaining(budget.max_grants, budget.remaining_grant)
-                                        : budget.max_grants && budget.max_grants > 0
-                                          ? formatGrantCount(budget.max_grants)
-                                          : 'ตามนโยบายภาพรวม';
+                              {subExpanded && (
+                                <div className="px-4 pb-4 space-y-4">
+                                  <div className="flex justify-between items-center">
+                                    <h4 className="text-sm font-semibold text-gray-700">นโยบายงบประมาณ</h4>
+                                    <button
+                                      type="button"
+                                      onClick={() => onAddBudget?.(subcategory, category)}
+                                      className="flex items-center gap-2 px-3 py-1.5 text-sm bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-lg hover:bg-indigo-100"
+                                    >
+                                      <Plus size={14} /> เพิ่มนโยบาย
+                                    </button>
+                                  </div>
 
-                                      return (
-                                        <div
-                                          key={budget.subcategory_budget_id}
-                                          className={`px-6 py-4 ${
-                                            bulkMode && isSelected
-                                              ? "bg-blue-50"
-                                              : "bg-white"
-                                          }`}
-                                        >
-                                          <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-                                            <div className="flex flex-1 gap-3">
-                                              {bulkMode && (
-                                                <input
-                                                  type="checkbox"
-                                                  checked={isSelected}
-                                                  onChange={(e) =>
-                                                    handleItemSelect(
-                                                      "budgets",
-                                                      budget.subcategory_budget_id,
-                                                      e.target.checked,
-                                                      budget
-                                                    )
-                                                  }
-                                                  className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 mt-1"
-                                                  onClick={(e) => e.stopPropagation()}
-                                                />
-                                              )}
-                                              <div className="space-y-3">
-                                                <div className="flex flex-wrap items-center gap-2">
-                                                  <div className="font-semibold text-gray-900">
-                                                    {descriptor}
-                                                  </div>
-                                                  <span
-                                                    className={`px-2 py-0.5 text-xs rounded-full ${
-                                                      isOverall
-                                                        ? "bg-purple-100 text-purple-700"
-                                                        : "bg-blue-100 text-blue-700"
-                                                    }`}>
-                                                    {isOverall ? "ภาพรวม" : "กฎ"}
-                                                  </span>
-                                                  {!isOverall && budget.level && (
-                                                    <span className="px-2 py-0.5 text-xs rounded-full bg-slate-100 text-slate-700">
-                                                      ระดับ {budget.level}
-                                                    </span>
-                                                  )}
-                                                </div>
-
-                                                {isOverall && budget.fund_description && (
-                                                  <div className="text-sm text-gray-600">
-                                                    {budget.fund_description}
-                                                  </div>
-                                                )}
-
-                                                {isOverall ? (
-                                                  <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3 text-sm text-gray-600">
-                                                    <div>
-                                                      งบประมาณรวม:
-                                                      <span className="font-medium text-gray-900"> {allocatedText}</span> บาท
-                                                    </div>
-                                                    <div>
-                                                      วงเงินต่อปี/คน:
-                                                      <span className="font-medium text-gray-900">
-                                                        {yearlyCapText !== '-' ? ` ${yearlyCapText} บาท` : ' -'}
-                                                      </span>
-                                                    </div>
-                                                    <div>
-                                                      จำนวนทุนสูงสุด:
-                                                      <span className="font-medium text-gray-900"> {grantText}</span>
-                                                    </div>
-                                                    {budget.max_amount_per_grant ? (
-                                                      <div>
-                                                        เพดานต่อครั้ง:
-                                                        <span className="font-medium text-gray-900"> {perGrantText}</span> บาท
-                                                      </div>
-                                                    ) : null}
-                                                    {budget.used_amount !== undefined && budget.used_amount !== null ? (
-                                                      <div>
-                                                        ใช้ไปแล้ว:
-                                                        <span className="font-medium text-gray-900"> {usedAmountText}</span> บาท
-                                                      </div>
-                                                    ) : null}
-                                                    {budget.remaining_budget !== undefined && budget.remaining_budget !== null ? (
-                                                      <div>
-                                                        งบคงเหลือ:
-                                                        <span className="font-medium text-gray-900"> {remainingBudgetText}</span> บาท
-                                                      </div>
-                                                    ) : null}
-                                                  </div>
-                                                ) : (
-                                                  <div className="grid gap-2 sm:grid-cols-2 text-sm text-gray-600">
-                                                    <div>
-                                                      วงเงินต่อครั้ง:
-                                                      <span className="font-medium text-gray-900"> {perGrantText}</span> บาท
-                                                    </div>
-                                                    <div>
-                                                      จำนวนทุน:
-                                                      <span className="font-medium text-gray-900"> {grantText}</span>
-                                                    </div>
-                                                  </div>
-                                                )}
-
-                                                {budget.comment && (
-                                                  <div className="text-xs text-gray-500">
-                                                    หมายเหตุ: {budget.comment}
-                                                  </div>
-                                                )}
+                                  <div className="space-y-3">
+                                    {overall ? (
+                                      <div className="border border-blue-200 bg-blue-50 rounded-lg p-4">
+                                        <div className="flex flex-wrap gap-3 items-start justify-between">
+                                          <div>
+                                            <div className="flex items-center gap-2 text-blue-700 font-semibold">
+                                              <ShieldCheck size={18} /> นโยบายภาพรวม
+                                            </div>
+                                            <div className="mt-3 grid gap-3 sm:grid-cols-2 text-sm text-gray-700">
+                                              <div>
+                                                <p className="text-xs text-gray-500">วงเงินรวมต่อปี</p>
+                                                <p className="font-medium">{formatCurrency(overall.max_amount_per_year)}</p>
+                                              </div>
+                                              <div>
+                                                <p className="text-xs text-gray-500">จำนวนครั้งรวมต่อปี</p>
+                                                <p className="font-medium">{formatGrantCount(overall.max_grants)}</p>
+                                              </div>
+                                              <div>
+                                                <p className="text-xs text-gray-500">วงเงินต่อครั้ง (ค่าเริ่มต้น)</p>
+                                                <p className="font-medium">
+                                                  {overall.max_amount_per_grant
+                                                    ? formatCurrency(overall.max_amount_per_grant)
+                                                    : "ไม่กำหนด"}
+                                                </p>
+                                              </div>
+                                              <div>
+                                                <p className="text-xs text-gray-500">งบประมาณที่จัดสรร</p>
+                                                <p className="font-medium">
+                                                  {overall.allocated_amount !== undefined && overall.allocated_amount !== null
+                                                    ? formatCurrency(overall.allocated_amount)
+                                                    : "-"}
+                                                </p>
                                               </div>
                                             </div>
+                                            {(overall.fund_description || overall.comment) && (
+                                              <div className="mt-3 space-y-1 text-sm text-gray-600">
+                                                {overall.fund_description && (
+                                                  <p>
+                                                    <span className="font-medium text-gray-700">คำอธิบาย:</span> {overall.fund_description}
+                                                  </p>
+                                                )}
+                                                {overall.comment && (
+                                                  <p>
+                                                    <span className="font-medium text-gray-700">หมายเหตุ:</span> {overall.comment}
+                                                  </p>
+                                                )}
+                                              </div>
+                                            )}
+                                          </div>
+                                          <div className="flex flex-col gap-2 items-end">
+                                            <StatusBadge
+                                              status={overall.status}
+                                              interactive
+                                              onChange={(next) =>
+                                                onToggleBudgetStatus?.(overall, subcategory, category, next)
+                                              }
+                                              activeLabel="เปิดใช้งาน"
+                                              inactiveLabel="ปิดใช้งาน"
+                                            />
+                                            <div className="flex gap-2">
+                                              <button
+                                                type="button"
+                                                onClick={() => onEditBudget?.(overall, subcategory)}
+                                                className="px-3 py-1.5 text-xs rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-100"
+                                              >
+                                                <Edit size={14} className="inline mr-1" /> แก้ไข
+                                              </button>
+                                              <button
+                                                type="button"
+                                                onClick={() => confirmDeleteBudget(overall, subcategory)}
+                                                className="px-3 py-1.5 text-xs rounded-lg border border-red-200 text-red-600 hover:bg-red-50"
+                                              >
+                                                <Trash2 size={14} className="inline mr-1" /> ลบ
+                                              </button>
+                                            </div>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    ) : (
+                                      <div className="border border-dashed border-blue-200 rounded-lg p-4 text-sm text-blue-700 bg-blue-50">
+                                        ยังไม่มีนโยบายภาพรวม เพิ่มนโยบายเพื่อกำหนดวงเงินรวมของทุนย่อยนี้
+                                      </div>
+                                    )}
 
-                                            <div className="flex items-center gap-4">
+                                    {rules.length > 0 ? (
+                                      rules.map((rule) => (
+                                        <div key={rule.subcategory_budget_id} className="border border-gray-200 rounded-lg p-4">
+                                          <div className="flex flex-wrap gap-3 items-start justify-between">
+                                            <div>
+                                              <div className="flex items-center gap-2 text-gray-700 font-semibold">
+                                                <Layers size={16} /> กฎย่อยต่อครั้ง
+                                              </div>
+                                              <div className="mt-3 grid gap-3 sm:grid-cols-3 text-sm text-gray-700">
+                                                <div>
+                                                  <p className="text-xs text-gray-500">วงเงินต่อครั้ง</p>
+                                                  <p className="font-medium">{formatCurrency(rule.max_amount_per_grant)}</p>
+                                                </div>
+                                                <div>
+                                                  <p className="text-xs text-gray-500">กลุ่ม/ระดับ</p>
+                                                  <p className="font-medium">{rule.level || "ไม่ระบุ"}</p>
+                                                </div>
+                                                <div>
+                                                  <p className="text-xs text-gray-500">คำอธิบาย</p>
+                                                  <p className="font-medium">{rule.fund_description || "-"}</p>
+                                                </div>
+                                              </div>
+                                              {rule.comment && (
+                                                <p className="mt-2 text-sm text-gray-600">
+                                                  <span className="font-medium text-gray-700">หมายเหตุ:</span> {rule.comment}
+                                                </p>
+                                              )}
+                                            </div>
+                                            <div className="flex flex-col gap-2 items-end">
                                               <StatusBadge
-                                                status={budget.status}
+                                                status={rule.status}
                                                 interactive
-                                                confirm
-                                                onChange={(next) => onToggleBudgetStatus?.(budget, subcategory, category, next)}
+                                                onChange={(next) =>
+                                                  onToggleBudgetStatus?.(rule, subcategory, category, next)
+                                                }
+                                                activeLabel="เปิดใช้งาน"
+                                                inactiveLabel="ปิดใช้งาน"
                                               />
                                               <div className="flex gap-2">
                                                 <button
-                                                  onClick={() => onEditBudget(budget, subcategory)}
-                                                  className="text-blue-600 hover:bg-blue-50 p-2 rounded-lg transition-colors"
-                                                  title="แก้ไขงบประมาณ"
+                                                  type="button"
+                                                  onClick={() => onEditBudget?.(rule, subcategory)}
+                                                  className="px-3 py-1.5 text-xs rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-100"
                                                 >
-                                                  <Edit size={14} />
+                                                  <Edit size={14} className="inline mr-1" /> แก้ไข
                                                 </button>
                                                 <button
-                                                  onClick={() => confirmDeleteBudget(budget)}
-                                                  className="text-red-600 hover:bg-red-50 p-2 rounded-lg transition-colors"
-                                                  title="ลบงบประมาณ"
+                                                  type="button"
+                                                  onClick={() => confirmDeleteBudget(rule, subcategory)}
+                                                  className="px-3 py-1.5 text-xs rounded-lg border border-red-200 text-red-600 hover:bg-red-50"
                                                 >
-                                                  <Trash2 size={14} />
+                                                  <Trash2 size={14} className="inline mr-1" /> ลบ
                                                 </button>
                                               </div>
                                             </div>
                                           </div>
                                         </div>
-                                      );
-                                    })
+                                      ))
                                     ) : (
-                                      <div className="px-6 py-6 text-sm text-gray-500">
-                                        ยังไม่มีงบประมาณในทุนย่อยนี้
+                                      <div className="border border-dashed border-gray-300 rounded-lg p-4 text-sm text-gray-600">
+                                        ยังไม่มีกฎย่อย สามารถเพิ่มกฎเพื่อกำหนดเพดานต่อครั้งเฉพาะเงื่อนไขได้
                                       </div>
                                     )}
                                   </div>
                                 </div>
                               )}
                             </div>
-                        );
-                      })
-                    ) : (
-                      <div className="px-6 py-6 text-sm text-gray-500">
-                        ยังไม่มีทุนย่อยในหมวดหมู่นี้
+                          );
+                        })}
                       </div>
                     )}
                   </div>
