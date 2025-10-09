@@ -495,7 +495,7 @@ func SubmitSubmission(c *gin.Context) {
 			return fmt.Errorf("failed to prepare user directory: %w", err)
 		}
 
-		submissionFolderPath, err := utils.CreateSubmissionFolder(userFolderPath, submission.SubmissionType, submission.SubmissionID, submission.CreatedAt)
+		submissionFolderPath, err := utils.CreateSubmissionFolder(userFolderPath, submission.SubmissionType, submission.SubmissionNumber, submission.SubmissionID, submission.CreatedAt)
 		if err != nil {
 			return fmt.Errorf("failed to prepare submission folder: %w", err)
 		}
@@ -876,7 +876,7 @@ func MoveFileToSubmissionFolder(fileID int, submissionID int, submissionType str
 	}
 
 	submissionFolderPath, err := utils.CreateSubmissionFolder(
-		userFolderPath, submissionType, submissionID, submission.CreatedAt)
+		userFolderPath, submissionType, submission.SubmissionNumber, submissionID, submission.CreatedAt)
 	if err != nil {
 		return err
 	}

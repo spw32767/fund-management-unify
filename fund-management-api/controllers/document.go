@@ -97,9 +97,14 @@ func UploadDocument(c *gin.Context) {
 	// Convert applicationID to int
 	appID, _ := strconv.Atoi(applicationID)
 
+	createdAt := time.Now()
+	if application.CreateAt != nil {
+		createdAt = *application.CreateAt
+	}
+
 	// Create submission folder for this application
 	submissionFolderPath, err := utils.CreateSubmissionFolder(
-		userFolderPath, "fund", appID, time.Now())
+		userFolderPath, "fund_application", application.ApplicationNumber, appID, createdAt)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create submission directory"})
 		return
