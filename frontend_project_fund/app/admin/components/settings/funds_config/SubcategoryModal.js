@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { DollarSign, AlertCircle, ShieldCheck } from "lucide-react";
 
 const SubcategoryModal = ({
@@ -28,6 +28,9 @@ const SubcategoryModal = ({
   });
 
   const [overallPolicyEnabled, setOverallPolicyEnabled] = useState(false);
+
+  const firstFieldRef = useRef(null);
+  const modalRef = useRef(null);
 
   const roleOptions = useMemo(
     () => [
@@ -106,6 +109,34 @@ const SubcategoryModal = ({
     }
   }, [editingSubcategory, isOpen]);
 
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const timeout = window.setTimeout(() => {
+      firstFieldRef.current?.focus({ preventScroll: true });
+    }, 0);
+
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        onClose?.();
+      }
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      window.clearTimeout(timeout);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isOpen, onClose]);
+
+  const handleOverlayClick = (event) => {
+    if (event.target === event.currentTarget) {
+      onClose?.();
+    }
+  };
+
   const handleTargetRoleChange = (roleId, checked) => {
     setSubcategoryForm((prev) => {
       const current = Array.isArray(prev.target_roles) ? prev.target_roles : [];
@@ -158,8 +189,19 @@ const SubcategoryModal = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
-      <div className="bg-white rounded-xl p-6 w-full max-w-3xl max-h-[90vh] overflow-y-auto shadow-2xl">
+    <div
+      className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50"
+      onClick={handleOverlayClick}
+      role="presentation"
+    >
+      <div
+        ref={modalRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label={editingSubcategory ? "แก้ไขทุนย่อย" : "เพิ่มทุนย่อยใหม่"}
+        tabIndex={-1}
+        className="bg-white rounded-xl p-6 w-full max-w-3xl max-h-[90vh] overflow-y-auto shadow-2xl"
+      >
         <div className="flex flex-col gap-2 mb-6">
           <h3 className="text-xl font-semibold text-gray-900">
             {editingSubcategory ? "แก้ไขทุนย่อย" : "เพิ่มทุนย่อยใหม่"}
@@ -203,6 +245,7 @@ const SubcategoryModal = ({
                       subcategory_name: e.target.value.trim(),
                     }))
                   }
+                  ref={firstFieldRef}
                   className="w-full text-gray-700 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
                   placeholder="ระบุชื่อทุนย่อย"
                 />
