@@ -145,7 +145,7 @@ const BudgetModal = ({
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium mb-2 text-gray-700">วงเงินสูงสุดต่อปี / ต่อคน (บาท)</label>
+                  <label className="block text-sm font-medium mb-2 text-gray-700">วงเงินรวมต่อปี / ต่อคน (บาท)</label>
                   <input
                     type="number"
                     min="0"
@@ -156,7 +156,7 @@ const BudgetModal = ({
                       max_amount_per_year: e.target.value
                     })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
-                    placeholder="0 (ไม่จำกัด)"
+                    placeholder="ปล่อยว่าง = ไม่จำกัด"
                   />
                 </div>
                 <div>
@@ -170,9 +170,9 @@ const BudgetModal = ({
                       max_grants: e.target.value
                     })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
-                    placeholder="0 (ไม่จำกัด)"
+                    placeholder="ปล่อยว่าง = ไม่จำกัด"
                   />
-                  <p className="text-xs text-gray-500 mt-1">ปล่อยว่างหากไม่จำกัดจำนวนผู้รับทุน</p>
+                  <p className="text-xs text-gray-500 mt-1">เว้นว่างหากไม่จำกัดจำนวนผู้รับทุน</p>
                 </div>
                 <div>
                   <label className="block text-sm font-medium mb-2 text-gray-700">เพดานต่อครั้ง (บาท)</label>
@@ -186,7 +186,7 @@ const BudgetModal = ({
                       max_amount_per_grant: e.target.value
                     })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
-                    placeholder="0 (ไม่กำหนด)"
+                    placeholder="ปล่อยว่าง = ใช้กฎย่อย"
                   />
                   <p className="text-xs text-gray-500 mt-1">ใช้เมื่อไม่มีการตั้งกฎย่อยเพิ่มเติม</p>
                 </div>

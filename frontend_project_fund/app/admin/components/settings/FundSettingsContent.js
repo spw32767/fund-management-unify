@@ -743,47 +743,70 @@ export default function FundSettingsContent({ onNavigate }) {
 
     const toFloat = (value) => {
       if (value === '' || value === null || value === undefined) return null;
-      const parsed = Number(value);
+      const parsed = Number(String(value).replace(/,/g, ''));
       return Number.isNaN(parsed) ? null : parsed;
     };
 
     const toInt = (value) => {
       if (value === '' || value === null || value === undefined) return null;
-      const parsed = parseInt(value, 10);
+      const parsed = parseInt(String(value).trim(), 10);
       return Number.isNaN(parsed) ? null : parsed;
+    };
+
+    const sanitizeText = (value) => {
+      if (value === undefined || value === null) return undefined;
+      if (typeof value !== 'string') {
+        return value;
+      }
+      const trimmed = value.trim();
+      return trimmed === '' ? null : trimmed;
     };
 
     const scope = (budgetFormValues.record_scope || 'rule').toLowerCase();
 
     const payload = {
       record_scope: scope,
+      status: budgetFormValues.status || 'active',
     };
 
-    if (budgetFormValues.status) {
-      payload.status = budgetFormValues.status;
+    const description = sanitizeText(budgetFormValues.fund_description);
+    if (description !== undefined) {
+      payload.fund_description = description;
     }
 
-    if (budgetFormValues.fund_description) {
-      payload.fund_description = budgetFormValues.fund_description;
-    }
-
-    if (budgetFormValues.comment) {
-      payload.comment = budgetFormValues.comment;
+    const comment = sanitizeText(budgetFormValues.comment);
+    if (comment !== undefined) {
+      payload.comment = comment;
     }
 
     if (scope === 'overall') {
       const allocated = toFloat(budgetFormValues.allocated_amount);
       payload.allocated_amount = allocated ?? 0;
-      payload.max_amount_per_year = toFloat(budgetFormValues.max_amount_per_year);
-      payload.max_grants = toInt(budgetFormValues.max_grants);
-      payload.max_amount_per_grant = toFloat(budgetFormValues.max_amount_per_grant);
+
+      const yearlyCap = toFloat(budgetFormValues.max_amount_per_year);
+      payload.max_amount_per_year = yearlyCap && yearlyCap > 0 ? yearlyCap : null;
+
+      const perGrant = toFloat(budgetFormValues.max_amount_per_grant);
+      payload.max_amount_per_grant = perGrant && perGrant > 0 ? perGrant : null;
+
+      const grants = toInt(budgetFormValues.max_grants);
+      payload.max_grants = grants && grants > 0 ? grants : null;
     } else {
-      payload.allocated_amount = 0;
+      payload.allocated_amount = null;
       payload.max_amount_per_year = null;
       payload.max_grants = null;
-      payload.max_amount_per_grant = toFloat(budgetFormValues.max_amount_per_grant);
-      if (budgetFormValues.level) {
-        payload.level = budgetFormValues.level;
+
+      const perGrant = toFloat(budgetFormValues.max_amount_per_grant);
+      if (!perGrant || perGrant <= 0) {
+        showError('กรุณาระบุวงเงินต่อครั้งที่มากกว่า 0 บาท');
+        return;
+      }
+
+      payload.max_amount_per_grant = perGrant;
+
+      const level = sanitizeText(budgetFormValues.level);
+      if (level !== undefined) {
+        payload.level = level;
       }
     }
 
