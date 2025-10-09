@@ -386,27 +386,28 @@ const FundManagementTab = ({
             })}
           </select>
         </div>
+        <div className="flex items-center gap-3 ml-auto">
+          <div className="relative">
+            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(event) => onSearchChange?.(event.target.value)}
+              placeholder="ค้นหาหมวดหมู่หรือทุนย่อย"
+              className="pl-9 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent w-72"
+            />
+          </div>
 
-        <div className="relative ml-auto">
-          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-          <input
-            type="text"
-            value={searchTerm}
-            onChange={(event) => onSearchChange?.(event.target.value)}
-            placeholder="ค้นหาหมวดหมู่หรือทุนย่อย"
-            className="pl-9 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent w-72"
-          />
+          <button
+            type="button"
+            onClick={onAddCategory}
+            disabled={!selectedYear}
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
+          >
+            <Plus size={16} />
+            เพิ่มหมวดหมู่
+          </button>
         </div>
-
-        <button
-          type="button"
-          onClick={onAddCategory}
-          disabled={!selectedYear}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
-        >
-          <Plus size={16} />
-          เพิ่มหมวดหมู่
-        </button>
       </div>
 
       {!selectedYear ? (
@@ -446,7 +447,7 @@ const FundManagementTab = ({
                       </p>
                     </div>
                   </button>
-                  <div className="flex flex-wrap gap-2 items-center">
+                  <div className="flex flex-wrap gap-2 items-center justify-end ml-auto">
                     <StatusBadge
                       status={category.status}
                       interactive
@@ -497,7 +498,7 @@ const FundManagementTab = ({
 
                           return (
                             <div key={subcategory.subcategory_id} className="border border-gray-200 rounded-lg">
-                              <div className="flex flex-wrap gap-3 items-center justify-between px-4 py-3">
+                              <div className="flex flex-wrap gap-3 items-center px-4 py-3">
                                 <button
                                   type="button"
                                   className="flex items-start gap-3 text-left"
@@ -516,10 +517,13 @@ const FundManagementTab = ({
                                       <p className="text-xs text-gray-500 mt-0.5">
                                         กลุ่มเป้าหมาย: {targetRoleLabel}
                                       </p>
+                                      <p className="text-xs text-gray-500 mt-0.5">
+                                        มี {rules.length.toLocaleString()} ระดับ
+                                      </p>
                                     </div>
                                   </div>
                                 </button>
-                                <div className="flex flex-wrap gap-2 items-center">
+                                <div className="flex flex-wrap gap-2 items-center justify-end ml-auto">
                                   <StatusBadge
                                     status={subcategory.status}
                                     interactive
@@ -606,7 +610,7 @@ const FundManagementTab = ({
                                               </div>
                                             )}
                                           </div>
-                                          <div className="flex flex-col gap-2 items-end">
+                                          <div className="flex flex-col gap-2 items-end ml-auto">
                                             <StatusBadge
                                               status={overall.status}
                                               interactive
@@ -642,63 +646,93 @@ const FundManagementTab = ({
                                     )}
 
                                     {rules.length > 0 ? (
-                                      rules.map((rule) => (
-                                        <div key={rule.subcategory_budget_id} className="border border-gray-200 rounded-lg p-4">
-                                          <div className="flex flex-wrap gap-3 items-start justify-between">
-                                            <div>
-                                              <div className="flex items-center gap-2 text-gray-700 font-semibold">
-                                                <Layers size={16} /> กฎย่อยต่อครั้ง
+                                      rules.map((rule, ruleIndex) => {
+                                        const normalizedDescription = (rule.fund_description || "").trim();
+                                        const normalizedLevel = (rule.level || "").trim();
+                                        const fallbackIdentifier = rule.subcategory_budget_id
+                                          ? `กฎย่อย #${rule.subcategory_budget_id}`
+                                          : rule.order_index
+                                          ? `กฎย่อย #${rule.order_index}`
+                                          : `กฎย่อย #${ruleIndex + 1}`;
+                                        const ruleTitle = normalizedDescription || normalizedLevel || fallbackIdentifier;
+                                        const showLevelSubtitle = Boolean(
+                                          normalizedLevel && normalizedLevel !== ruleTitle
+                                        );
+                                        const ruleKey =
+                                          rule.subcategory_budget_id ??
+                                          rule.order_index ??
+                                          `${subcategory.subcategory_id}-rule-${ruleIndex}`;
+
+                                        return (
+                                          <div key={ruleKey} className="border border-gray-200 rounded-lg p-4">
+                                            <div className="flex flex-wrap gap-3 items-start">
+                                              <div className="flex-1 min-w-[220px]">
+                                                <div className="flex items-start gap-2 text-gray-700">
+                                                  <Layers size={16} className="mt-1" />
+                                                  <div>
+                                                    <p className="font-semibold text-gray-900">{ruleTitle}</p>
+                                                    {showLevelSubtitle && (
+                                                      <p className="text-xs text-gray-500 mt-0.5">กลุ่ม/ระดับ: {normalizedLevel}</p>
+                                                    )}
+                                                  </div>
+                                                </div>
+                                                <div className="mt-3 grid gap-3 sm:grid-cols-3 text-sm text-gray-700">
+                                                  <div>
+                                                    <p className="text-xs text-gray-500">วงเงินต่อครั้ง</p>
+                                                    <p className="font-medium">{formatCurrency(rule.max_amount_per_grant)}</p>
+                                                  </div>
+                                                  <div>
+                                                    <p className="text-xs text-gray-500">กลุ่ม/ระดับ</p>
+                                                    <p className="font-medium">{normalizedLevel || "ไม่ระบุ"}</p>
+                                                  </div>
+                                                  <div>
+                                                    <p className="text-xs text-gray-500">จำนวนครั้งสูงสุด</p>
+                                                    <p className="font-medium">{formatGrantCount(rule.max_grants)}</p>
+                                                  </div>
+                                                </div>
+                                                {rule.max_amount_per_year !== null && rule.max_amount_per_year !== undefined && (
+                                                  <p className="mt-2 text-sm text-gray-600">
+                                                    <span className="font-medium text-gray-700">วงเงินต่อปี:</span>{' '}
+                                                    {formatCurrency(rule.max_amount_per_year)}
+                                                  </p>
+                                                )}
+                                                {rule.comment && (
+                                                  <p className="mt-2 text-sm text-gray-600">
+                                                    <span className="font-medium text-gray-700">หมายเหตุ:</span> {rule.comment}
+                                                  </p>
+                                                )}
                                               </div>
-                                              <div className="mt-3 grid gap-3 sm:grid-cols-3 text-sm text-gray-700">
-                                                <div>
-                                                  <p className="text-xs text-gray-500">วงเงินต่อครั้ง</p>
-                                                  <p className="font-medium">{formatCurrency(rule.max_amount_per_grant)}</p>
+                                              <div className="flex flex-col gap-2 items-end ml-auto">
+                                                <StatusBadge
+                                                  status={rule.status}
+                                                  interactive
+                                                  onChange={(next) =>
+                                                    onToggleBudgetStatus?.(rule, subcategory, category, next)
+                                                  }
+                                                  activeLabel="เปิดใช้งาน"
+                                                  inactiveLabel="ปิดใช้งาน"
+                                                />
+                                                <div className="flex gap-2">
+                                                  <button
+                                                    type="button"
+                                                    onClick={() => onEditBudget?.(rule, subcategory)}
+                                                    className="px-3 py-1.5 text-xs rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-100"
+                                                  >
+                                                    <Edit size={14} className="inline mr-1" /> แก้ไข
+                                                  </button>
+                                                  <button
+                                                    type="button"
+                                                    onClick={() => confirmDeleteBudget(rule, subcategory)}
+                                                    className="px-3 py-1.5 text-xs rounded-lg border border-red-200 text-red-600 hover:bg-red-50"
+                                                  >
+                                                    <Trash2 size={14} className="inline mr-1" /> ลบ
+                                                  </button>
                                                 </div>
-                                                <div>
-                                                  <p className="text-xs text-gray-500">กลุ่ม/ระดับ</p>
-                                                  <p className="font-medium">{rule.level || "ไม่ระบุ"}</p>
-                                                </div>
-                                                <div>
-                                                  <p className="text-xs text-gray-500">คำอธิบาย</p>
-                                                  <p className="font-medium">{rule.fund_description || "-"}</p>
-                                                </div>
-                                              </div>
-                                              {rule.comment && (
-                                                <p className="mt-2 text-sm text-gray-600">
-                                                  <span className="font-medium text-gray-700">หมายเหตุ:</span> {rule.comment}
-                                                </p>
-                                              )}
-                                            </div>
-                                            <div className="flex flex-col gap-2 items-end">
-                                              <StatusBadge
-                                                status={rule.status}
-                                                interactive
-                                                onChange={(next) =>
-                                                  onToggleBudgetStatus?.(rule, subcategory, category, next)
-                                                }
-                                                activeLabel="เปิดใช้งาน"
-                                                inactiveLabel="ปิดใช้งาน"
-                                              />
-                                              <div className="flex gap-2">
-                                                <button
-                                                  type="button"
-                                                  onClick={() => onEditBudget?.(rule, subcategory)}
-                                                  className="px-3 py-1.5 text-xs rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-100"
-                                                >
-                                                  <Edit size={14} className="inline mr-1" /> แก้ไข
-                                                </button>
-                                                <button
-                                                  type="button"
-                                                  onClick={() => confirmDeleteBudget(rule, subcategory)}
-                                                  className="px-3 py-1.5 text-xs rounded-lg border border-red-200 text-red-600 hover:bg-red-50"
-                                                >
-                                                  <Trash2 size={14} className="inline mr-1" /> ลบ
-                                                </button>
                                               </div>
                                             </div>
                                           </div>
-                                        </div>
-                                      ))
+                                        );
+                                      })
                                     ) : (
                                       <div className="border border-dashed border-gray-300 rounded-lg p-4 text-sm text-gray-600">
                                         ยังไม่มีกฎย่อย สามารถเพิ่มกฎเพื่อกำหนดเพดานต่อครั้งเฉพาะเงื่อนไขได้
