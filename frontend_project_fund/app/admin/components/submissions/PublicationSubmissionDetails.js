@@ -142,11 +142,6 @@ const deriveRequestedSummary = (pubDetail = {}, submission = {}) => {
     pubDetail?.external_funding_amount ?? submission?.external_funding_amount
   );
 
-  const reward = rewardRaw ?? 0;
-  const revision = revisionRaw ?? 0;
-  const publication = publicationRaw ?? 0;
-  const external = externalRaw ?? 0;
-
   const hasBreakdown =
     rewardRaw != null || revisionRaw != null || publicationRaw != null;
 
@@ -157,12 +152,20 @@ const deriveRequestedSummary = (pubDetail = {}, submission = {}) => {
   ];
 
   let baseTotal = hasBreakdown
-    ? reward + revision + publication
+    ? (rewardRaw ?? 0) + (revisionRaw ?? 0) + (publicationRaw ?? 0)
     : fallbackTotals.find((v) => v != null);
 
   if (baseTotal == null) {
-    baseTotal = reward + revision + publication;
+    baseTotal = (rewardRaw ?? 0) + (revisionRaw ?? 0) + (publicationRaw ?? 0);
   }
+
+  let reward = rewardRaw;
+  if (reward == null) {
+    reward = hasBreakdown ? 0 : (baseTotal ?? 0);
+  }
+  const revision = revisionRaw ?? 0;
+  const publication = publicationRaw ?? 0;
+  const external = externalRaw ?? 0;
 
   const total = Math.max(0, (baseTotal ?? 0) - external);
 
