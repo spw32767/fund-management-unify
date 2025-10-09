@@ -24,7 +24,7 @@ import (
 	"gorm.io/gorm"
 )
 
-const researchFundCategoryID = 1
+const researchFundCategoryKeyword = "ทุนส่งเสริมการวิจัย"
 
 var (
 	errSubmissionNotResearchFund   = errors.New("submission does not belong to research fund category")
@@ -1016,7 +1016,10 @@ func ToggleResearchFundClosure(c *gin.Context) {
 func loadResearchFundSubmissionByID(submissionID int, preloadEvents bool) (*models.Submission, error) {
 	query := config.DB.
 		Preload("User").
-		Preload("FundApplicationDetail")
+		Preload("Category").
+		Preload("FundApplicationDetail").
+		Preload("FundApplicationDetail.Subcategory").
+		Preload("FundApplicationDetail.Subcategory.Category")
 
 	if preloadEvents {
 		query = query.
@@ -1033,7 +1036,7 @@ func loadResearchFundSubmissionByID(submissionID int, preloadEvents bool) (*mode
 	if err := query.First(&submission, "submission_id = ?", submissionID).Error; err != nil {
 		return nil, err
 	}
-	if submission.CategoryID == nil || *submission.CategoryID != researchFundCategoryID {
+	if !isResearchFundSubmission(&submission) {
 		return nil, errSubmissionNotResearchFund
 	}
 	return &submission, nil
@@ -1248,11 +1251,98 @@ func buildResearchFundSummary(submission *models.Submission) gin.H {
 	return summary
 }
 
+func getSubmissionCategoryName(submission *models.Submission) string {
+	if submission == nil {
+		return ""
+	}
+
+	var categoryCandidates []string
+	var fallbackCandidates []string
+
+	if submission.CategoryName != nil {
+		categoryCandidates = append(categoryCandidates, *submission.CategoryName)
+	}
+
+	if submission.Category != nil {
+		categoryCandidates = append(categoryCandidates, submission.Category.CategoryName)
+	}
+
+	if submission.Subcategory != nil {
+		categoryCandidates = append(categoryCandidates, submission.Subcategory.Category.CategoryName)
+		fallbackCandidates = append(fallbackCandidates, submission.Subcategory.SubcategoryName)
+	}
+
+	if submission.SubcategoryName != nil {
+		fallbackCandidates = append(fallbackCandidates, *submission.SubcategoryName)
+	}
+
+	if submission.FundApplicationDetail != nil {
+		if submission.FundApplicationDetail.Subcategory != nil {
+			categoryCandidates = append(categoryCandidates, submission.FundApplicationDetail.Subcategory.Category.CategoryName)
+			fallbackCandidates = append(fallbackCandidates, submission.FundApplicationDetail.Subcategory.SubcategoryName)
+		}
+	}
+
+	seen := map[string]struct{}{}
+	for _, name := range append(categoryCandidates, fallbackCandidates...) {
+		trimmed := strings.TrimSpace(name)
+		if trimmed == "" {
+			continue
+		}
+		lowered := strings.ToLower(trimmed)
+		if _, dup := seen[lowered]; dup {
+			continue
+		}
+		seen[lowered] = struct{}{}
+		if trimmed != "" {
+			return trimmed
+		}
+	}
+
+	return ""
+}
+
 func isResearchFundSubmission(submission *models.Submission) bool {
-	if submission == nil || submission.CategoryID == nil {
+	if submission == nil {
 		return false
 	}
-	return *submission.CategoryID == researchFundCategoryID
+
+	keyword := strings.ToLower(researchFundCategoryKeyword)
+	seen := map[string]struct{}{}
+
+	candidates := []string{
+		getSubmissionCategoryName(submission),
+	}
+
+	if submission != nil {
+		if submission.SubcategoryName != nil {
+			candidates = append(candidates, *submission.SubcategoryName)
+		}
+		if submission.Subcategory != nil {
+			candidates = append(candidates, submission.Subcategory.SubcategoryName)
+		}
+		if submission.FundApplicationDetail != nil && submission.FundApplicationDetail.Subcategory != nil {
+			candidates = append(candidates, submission.FundApplicationDetail.Subcategory.SubcategoryName)
+		}
+	}
+
+	for _, raw := range candidates {
+		trimmed := strings.TrimSpace(raw)
+		if trimmed == "" {
+			continue
+		}
+		lowered := strings.ToLower(trimmed)
+		if _, dup := seen[lowered]; dup {
+			continue
+		}
+		seen[lowered] = struct{}{}
+
+		if strings.Contains(lowered, keyword) {
+			return true
+		}
+	}
+
+	return false
 }
 
 func isValidResearchFundEventType(eventType string) bool {

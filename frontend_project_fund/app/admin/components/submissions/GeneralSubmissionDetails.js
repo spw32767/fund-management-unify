@@ -100,10 +100,22 @@ const safeNumber = (value, fallback = 0) => {
   return Number.isFinite(n) ? n : fallback;
 };
 
-const isResearchFundCategory = (categoryId) => {
+const RESEARCH_FUND_KEYWORDS = ['ทุนส่งเสริมการวิจัย'];
+
+const isResearchFundCategory = (categoryId, categoryName) => {
+  const normalizedName = typeof categoryName === 'string'
+    ? categoryName.trim().toLowerCase()
+    : '';
+
+  if (normalizedName) {
+    return RESEARCH_FUND_KEYWORDS.some((keyword) =>
+      normalizedName.includes(keyword.toLowerCase())
+    );
+  }
+
   if (categoryId === null || categoryId === undefined) return false;
-  const idStr = String(categoryId).toLowerCase();
-  return idStr === '1' || idStr === 'research_fund';
+  const idStr = String(categoryId).trim().toLowerCase();
+  return idStr === 'research_fund';
 };
 
 const formatDateTime = (value) => {
@@ -590,7 +602,45 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
   const fileMetaCacheRef = useRef(new Map());
 
   const submissionStatusId = submission?.status_id;
-  const submissionCategoryId = submission?.category_id;
+  const submissionCategoryId =
+    submission?.category_id ??
+    submission?.Category?.category_id ??
+    submission?.Category?.CategoryID ??
+    submission?.category?.category_id ??
+    submission?.category?.CategoryID ??
+    submission?.FundApplicationDetail?.Subcategory?.Category?.category_id ??
+    null;
+
+  const submissionCategoryName = useMemo(() => {
+    const candidates = [
+      submission?.Category?.category_name,
+      submission?.Category?.CategoryName,
+      submission?.category?.category_name,
+      submission?.category?.CategoryName,
+      submission?.category_name,
+      submission?.CategoryName,
+      submission?.fund_category_name,
+      submission?.FundApplicationDetail?.fund_category_name,
+      submission?.FundApplicationDetail?.category_name,
+      submission?.FundApplicationDetail?.Category?.category_name,
+      submission?.FundApplicationDetail?.Subcategory?.Category?.category_name,
+      submission?.Subcategory?.category_name,
+      submission?.Subcategory?.Category?.category_name,
+    ];
+
+    const seen = new Set();
+    for (const name of candidates) {
+      if (typeof name !== 'string') continue;
+      const trimmed = name.trim();
+      if (!trimmed) continue;
+      const lowered = trimmed.toLowerCase();
+      if (seen.has(lowered)) continue;
+      seen.add(lowered);
+      return trimmed;
+    }
+
+    return '';
+  }, [submission]);
   const submissionEntityId = submission?.submission_id;
 
   const cleanupMergedUrl = () => {
@@ -830,8 +880,22 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
         setResearchTotals(totals || null);
         setIsFundClosed(Boolean(totals?.is_closed));
       } catch (error) {
-        console.error('load research fund events failed', error);
-        setResearchError(error);
+        const statusCode = error?.response?.status ?? error?.status;
+        const apiMessage =
+          error?.response?.data?.error ||
+          error?.response?.data?.message ||
+          error?.message ||
+          error?.toString?.();
+
+        if (statusCode === 403 && apiMessage && typeof apiMessage === 'string') {
+          console.warn('Research fund API denied access', { statusCode, apiMessage });
+          const friendlyError = new Error('คำร้องนี้ไม่ใช่ทุนวิจัยหรือไม่มีสิทธิ์เข้าถึงข้อมูลทุนวิจัย');
+          friendlyError.cause = error;
+          setResearchError(friendlyError);
+        } else {
+          console.error('load research fund events failed', error);
+          setResearchError(error);
+        }
         setResearchEvents([]);
         setResearchTotals(null);
         setIsFundClosed(false);
@@ -878,7 +942,7 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
   }, [statusCode, submissionStatusId]);
 
   const isResearchFundApproved = useMemo(() => {
-    if (!isResearchFundCategory(submissionCategoryId)) return false;
+    if (!isResearchFundCategory(submissionCategoryId, submissionCategoryName)) return false;
 
     const normalizedCode = statusCode != null ? String(statusCode).toLowerCase() : undefined;
     if (normalizedCode === '1' || normalizedCode === '6') {
@@ -891,7 +955,7 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
     }
 
     return false;
-  }, [submissionCategoryId, statusCode, submissionStatusId]);
+  }, [submissionCategoryId, submissionCategoryName, statusCode, submissionStatusId]);
 
   // load submission details
   useEffect(() => {
