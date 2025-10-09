@@ -1,22 +1,31 @@
 package controllers
 
 import (
-	"strings"
+	"sync"
 
 	"fund-management-api/models"
 	"gorm.io/gorm"
 )
 
-// createFileUploadRecord attempts to persist a FileUpload and gracefully handles
-// databases that do not expose the optional metadata column. If the metadata
-// column is missing the record is saved without that field instead of failing
-// the entire request.
+var (
+	fileUploadMetadataOnce      sync.Once
+	fileUploadMetadataSupported bool
+)
+
+// createFileUploadRecord persists a FileUpload while accounting for databases
+// that predate the optional metadata column. We check for column availability
+// once per process and omit the field on inserts when the schema does not
+// expose it, matching the behaviour of earlier revisions of the service.
 func createFileUploadRecord(db *gorm.DB, fileUpload *models.FileUpload) error {
-	if err := db.Create(fileUpload).Error; err != nil {
-		if strings.Contains(strings.ToLower(err.Error()), "unknown column 'metadata'") {
-			return db.Omit("Metadata").Create(fileUpload).Error
-		}
-		return err
+	if !fileUploadSupportsMetadata(db) {
+		return db.Omit("Metadata").Create(fileUpload).Error
 	}
-	return nil
+	return db.Create(fileUpload).Error
+}
+
+func fileUploadSupportsMetadata(db *gorm.DB) bool {
+	fileUploadMetadataOnce.Do(func() {
+		fileUploadMetadataSupported = db.Migrator().HasColumn(&models.FileUpload{}, "metadata")
+	})
+	return fileUploadMetadataSupported
 }
