@@ -103,7 +103,7 @@ const safeNumber = (value, fallback = 0) => {
 const isResearchFundCategory = (categoryId) => {
   if (categoryId === null || categoryId === undefined) return false;
   const idStr = String(categoryId).toLowerCase();
-  return idStr === '1' || idStr === 'research_fund';
+  return idStr === '1' || idStr === '15' || idStr === 'research_fund';
 };
 
 const formatDateTime = (value) => {

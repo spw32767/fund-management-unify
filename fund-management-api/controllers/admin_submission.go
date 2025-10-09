@@ -26,6 +26,11 @@ import (
 
 const researchFundCategoryKeyword = "ทุนส่งเสริมการวิจัย"
 
+var researchFundCategoryIDs = map[int]struct{}{
+	1:  {},
+	15: {},
+}
+
 var (
 	errSubmissionNotResearchFund   = errors.New("submission does not belong to research fund category")
 	errPaymentCapExceeded          = errors.New("payment would exceed approved amount")
@@ -1285,6 +1290,51 @@ func getSubmissionCategoryName(submission *models.Submission) string {
 	return candidates[0]
 }
 
+func isResearchFundCategoryID(id int) bool {
+	if id <= 0 {
+		return false
+	}
+	_, ok := researchFundCategoryIDs[id]
+	return ok
+}
+
+func submissionMatchesResearchFundCategoryID(submission *models.Submission) bool {
+	if submission == nil {
+		return false
+	}
+
+	if submission.CategoryID != nil && isResearchFundCategoryID(*submission.CategoryID) {
+		return true
+	}
+
+	if submission.Category != nil && isResearchFundCategoryID(submission.Category.CategoryID) {
+		return true
+	}
+
+	if submission.Subcategory != nil {
+		if isResearchFundCategoryID(submission.Subcategory.CategoryID) {
+			return true
+		}
+		if isResearchFundCategoryID(submission.Subcategory.Category.CategoryID) {
+			return true
+		}
+	}
+
+	if submission.FundApplicationDetail != nil {
+		detail := submission.FundApplicationDetail
+		if detail.Subcategory != nil {
+			if isResearchFundCategoryID(detail.Subcategory.CategoryID) {
+				return true
+			}
+			if isResearchFundCategoryID(detail.Subcategory.Category.CategoryID) {
+				return true
+			}
+		}
+	}
+
+	return false
+}
+
 func collectResearchFundCategoryCandidates(submission *models.Submission) []string {
 	if submission == nil {
 		return nil
@@ -1337,6 +1387,10 @@ func collectResearchFundCategoryCandidates(submission *models.Submission) []stri
 }
 
 func isResearchFundSubmission(submission *models.Submission) bool {
+	if submissionMatchesResearchFundCategoryID(submission) {
+		return true
+	}
+
 	keyword := strings.ToLower(researchFundCategoryKeyword)
 	for _, candidate := range collectResearchFundCategoryCandidates(submission) {
 		if strings.Contains(strings.ToLower(candidate), keyword) {
