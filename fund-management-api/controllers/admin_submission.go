@@ -26,6 +26,15 @@ import (
 
 const researchFundCategoryKeyword = "ทุนส่งเสริมการวิจัย"
 
+type researchFundCategoryContext struct {
+	Keyword                     string
+	Candidates                  []string
+	MatchedCandidate            string
+	CategoryLookupUsed          bool
+	SubcategoryLookupUsed       bool
+	DetailSubcategoryLookupUsed bool
+}
+
 var (
 	errSubmissionNotResearchFund   = errors.New("submission does not belong to research fund category")
 	errPaymentCapExceeded          = errors.New("payment would exceed approved amount")
@@ -1278,22 +1287,26 @@ func buildResearchFundSummary(submission *models.Submission) gin.H {
 }
 
 func getSubmissionCategoryName(submission *models.Submission) string {
-	candidates := collectResearchFundCategoryCandidates(submission)
-	if len(candidates) == 0 {
+	ctx := resolveResearchFundCategoryContext(submission)
+	if len(ctx.Candidates) == 0 {
 		return ""
 	}
-	return candidates[0]
+	return ctx.Candidates[0]
 }
 
-func collectResearchFundCategoryCandidates(submission *models.Submission) []string {
+func resolveResearchFundCategoryContext(submission *models.Submission) researchFundCategoryContext {
+	ctx := researchFundCategoryContext{
+		Keyword: researchFundCategoryKeyword,
+	}
 	if submission == nil {
-		return nil
+		return ctx
 	}
 
 	seen := map[string]struct{}{}
 	var candidates []string
 
-	add := func(values ...string) {
+	add := func(values ...string) bool {
+		added := false
 		for _, value := range values {
 			trimmed := strings.TrimSpace(value)
 			if trimmed == "" {
@@ -1305,45 +1318,99 @@ func collectResearchFundCategoryCandidates(submission *models.Submission) []stri
 			}
 			seen[lowered] = struct{}{}
 			candidates = append(candidates, trimmed)
+			added = true
 		}
+		return added
 	}
 
+	categoryResolved := false
+	subcategoryResolved := false
+	detailSubcategoryResolved := false
+
 	if submission.CategoryName != nil {
-		add(*submission.CategoryName)
+		categoryResolved = add(*submission.CategoryName) || categoryResolved
 	}
 	if submission.Category != nil {
-		add(submission.Category.CategoryName)
+		categoryResolved = add(submission.Category.CategoryName) || categoryResolved
 	}
 	if submission.SubcategoryName != nil {
-		add(*submission.SubcategoryName)
+		subcategoryResolved = add(*submission.SubcategoryName) || subcategoryResolved
 	}
 	if submission.Subcategory != nil {
-		add(submission.Subcategory.SubcategoryName)
+		subcategoryResolved = add(submission.Subcategory.SubcategoryName) || subcategoryResolved
 		if submission.Subcategory.Category.CategoryID != 0 {
-			add(submission.Subcategory.Category.CategoryName)
+			categoryResolved = add(submission.Subcategory.Category.CategoryName) || categoryResolved
 		}
 	}
 	if submission.FundApplicationDetail != nil {
 		detail := submission.FundApplicationDetail
 		if detail.Subcategory != nil {
-			add(detail.Subcategory.SubcategoryName)
+			detailSubcategoryResolved = add(detail.Subcategory.SubcategoryName) || detailSubcategoryResolved
 			if detail.Subcategory.Category.CategoryID != 0 {
-				add(detail.Subcategory.Category.CategoryName)
+				categoryResolved = add(detail.Subcategory.Category.CategoryName) || categoryResolved
 			}
 		}
 	}
 
-	return candidates
+	if !categoryResolved && submission.CategoryID != nil {
+		var category models.FundCategory
+		if err := config.DB.Select("category_name").First(&category, "category_id = ?", *submission.CategoryID).Error; err == nil {
+			if add(category.CategoryName) {
+				categoryResolved = true
+				ctx.CategoryLookupUsed = true
+			}
+		}
+	}
+
+	if !subcategoryResolved && submission.SubcategoryID != nil {
+		var subcategory models.FundSubcategory
+		if err := config.DB.Select("subcategory_name, category_id").Preload("Category").First(&subcategory, "subcategory_id = ?", *submission.SubcategoryID).Error; err == nil {
+			if add(subcategory.SubcategoryName) {
+				subcategoryResolved = true
+				ctx.SubcategoryLookupUsed = true
+			}
+			if subcategory.Category.CategoryID != 0 {
+				if add(subcategory.Category.CategoryName) {
+					categoryResolved = true
+					ctx.CategoryLookupUsed = true
+				}
+			}
+		}
+	}
+
+	if !detailSubcategoryResolved && submission.FundApplicationDetail != nil {
+		detail := submission.FundApplicationDetail
+		if detail.SubcategoryID != 0 {
+			var subcategory models.FundSubcategory
+			if err := config.DB.Select("subcategory_name, category_id").Preload("Category").First(&subcategory, "subcategory_id = ?", detail.SubcategoryID).Error; err == nil {
+				if add(subcategory.SubcategoryName) {
+					detailSubcategoryResolved = true
+					ctx.DetailSubcategoryLookupUsed = true
+				}
+				if subcategory.Category.CategoryID != 0 {
+					if add(subcategory.Category.CategoryName) {
+						categoryResolved = true
+						ctx.CategoryLookupUsed = true
+					}
+				}
+			}
+		}
+	}
+
+	ctx.Candidates = candidates
+	keyword := strings.ToLower(ctx.Keyword)
+	for _, candidate := range candidates {
+		if strings.Contains(strings.ToLower(candidate), keyword) {
+			ctx.MatchedCandidate = candidate
+			break
+		}
+	}
+
+	return ctx
 }
 
 func isResearchFundSubmission(submission *models.Submission) bool {
-	keyword := strings.ToLower(researchFundCategoryKeyword)
-	for _, candidate := range collectResearchFundCategoryCandidates(submission) {
-		if strings.Contains(strings.ToLower(candidate), keyword) {
-			return true
-		}
-	}
-	return false
+	return resolveResearchFundCategoryContext(submission).MatchedCandidate != ""
 }
 
 func buildResearchFundDetectionMeta(submission *models.Submission) gin.H {
@@ -1351,11 +1418,10 @@ func buildResearchFundDetectionMeta(submission *models.Submission) gin.H {
 		return gin.H{}
 	}
 
-	candidates := collectResearchFundCategoryCandidates(submission)
-	keyword := strings.ToLower(researchFundCategoryKeyword)
+	ctx := resolveResearchFundCategoryContext(submission)
 	detection := gin.H{
-		"keywords":   []string{researchFundCategoryKeyword},
-		"candidates": candidates,
+		"keywords":   []string{ctx.Keyword},
+		"candidates": ctx.Candidates,
 	}
 
 	if submission.CategoryID != nil {
@@ -1406,11 +1472,17 @@ func buildResearchFundDetectionMeta(submission *models.Submission) gin.H {
 		}
 	}
 
-	for _, candidate := range candidates {
-		if strings.Contains(strings.ToLower(candidate), keyword) {
-			detection["matched_candidate"] = candidate
-			break
-		}
+	if ctx.MatchedCandidate != "" {
+		detection["matched_candidate"] = ctx.MatchedCandidate
+	}
+	if ctx.CategoryLookupUsed {
+		detection["category_lookup_used"] = true
+	}
+	if ctx.SubcategoryLookupUsed {
+		detection["subcategory_lookup_used"] = true
+	}
+	if ctx.DetailSubcategoryLookupUsed {
+		detection["detail_subcategory_lookup_used"] = true
 	}
 
 	return detection
