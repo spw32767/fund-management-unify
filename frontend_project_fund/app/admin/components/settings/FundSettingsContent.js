@@ -196,6 +196,7 @@ export default function FundSettingsContent({ onNavigate }) {
     setError(null);
     try {
       const data = await adminAPI.getCategoriesWithDetails(selectedYear.year_id);
+      console.log('[FundSettings] Loaded categories payload:', data);
       const sortedCategories = [...data].sort((a, b) => {
         const orderA = resolveOrder(a, a.category_id || 0);
         const orderB = resolveOrder(b, b.category_id || 0);
@@ -232,11 +233,13 @@ export default function FundSettingsContent({ onNavigate }) {
         };
 
         if (Array.isArray(rawBudgets)) {
+          console.log('[FundSettings] Normalizing direct budget array:', rawBudgets);
           rawBudgets.forEach((budget) => addBudget(budget));
           return results;
         }
 
         if (Array.isArray(rawBudgets?.budgets)) {
+          console.log('[FundSettings] Found budgets.budgets array:', rawBudgets.budgets);
           rawBudgets.budgets.forEach((budget) => addBudget(budget));
         }
 
@@ -246,7 +249,12 @@ export default function FundSettingsContent({ onNavigate }) {
           rawBudgets.overallBudget,
         ];
 
-        overallCandidates.forEach((budget) => addBudget(budget, 'overall'));
+        overallCandidates.forEach((budget) => {
+          if (budget) {
+            console.log('[FundSettings] Found overall budget candidate:', budget);
+          }
+          addBudget(budget, 'overall');
+        });
 
         const ruleCandidates = [
           rawBudgets.rules,
@@ -256,11 +264,13 @@ export default function FundSettingsContent({ onNavigate }) {
 
         ruleCandidates.forEach((group) => {
           if (Array.isArray(group)) {
+            console.log('[FundSettings] Found rule budget candidates:', group);
             group.forEach((budget) => addBudget(budget, 'rule'));
           }
         });
 
         if (results.length === 0) {
+          console.log('[FundSettings] Falling back to object value scan for budgets:', rawBudgets);
           Object.values(rawBudgets).forEach((value) => {
             if (Array.isArray(value)) {
               value.forEach((item) => addBudget(item));
@@ -294,6 +304,12 @@ export default function FundSettingsContent({ onNavigate }) {
               subcategory.budgetConfigs ||
               subcategory.budget;
 
+            console.log('[FundSettings] Raw budget source for subcategory:', {
+              subcategoryId: subcategory.subcategory_id,
+              subcategoryName: subcategory.subcategory_name,
+              rawBudgetSource,
+            });
+
             const budgets = normalizeBudgetRecords(rawBudgetSource)
               .map((budget) => ({
                 ...budget,
@@ -315,6 +331,12 @@ export default function FundSettingsContent({ onNavigate }) {
                 ...budget,
                 order_index: `${displayNumber}.${budgetIndex + 1}`,
               }));
+
+            console.log('[FundSettings] Normalized budgets for subcategory:', {
+              subcategoryId: subcategory.subcategory_id,
+              subcategoryName: subcategory.subcategory_name,
+              budgets,
+            });
 
             return {
               ...subcategory,
@@ -842,6 +864,17 @@ export default function FundSettingsContent({ onNavigate }) {
           subcategory_id: selectedSubcategoryForBudget.subcategory_id,
         });
       }
+
+      console.log('[FundSettings] Saved budget payload:', {
+        scope,
+        payload,
+        editingBudget,
+        validationData,
+        subcategory: {
+          id: selectedSubcategoryForBudget.subcategory_id,
+          name: selectedSubcategoryForBudget.subcategory_name,
+        },
+      });
 
       await loadCategories();
 
