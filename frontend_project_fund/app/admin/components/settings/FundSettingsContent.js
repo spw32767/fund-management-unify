@@ -645,81 +645,109 @@ export default function FundSettingsContent({ onNavigate }) {
   };
 
 
-  const handleSubcategorySave = async (subcategoryData) => {
+  const handleSubcategorySave = async ({ subcategory, overallPolicy }) => {
     setLoading(true);
     try {
-      // Validate data - ไม่ต้องบังคับ allocated_amount
-      const dataWithCategory = { 
-        ...subcategoryData, 
-        category_id: selectedCategoryForSub.category_id 
+      const categoryId = selectedCategoryForSub?.category_id;
+      if (!categoryId) {
+        throw new Error('ไม่พบหมวดหมู่ที่ต้องการบันทึก');
+      }
+
+      const normalizedSubcategory = {
+        subcategory_name: (subcategory?.subcategory_name || '').trim(),
+        fund_condition: subcategory?.fund_condition || '',
+        target_roles: Array.isArray(subcategory?.target_roles)
+          ? subcategory.target_roles.map((role) => role?.toString?.() ?? '').filter(Boolean)
+          : [],
+        status: subcategory?.status || 'active',
       };
-      
-      // ไม่ต้อง validate allocated_amount
-      if (!dataWithCategory.subcategory_name) {
+
+      if (!normalizedSubcategory.subcategory_name) {
         throw new Error('กรุณากรอกชื่อทุนย่อย');
       }
-      
+
+      let activeSubcategoryId = editingSubcategory?.subcategory_id || null;
+      const existingOverallBudget = editingSubcategory?.budgets?.find(
+        (budget) => String(budget.record_scope || '').toLowerCase() === 'overall'
+      );
+
       if (editingSubcategory) {
-        // Update existing subcategory - ไม่ส่ง allocated_amount
-        const updateData = {
-          subcategory_name: subcategoryData.subcategory_name,
-          fund_condition: subcategoryData.fund_condition || '',
-          target_roles: subcategoryData.target_roles || [],
-          status: editingSubcategory.status || 'active'
-        };
-        
-        await adminAPI.updateSubcategory(editingSubcategory.subcategory_id, updateData);
-        
-        // อัพเดท state
-        setCategories(prev => prev.map(cat => {
-          if (cat.category_id === selectedCategoryForSub.category_id) {
-            return {
-              ...cat,
-              subcategories: cat.subcategories.map(sub => 
-                sub.subcategory_id === editingSubcategory.subcategory_id
-                  ? { ...sub, ...updateData, update_at: new Date().toISOString() }
-                  : sub
-              )
-            };
-          }
-          return cat;
-        }));
-        
-        showSuccess("อัปเดตทุนย่อยเรียบร้อยแล้ว");
-        
+        await adminAPI.updateSubcategory(editingSubcategory.subcategory_id, normalizedSubcategory);
       } else {
-        // Add new subcategory - ไม่ส่ง allocated_amount
         const createData = {
-          category_id: selectedCategoryForSub.category_id,
-          subcategory_name: subcategoryData.subcategory_name,
-          fund_condition: subcategoryData.fund_condition || '',
-          target_roles: subcategoryData.target_roles || [],
-          status: 'active'
+          category_id: categoryId,
+          ...normalizedSubcategory,
         };
-        
+
         const response = await adminAPI.createSubcategory(createData);
-        
-        if (response.subcategory) {
-          const newSubcategory = {
-            ...response.subcategory,
-            target_roles: subcategoryData.target_roles || [],
-            budgets: [] // เริ่มต้นด้วย budget ว่าง
-          };
-          
-          setCategories(prev => prev.map(cat => 
-            cat.category_id === selectedCategoryForSub.category_id
-              ? { ...cat, subcategories: [...(cat.subcategories || []), newSubcategory] }
-              : cat
-          ));
-          
-          showSuccess("สร้างทุนย่อยเรียบร้อยแล้ว กรุณาเพิ่มงบประมาณเพื่อกำหนดจำนวนเงิน");
+        activeSubcategoryId = response?.subcategory?.subcategory_id || null;
+
+        if (!activeSubcategoryId) {
+          throw new Error('ไม่สามารถสร้างทุนย่อยใหม่ได้');
         }
       }
-      
+
+      const toFloat = (value) => {
+        if (value === '' || value === null || value === undefined) return null;
+        const parsed = Number(value);
+        return Number.isNaN(parsed) ? null : parsed;
+      };
+
+      const toInt = (value) => {
+        if (value === '' || value === null || value === undefined) return null;
+        const parsed = parseInt(value, 10);
+        return Number.isNaN(parsed) ? null : parsed;
+      };
+
+      if (overallPolicy && activeSubcategoryId) {
+        const payload = {
+          record_scope: 'overall',
+          allocated_amount: toFloat(overallPolicy.allocated_amount) ?? 0,
+          max_amount_per_year: toFloat(overallPolicy.max_amount_per_year),
+          max_grants: toInt(overallPolicy.max_grants),
+          max_amount_per_grant: toFloat(overallPolicy.max_amount_per_grant),
+          status: overallPolicy.status || 'active',
+        };
+
+        if (overallPolicy.fund_description) {
+          payload.fund_description = overallPolicy.fund_description;
+        }
+
+        if (overallPolicy.comment) {
+          payload.comment = overallPolicy.comment;
+        }
+
+        const validationData = {
+          ...payload,
+          subcategory_id: activeSubcategoryId,
+        };
+
+        adminAPI.validateBudgetData(validationData);
+
+        if (overallPolicy.subcategory_budget_id) {
+          await adminAPI.updateBudget(overallPolicy.subcategory_budget_id, payload);
+        } else {
+          await adminAPI.createBudget({
+            ...payload,
+            subcategory_id: activeSubcategoryId,
+          });
+        }
+      } else if (!overallPolicy && existingOverallBudget) {
+        await adminAPI.deleteBudget(existingOverallBudget.subcategory_budget_id);
+      }
+
+      await loadCategories();
+
       setSubcategoryModalOpen(false);
       setEditingSubcategory(null);
       setSelectedCategoryForSub(null);
-      
+
+      if (editingSubcategory) {
+        showSuccess('อัปเดตทุนย่อยเรียบร้อยแล้ว');
+      } else {
+        showSuccess('สร้างทุนย่อยเรียบร้อยแล้ว');
+      }
+
     } catch (error) {
       console.error("Error saving subcategory:", error);
       showError(`เกิดข้อผิดพลาด: ${error.message}`);
