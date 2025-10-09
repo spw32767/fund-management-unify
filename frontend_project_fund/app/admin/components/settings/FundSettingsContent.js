@@ -202,67 +202,131 @@ export default function FundSettingsContent({ onNavigate }) {
         return orderA - orderB;
       });
 
-      const normalizeBudgetRecords = (rawBudgets) => {
-        if (!rawBudgets) return [];
+      const normalizeBudgetRecords = (...rawSources) => {
+        if (!rawSources || rawSources.length === 0) return [];
 
         const results = [];
         const seenIds = new Set();
-        const seenObjects = typeof WeakSet === 'function' ? new WeakSet() : null;
+        const seenBudgetObjects = typeof WeakSet === 'function' ? new WeakSet() : null;
+        const seenContainers = typeof WeakSet === 'function' ? new WeakSet() : null;
 
         const addBudget = (budget, fallbackScope) => {
           if (!budget || typeof budget !== 'object') return;
 
-          if (seenObjects) {
-            if (seenObjects.has(budget)) return;
-            seenObjects.add(budget);
+          if (seenBudgetObjects) {
+            if (seenBudgetObjects.has(budget)) return;
+            seenBudgetObjects.add(budget);
           }
 
-          const budgetId = budget.subcategory_budget_id ?? budget.budget_id ?? `${fallbackScope || 'unknown'}-${
-            budget.level || budget.fund_description || results.length
-          }`;
+          const resolvedScope = String(budget.record_scope || fallbackScope || '').toLowerCase();
+          const budgetId =
+            budget.subcategory_budget_id ??
+            budget.budget_id ??
+            `${resolvedScope || 'unknown'}-${
+              budget.level || budget.fund_description || budget.max_amount_per_grant || results.length
+            }`;
+
           if (seenIds.has(budgetId)) return;
 
           seenIds.add(budgetId);
           results.push({
             ...budget,
-            record_scope: String(budget.record_scope || fallbackScope || '').toLowerCase(),
+            record_scope: resolvedScope,
           });
         };
 
-        if (Array.isArray(rawBudgets)) {
-          rawBudgets.forEach((budget) => addBudget(budget));
-          return results;
-        }
+        const isBudgetRecord = (value) => {
+          if (!value || typeof value !== 'object') return false;
+          const keys = [
+            'subcategory_budget_id',
+            'budget_id',
+            'max_amount_per_grant',
+            'max_amount_per_year',
+            'max_grants',
+            'fund_description',
+            'allocated_amount',
+            'remaining_budget',
+            'record_scope',
+          ];
+          return keys.some((key) => value[key] !== undefined && value[key] !== null);
+        };
 
-        const overallCandidates = [
-          rawBudgets.overall,
-          rawBudgets.overall_budget,
-          rawBudgets.overallBudget,
-        ];
+        const processSource = (source, fallbackScope) => {
+          if (source === null || source === undefined) return;
 
-        overallCandidates.forEach((budget) => addBudget(budget, 'overall'));
-
-        const ruleCandidates = [
-          rawBudgets.rules,
-          rawBudgets.rule_budgets,
-          rawBudgets.ruleBudgets,
-        ];
-
-        ruleCandidates.forEach((group) => {
-          if (Array.isArray(group)) {
-            group.forEach((budget) => addBudget(budget, 'rule'));
+          if (Array.isArray(source)) {
+            source.forEach((item) => processSource(item, fallbackScope));
+            return;
           }
-        });
 
-        if (results.length === 0) {
-          Object.values(rawBudgets).forEach((value) => {
-            if (Array.isArray(value)) {
-              value.forEach((item) => addBudget(item));
-            } else if (value && typeof value === 'object') {
-              addBudget(value);
+          if (typeof source !== 'object') return;
+
+          if (isBudgetRecord(source)) {
+            addBudget(source, fallbackScope);
+            return;
+          }
+
+          if (seenContainers) {
+            if (seenContainers.has(source)) return;
+            seenContainers.add(source);
+          }
+
+          const scopedCandidates = [
+            ['overall', 'overall'],
+            ['overall_budget', 'overall'],
+            ['overallBudget', 'overall'],
+            ['overall_rule', 'overall'],
+            ['overallRule', 'overall'],
+          ];
+          scopedCandidates.forEach(([key, scope]) => {
+            if (source[key] !== undefined) {
+              processSource(source[key], scope);
             }
           });
-        }
+
+          const ruleCandidates = [
+            'rules',
+            'rule_budgets',
+            'ruleBudgets',
+            'rulesBudget',
+            'ruleBudget',
+            'budget_rules',
+          ];
+          ruleCandidates.forEach((key) => {
+            if (source[key] !== undefined) {
+              processSource(source[key], 'rule');
+            }
+          });
+
+          const genericCollections = [
+            'budgets',
+            'budget_list',
+            'budgetList',
+            'rawBudgetSource',
+            'raw_budget_source',
+            'budget_records',
+            'budgetRecords',
+            'budget_items',
+            'budgetItems',
+            'records',
+            'items',
+            'data',
+            'list',
+            'entries',
+          ];
+          genericCollections.forEach((key) => {
+            if (source[key] !== undefined) {
+              processSource(source[key], fallbackScope);
+            }
+          });
+
+          Object.values(source).forEach((value) => {
+            if (value === source) return;
+            processSource(value, fallbackScope);
+          });
+        };
+
+        rawSources.forEach((source) => processSource(source));
 
         return results;
       };
@@ -279,7 +343,13 @@ export default function FundSettingsContent({ onNavigate }) {
           .map((subcategory, subIndex) => {
             const displayNumber = `${categoryNumber}.${subIndex + 1}`;
 
-            const budgets = normalizeBudgetRecords(subcategory.budgets)
+            const budgets = normalizeBudgetRecords(
+              subcategory.budgets,
+              subcategory.rawBudgetSource,
+              subcategory.raw_budget_source,
+              subcategory.budget_records,
+              subcategory.budgetRecords
+            )
               .map((budget) => ({
                 ...budget,
                 record_scope: String(budget.record_scope || '').toLowerCase(),
