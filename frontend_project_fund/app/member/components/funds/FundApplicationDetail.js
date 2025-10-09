@@ -60,6 +60,31 @@ const getColoredStatusIcon = (statusCode) => {
   };
 };
 
+const resolveDocumentName = (doc, fallback = "document") => {
+  const candidates = [
+    doc?.original_name,
+    doc?.original_filename,
+    doc?.file_name,
+    doc?.File?.original_name,
+    doc?.file?.original_name,
+    doc?.File?.file_name,
+    doc?.file?.file_name,
+    doc?.name,
+    doc?.title,
+  ];
+
+  for (const candidate of candidates) {
+    if (typeof candidate === "string") {
+      const trimmed = candidate.trim();
+      if (trimmed !== "") {
+        return trimmed;
+      }
+    }
+  }
+
+  return fallback;
+};
+
 export default function FundApplicationDetail({ submissionId, onNavigate }) {
   const [submission, setSubmission] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -492,13 +517,7 @@ export default function FundApplicationDetail({ submissionId, onNavigate }) {
                 <tbody className="bg-white divide-y divide-gray-200">
                   {documents.map((doc, index) => {
                     const fileId = doc.file_id || doc.File?.file_id || doc.file?.file_id;
-                    const docName =
-                      doc.File?.original_name ||
-                      doc.file?.original_name ||
-                      doc.original_filename ||
-                      doc.file_name ||
-                      doc.name ||
-                      `เอกสารที่ ${index + 1}`;
+                    const docName = resolveDocumentName(doc, `เอกสารที่ ${index + 1}`);
                     const docType =
                       doc.document_type_name && doc.document_type_name.trim() !== ""
                         ? doc.document_type_name

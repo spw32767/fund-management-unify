@@ -98,6 +98,31 @@ const getUserFullName = (u) => {
   return name || (u.email || '-');
 };
 
+const resolveDocumentName = (doc, fallback = 'document') => {
+  const candidates = [
+    doc?.original_name,
+    doc?.original_filename,
+    doc?.file_name,
+    doc?.File?.original_name,
+    doc?.file?.original_name,
+    doc?.File?.file_name,
+    doc?.file?.file_name,
+    doc?.name,
+    doc?.title,
+  ];
+
+  for (const candidate of candidates) {
+    if (typeof candidate === 'string') {
+      const trimmed = candidate.trim();
+      if (trimmed !== '') {
+        return trimmed;
+      }
+    }
+  }
+
+  return fallback;
+};
+
 // format THB
 function baht(value) {
   const n = Number(value ?? 0);
@@ -517,14 +542,7 @@ export default function GeneralSubmissionDetailsDept({ submissionId, onBack }) {
 
         const merged = (rawDocs || []).map((d, i) => {
           const fileId = d.file_id ?? d.File?.file_id ?? d.file?.file_id ?? d.id;
-          const name =
-            d.file_name ??
-            d.original_name ??
-            d.original_filename ??
-            d.File?.original_name ??
-            d.file?.original_name ??
-            d.name ??
-            `เอกสารที่ ${i + 1}`;
+          const name = resolveDocumentName(d, `เอกสารที่ ${i + 1}`);
           const docTypeId = d.document_type_id ?? d.DocumentTypeID ?? d.doc_type_id ?? null;
           const docTypeName = d.document_type_name || typeMap[String(docTypeId)] || 'ไม่ระบุหมวด';
           return {
@@ -833,25 +851,8 @@ export default function GeneralSubmissionDetailsDept({ submissionId, onBack }) {
     return null;
   };
 
-  const resolveFileName = (doc, fallback = 'document') => {
-    const candidates = [
-      doc?.original_name,
-      doc?.original_filename,
-      doc?.file_name,
-      doc?.File?.original_name,
-      doc?.file?.original_name,
-      doc?.File?.file_name,
-      doc?.file?.file_name,
-      doc?.name,
-      doc?.title,
-    ];
-    for (const candidate of candidates) {
-      if (typeof candidate === 'string' && candidate.trim() !== '') {
-        return candidate;
-      }
-    }
-    return fallback;
-  };
+  const resolveFileName = (doc, fallback = 'document') =>
+    resolveDocumentName(doc, fallback);
 
   const fetchManagedFileBlob = async (fileId) => {
     const token = apiClient.getToken();
@@ -1222,14 +1223,7 @@ export default function GeneralSubmissionDetailsDept({ submissionId, onBack }) {
             <div className="space-y-4">
               {attachments.map((doc, index) => {
                 const fileId = doc.file_id || doc.File?.file_id || doc.file?.file_id;
-                const fileName =
-                  doc.original_name ||
-                  doc.File?.original_name ||
-                  doc.file?.original_name ||
-                  doc.original_filename ||
-                  doc.file_name ||
-                  doc.name ||
-                  `เอกสารที่ ${index + 1}`;
+                const fileName = resolveDocumentName(doc, `เอกสารที่ ${index + 1}`);
                 const docType = (doc.document_type_name || '').trim() || 'ไม่ระบุประเภท';
 
                 const canOpen = fileId != null || !!resolveFilePath(doc);

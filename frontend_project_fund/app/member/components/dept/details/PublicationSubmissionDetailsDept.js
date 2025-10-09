@@ -133,6 +133,31 @@ const firstNonEmpty = (...vals) => {
   return null;
 };
 
+const resolveDocumentName = (doc, fallback = 'document') => {
+  const candidates = [
+    doc?.original_name,
+    doc?.original_filename,
+    doc?.file_name,
+    doc?.File?.original_name,
+    doc?.file?.original_name,
+    doc?.File?.file_name,
+    doc?.file?.file_name,
+    doc?.name,
+    doc?.title,
+  ];
+
+  for (const candidate of candidates) {
+    if (typeof candidate === 'string') {
+      const trimmed = candidate.trim();
+      if (trimmed !== '') {
+        return trimmed;
+      }
+    }
+  }
+
+  return fallback;
+};
+
 const getSubcategoryName = (submission, pubDetail) => {
   // 1) จากรายละเอียดบทความ (ลองหลายชื่อ key)
   const fromDetail = firstNonEmpty(
@@ -961,6 +986,7 @@ export default function PublicationSubmissionDetailsDept({ submissionId, onBack 
             ...d,
             document_type_id: docTypeId ?? d?.document_type_id ?? null,
             document_type_name: docTypeName,
+            original_name: resolveDocumentName(d, `เอกสารที่ ${index + 1}`),
             _index: index,
           };
         });
@@ -1153,25 +1179,8 @@ export default function PublicationSubmissionDetailsDept({ submissionId, onBack 
     return null;
   };
 
-  const resolveFileName = (doc, fallback = 'document') => {
-    const candidates = [
-      doc?.original_name,
-      doc?.original_filename,
-      doc?.file_name,
-      doc?.File?.original_name,
-      doc?.file?.original_name,
-      doc?.File?.file_name,
-      doc?.file?.file_name,
-      doc?.name,
-      doc?.title,
-    ];
-    for (const candidate of candidates) {
-      if (typeof candidate === 'string' && candidate.trim() !== '') {
-        return candidate;
-      }
-    }
-    return fallback;
-  };
+  const resolveFileName = (doc, fallback = 'document') =>
+    resolveDocumentName(doc, fallback);
 
   const fetchManagedFileBlob = async (fileId) => {
     const token = apiClient.getToken();
