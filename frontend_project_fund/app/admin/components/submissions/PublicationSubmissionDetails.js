@@ -142,11 +142,6 @@ const deriveRequestedSummary = (pubDetail = {}, submission = {}) => {
     pubDetail?.external_funding_amount ?? submission?.external_funding_amount
   );
 
-  const reward = rewardRaw ?? 0;
-  const revision = revisionRaw ?? 0;
-  const publication = publicationRaw ?? 0;
-  const external = externalRaw ?? 0;
-
   const hasBreakdown =
     rewardRaw != null || revisionRaw != null || publicationRaw != null;
 
@@ -157,12 +152,20 @@ const deriveRequestedSummary = (pubDetail = {}, submission = {}) => {
   ];
 
   let baseTotal = hasBreakdown
-    ? reward + revision + publication
+    ? (rewardRaw ?? 0) + (revisionRaw ?? 0) + (publicationRaw ?? 0)
     : fallbackTotals.find((v) => v != null);
 
   if (baseTotal == null) {
-    baseTotal = reward + revision + publication;
+    baseTotal = (rewardRaw ?? 0) + (revisionRaw ?? 0) + (publicationRaw ?? 0);
   }
+
+  let reward = rewardRaw;
+  if (reward == null) {
+    reward = hasBreakdown ? 0 : (baseTotal ?? 0);
+  }
+  const revision = revisionRaw ?? 0;
+  const publication = publicationRaw ?? 0;
+  const external = externalRaw ?? 0;
 
   const total = Math.max(0, (baseTotal ?? 0) - external);
 
@@ -509,19 +512,45 @@ function ApprovalPanel({ submission, pubDetail, requestedSummary, approvedSummar
   }
 
   // Defaults from "ข้อมูลการเงิน"
-  const requestedReward = requestedSummary?.reward ?? Number(pubDetail?.reward_amount || 0);
-  const requestedRevision = requestedSummary?.revision ?? Number(pubDetail?.revision_fee || pubDetail?.editing_fee || 0);
-  const requestedPublication = requestedSummary?.publication ?? Number(pubDetail?.publication_fee || pubDetail?.page_charge || 0);
-  const extFunding = requestedSummary?.external ?? Number(pubDetail?.external_funding_amount || 0);
+  const requestedReward = requestedSummary?.reward ??
+    parseAmount(pubDetail?.reward_amount ?? submission?.reward_amount) ??
+    0;
+  const requestedRevision = requestedSummary?.revision ??
+    parseAmount(
+      pubDetail?.revision_fee ??
+      pubDetail?.editing_fee ??
+      submission?.revision_fee
+    ) ??
+    0;
+  const requestedPublication = requestedSummary?.publication ??
+    parseAmount(
+      pubDetail?.publication_fee ??
+      pubDetail?.page_charge ??
+      submission?.publication_fee
+    ) ??
+    0;
+  const extFunding = requestedSummary?.external ??
+    parseAmount(pubDetail?.external_funding_amount ?? submission?.external_funding_amount) ??
+    0;
   const requestedBaseTotal = requestedSummary?.baseTotal ?? (
     Number(requestedReward || 0) +
     Number(requestedRevision || 0) +
     Number(requestedPublication || 0)
   );
 
-  const approvedRewardDefault = approvedSummary?.reward ?? requestedReward;
-  const approvedRevisionDefault = approvedSummary?.revision ?? requestedRevision;
-  const approvedPublicationDefault = approvedSummary?.publication ?? requestedPublication;
+  // ใช้ค่าที่อนุมัติแล้วถ้ามี, ถ้าไม่มีให้ใช้ค่าที่ขอ
+  // *แก้ไขตามที่ผู้ใช้ร้องขอ: เพื่อให้ 'เงินรางวัลที่จะอนุมัติ' แสดงค่า default เป็น 'เงินรางวัลที่ขอ'
+  // หาก approvedSummary?.rewardRaw เป็นค่า falsy (null, undefined, 0) จะใช้ requestedReward แทน
+  // ซึ่งจะทำให้ค่าเริ่มต้นแสดงเป็นค่าที่ขอ หากยังไม่มีการบันทึกค่าอนุมัติที่ชัดเจน
+  const approvedRewardDefault = approvedSummary?.rewardRaw
+    ? approvedSummary.rewardRaw
+    : requestedReward;
+  const approvedRevisionDefault = approvedSummary?.revisionRaw != null 
+    ? approvedSummary.revisionRaw 
+    : requestedRevision;
+  const approvedPublicationDefault = approvedSummary?.publicationRaw != null 
+    ? approvedSummary.publicationRaw 
+    : requestedPublication;
   const approvedTotalDefault = approvedSummary?.total ?? Math.max(0, requestedBaseTotal - extFunding);
 
   // Approved values
@@ -920,7 +949,6 @@ function ApprovalPanel({ submission, pubDetail, requestedSummary, approvedSummar
             console.warn('notify rejected failed:', e);
             // ไม่ throw — ไม่ให้บล็อก flow
           }
-
         } catch (e) {
           Swal.showValidationMessage(e?.message || 'ไม่อนุมัติไม่สำเร็จ');
           throw e;
@@ -1040,10 +1068,12 @@ function ApprovalPanel({ submission, pubDetail, requestedSummary, approvedSummar
                 </button>
                 <span>ปรับแก้ข้อมูล</span>
               </div>
-
-              <button className="btn btn-ghost btn-xs inline-flex items-center gap-1" type="button" onClick={recalc}>
-                <RefreshCcw size={14} />
-                Recalculate
+              <button
+                className="btn btn-ghost btn-xs inline-flex items-center gap-1"
+                type="button"
+                onClick={recalc}
+              >
+                <RefreshCcw size={14} /> Recalculate
               </button>
             </div>
           </label>
@@ -1059,9 +1089,10 @@ function ApprovalPanel({ submission, pubDetail, requestedSummary, approvedSummar
             </div>
           </label>
           <div className="flex flex-col items-end w-full">
-            <div className="w-full md:w-72 rounded-md border bg-white shadow-sm transition-all
-                            border-gray-300 hover:border-blue-300 focus-within:border-blue-500
-                            focus-within:ring-2 focus-within:ring-blue-500">
+            <div
+              className="w-full md:w-72 rounded-md border bg-white shadow-sm transition-all
+              border-gray-300 hover:border-blue-300 focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-500"
+            >
               <input
                 type="text"
                 className="w-full p-2.5 rounded-md outline-none bg-transparent"
@@ -1080,7 +1111,10 @@ function ApprovalPanel({ submission, pubDetail, requestedSummary, approvedSummar
             หมายเหตุของผู้ดูแลระบบ
             <br /><span className="text-xs font-normal text-gray-600">Admin Comment</span>
           </label>
-          <div className="w-full rounded-md border bg-white shadow-sm transition-all border-gray-300 hover:border-blue-300 focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-500">
+          <div
+            className="w-full rounded-md border bg-white shadow-sm transition-all
+            border-gray-300 hover:border-blue-300 focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-500"
+          >
             <textarea
               className="w-full p-3 rounded-md outline-none bg-transparent resize-y min-h-[96px]"
               value={adminComment}
@@ -1097,19 +1131,15 @@ function ApprovalPanel({ submission, pubDetail, requestedSummary, approvedSummar
             onClick={confirmApprove}
             disabled={saving}
           >
-            <Check size={18} />
-            อนุมัติ
+            <Check size={18} /> อนุมัติ
           </button>
-
           <button
             className="btn btn-danger inline-flex items-center gap-2 disabled:opacity-60"
             onClick={confirmReject}
             disabled={saving}
           >
-            <XIcon size={18} />
-            ไม่อนุมัติ
+            <XIcon size={18} /> ไม่อนุมัติ
           </button>
-
           {saving && <span className="text-sm text-gray-500">กำลังดำเนินการ...</span>}
         </div>
       </div>
@@ -1180,7 +1210,7 @@ export default function PublicationSubmissionDetails({ submissionId, onBack }) {
     load();
   }, [submissionId]);
 
-  // ADD — fetch attachments + document types then merge label
+// ADD — fetch attachments + document types then merge label
   useEffect(() => {
     if (!submission?.submission_id) return;
     let cancel = false;
@@ -1202,30 +1232,18 @@ export default function PublicationSubmissionDetails({ submissionId, onBack }) {
         const typeMap = {};
         for (const t of typesArr) {
           const id = t.document_type_id ?? t.id;
-          typeMap[id] =
-            t.document_type_name || t.name || t.code || t.category || 'ไม่ระบุหมวด';
+          typeMap[id] = t.document_type_name || t.name || t.code || t.category || 'ไม่ระบุหมวด';
         }
 
         // ถ้า API ไม่มีเอกสาร ให้ fallback ใช้จาก payload เดิม
-        const docsFallback =
-          submission.documents || submission.submission_documents || [];
-
+        const docsFallback = submission.documents || submission.submission_documents || [];
         const rawDocs = docsApi.length ? docsApi : docsFallback;
 
         const merged = rawDocs.map((d, i) => {
           const fileId = d.file_id ?? d.File?.file_id ?? d.file?.file_id ?? d.id;
-          const name =
-            d.file_name ??
-            d.original_name ??
-            d.original_filename ??
-            d.File?.original_name ??
-            d.file?.original_name ??
-            d.name ??
-            `เอกสารที่ ${i + 1}`;
-
+          const name = d.file_name ?? d.original_name ?? d.original_filename ?? d.File?.original_name ?? d.file?.original_name ?? d.name ?? `เอกสารที่ ${i + 1}`;
           const docTypeId = d.document_type_id ?? d.DocumentTypeID ?? d.doc_type_id ?? null;
-          const docTypeName =
-            d.document_type_name || typeMap[docTypeId] || 'ไม่ระบุหมวด';
+          const docTypeName = d.document_type_name || typeMap[docTypeId] || 'ไม่ระบุหมวด';
 
           return {
             ...d,
@@ -1236,6 +1254,9 @@ export default function PublicationSubmissionDetails({ submissionId, onBack }) {
           };
         });
 
+        // Add console.log for attachments
+        console.log('Publication Submission Attachments (merged):', merged);
+
         if (!cancel) setAttachments(merged);
       } catch (e) {
         console.error('load attachments failed', e);
@@ -1245,10 +1266,12 @@ export default function PublicationSubmissionDetails({ submissionId, onBack }) {
       }
     })();
 
-    return () => {
-      cancel = true;
-    };
-  }, [submission?.submission_id]);
+    return () => { cancel = true; };
+  }, [
+    submission?.submission_id,
+    submission?.documents,
+    submission?.submission_documents,
+  ]);
 
   // Applicant detection (robust)
   const getApplicant = useMemo(

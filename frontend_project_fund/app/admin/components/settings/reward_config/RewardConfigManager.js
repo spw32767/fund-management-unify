@@ -49,8 +49,8 @@ const RewardConfigManager = () => {
   const [configSort, setConfigSort] = useState({ key: null, dir: 'asc' });
 
   const authorStatusOptions = [
-    { value: 'first_author', label: 'First Author (ผู้นิพนธ์หลัก)' },
-    { value: 'corresponding_author', label: 'Corresponding Author (ผู้นิพนธ์ติดต่อ)' },
+    { value: 'first_author', label: 'First Author (ผู้ประพันธ์บรรณกิจ)' },
+    { value: 'corresponding_author', label: 'Corresponding Author (ผู้ประพันธ์ติดต่อ)' },
   ];
 
   const quartileOptions = [
@@ -375,7 +375,7 @@ const RewardConfigManager = () => {
                   reward_amount: ''
                 });
               }}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 ml-auto"
             >
               <Plus size={16} />
               เพิ่มอัตราใหม่
@@ -391,7 +391,7 @@ const RewardConfigManager = () => {
                       className="inline-flex items-center"
                       onClick={() => toggleSort('rates', 'author_status')}
                     >
-                      สถานะผู้นิพนธ์ {sortIcon(rateSort, 'author_status')}
+                      สถานะผู้ประพันธ์ {sortIcon(rateSort, 'author_status')}
                     </button>
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase">
@@ -489,7 +489,7 @@ const RewardConfigManager = () => {
                   condition_description: ''
                 });
               }}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 ml-auto"
             >
               <Plus size={16} />
               เพิ่มการกำหนดค่าใหม่
@@ -611,7 +611,7 @@ const RewardConfigManager = () => {
 
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">สถานะผู้นิพนธ์</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">สถานะผู้ประพันธ์</label>
                 <select
                   value={rateFormData.author_status}
                   onChange={(e) => setRateFormData({ ...rateFormData, author_status: e.target.value })}
