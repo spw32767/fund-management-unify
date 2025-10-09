@@ -441,6 +441,7 @@ func CreatePublicationReward(c *gin.Context) {
 				fileUpload := models.FileUpload{
 					OriginalName: fileHeader.Filename,
 					StoredPath:   dst,
+					FolderType:   "submission",
 					FileSize:     fileHeader.Size,
 					MimeType:     fileHeader.Header.Get("Content-Type"),
 					FileHash:     "",
@@ -451,7 +452,7 @@ func CreatePublicationReward(c *gin.Context) {
 					UpdateAt:     now,
 				}
 
-				if err := tx.Create(&fileUpload).Error; err != nil {
+				if err := createFileUploadRecord(tx, &fileUpload); err != nil {
 					tx.Rollback()
 					os.Remove(dst)
 					c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save file info"})
@@ -860,7 +861,7 @@ func UploadPublicationDocument(c *gin.Context) {
 				UpdateAt:     now,
 			}
 
-			if err := config.DB.Create(&fileUpload).Error; err != nil {
+			if err := createFileUploadRecord(config.DB, &fileUpload); err != nil {
 				// Delete uploaded file if database save fails
 				os.Remove(dst)
 				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save file info"})
