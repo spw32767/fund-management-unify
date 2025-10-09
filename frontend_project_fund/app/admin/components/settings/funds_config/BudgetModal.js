@@ -1,21 +1,63 @@
 // modals/BudgetModal.js
 import React, { useState, useEffect } from "react";
 
-const BudgetModal = ({ 
-  isOpen, 
-  onClose, 
-  onSave, 
+const normalizeBudgetCollection = (budgets) => {
+  if (!budgets) return [];
+
+  const results = [];
+
+  const appendBudget = (budget, fallbackScope) => {
+    if (!budget || typeof budget !== 'object') return;
+    const scope = String(budget.record_scope || fallbackScope || '').toLowerCase();
+    results.push({
+      ...budget,
+      record_scope: scope,
+    });
+  };
+
+  if (Array.isArray(budgets)) {
+    budgets.forEach((budget) => appendBudget(budget));
+    return results;
+  }
+
+  Object.entries(budgets).forEach(([key, value]) => {
+    if (!value) return;
+    const lowerKey = key.toLowerCase();
+    const fallbackScope = lowerKey.includes('overall')
+      ? 'overall'
+      : lowerKey.includes('rule')
+      ? 'rule'
+      : undefined;
+
+    if (Array.isArray(value)) {
+      value.forEach((item) => appendBudget(item, fallbackScope));
+    } else if (typeof value === 'object') {
+      appendBudget(value, fallbackScope);
+    }
+  });
+
+  return results;
+};
+
+const BudgetModal = ({
+  isOpen,
+  onClose,
+  onSave,
   editingBudget,
-  selectedSubcategory 
+  selectedSubcategory
 }) => {
+  const normalizedBudgets = React.useMemo(
+    () => normalizeBudgetCollection(selectedSubcategory?.budgets),
+    [selectedSubcategory]
+  );
+
   const hasExistingOverall = React.useMemo(() => {
-    if (!selectedSubcategory?.budgets) return false;
-    return selectedSubcategory.budgets.some(
+    return normalizedBudgets.some(
       (budget) =>
         budget.record_scope === "overall" &&
         (!editingBudget || editingBudget.subcategory_budget_id !== budget.subcategory_budget_id)
     );
-  }, [selectedSubcategory, editingBudget]);
+  }, [normalizedBudgets, editingBudget]);
 
   const [budgetForm, setBudgetForm] = useState({
     record_scope: "rule",
