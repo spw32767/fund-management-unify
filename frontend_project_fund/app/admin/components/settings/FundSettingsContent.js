@@ -225,13 +225,19 @@ export default function FundSettingsContent({ onNavigate }) {
           seenIds.add(budgetId);
           results.push({
             ...budget,
-            record_scope: String(budget.record_scope || fallbackScope || '').toLowerCase(),
+            record_scope: String(budget.record_scope || fallbackScope || '')
+              .trim()
+              .toLowerCase(),
           });
         };
 
         if (Array.isArray(rawBudgets)) {
           rawBudgets.forEach((budget) => addBudget(budget));
           return results;
+        }
+
+        if (Array.isArray(rawBudgets?.budgets)) {
+          rawBudgets.budgets.forEach((budget) => addBudget(budget));
         }
 
         const overallCandidates = [
@@ -279,7 +285,16 @@ export default function FundSettingsContent({ onNavigate }) {
           .map((subcategory, subIndex) => {
             const displayNumber = `${categoryNumber}.${subIndex + 1}`;
 
-            const budgets = normalizeBudgetRecords(subcategory.budgets)
+            const rawBudgetSource =
+              subcategory.budgets ||
+              subcategory.subcategory_budgets ||
+              subcategory.budget_policies ||
+              subcategory.budgetPolicies ||
+              subcategory.budget_configs ||
+              subcategory.budgetConfigs ||
+              subcategory.budget;
+
+            const budgets = normalizeBudgetRecords(rawBudgetSource)
               .map((budget) => ({
                 ...budget,
                 record_scope: String(budget.record_scope || '').toLowerCase(),
