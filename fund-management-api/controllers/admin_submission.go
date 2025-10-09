@@ -18,18 +18,15 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
+	"unicode"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
 
 const researchFundCategoryKeyword = "ทุนส่งเสริมการวิจัย"
-
-var researchFundCategoryIDs = map[int]struct{}{
-	1:  {},
-	15: {},
-}
 
 var (
 	errSubmissionNotResearchFund   = errors.New("submission does not belong to research fund category")
@@ -38,6 +35,9 @@ var (
 	errMissingFundDetail           = errors.New("submission is missing fund application detail")
 	errMissingApplicant            = errors.New("submission is missing applicant information")
 	errPaymentAttachmentRequired   = errors.New("payment events require at least one attachment")
+
+	researchFundCategoryCache            sync.Map
+	researchFundCategoryKeywordCollapsed = normalizeCategoryName(researchFundCategoryKeyword)
 )
 
 // ==============================
@@ -1294,8 +1294,55 @@ func isResearchFundCategoryID(id int) bool {
 	if id <= 0 {
 		return false
 	}
-	_, ok := researchFundCategoryIDs[id]
-	return ok
+
+	if cached, ok := researchFundCategoryCache.Load(id); ok {
+		if matched, valid := cached.(bool); valid {
+			return matched
+		}
+	}
+
+	var category models.FundCategory
+	err := config.DB.Select("category_name").First(&category, "category_id = ?", id).Error
+	if err != nil {
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			log.Printf("[isResearchFundCategoryID] lookup category %d failed: %v", id, err)
+		}
+		researchFundCategoryCache.Store(id, false)
+		return false
+	}
+
+	matched := matchesResearchFundCategoryName(category.CategoryName)
+	researchFundCategoryCache.Store(id, matched)
+	return matched
+}
+
+func matchesResearchFundCategoryName(value string) bool {
+	normalized := normalizeCategoryName(value)
+	if normalized == "" || researchFundCategoryKeywordCollapsed == "" {
+		return false
+	}
+	if strings.Contains(normalized, researchFundCategoryKeywordCollapsed) {
+		return true
+	}
+	if strings.Contains(researchFundCategoryKeywordCollapsed, normalized) {
+		return true
+	}
+	return false
+}
+
+func normalizeCategoryName(value string) string {
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" {
+		return ""
+	}
+	lowered := strings.ToLower(trimmed)
+	cleaned := strings.Map(func(r rune) rune {
+		if unicode.IsSpace(r) || r == '​' || r == '‌' || r == '‍' {
+			return -1
+		}
+		return r
+	}, lowered)
+	return cleaned
 }
 
 func submissionMatchesResearchFundCategoryID(submission *models.Submission) bool {
