@@ -20,8 +20,35 @@ const flattenBudgetCollection = (rawBudgets) => {
 
   const results = [];
   const seenIds = new Set();
+  const seenObjects = typeof WeakSet === 'function' ? new WeakSet() : null;
+
+  const isBudgetLike = (candidate) => {
+    if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate)) return false;
+    return (
+      'subcategory_budget_id' in candidate ||
+      'budget_id' in candidate ||
+      'record_scope' in candidate ||
+      'max_amount_per_grant' in candidate ||
+      'max_amount_per_year' in candidate ||
+      'max_grants' in candidate ||
+      'fund_description' in candidate ||
+      'level' in candidate
+    );
+  };
 
   const pushBudget = (budget, fallbackScope) => {
+    if (!budget || typeof budget !== 'object') return;
+
+    if (seenObjects) {
+      if (seenObjects.has(budget)) return;
+      seenObjects.add(budget);
+    }
+
+    if (!isBudgetLike(budget)) {
+      Object.values(budget).forEach((nested) => traverse(nested, fallbackScope));
+      return;
+    }
+
     const normalized = normalizeBudgetRecord(budget, fallbackScope);
     if (!normalized) return;
 
@@ -35,6 +62,17 @@ const flattenBudgetCollection = (rawBudgets) => {
     results.push(normalized);
   };
 
+  const traverse = (value, fallbackScope) => {
+    if (!value) return;
+    if (Array.isArray(value)) {
+      value.forEach((item) => traverse(item, fallbackScope));
+      return;
+    }
+    if (typeof value === 'object' && value !== rawBudgets) {
+      pushBudget(value, fallbackScope);
+    }
+  };
+
   if (Array.isArray(rawBudgets)) {
     rawBudgets.forEach((budget) => pushBudget(budget));
     return results;
@@ -45,18 +83,14 @@ const flattenBudgetCollection = (rawBudgets) => {
     { value: rawBudgets.overall_budget, scope: 'overall' },
     { value: rawBudgets.overallBudget, scope: 'overall' },
     { value: rawBudgets.rule, scope: 'rule' },
-    { value: rawBudgets.rules, scope: 'rule', isArray: true },
-    { value: rawBudgets.rule_budgets, scope: 'rule', isArray: true },
-    { value: rawBudgets.ruleBudgets, scope: 'rule', isArray: true },
+    { value: rawBudgets.rules, scope: 'rule' },
+    { value: rawBudgets.rule_budgets, scope: 'rule' },
+    { value: rawBudgets.ruleBudgets, scope: 'rule' },
   ];
 
-  candidateGroups.forEach(({ value, scope, isArray }) => {
+  candidateGroups.forEach(({ value, scope }) => {
     if (!value) return;
-    if (isArray && Array.isArray(value)) {
-      value.forEach((item) => pushBudget(item, scope));
-    } else if (!isArray) {
-      pushBudget(value, scope);
-    }
+    traverse(value, scope);
   });
 
   Object.entries(rawBudgets).forEach(([key, value]) => {
@@ -69,14 +103,7 @@ const flattenBudgetCollection = (rawBudgets) => {
       ? 'rule'
       : undefined;
 
-    if (Array.isArray(value)) {
-      value.forEach((item) => pushBudget(item, inferredScope));
-      return;
-    }
-
-    if (typeof value === 'object' && value !== rawBudgets) {
-      pushBudget(value, inferredScope);
-    }
+    traverse(value, inferredScope);
   });
 
   return results;

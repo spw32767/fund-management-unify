@@ -231,12 +231,31 @@ export default function FundSettingsContent({ onNavigate }) {
         const seenIds = new Set();
         const seenObjects = typeof WeakSet === 'function' ? new WeakSet() : null;
 
+        const isBudgetLike = (candidate) => {
+          if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate)) return false;
+          return (
+            'subcategory_budget_id' in candidate ||
+            'budget_id' in candidate ||
+            'record_scope' in candidate ||
+            'max_amount_per_grant' in candidate ||
+            'max_amount_per_year' in candidate ||
+            'max_grants' in candidate ||
+            'fund_description' in candidate ||
+            'level' in candidate
+          );
+        };
+
         const addBudget = (budget, fallbackScope) => {
           if (!budget || typeof budget !== 'object') return;
 
           if (seenObjects) {
             if (seenObjects.has(budget)) return;
             seenObjects.add(budget);
+          }
+
+          if (!isBudgetLike(budget)) {
+            Object.values(budget).forEach((nested) => traverse(nested, fallbackScope));
+            return;
           }
 
           const budgetId = budget.subcategory_budget_id ?? budget.budget_id ?? `${fallbackScope || 'unknown'}-${
@@ -251,6 +270,17 @@ export default function FundSettingsContent({ onNavigate }) {
           });
         };
 
+        const traverse = (value, fallbackScope) => {
+          if (!value) return;
+          if (Array.isArray(value)) {
+            value.forEach((item) => traverse(item, fallbackScope));
+            return;
+          }
+          if (typeof value === 'object') {
+            addBudget(value, fallbackScope);
+          }
+        };
+
         if (Array.isArray(rawBudgets)) {
           rawBudgets.forEach((budget) => addBudget(budget));
           return results;
@@ -262,7 +292,7 @@ export default function FundSettingsContent({ onNavigate }) {
           rawBudgets.overallBudget,
         ];
 
-        overallCandidates.forEach((budget) => addBudget(budget, 'overall'));
+        overallCandidates.forEach((budget) => traverse(budget, 'overall'));
 
         const ruleCandidates = [
           rawBudgets.rules,
@@ -273,11 +303,7 @@ export default function FundSettingsContent({ onNavigate }) {
           rawBudgets.children,
         ];
 
-        ruleCandidates.forEach((group) => {
-          if (Array.isArray(group)) {
-            group.forEach((budget) => addBudget(budget, 'rule'));
-          }
-        });
+        ruleCandidates.forEach((group) => traverse(group, 'rule'));
 
         Object.entries(rawBudgets).forEach(([key, value]) => {
           if (!value) return;
@@ -289,11 +315,7 @@ export default function FundSettingsContent({ onNavigate }) {
             ? 'rule'
             : undefined;
 
-          if (Array.isArray(value)) {
-            value.forEach((item) => addBudget(item, inferredScope));
-          } else if (value && typeof value === 'object') {
-            addBudget(value, inferredScope);
-          }
+          traverse(value, inferredScope);
         });
 
         if (results.length === 0) {

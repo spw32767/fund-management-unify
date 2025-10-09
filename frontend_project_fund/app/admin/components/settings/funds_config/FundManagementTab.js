@@ -63,9 +63,34 @@ const ensureBudgetArray = (budgets) => {
 
   const results = [];
   const seenIds = new Set();
+  const seenObjects = typeof WeakSet === 'function' ? new WeakSet() : null;
+
+  const isBudgetLike = (candidate) => {
+    if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate)) return false;
+    return (
+      'subcategory_budget_id' in candidate ||
+      'budget_id' in candidate ||
+      'record_scope' in candidate ||
+      'max_amount_per_grant' in candidate ||
+      'max_amount_per_year' in candidate ||
+      'max_grants' in candidate ||
+      'fund_description' in candidate ||
+      'level' in candidate
+    );
+  };
 
   const addBudget = (budget, fallbackScope) => {
     if (!budget || typeof budget !== 'object') return;
+
+    if (seenObjects) {
+      if (seenObjects.has(budget)) return;
+      seenObjects.add(budget);
+    }
+
+    if (!isBudgetLike(budget)) {
+      Object.values(budget).forEach((nested) => traverse(nested, fallbackScope));
+      return;
+    }
 
     const scope = normalizeScope(budget.record_scope || fallbackScope);
     const identifier =
@@ -80,6 +105,17 @@ const ensureBudgetArray = (budgets) => {
       ...budget,
       record_scope: scope,
     });
+  };
+
+  const traverse = (value, fallbackScope) => {
+    if (!value) return;
+    if (Array.isArray(value)) {
+      value.forEach((item) => traverse(item, fallbackScope));
+      return;
+    }
+    if (typeof value === 'object') {
+      addBudget(value, fallbackScope);
+    }
   };
 
   if (Array.isArray(budgets)) {
@@ -97,11 +133,7 @@ const ensureBudgetArray = (budgets) => {
       ? 'rule'
       : undefined;
 
-    if (Array.isArray(value)) {
-      value.forEach((item) => addBudget(item, fallbackScope));
-    } else if (typeof value === 'object') {
-      addBudget(value, fallbackScope);
-    }
+    traverse(value, fallbackScope);
   });
 
   return results;
