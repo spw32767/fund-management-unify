@@ -858,16 +858,38 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
       const id = targetSubmissionId ?? submissionId;
       if (!id) return;
 
+      const requestContext = {
+        requestedSubmissionId: targetSubmissionId ?? null,
+        resolvedSubmissionId: id,
+        componentSubmissionId: submissionId ?? null,
+        categoryId: submissionCategoryId ?? null,
+        categoryName: submissionCategoryName || '',
+        detectedResearchFund: isResearchFundCategory(submissionCategoryId, submissionCategoryName),
+        keywords: RESEARCH_FUND_KEYWORDS,
+        subcategoryId:
+          submission?.subcategory_id ??
+          submission?.Subcategory?.subcategory_id ??
+          submission?.FundApplicationDetail?.Subcategory?.subcategory_id ??
+          null,
+        subcategoryName:
+          submission?.FundApplicationDetail?.Subcategory?.subcategory_name ??
+          submission?.Subcategory?.subcategory_name ??
+          submission?.subcategory_name ??
+          '',
+      };
+
+      console.groupCollapsed(
+        '[GeneralSubmissionDetails] Research fund events request',
+        `submission:${id}`
+      );
+      console.log('Timeline request context', requestContext);
+
       setResearchLoading(true);
       setResearchError(null);
       try {
         const { events = [], totals, meta } = await adminSubmissionAPI.getResearchFundEvents(id);
         const sorted = sortEventsByCreatedAt(events);
         const enriched = await enhanceResearchEventAttachments(sorted);
-        console.groupCollapsed(
-          '[GeneralSubmissionDetails] Research fund events fetched',
-          `submission:${id}`
-        );
         console.log('Raw events from API', events);
         console.log('Sorted events (oldest first)', sorted);
         console.log('Enriched events with file metadata', enriched);
@@ -880,6 +902,11 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
         setResearchTotals(totals || null);
         setIsFundClosed(Boolean(totals?.is_closed));
       } catch (error) {
+        console.error('Research fund events request failed', error);
+        if (error?.response?.data) {
+          console.log('API error payload', error.response.data);
+        }
+
         const statusCode = error?.response?.status ?? error?.status;
         const apiMessage =
           error?.response?.data?.error ||
@@ -896,6 +923,7 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
           console.error('load research fund events failed', error);
           setResearchError(error);
         }
+        console.groupEnd();
         setResearchEvents([]);
         setResearchTotals(null);
         setIsFundClosed(false);
@@ -903,7 +931,14 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
         setResearchLoading(false);
       }
     },
-    [submissionId, sortEventsByCreatedAt, enhanceResearchEventAttachments]
+    [
+      submissionId,
+      submissionCategoryId,
+      submissionCategoryName,
+      submission,
+      sortEventsByCreatedAt,
+      enhanceResearchEventAttachments,
+    ]
   );
 
   useEffect(() => {
