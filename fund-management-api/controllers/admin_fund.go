@@ -16,6 +16,27 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+func nullFloat64ToInterface(value sql.NullFloat64) interface{} {
+	if value.Valid {
+		return value.Float64
+	}
+	return nil
+}
+
+func nullInt64ToInterface(value sql.NullInt64) interface{} {
+	if value.Valid {
+		return int(value.Int64)
+	}
+	return nil
+}
+
+func nullStringToInterface(value sql.NullString) interface{} {
+	if value.Valid {
+		return value.String
+	}
+	return nil
+}
+
 // ===================== FUND CATEGORIES MANAGEMENT =====================
 
 // GetAllCategories - Admin can view all categories
@@ -1277,6 +1298,7 @@ func GetAllSubcategoryBudgets(c *gin.Context) {
 
 	subcategoryID := c.Query("subcategory_id")
 	recordScope := c.Query("record_scope")
+	yearID := c.Query("year_id")
 	scopeIsAll := strings.EqualFold(recordScope, "all")
 	if recordScope == "" {
 		recordScope = "rule"
@@ -1301,18 +1323,24 @@ func GetAllSubcategoryBudgets(c *gin.Context) {
 			sb.comment,
 			sb.create_at,
 			sb.update_at,
-			fs.subcategory_name,
-			fc.category_name
-		FROM subcategory_budgets sb
-		LEFT JOIN fund_subcategories fs ON sb.subcategory_id = fs.subcategory_id
-		LEFT JOIN fund_categories fc ON fs.category_id = fc.category_id
-		WHERE sb.delete_at IS NULL`
+                        fs.subcategory_name,
+                        fc.category_name,
+                        fc.year_id
+                FROM subcategory_budgets sb
+                LEFT JOIN fund_subcategories fs ON sb.subcategory_id = fs.subcategory_id
+                LEFT JOIN fund_categories fc ON fs.category_id = fc.category_id
+                WHERE sb.delete_at IS NULL`
 
 	var args []interface{}
 
 	if subcategoryID != "" {
 		baseQuery += " AND sb.subcategory_id = ?"
 		args = append(args, subcategoryID)
+	}
+
+	if yearID != "" {
+		baseQuery += " AND fc.year_id = ?"
+		args = append(args, yearID)
 	}
 
 	if !scopeIsAll {
@@ -1340,21 +1368,22 @@ func GetAllSubcategoryBudgets(c *gin.Context) {
 			budgetID          int
 			subcategoryID     int
 			recordScope       string
-			allocatedAmount   float64
-			usedAmount        float64
-			remainingBudget   float64
-			maxAmountPerYear  *float64
-			maxGrants         *int
-			maxAmountPerGrant float64
-			remainingGrant    *int
-			level             *string
+			allocatedAmount   sql.NullFloat64
+			usedAmount        sql.NullFloat64
+			remainingBudget   sql.NullFloat64
+			maxAmountPerYear  sql.NullFloat64
+			maxGrants         sql.NullInt64
+			maxAmountPerGrant sql.NullFloat64
+			remainingGrant    sql.NullInt64
+			level             sql.NullString
 			status            string
-			fundDescription   *string
-			comment           *string
+			fundDescription   sql.NullString
+			comment           sql.NullString
 			createAt          *time.Time
 			updateAt          *time.Time
-			subcategoryName   *string
-			categoryName      *string
+			subcategoryName   sql.NullString
+			categoryName      sql.NullString
+			categoryYear      sql.NullInt64
 		)
 
 		err := rows.Scan(
@@ -1376,6 +1405,7 @@ func GetAllSubcategoryBudgets(c *gin.Context) {
 			&updateAt,
 			&subcategoryName,
 			&categoryName,
+			&categoryYear,
 		)
 		if err != nil {
 			continue
@@ -1385,23 +1415,24 @@ func GetAllSubcategoryBudgets(c *gin.Context) {
 			"subcategory_budget_id": budgetID,
 			"subcategory_id":        subcategoryID,
 			"record_scope":          recordScope,
-			"allocated_amount":      allocatedAmount,
-			"used_amount":           usedAmount,
-			"remaining_budget":      remainingBudget,
-			"max_amount_per_year":   maxAmountPerYear,
-			"max_grants":            maxGrants,
-			"max_amount_per_grant":  maxAmountPerGrant,
-			"remaining_grant":       remainingGrant,
-			"level":                 level,
+			"allocated_amount":      nullFloat64ToInterface(allocatedAmount),
+			"used_amount":           nullFloat64ToInterface(usedAmount),
+			"remaining_budget":      nullFloat64ToInterface(remainingBudget),
+			"max_amount_per_year":   nullFloat64ToInterface(maxAmountPerYear),
+			"max_grants":            nullInt64ToInterface(maxGrants),
+			"max_amount_per_grant":  nullFloat64ToInterface(maxAmountPerGrant),
+			"remaining_grant":       nullInt64ToInterface(remainingGrant),
+			"level":                 nullStringToInterface(level),
 			"status":                status,
-			"fund_description":      fundDescription,
-			"comment":               comment,
+			"fund_description":      nullStringToInterface(fundDescription),
+			"comment":               nullStringToInterface(comment),
 			"create_at":             createAt,
 			"update_at":             updateAt,
+			"year_id":               nullInt64ToInterface(categoryYear),
 			"subcategory": map[string]interface{}{
 				"subcategory_id":   subcategoryID,
-				"subcategory_name": subcategoryName,
-				"category_name":    categoryName,
+				"subcategory_name": nullStringToInterface(subcategoryName),
+				"category_name":    nullStringToInterface(categoryName),
 			},
 		}
 
@@ -1457,21 +1488,21 @@ func GetSubcategoryBudget(c *gin.Context) {
 		budgetIDInt       int
 		subcategoryID     int
 		recordScope       string
-		allocatedAmount   float64
-		usedAmount        float64
-		remainingBudget   float64
-		maxAmountPerYear  *float64
-		maxGrants         *int
-		maxAmountPerGrant float64
-		remainingGrant    *int
-		level             *string
+		allocatedAmount   sql.NullFloat64
+		usedAmount        sql.NullFloat64
+		remainingBudget   sql.NullFloat64
+		maxAmountPerYear  sql.NullFloat64
+		maxGrants         sql.NullInt64
+		maxAmountPerGrant sql.NullFloat64
+		remainingGrant    sql.NullInt64
+		level             sql.NullString
 		status            string
-		fundDescription   *string
-		comment           *string
+		fundDescription   sql.NullString
+		comment           sql.NullString
 		createAt          *time.Time
 		updateAt          *time.Time
-		subcategoryName   *string
-		categoryName      *string
+		subcategoryName   sql.NullString
+		categoryName      sql.NullString
 		categoryID        *int
 	)
 
@@ -1506,24 +1537,24 @@ func GetSubcategoryBudget(c *gin.Context) {
 		"subcategory_budget_id": budgetIDInt,
 		"subcategory_id":        subcategoryID,
 		"record_scope":          recordScope,
-		"allocated_amount":      allocatedAmount,
-		"used_amount":           usedAmount,
-		"remaining_budget":      remainingBudget,
-		"max_amount_per_year":   maxAmountPerYear,
-		"max_grants":            maxGrants,
-		"max_amount_per_grant":  maxAmountPerGrant,
-		"remaining_grant":       remainingGrant,
-		"level":                 level,
+		"allocated_amount":      nullFloat64ToInterface(allocatedAmount),
+		"used_amount":           nullFloat64ToInterface(usedAmount),
+		"remaining_budget":      nullFloat64ToInterface(remainingBudget),
+		"max_amount_per_year":   nullFloat64ToInterface(maxAmountPerYear),
+		"max_grants":            nullInt64ToInterface(maxGrants),
+		"max_amount_per_grant":  nullFloat64ToInterface(maxAmountPerGrant),
+		"remaining_grant":       nullInt64ToInterface(remainingGrant),
+		"level":                 nullStringToInterface(level),
 		"status":                status,
-		"fund_description":      fundDescription,
-		"comment":               comment,
+		"fund_description":      nullStringToInterface(fundDescription),
+		"comment":               nullStringToInterface(comment),
 		"create_at":             createAt,
 		"update_at":             updateAt,
 		"subcategory": map[string]interface{}{
 			"subcategory_id":   subcategoryID,
-			"subcategory_name": subcategoryName,
+			"subcategory_name": nullStringToInterface(subcategoryName),
 			"category_id":      categoryID,
-			"category_name":    categoryName,
+			"category_name":    nullStringToInterface(categoryName),
 		},
 	}
 
@@ -1718,8 +1749,8 @@ func UpdateSubcategoryBudget(c *gin.Context) {
 	// Check if budget exists
 	var existingBudget struct {
 		SubcategoryBudgetID int
-		AllocatedAmount     float64
-		UsedAmount          float64
+		AllocatedAmount     sql.NullFloat64
+		UsedAmount          sql.NullFloat64
 		RecordScope         string
 	}
 
@@ -1742,7 +1773,11 @@ func UpdateSubcategoryBudget(c *gin.Context) {
 		args = append(args, *req.AllocatedAmount)
 
 		// Update remaining_budget when allocated_amount changes
-		newRemainingBudget := *req.AllocatedAmount - existingBudget.UsedAmount
+		usedAmount := 0.0
+		if existingBudget.UsedAmount.Valid {
+			usedAmount = existingBudget.UsedAmount.Float64
+		}
+		newRemainingBudget := *req.AllocatedAmount - usedAmount
 		setParts = append(setParts, "remaining_budget = ?")
 		args = append(args, newRemainingBudget)
 	}
@@ -1865,7 +1900,7 @@ func DeleteSubcategoryBudget(c *gin.Context) {
 	// Check if budget exists and has any usage
 	var budgetInfo struct {
 		SubcategoryBudgetID int
-		UsedAmount          float64
+		UsedAmount          sql.NullFloat64
 		SubcategoryID       int
 	}
 
@@ -1878,10 +1913,15 @@ func DeleteSubcategoryBudget(c *gin.Context) {
 	}
 
 	// Check if budget has been used
-	if budgetInfo.UsedAmount > 0 {
+	usedAmount := 0.0
+	if budgetInfo.UsedAmount.Valid {
+		usedAmount = budgetInfo.UsedAmount.Float64
+	}
+
+	if usedAmount > 0 {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error":   "Cannot delete budget that has been used",
-			"details": fmt.Sprintf("Budget has used amount: ฿%.2f", budgetInfo.UsedAmount),
+			"details": fmt.Sprintf("Budget has used amount: ฿%.2f", usedAmount),
 		})
 		return
 	}
@@ -2121,7 +2161,7 @@ func CopyFundConfigurationToYear(c *gin.Context) {
 		}
 
 		rows, err := tx.Table("subcategory_budgets").
-			Select("subcategory_id, record_scope, allocated_amount, max_amount_per_year, max_grants, max_amount_per_grant, level, status, fund_description, comment").
+			Select("subcategory_id, record_scope, allocated_amount, remaining_budget, max_amount_per_year, max_grants, max_amount_per_grant, level, status, fund_description, comment").
 			Where("delete_at IS NULL AND subcategory_id IN (?)", originalSubcategoryIDs).
 			Rows()
 		if err != nil {
@@ -2132,22 +2172,24 @@ func CopyFundConfigurationToYear(c *gin.Context) {
 
 		for rows.Next() {
 			var (
-				subcategoryID     int
-				recordScope       string
-				allocatedAmount   float64
-				maxAmountPerYear  sql.NullFloat64
-				maxGrants         sql.NullInt64
-				maxAmountPerGrant sql.NullFloat64
-				level             sql.NullString
-				statusValue       sql.NullString
-				fundDescription   sql.NullString
-				commentValue      sql.NullString
+				subcategoryID       int
+				recordScope         string
+				allocatedAmount     sql.NullFloat64
+				remainingBudgetOrig sql.NullFloat64
+				maxAmountPerYear    sql.NullFloat64
+				maxGrants           sql.NullInt64
+				maxAmountPerGrant   sql.NullFloat64
+				level               sql.NullString
+				statusValue         sql.NullString
+				fundDescription     sql.NullString
+				commentValue        sql.NullString
 			)
 
 			if err := rows.Scan(
 				&subcategoryID,
 				&recordScope,
 				&allocatedAmount,
+				&remainingBudgetOrig,
 				&maxAmountPerYear,
 				&maxGrants,
 				&maxAmountPerGrant,
@@ -2167,15 +2209,22 @@ func CopyFundConfigurationToYear(c *gin.Context) {
 
 			scope := strings.ToLower(recordScope)
 
-			insertAllocated := 0.0
-			remainingBudget := 0.0
+			var insertAllocated interface{}
+			var remainingBudget interface{}
 			var maxAmountPerYearVal interface{}
 			var maxGrantsVal interface{}
 			var remainingGrant interface{}
 
 			if scope == "overall" {
-				insertAllocated = allocatedAmount
-				remainingBudget = allocatedAmount
+				if allocatedAmount.Valid {
+					insertAllocated = allocatedAmount.Float64
+				}
+
+				if remainingBudgetOrig.Valid {
+					remainingBudget = remainingBudgetOrig.Float64
+				} else if allocatedAmount.Valid {
+					remainingBudget = allocatedAmount.Float64
+				}
 
 				if maxAmountPerYear.Valid && maxAmountPerYear.Float64 > 0 {
 					maxAmountPerYearVal = maxAmountPerYear.Float64
@@ -2197,6 +2246,8 @@ func CopyFundConfigurationToYear(c *gin.Context) {
 				maxAmountPerYearVal = nil
 				maxGrantsVal = nil
 				remainingGrant = nil
+				insertAllocated = nil
+				remainingBudget = nil
 			}
 
 			var levelVal interface{}

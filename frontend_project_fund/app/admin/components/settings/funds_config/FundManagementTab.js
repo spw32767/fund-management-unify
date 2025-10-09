@@ -56,7 +56,7 @@ const getSelectedYearDisplay = (selectedYear, years = []) => {
 const describeTargetRoles = (targetRoles) =>
   targetRolesUtils.formatTargetRolesForDisplay(targetRoles);
 
-const normalizeScope = (scope) => String(scope || "").toLowerCase();
+const normalizeScope = (scope) => String(scope || "").trim().toLowerCase();
 
 const resolveBudgetOrder = (budget = {}) => {
   const candidates = [

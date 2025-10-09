@@ -312,12 +312,27 @@ export const adminAPI = {
   // Get all subcategory budgets
   async getSubcategoryBudgets(params = {}) {
     try {
-      const queryParams = {
-        record_scope: 'all',
-        ...params,
-      };
+      const queryParams = Object.fromEntries(
+        Object.entries({
+          record_scope: 'all',
+          ...params,
+        }).filter(([, value]) => value !== undefined && value !== null && value !== '')
+      );
       const response = await apiClient.get('/admin/budgets', queryParams);
-      return response;
+
+      if (Array.isArray(response)) {
+        return {
+          budgets: response,
+          total: response.length,
+        };
+      }
+
+      const budgets = Array.isArray(response?.budgets) ? response.budgets : [];
+      return {
+        ...response,
+        budgets,
+        total: typeof response?.total === 'number' ? response.total : budgets.length,
+      };
     } catch (error) {
       console.error('Error fetching subcategory budgets:', error);
       throw error;
@@ -327,11 +342,21 @@ export const adminAPI = {
   // Get budgets (alias)
   async getBudgets(subcategoryId = null) {
     try {
-      const params = subcategoryId
-        ? { subcategory_id: subcategoryId, record_scope: 'all' }
-        : { record_scope: 'all' };
+      const params = Object.fromEntries(
+        Object.entries(
+          subcategoryId
+            ? { subcategory_id: subcategoryId, record_scope: 'all' }
+            : { record_scope: 'all' }
+        ).filter(([, value]) => value !== undefined && value !== null && value !== '')
+      );
       const response = await apiClient.get('/admin/budgets', params);
-      return response.budgets || [];
+      if (Array.isArray(response)) {
+        return response;
+      }
+      if (Array.isArray(response?.budgets)) {
+        return response.budgets;
+      }
+      return [];
     } catch (error) {
       console.error('Error fetching budgets:', error);
       throw error;
@@ -537,53 +562,64 @@ export const adminAPI = {
     try {
       // Get categories for the year
       const categories = await this.getCategories(yearId);
-      
-      // Get all subcategories and budgets for each category
+
+      let budgetLookup = new Map();
+      try {
+        const budgetResponse = await this.getSubcategoryBudgets({
+          year_id: yearId,
+          record_scope: 'all',
+        });
+
+        const budgets = Array.isArray(budgetResponse?.budgets)
+          ? budgetResponse.budgets
+          : [];
+
+        budgetLookup = budgets.reduce((map, budget) => {
+          const subcategoryId = budget?.subcategory_id;
+          if (!subcategoryId) return map;
+
+          const existing = map.get(subcategoryId) || [];
+          existing.push({
+            ...budget,
+            record_scope: String(budget?.record_scope || '').trim().toLowerCase(),
+          });
+          map.set(subcategoryId, existing);
+          return map;
+        }, new Map());
+      } catch (error) {
+        console.error('Error preloading budgets for categories:', error);
+      }
+
       const categoriesWithDetails = await Promise.all(
         categories.map(async (category) => {
           try {
-            // Get subcategories for this category
             const subcategories = await this.getSubcategories(category.category_id);
-            
-            // Get budgets for each subcategory
-            const subcategoriesWithBudgets = await Promise.all(
-              subcategories.map(async (subcategory) => {
-                try {
-                  const budgets = await this.getBudgets(subcategory.subcategory_id);
-                  
-                  // ใช้ targetRolesUtils แทนการ parse เอง
-                  const targetRoles = targetRolesUtils.parseTargetRoles(subcategory.target_roles);
-                  
-                  return {
-                    ...subcategory,
-                    target_roles: targetRoles,
-                    budgets: budgets
-                  };
-                } catch (error) {
-                  console.error(`Error fetching budgets for subcategory ${subcategory.subcategory_id}:`, error);
-                  return {
-                    ...subcategory,
-                    target_roles: [],
-                    budgets: []
-                  };
-                }
-              })
-            );
-            
+
+            const subcategoriesWithBudgets = subcategories.map((subcategory) => {
+              const targetRoles = targetRolesUtils.parseTargetRoles(subcategory.target_roles);
+              const budgets = budgetLookup.get(subcategory.subcategory_id) || [];
+
+              return {
+                ...subcategory,
+                target_roles: targetRoles,
+                budgets,
+              };
+            });
+
             return {
               ...category,
-              subcategories: subcategoriesWithBudgets
+              subcategories: subcategoriesWithBudgets,
             };
           } catch (error) {
             console.error(`Error fetching subcategories for category ${category.category_id}:`, error);
             return {
               ...category,
-              subcategories: []
+              subcategories: [],
             };
           }
         })
       );
-      
+
       return categoriesWithDetails;
     } catch (error) {
       console.error('Error fetching categories with details:', error);
