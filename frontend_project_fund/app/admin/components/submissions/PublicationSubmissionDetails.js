@@ -512,10 +512,26 @@ function ApprovalPanel({ submission, pubDetail, requestedSummary, approvedSummar
   }
 
   // Defaults from "ข้อมูลการเงิน"
-  const requestedReward = requestedSummary?.reward ?? Number(pubDetail?.reward_amount || 0);
-  const requestedRevision = requestedSummary?.revision ?? Number(pubDetail?.revision_fee || pubDetail?.editing_fee || 0);
-  const requestedPublication = requestedSummary?.publication ?? Number(pubDetail?.publication_fee || pubDetail?.page_charge || 0);
-  const extFunding = requestedSummary?.external ?? Number(pubDetail?.external_funding_amount || 0);
+  const requestedReward = requestedSummary?.reward ??
+    parseAmount(pubDetail?.reward_amount ?? submission?.reward_amount) ??
+    0;
+  const requestedRevision = requestedSummary?.revision ??
+    parseAmount(
+      pubDetail?.revision_fee ??
+      pubDetail?.editing_fee ??
+      submission?.revision_fee
+    ) ??
+    0;
+  const requestedPublication = requestedSummary?.publication ??
+    parseAmount(
+      pubDetail?.publication_fee ??
+      pubDetail?.page_charge ??
+      submission?.publication_fee
+    ) ??
+    0;
+  const extFunding = requestedSummary?.external ??
+    parseAmount(pubDetail?.external_funding_amount ?? submission?.external_funding_amount) ??
+    0;
   const requestedBaseTotal = requestedSummary?.baseTotal ?? (
     Number(requestedReward || 0) +
     Number(requestedRevision || 0) +
