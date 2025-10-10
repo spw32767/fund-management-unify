@@ -1944,7 +1944,11 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
       formData: normalizedFormData,
       applicant: currentUser
         ? {
-            prefix_name: currentUser.prefix_name || currentUser.title || '',
+            prefix_name:
+              currentUser.prefix ||
+              currentUser.prefix_name ||
+              currentUser.title ||
+              '',
             user_fname: currentUser.user_fname || currentUser.first_name || '',
             user_lname: currentUser.user_lname || currentUser.last_name || '',
             position_name: currentUser.position?.position_name || currentUser.position_name || '',
