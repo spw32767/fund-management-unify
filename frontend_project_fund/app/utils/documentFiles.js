@@ -99,7 +99,7 @@ const pickDocumentFileId = (doc, fileObject) => {
   );
 };
 
-const pickDocumentOriginalName = (doc, fileObject, storedPath, fallbackLabel) => {
+const pickDocumentOriginalName = (doc, fileObject, storedPath) => {
   return (
     pickFirstNonEmpty(
       fileObject?.original_name,
@@ -108,12 +108,9 @@ const pickDocumentOriginalName = (doc, fileObject, storedPath, fallbackLabel) =>
       fileObject?.file_original_name,
       fileObject?.display_name,
       fileObject?.file_name,
-      doc?.file_original_name,
-      doc?.original_filename,
-      doc?.original_name,
-      doc?.file_name,
       extractStoredFileName(storedPath),
-      fallbackLabel,
+      doc?.stored_path && extractStoredFileName(doc.stored_path),
+      doc?.storedPath && extractStoredFileName(doc.storedPath),
     ) ?? null
   );
 };
@@ -151,7 +148,7 @@ export const resolveDocumentFile = (doc, index) => {
   const fileObject = pickFileObject(doc);
   const storedPath = pickDocumentStoredPath(doc, fileObject);
   const fileId = pickDocumentFileId(doc, fileObject);
-  const originalName = pickDocumentOriginalName(doc, fileObject, storedPath, fallbackLabel);
+  const originalName = pickDocumentOriginalName(doc, fileObject, storedPath);
   const displayName = pickDocumentDisplayName(originalName, fallbackLabel);
 
   return {
@@ -159,7 +156,7 @@ export const resolveDocumentFile = (doc, index) => {
     hasFile: fileId !== null && fileId !== undefined,
     originalName,
     displayName,
-    downloadName: originalName ?? displayName,
+    downloadName: originalName ?? extractStoredFileName(storedPath) ?? displayName,
     storedPath,
     mimeType: pickDocumentMimeType(doc, fileObject),
     file: fileObject ?? null,

@@ -18,7 +18,7 @@ import apiClient from '@/app/lib/api';
 import { toast } from 'react-hot-toast';
 import Swal from 'sweetalert2';
 import { useStatusMap } from '@/app/hooks/useStatusMap';
-import { resolveDocumentFile } from '@/app/utils/documentFiles';
+import { pickFirstNonEmpty, resolveDocumentFile } from '@/app/utils/documentFiles';
 import 'sweetalert2/dist/sweetalert2.min.css';
 import { PDFDocument } from 'pdf-lib';
 import { AnimatePresence, motion } from 'motion/react';
@@ -266,25 +266,36 @@ const normalizeFundStatus = (value) => {
 
 const FUND_CLOSE_THRESHOLD = 0.01;
 
-const getAttachmentDisplayName = (file) => {
-  if (!file || typeof file !== 'object') return '';
-  if (file.display_name) return file.display_name;
-  if (file.original_name) return file.original_name;
-  return (
-    file.original_filename ||
-    file.file_name ||
-    file.name ||
-    file.filename ||
-    file.title ||
-    file.File?.original_name ||
-    file.File?.file_name ||
-    file.file?.original_name ||
-    file.file?.file_name ||
-    file.document_name ||
-    file.Document?.original_name ||
-    (typeof file.file_path === 'string' ? file.file_path.split('/').pop() : '') ||
-    ''
-  );
+const mergeAttachmentWithMeta = (file, meta, index) => {
+  if (!file || typeof file !== 'object') {
+    return file;
+  }
+
+  const resolved = (() => {
+    if (file.resolvedFile) return file.resolvedFile;
+    if (meta) return resolveDocumentFile({ ...file, file: meta }, index);
+    return resolveDocumentFile(file, index);
+  })();
+
+  const filePath =
+    pickFirstNonEmpty(
+      file.file_path,
+      resolved?.storedPath,
+      meta?.stored_path,
+      meta?.file_path,
+      meta?.url,
+    ) ?? null;
+
+  return {
+    ...file,
+    file_id: resolved?.fileId ?? file?.file_id ?? null,
+    original_name: resolved?.originalName ?? null,
+    file_name: resolved?.originalName ?? resolved?.displayName ?? null,
+    display_name: resolved?.displayName ?? file?.display_name ?? null,
+    file_path: filePath,
+    resolvedFile: resolved ?? null,
+    meta: meta ?? null,
+  };
 };
 
 const resolveApprovedAmount = (submission, fundDetail, fallback = null) => {
@@ -805,12 +816,14 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
           ? event.files
           : [];
 
-      attachmentsSource.forEach((file) => {
+      attachmentsSource.forEach((file, index) => {
         if (!file || typeof file !== 'object') return;
-        if (file.file_id == null) return;
-        const hasMetadata = Boolean(getAttachmentDisplayName(file)) || Boolean(file.file_path);
-        if (!hasMetadata && !cache.has(file.file_id)) {
-          missingIds.add(file.file_id);
+        const resolved = file.resolvedFile ?? resolveDocumentFile(file, index);
+        const fileId = resolved?.fileId ?? file.file_id ?? null;
+        if (fileId == null) return;
+        const hasMetadata = Boolean(resolved?.originalName) || Boolean(resolved?.storedPath) || Boolean(file.file_path);
+        if (!hasMetadata && !cache.has(fileId)) {
+          missingIds.add(fileId);
         }
       });
     });
@@ -852,53 +865,14 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
           ? event.files
           : [];
 
-      const normalizedAttachments = attachmentsSource.map((file) => {
+      const normalizedAttachments = attachmentsSource.map((file, index) => {
         if (!file || typeof file !== 'object') return file;
-        const meta = file.file_id != null ? cache.get(file.file_id) || null : null;
+        const fileIdFromSource = file.file_id ?? null;
+        const meta = fileIdFromSource != null && cache.has(fileIdFromSource)
+          ? cache.get(fileIdFromSource)
+          : null;
 
-        if (!meta) {
-          const fallbackDisplay = getAttachmentDisplayName(file);
-          return {
-            ...file,
-            display_name: fallbackDisplay || file.display_name || null,
-          };
-        }
-
-        const filePath =
-          file.file_path ||
-          meta.file_path ||
-          meta.stored_path ||
-          meta.url ||
-          null;
-
-        const originalName =
-          meta.original_name ||
-          file.original_name ||
-          meta.file_name ||
-          file.file_name ||
-          null;
-
-        const fileName =
-          meta.file_name ||
-          file.file_name ||
-          originalName ||
-          null;
-
-        const displayName =
-          getAttachmentDisplayName({ ...meta, ...file }) ||
-          originalName ||
-          fileName ||
-          null;
-
-        return {
-          ...file,
-          file_id: file.file_id ?? meta.file_id ?? null,
-          file_name: fileName,
-          original_name: originalName,
-          display_name: displayName,
-          file_path: filePath,
-          meta,
-        };
+        return mergeAttachmentWithMeta(file, meta, index);
       });
 
       const primaryAttachment = normalizedAttachments[0] || null;
@@ -2013,12 +1987,13 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
                                 <div className="space-y-2">
                                   {attachmentList.map((file, index) => {
                                     const fileKey = file.file_id ?? `${event.id || event.created_at}-file-${index}`;
-                                    const displayName = getAttachmentDisplayName(file);
+                                    const resolved = file.resolvedFile ?? resolveDocumentFile(file, index);
+                                    const displayName = resolved?.displayName || '';
+                                    const downloadName = resolved?.downloadName || displayName || `attachment-${index + 1}`;
                                     const fileLabel = `ไฟล์ที่ ${index + 1}`;
                                     const titleLabel = displayName
                                       ? `${fileLabel} ${displayName}`
                                       : fileLabel;
-                                    const downloadName = displayName || `attachment-${index + 1}`;
                                     return (
                                       <div
                                         key={fileKey}
