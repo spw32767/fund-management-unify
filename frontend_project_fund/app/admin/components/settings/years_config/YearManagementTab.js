@@ -120,9 +120,21 @@ const YearManagementTab = ({ years = [], onSaveYear, onDeleteYear }) => {
       cancelButtonText: "ยกเลิก",
       confirmButtonColor: "#d33",
     });
+
     if (!result.isConfirmed) return;
-    onDeleteYear(item);
-    Swal.fire("สำเร็จ", "ลบปีงบประมาณเรียบร้อย", "success");
+
+    try {
+      const deleted = await onDeleteYear(item, {
+        skipConfirm: true,
+        suppressToast: true,
+      });
+
+      if (deleted) {
+        Swal.fire("สำเร็จ", "ลบปีงบประมาณเรียบร้อย", "success");
+      }
+    } catch (error) {
+      console.error("Failed to delete year:", error);
+    }
   };
 
   // ====== UI ======
