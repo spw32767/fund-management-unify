@@ -515,8 +515,13 @@ export default function GeneralSubmissionDetailsDept({ submissionId, onBack }) {
         const docsFallback = submission.documents || submission.submission_documents || [];
         const rawDocs = (Array.isArray(docsApi) && docsApi.length > 0) ? docsApi : docsFallback;
 
-        const merged = (rawDocs || []).map((d, i) => {
-          const fileId = d.file_id ?? d.File?.file_id ?? d.file?.file_id ?? d.id;
+        const merged = (rawDocs || []).reduce((acc, d, i) => {
+          const fileId = d.file_id ?? d.File?.file_id ?? d.file?.file_id ?? null;
+          if (fileId == null) {
+            console.warn('Skipped department document without file_id', d);
+            return acc;
+          }
+
           const name =
             d.file_name ??
             d.original_name ??
@@ -527,14 +532,15 @@ export default function GeneralSubmissionDetailsDept({ submissionId, onBack }) {
             `เอกสารที่ ${i + 1}`;
           const docTypeId = d.document_type_id ?? d.DocumentTypeID ?? d.doc_type_id ?? null;
           const docTypeName = d.document_type_name || typeMap[String(docTypeId)] || 'ไม่ระบุหมวด';
-          return {
+          acc.push({
             ...d,
             file_id: fileId,
             original_name: name,
             document_type_id: docTypeId,
             document_type_name: docTypeName,
-          };
-        });
+          });
+          return acc;
+        }, []);
 
         setAttachments(merged);
       } catch (e) {
@@ -1221,7 +1227,9 @@ export default function GeneralSubmissionDetailsDept({ submissionId, onBack }) {
           ) : attachments.length > 0 ? (
             <div className="space-y-4">
               {attachments.map((doc, index) => {
-                const fileId = doc.file_id || doc.File?.file_id || doc.file?.file_id;
+                const fileId = doc.file_id ?? doc.File?.file_id ?? doc.file?.file_id ?? null;
+                if (fileId == null) return null;
+
                 const fileName =
                   doc.original_name ||
                   doc.File?.original_name ||
