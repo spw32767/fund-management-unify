@@ -446,14 +446,18 @@ export default function FundSettingsContent({ onNavigate }) {
     }
   };
 
-  const handleDeleteYear = async (year) => {
-    const confirmed = await showConfirm(
-      'ยืนยันการลบ',
-      `คุณต้องการลบปีงบประมาณ ${year.year} ใช่หรือไม่?\n\nการลบปีงบประมาณจะลบข้อมูลทุนทั้งหมดในปีนั้น`,
-      'ลบ'
-    );
-    
-    if (!confirmed) return;
+  const handleDeleteYear = async (year, options = {}) => {
+    const { skipConfirm = false, suppressToast = false } = options;
+
+    if (!skipConfirm) {
+      const confirmed = await showConfirm(
+        'ยืนยันการลบ',
+        `คุณต้องการลบปีงบประมาณ ${year.year} ใช่หรือไม่?\n\nการลบปีงบประมาณจะลบข้อมูลทุนทั้งหมดในปีนั้น`,
+        'ลบ'
+      );
+
+      if (!confirmed) return false;
+    }
 
     setLoading(true);
     try {
@@ -463,10 +467,14 @@ export default function FundSettingsContent({ onNavigate }) {
         setSelectedYear(null);
         setCategories([]);
       }
-      showSuccess("ลบปีงบประมาณเรียบร้อยแล้ว");
+      if (!suppressToast) {
+        showSuccess("ลบปีงบประมาณเรียบร้อยแล้ว");
+      }
+      return true;
     } catch (error) {
       console.error("Error deleting year:", error);
       showError(`เกิดข้อผิดพลาดในการลบ: ${error.message}`);
+      return false;
     } finally {
       setLoading(false);
     }
