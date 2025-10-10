@@ -59,6 +59,13 @@ func main() {
 			continue
 		}
 
+		folderPath := filepath.Join(uploadPath, "users", utils.GetUserFolderName(user))
+
+		alreadyExists := false
+		if info, err := os.Stat(folderPath); err == nil && info.IsDir() {
+			alreadyExists = true
+		}
+
 		folderPath, err := utils.CreateUserFolderIfNotExists(user, uploadPath)
 		if err != nil {
 			log.Printf("❌ failed to create folder structure for user_id %d: %v", targetUserID, err)
@@ -66,7 +73,11 @@ func main() {
 			continue
 		}
 
-		log.Printf("✅ User folder ready at %s", folderPath)
+		if alreadyExists {
+			log.Printf("ℹ️  User folder already existed, ensured structure at %s", folderPath)
+		} else {
+			log.Printf("✅ User folder created at %s", folderPath)
+		}
 		succeeded++
 	}
 
