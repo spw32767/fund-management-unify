@@ -168,30 +168,167 @@ const FundManagementTab = ({
     }
 
     const defaultYear = nextYear?.toString() || "";
+    const availableExistingYears = Array.isArray(years)
+      ? years.filter((year) => {
+          if (!year || typeof year !== "object") return false;
+          const yearId = year.year_id;
+          if (yearId === undefined || yearId === null) return false;
+          if (!selectedYear) return true;
+
+          if (selectedYear.year_id !== undefined && selectedYear.year_id !== null) {
+            if (`${yearId}` === `${selectedYear.year_id}`) return false;
+          }
+
+          if (selectedYear.year !== undefined && selectedYear.year !== null) {
+            if (year.year !== undefined && year.year !== null && `${year.year}` === `${selectedYear.year}`) {
+              return false;
+            }
+          }
+
+          return true;
+        })
+      : [];
+
+    const hasExistingTargets = availableExistingYears.length > 0;
+    const existingOptionsMarkup = availableExistingYears
+      .map((year) => {
+        const value = year.year_id;
+        const display = year.year ?? year.year_id;
+        const label = year.year ? `พ.ศ. ${year.year}` : `ID ${value}`;
+        return `<option value="${value}" data-year-display="${display}">${label}</option>`;
+      })
+      .join("");
+
+    const dialogHtml = `
+      <div class="text-left space-y-4">
+        <div class="border border-gray-200 rounded-lg p-3" data-copy-section="new">
+          <label class="flex items-start gap-2">
+            <input type="radio" name="copy-mode" value="new" class="mt-1" checked />
+            <div>
+              <p class="font-medium text-gray-800">คัดลอกไปปีใหม่</p>
+              <p class="text-sm text-gray-600 mt-1">ระบบจะสร้างปีงบประมาณใหม่ตามปีที่ระบุ</p>
+            </div>
+          </label>
+          <input id="copy-new-year-input" class="swal2-input mt-3" placeholder="เช่น 2569" value="${defaultYear}" />
+        </div>
+        <div class="border border-gray-200 rounded-lg p-3 ${
+          hasExistingTargets ? "" : "opacity-50"
+        }" data-copy-section="existing">
+          <label class="flex items-start gap-2">
+            <input type="radio" name="copy-mode" value="existing" class="mt-1" ${
+              hasExistingTargets ? "" : "disabled"
+            } />
+            <div>
+              <p class="font-medium text-gray-800">เพิ่มไปยังปีที่มีอยู่</p>
+              <p class="text-sm text-gray-600 mt-1">นำโครงสร้างทุนไปเพิ่มในปีที่เลือก</p>
+            </div>
+          </label>
+          <select id="copy-existing-year-select" class="swal2-select mt-3" ${
+            hasExistingTargets ? "" : "disabled"
+          }>
+            <option value="">เลือกปีปลายทาง</option>
+            ${existingOptionsMarkup}
+          </select>
+        </div>
+      </div>
+    `;
+
     const { value, isConfirmed } = await Swal.fire({
       title: "คัดลอกโครงสร้างทุน",
-      html: `ต้องการคัดลอกข้อมูลจากปี <strong>${selectedYearDisplay}</strong> ไปยังปี <strong>${defaultYear}</strong> หรือไม่?`,
-      input: "text",
-      inputValue: defaultYear,
-      inputLabel: "ระบุปีปลายทาง (พ.ศ.)",
-      inputPlaceholder: "เช่น 2569",
+      html: dialogHtml,
+      focusConfirm: false,
       showCancelButton: true,
       confirmButtonText: "คัดลอก",
       cancelButtonText: "ยกเลิก",
-      inputValidator: (value) => {
-        if (!value) return "กรุณาระบุปีปลายทาง";
-        if (!/^\d{4}$/.test(value)) return "กรุณาระบุปี พ.ศ. 4 หลัก";
-        const numeric = Number(value);
+      didOpen: (popup) => {
+        const updateModeState = () => {
+          const selectedMode = popup.querySelector('input[name="copy-mode"]:checked')?.value || "new";
+          const newSection = popup.querySelector('[data-copy-section="new"]');
+          const existingSection = popup.querySelector('[data-copy-section="existing"]');
+          const newInput = popup.querySelector('#copy-new-year-input');
+          const existingSelect = popup.querySelector('#copy-existing-year-select');
+
+          if (newSection) {
+            newSection.classList.toggle('opacity-50', selectedMode !== 'new');
+          }
+          if (newInput) {
+            newInput.disabled = selectedMode !== 'new';
+          }
+
+          if (existingSection) {
+            const disableExisting = selectedMode !== 'existing' || !hasExistingTargets;
+            existingSection.classList.toggle('opacity-50', disableExisting);
+            if (!hasExistingTargets) {
+              existingSection.classList.add('opacity-50');
+            }
+            if (existingSelect) {
+              existingSelect.disabled = disableExisting;
+              if (!disableExisting && existingSelect.value === '' && existingSelect.options.length > 1) {
+                existingSelect.selectedIndex = 1;
+              }
+            }
+          }
+        };
+
+        updateModeState();
+        popup
+          .querySelectorAll('input[name="copy-mode"]')
+          .forEach((radio) => radio.addEventListener('change', updateModeState));
+      },
+      preConfirm: () => {
+        const popup = Swal.getPopup();
+        const selectedMode = popup.querySelector('input[name="copy-mode"]:checked')?.value || "new";
+
+        if (selectedMode === "existing") {
+          if (!hasExistingTargets) {
+            Swal.showValidationMessage("ยังไม่มีปีปลายทางให้เลือก");
+            return false;
+          }
+
+          const select = popup.querySelector('#copy-existing-year-select');
+          if (!select || !select.value) {
+            Swal.showValidationMessage("กรุณาเลือกปีที่ต้องการเพิ่มข้อมูล");
+            return false;
+          }
+
+          const option = select.options[select.selectedIndex];
+          const display = option?.dataset?.yearDisplay || option?.textContent?.trim() || select.value;
+
+          return {
+            mode: "existing",
+            yearId: select.value,
+            year: display,
+          };
+        }
+
+        const input = popup.querySelector('#copy-new-year-input');
+        const yearValue = input?.value?.trim();
+        if (!yearValue) {
+          Swal.showValidationMessage("กรุณาระบุปีปลายทาง");
+          return false;
+        }
+        if (!/^\d{4}$/.test(yearValue)) {
+          Swal.showValidationMessage("กรุณาระบุปี พ.ศ. 4 หลัก");
+          return false;
+        }
+        const numeric = Number(yearValue);
         if (!Number.isFinite(numeric) || numeric <= 0) {
-          return "ปีปลายทางไม่ถูกต้อง";
+          Swal.showValidationMessage("ปีปลายทางไม่ถูกต้อง");
+          return false;
         }
         if (numeric <= (selectedYearNumber || 0)) {
-          return "ปีปลายทางต้องมากกว่าปีต้นทาง";
+          Swal.showValidationMessage("ปีปลายทางต้องมากกว่าปีต้นทาง");
+          return false;
         }
         if (existingYears.includes(numeric)) {
-          return "ปีนี้มีอยู่แล้วในระบบ";
+          Swal.showValidationMessage("ปีนี้มีอยู่แล้วในระบบ");
+          return false;
         }
-        return null;
+
+        return {
+          mode: "new",
+          year: yearValue,
+        };
       },
     });
 

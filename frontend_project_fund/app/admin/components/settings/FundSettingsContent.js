@@ -1012,19 +1012,77 @@ export default function FundSettingsContent({ onNavigate }) {
   };
 
 
-  const handleCopyToNewYear = async (currentYear, destinationYear) => {
+  const handleCopyToNewYear = async (currentYear, destination) => {
     const sourceYearId = currentYear?.year_id || currentYear;
-    if (!sourceYearId || !destinationYear) {
+    if (!sourceYearId || !destination) {
       showError('ข้อมูลปีไม่ครบถ้วน ไม่สามารถคัดลอกได้');
       return;
     }
 
+    let mode = 'new';
+    let targetYearValue = '';
+    let targetYearId = null;
+
+    if (typeof destination === 'object' && destination !== null) {
+      mode = destination.mode || destination.type || 'new';
+      if (mode === 'existing') {
+        targetYearId =
+          destination.yearId ??
+          destination.targetYearId ??
+          destination.year_id ??
+          (destination.value !== undefined ? destination.value : null);
+        targetYearValue =
+          destination.year ??
+          destination.display ??
+          destination.yearValue ??
+          destination.targetYear ??
+          '';
+      } else {
+        targetYearValue =
+          destination.year ??
+          destination.targetYear ??
+          destination.value ??
+          destination ??
+          '';
+      }
+    } else {
+      targetYearValue = destination;
+    }
+
+    const normalizedTargetYearId =
+      targetYearId !== null && targetYearId !== undefined ? `${targetYearId}`.trim() : null;
+
+    if (mode === 'existing' && (!normalizedTargetYearId || normalizedTargetYearId === '')) {
+      showError('ไม่พบปีปลายทางที่ต้องการคัดลอก');
+      return;
+    }
+
+    if (mode !== 'existing' && (!targetYearValue || `${targetYearValue}`.trim() === '')) {
+      showError('กรุณาระบุปีปลายทาง');
+      return;
+    }
+
+    const copyOptions = {};
+    if (mode === 'existing') {
+      if (normalizedTargetYearId) {
+        const numericTargetId = Number(normalizedTargetYearId);
+        copyOptions.targetYearId = Number.isFinite(numericTargetId)
+          ? numericTargetId
+          : normalizedTargetYearId;
+      } else {
+        copyOptions.targetYearId = targetYearId;
+      }
+    } else if (targetYearValue) {
+      copyOptions.targetYear = `${targetYearValue}`.trim();
+      const parsedBudget = Number(currentYear?.budget);
+      if (Number.isFinite(parsedBudget)) {
+        copyOptions.target_budget = parsedBudget;
+      }
+    }
+
     setLoading(true);
     try {
-      const parsedBudget = Number(currentYear?.budget);
-      await adminAPI.copyFundStructure(sourceYearId, destinationYear, {
-        target_budget: Number.isFinite(parsedBudget) ? parsedBudget : 0,
-      });
+      const response = await adminAPI.copyFundStructure(sourceYearId, copyOptions);
 
       const refreshedYears = await adminAPI.getYears();
       const normalizedYears = Array.isArray(refreshedYears)
@@ -1037,17 +1095,51 @@ export default function FundSettingsContent({ onNavigate }) {
 
       setYears(normalizedYears);
 
-      const targetYearObj = normalizedYears.find((year) => {
-        const yearMatch = year.year !== undefined && year.year !== null && `${year.year}` === `${destinationYear}`;
-        const idMatch =
-          year.year_id !== undefined && year.year_id !== null && `${year.year_id}` === `${destinationYear}`;
-        return yearMatch || idMatch;
-      });
+      let targetYearObj = null;
+      if (mode === 'existing' && normalizedTargetYearId) {
+        targetYearObj = normalizedYears.find(
+          (year) => year.year_id !== undefined && year.year_id !== null && `${year.year_id}` === normalizedTargetYearId
+        );
+      }
+
+      if (!targetYearObj && targetYearValue) {
+        targetYearObj = normalizedYears.find(
+          (year) =>
+            year.year !== undefined && year.year !== null && `${year.year}` === `${`${targetYearValue}`.trim()}`
+        );
+      }
+
+      if (!targetYearObj && response?.target_year_id) {
+        targetYearObj = normalizedYears.find(
+          (year) => year.year_id !== undefined && year.year_id !== null && `${year.year_id}` === `${response.target_year_id}`
+        );
+      }
+
+      if (!targetYearObj && response?.target_year_value) {
+        targetYearObj = normalizedYears.find(
+          (year) => year.year !== undefined && year.year !== null && `${year.year}` === `${response.target_year_value}`
+        );
+      }
+
       if (targetYearObj) {
         setSelectedYear(targetYearObj);
       }
 
-      showSuccess(`คัดลอกข้อมูลไปยังปี ${destinationYear} เรียบร้อยแล้ว`);
+      const trimmedTargetYearValue = targetYearValue && `${targetYearValue}`.trim();
+      const targetLabel =
+        targetYearObj?.year ??
+        response?.target_year_value ??
+        trimmedTargetYearValue ??
+        normalizedTargetYearId ??
+        (response?.target_year_id ? `${response.target_year_id}` : null) ??
+        'ปลายทางที่เลือก';
+
+      const successText =
+        mode === 'existing'
+          ? `คัดลอกข้อมูลไปยังปี ${targetLabel} (เพิ่มในปีที่มีอยู่) เรียบร้อยแล้ว`
+          : `คัดลอกข้อมูลไปยังปี ${targetLabel} เรียบร้อยแล้ว`;
+
+      showSuccess(successText);
     } catch (error) {
       console.error('Error copying fund structure:', error);
       const message = error?.message || 'ไม่สามารถคัดลอกข้อมูลได้';

@@ -418,14 +418,28 @@ export const adminAPI = {
     }
   },
 
-  async copyFundStructure(sourceYearId, targetYear, { target_budget } = {}) {
+  async copyFundStructure(sourceYearId, { targetYear, targetYearId, target_budget } = {}) {
     try {
       const payload = {
         source_year_id: sourceYearId,
-        target_year: targetYear,
       };
-      if (typeof target_budget === 'number') {
-        payload.target_budget = target_budget;
+
+      if (targetYearId !== undefined && targetYearId !== null && targetYearId !== '') {
+        const numericId = Number(targetYearId);
+        if (Number.isInteger(numericId) && numericId > 0) {
+          payload.target_year_id = numericId;
+        }
+      }
+
+      if (targetYear !== undefined && targetYear !== null && String(targetYear).trim() !== '') {
+        payload.target_year = String(targetYear).trim();
+      }
+
+      if (target_budget !== undefined && target_budget !== null) {
+        const numericBudget = Number(target_budget);
+        if (Number.isFinite(numericBudget)) {
+          payload.target_budget = numericBudget;
+        }
       }
 
       return await apiClient.post('/admin/funds/copy-year', payload);
