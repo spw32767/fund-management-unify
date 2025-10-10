@@ -7,6 +7,7 @@ import {
   Edit,
   Trash2,
   Copy,
+  RefreshCw,
   Layers,
 } from "lucide-react";
 import Swal from "sweetalert2";
@@ -91,24 +92,6 @@ const categorizeBudgets = (budgets = []) => {
   return { overall, rules };
 };
 
-const getCategoryNumber = (category, index) => {
-  const display = category?.display_number ?? category?.order_index;
-  if (display) return display;
-  const numeric = Number(category?.category_number);
-  if (Number.isFinite(numeric)) return `${numeric}`;
-  return `${index + 1}`;
-};
-
-const getSubcategoryNumber = (categoryNumber, subcategory, index) => {
-  if (subcategory?.display_number) return subcategory.display_number;
-  if (subcategory?.order_index) return subcategory.order_index;
-  const numeric = Number(subcategory?.subcategory_number);
-  if (Number.isFinite(numeric)) {
-    return `${categoryNumber}.${numeric}`;
-  }
-  return `${categoryNumber}.${index + 1}`;
-};
-
 const FundManagementTab = ({
   selectedYear,
   years = [],
@@ -133,6 +116,7 @@ const FundManagementTab = ({
   onToggleSubcategoryStatus,
   onToggleBudgetStatus,
   onCopyToNewYear,
+  onRefresh,
 }) => {
   const selectedYearDisplay = getSelectedYearDisplay(selectedYear, years);
   const selectedYearNumber = React.useMemo(() => {
@@ -146,9 +130,15 @@ const FundManagementTab = ({
   }, [selectedYearNumber]);
 
   const hasFundData = React.useMemo(() => {
-    return categories.some(
+    if (!Array.isArray(categories) || categories.length === 0) {
+      return false;
+    }
+
+    const hasSubcategory = categories.some(
       (category) => Array.isArray(category.subcategories) && category.subcategories.length > 0
     );
+
+    return hasSubcategory || categories.length > 0;
   }, [categories]);
 
   const existingYears = React.useMemo(() => {
@@ -356,19 +346,34 @@ const FundManagementTab = ({
             เพิ่ม/แก้ไข หมวดหมู่ ทุนย่อย และนโยบายงบประมาณตามโครงสร้างใหม่
           </p>
         </div>
-        <button
-          type="button"
-          onClick={handleCopyToNextYear}
-          disabled={Boolean(copyDisabledReason) || !onCopyToNewYear}
-          className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
-            copyDisabledReason || !onCopyToNewYear
-              ? "bg-gray-200 text-gray-500 cursor-not-allowed"
-              : "bg-green-600 text-white hover:bg-green-700"
-          }`}
-        >
-          <Copy size={16} />
-          คัดลอกไปปีถัดไป
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => onRefresh?.()}
+            disabled={!onRefresh}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg border transition-colors ${
+              onRefresh
+                ? "border-gray-300 text-gray-700 hover:bg-gray-100"
+                : "border-gray-200 text-gray-400 cursor-not-allowed bg-gray-100"
+            }`}
+          >
+            <RefreshCw size={16} />
+            รีเฟรช
+          </button>
+          <button
+            type="button"
+            onClick={handleCopyToNextYear}
+            disabled={Boolean(copyDisabledReason) || !onCopyToNewYear}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
+              copyDisabledReason || !onCopyToNewYear
+                ? "bg-gray-200 text-gray-500 cursor-not-allowed"
+                : "bg-green-600 text-white hover:bg-green-700"
+            }`}
+          >
+            <Copy size={16} />
+            คัดลอกไปปีถัดไป
+          </button>
+        </div>
       </div>
 
       <div className="mb-6 flex flex-wrap gap-3 items-center">
@@ -428,10 +433,9 @@ const FundManagementTab = ({
         </div>
       ) : (
         <div className="space-y-5">
-          {filteredCategories.map((category, categoryIndex) => {
+          {filteredCategories.map((category) => {
             const categoryExpanded = expandedCategories?.[category.category_id];
             const subcategories = category.subcategories || [];
-            const categoryNumber = getCategoryNumber(category, categoryIndex);
 
             return (
               <div key={category.category_id} className="border border-gray-200 rounded-xl">
@@ -494,64 +498,55 @@ const FundManagementTab = ({
                       </div>
                     ) : (
                       <div className="space-y-4">
-                        {subcategories.map((subcategory, subIndex) => {
-                          const subExpanded = expandedSubcategories?.[subcategory.subcategory_id];
-                          const { overall, rules } = categorizeBudgets(subcategory.budgets);
-                          const targetRoleLabel = describeTargetRoles(subcategory.target_roles);
-                          const subNumber = getSubcategoryNumber(categoryNumber, subcategory, subIndex);
-                          const overallSummaryText = overall
-                            ? `วงเงินรวมต่อปี: ${formatCurrency(overall.max_amount_per_year)} | จำนวนครั้งรวม: ${formatGrantCount(
-                                overall.max_grants
-                              )}`
-                            : "ยังไม่กำหนดวงเงินรวม";
-                          const overallSecondarySummary = overall
-                            ? [
-                                `วงเงินต่อครั้งค่าเริ่มต้น: ${
-                                  overall.max_amount_per_grant
-                                    ? formatCurrency(overall.max_amount_per_grant)
-                                    : "ไม่กำหนด"
-                                }`,
-                                overall.allocated_amount !== undefined && overall.allocated_amount !== null && overall.allocated_amount !== ""
-                                  ? `งบประมาณที่จัดสรร: ${formatAllocatedAmount(overall.allocated_amount)}`
-                                  : null,
-                              ]
-                                .filter(Boolean)
-                                .join(" | ")
-                            : null;
+                    {subcategories.map((subcategory) => {
+                      const subExpanded = expandedSubcategories?.[subcategory.subcategory_id];
+                      const { overall, rules } = categorizeBudgets(subcategory.budgets);
+                      const targetRoleLabel = describeTargetRoles(subcategory.target_roles);
+                      const normalizedTargetRoles = targetRoleLabel || "ทุกบทบาท";
+                      const overallSummaryText = overall
+                        ? `วงเงินรวมต่อปี: ${formatCurrency(overall.max_amount_per_year)} | จำนวนครั้งรวม: ${formatGrantCount(
+                            overall.max_grants
+                          )}`
+                        : "ยังไม่กำหนดวงเงินรวม";
+                      const overallSecondarySummary = overall
+                        ? [
+                            `วงเงินต่อครั้งค่าเริ่มต้น: ${
+                              overall.max_amount_per_grant
+                                ? formatCurrency(overall.max_amount_per_grant)
+                                : "ไม่กำหนด"
+                            }`,
+                            overall.allocated_amount !== undefined &&
+                            overall.allocated_amount !== null &&
+                            overall.allocated_amount !== ""
+                              ? `งบประมาณที่จัดสรร: ${formatAllocatedAmount(overall.allocated_amount)}`
+                              : null,
+                          ]
+                            .filter(Boolean)
+                            .join(" | ")
+                        : null;
+                      const summaryLines = [
+                        subcategory.fund_condition?.trim() || "ไม่มีเงื่อนไขเพิ่มเติม",
+                        `กลุ่มเป้าหมาย: ${normalizedTargetRoles}`,
+                        overallSummaryText,
+                        overallSecondarySummary,
+                        `มี ${rules.length.toLocaleString()} ระดับ`,
+                      ].filter(Boolean);
 
-                          return (
-                            <div key={subcategory.subcategory_id} className="border border-gray-200 rounded-lg">
-                              <div className="flex flex-wrap gap-3 items-center px-4 py-3">
-                                <button
-                                  type="button"
-                                  className="flex items-start gap-3 text-left"
-                                  onClick={() => onToggleSubcategory?.(subcategory.subcategory_id)}
-                                >
-                                  {subExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
-                                  <div className="flex items-start gap-3">
-                                    <span className="text-blue-600 font-semibold text-sm mt-0.5 min-w-[2.5rem]">
-                                      {subNumber}
-                                    </span>
-                                    <div>
-                                      <p className="font-medium text-gray-900">{subcategory.subcategory_name}</p>
-                                      <p className="text-xs text-gray-500">
-                                        {subcategory.fund_condition || "ไม่มีเงื่อนไขเพิ่มเติม"}
-                                      </p>
-                                      <p className="text-xs text-gray-500 mt-0.5">
-                                        กลุ่มเป้าหมาย: {targetRoleLabel}
-                                      </p>
-                                      <p className="text-xs text-gray-500 mt-0.5">{overallSummaryText}</p>
-                                      {overallSecondarySummary && (
-                                        <p className="text-xs text-gray-500 mt-0.5">{overallSecondarySummary}</p>
-                                      )}
-                                      <p className="text-xs text-gray-500 mt-0.5">
-                                        มี {rules.length.toLocaleString()} ระดับ
-                                      </p>
-                                    </div>
-                                  </div>
-                                </button>
-                                <div className="flex flex-wrap gap-2 items-center justify-end ml-auto">
-                                  <StatusBadge
+                      return (
+                        <div key={subcategory.subcategory_id} className="border border-gray-200 rounded-lg">
+                          <div className="flex flex-wrap gap-3 items-center px-4 py-3">
+                            <button
+                              type="button"
+                              className="flex items-center gap-3 text-left"
+                              onClick={() => onToggleSubcategory?.(subcategory.subcategory_id)}
+                            >
+                              {subExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                              <div>
+                                <p className="font-medium text-gray-900">{subcategory.subcategory_name}</p>
+                              </div>
+                            </button>
+                            <div className="flex flex-wrap gap-2 items-center justify-end ml-auto">
+                              <StatusBadge
                                     status={subcategory.status}
                                     interactive
                                     onChange={(next) => onToggleSubcategoryStatus?.(subcategory, category, next)}
@@ -577,6 +572,20 @@ const FundManagementTab = ({
 
                               {subExpanded && (
                                 <div className="px-4 pb-4 space-y-4">
+                                  <div className="rounded-lg border border-blue-100 bg-blue-50/60 p-4">
+                                    <p className="text-sm font-semibold text-gray-900 mb-2">รายละเอียดทุน</p>
+                                    <div className="space-y-1">
+                                      {summaryLines.map((line, index) => (
+                                        <p
+                                          key={`${subcategory.subcategory_id}-summary-${index}`}
+                                          className="text-sm text-gray-700"
+                                        >
+                                          {line}
+                                        </p>
+                                      ))}
+                                    </div>
+                                  </div>
+
                                   <div className="flex justify-between items-center">
                                     <h4 className="text-sm font-semibold text-gray-700">กฎย่อยของทุนย่อย</h4>
                                     <button

@@ -20,6 +20,7 @@ import DeleteConfirmDialog from "@/app/admin/components/settings/funds_config/De
 
 // Import real API
 import { adminAPI } from "@/app/lib/admin_api";
+import systemConfigAPI from "@/app/lib/system_config_api";
 
 const TAB_ITEMS = [
   { id: "funds", label: "จัดการทุน", icon: DollarSign },
@@ -144,14 +145,72 @@ export default function FundSettingsContent({ onNavigate }) {
 
   // ==================== DATA LOADING FUNCTIONS ====================
   
-  const loadYears = async () => {
+  const loadYears = async ({ preserveSelection = false } = {}) => {
     setLoading(true);
     setError(null);
     try {
-      const data = await adminAPI.getYears();
-      setYears(data);
-      if (data.length > 0 && !selectedYear) {
-        setSelectedYear(data[0]);
+      const [yearData, currentYearRes] = await Promise.all([
+        adminAPI.getYears(),
+        systemConfigAPI
+          .getCurrentYear()
+          .catch((err) => {
+            console.warn('ไม่สามารถอ่านปีปัจจุบันจาก system_config:', err);
+            return null;
+          }),
+      ]);
+
+      const normalizedYears = Array.isArray(yearData)
+        ? [...yearData].sort((a, b) => {
+            const aYear = Number(a?.year ?? 0);
+            const bYear = Number(b?.year ?? 0);
+            return bYear - aYear;
+          })
+        : [];
+
+      setYears(normalizedYears);
+
+      const findMatchingYear = (value) => {
+        if (value === undefined || value === null) {
+          return null;
+        }
+        return (
+          normalizedYears.find((year) => {
+            const idMatch =
+              year.year_id !== undefined && year.year_id !== null && String(year.year_id) === String(value);
+            const yearMatch =
+              year.year !== undefined && year.year !== null && String(year.year) === String(value);
+            return idMatch || yearMatch;
+          }) || null
+        );
+      };
+
+      let nextSelected = null;
+
+      if (preserveSelection && selectedYear) {
+        const candidateValues = [selectedYear.year_id, selectedYear.year].filter(
+          (value) => value !== undefined && value !== null
+        );
+        for (const candidate of candidateValues) {
+          nextSelected = findMatchingYear(candidate);
+          if (nextSelected) break;
+        }
+      }
+
+      const systemYearValue =
+        currentYearRes?.current_year ?? currentYearRes?.data?.current_year ?? null;
+
+      if (!nextSelected && systemYearValue !== null) {
+        nextSelected = findMatchingYear(systemYearValue);
+      }
+
+      if (!nextSelected && normalizedYears.length > 0) {
+        nextSelected = normalizedYears[0];
+      }
+
+      if (nextSelected) {
+        setSelectedYear(nextSelected);
+      } else if (normalizedYears.length === 0 || !preserveSelection) {
+        setSelectedYear(null);
       }
     } catch (error) {
       console.error("Error loading years:", error);
@@ -702,7 +761,7 @@ export default function FundSettingsContent({ onNavigate }) {
       if (overallPolicy && activeSubcategoryId) {
         const payload = {
           record_scope: 'overall',
-          allocated_amount: toFloat(overallPolicy.allocated_amount) ?? 0,
+          allocated_amount: toFloat(overallPolicy.allocated_amount) ?? null,
           max_amount_per_year: toFloat(overallPolicy.max_amount_per_year),
           max_grants: toInt(overallPolicy.max_grants),
           max_amount_per_grant: toFloat(overallPolicy.max_amount_per_grant),
@@ -871,12 +930,12 @@ export default function FundSettingsContent({ onNavigate }) {
 
     if (scope === 'overall') {
       const allocated = toFloat(budgetFormValues.allocated_amount);
-      payload.allocated_amount = allocated ?? 0;
+      payload.allocated_amount = allocated ?? null;
       payload.max_amount_per_year = toFloat(budgetFormValues.max_amount_per_year);
       payload.max_grants = toInt(budgetFormValues.max_grants);
       payload.max_amount_per_grant = toFloat(budgetFormValues.max_amount_per_grant);
     } else {
-      payload.allocated_amount = 0;
+      payload.allocated_amount = null;
       payload.max_amount_per_year = null;
       payload.max_grants = null;
       payload.max_amount_per_grant = toFloat(budgetFormValues.max_amount_per_grant);
@@ -968,9 +1027,22 @@ export default function FundSettingsContent({ onNavigate }) {
       });
 
       const refreshedYears = await adminAPI.getYears();
-      setYears(refreshedYears);
+      const normalizedYears = Array.isArray(refreshedYears)
+        ? [...refreshedYears].sort((a, b) => {
+            const aYear = Number(a?.year ?? 0);
+            const bYear = Number(b?.year ?? 0);
+            return bYear - aYear;
+          })
+        : [];
 
-      const targetYearObj = refreshedYears.find(year => `${year.year}` === `${destinationYear}`);
+      setYears(normalizedYears);
+
+      const targetYearObj = normalizedYears.find((year) => {
+        const yearMatch = year.year !== undefined && year.year !== null && `${year.year}` === `${destinationYear}`;
+        const idMatch =
+          year.year_id !== undefined && year.year_id !== null && `${year.year_id}` === `${destinationYear}`;
+        return yearMatch || idMatch;
+      });
       if (targetYearObj) {
         setSelectedYear(targetYearObj);
       }
@@ -1021,41 +1093,14 @@ export default function FundSettingsContent({ onNavigate }) {
     setSearchTerm(term);
   };
 
-  // Filter categories based on search term
-  const normalizedSearch = (searchTerm || "").toLowerCase().trim();
-  const filteredCategories = categories.filter((category) => {
-    const categoryName = (category?.category_name || "").toLowerCase();
-    const categoryMatch = normalizedSearch ? categoryName.includes(normalizedSearch) : true;
-
-    if (!normalizedSearch) {
-      return true;
+  const handleRefresh = async () => {
+    if (!selectedYear) {
+      await loadYears({ preserveSelection: true });
+      return;
     }
 
-    const subcategories = Array.isArray(category?.subcategories) ? category.subcategories : [];
-
-    const subcategoryMatch = subcategories.some((sub) => {
-      const subName = (sub?.subcategory_name || "").toLowerCase();
-      const condition = (sub?.fund_condition || "").toLowerCase();
-
-      if (subName.includes(normalizedSearch) || condition.includes(normalizedSearch)) {
-        return true;
-      }
-
-      const budgets = Array.isArray(sub?.budgets) ? sub.budgets : [];
-      return budgets.some((budget) => {
-        const description = (budget?.fund_description || "").toLowerCase();
-        const level = (budget?.level || "").toLowerCase();
-        const scope = String(budget?.record_scope || "").toLowerCase();
-        return (
-          description.includes(normalizedSearch) ||
-          level.includes(normalizedSearch) ||
-          scope.includes(normalizedSearch)
-        );
-      });
-    });
-
-    return categoryMatch || subcategoryMatch;
-  });
+    await loadCategories();
+  };
 
   // ==================== ERROR BOUNDARY ====================
   
@@ -1099,7 +1144,7 @@ export default function FundSettingsContent({ onNavigate }) {
   const fundManagementTabProps = {
     selectedYear,
     years,
-    categories: filteredCategories,
+    categories,
     searchTerm,
     expandedCategories,
     expandedSubcategories,
@@ -1121,6 +1166,7 @@ export default function FundSettingsContent({ onNavigate }) {
     onToggleSubcategoryStatus: handleToggleSubcategoryStatus,
     onToggleBudgetStatus: handleToggleBudgetStatus,
     onCopyToNewYear: handleCopyToNewYear,
+    onRefresh: handleRefresh,
   };
 
   const renderActiveContent = () => {
