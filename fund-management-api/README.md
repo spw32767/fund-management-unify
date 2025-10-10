@@ -120,3 +120,11 @@ sudo systemctl restart fund-api.service  # or restart your process manager
 ```
 
 Check the release notes or diff for new environment variables or database migrations before restarting the service.
+
+## 7. User Upload Storage Lifecycle
+
+- The root uploads directory is controlled by the `UPLOAD_PATH` environment variable (default `./uploads`). Ensure this path is writable by the API process.
+- User-specific folders are provisioned lazily: the API creates `user_{id}_{firstname}_{lastname}` along with the `temp`, `submissions`, and `profile` subdirectories on the user's first successful login.
+- Subsequent profile or document operations reuse the same helper, so it is safe for controllers to call folder provisioning whenever they handle user files.
+
+This means profile pictures can be uploaded immediately after account activation, even before the user submits any funding request.

@@ -138,6 +138,9 @@ func Login(c *gin.Context) {
 		return
 	}
 
+	// Provision the user folder tree right after the very first successful login so
+	// profile assets (e.g. avatar uploads) can be stored even before the user files
+	// their first submission.
 	if !ensureUserStoragePrepared(c, user) {
 		return
 	}
