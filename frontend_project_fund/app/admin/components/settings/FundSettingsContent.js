@@ -505,15 +505,8 @@ export default function FundSettingsContent({ onNavigate }) {
     }
   };
 
+  /*
   const handleDeleteYear = async (year) => {
-    const confirmed = await showConfirm(
-      'ยืนยันการลบ',
-      `คุณต้องการลบปีงบประมาณ ${year.year} ใช่หรือไม่?\n\nการลบปีงบประมาณจะลบข้อมูลทุนทั้งหมดในปีนั้น`,
-      'ลบ'
-    );
-    
-    if (!confirmed) return;
-
     setLoading(true);
     try {
       await adminAPI.deleteYear(year.year_id);
@@ -526,10 +519,15 @@ export default function FundSettingsContent({ onNavigate }) {
     } catch (error) {
       console.error("Error deleting year:", error);
       showError(`เกิดข้อผิดพลาดในการลบ: ${error.message}`);
+      if (error && typeof error === 'object') {
+        error.handled = true;
+      }
+      throw error;
     } finally {
       setLoading(false);
     }
   };
+  */
 
   // ==================== CATEGORY MANAGEMENT HANDLERS ====================
   
@@ -1270,7 +1268,7 @@ export default function FundSettingsContent({ onNavigate }) {
           <YearManagementTab
             years={years}
             onSaveYear={handleSaveYear}
-            onDeleteYear={handleDeleteYear}
+            // onDeleteYear={handleDeleteYear}
           />
         );
       case "reward-config":

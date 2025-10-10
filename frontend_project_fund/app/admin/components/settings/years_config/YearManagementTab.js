@@ -3,7 +3,7 @@ import React, { useMemo, useState } from "react";
 import {
   Plus,
   Edit,
-  Trash2,
+  // Trash2,
   Save,
   X,
   ArrowUpDown,
@@ -13,7 +13,7 @@ import {
 import Swal from "sweetalert2";
 import StatusBadge from "@/app/admin/components/settings/StatusBadge";
 
-const YearManagementTab = ({ years = [], onSaveYear, onDeleteYear }) => {
+const YearManagementTab = ({ years = [], onSaveYear /*, onDeleteYear */ }) => {
   // ====== Editing + Form state (keep original names) ======
   const [editingYear, setEditingYear] = useState(null);
   const [yearForm, setYearForm] = useState({
@@ -110,6 +110,7 @@ const YearManagementTab = ({ years = [], onSaveYear, onDeleteYear }) => {
     Swal.fire("สำเร็จ", "บันทึกปีงบประมาณเรียบร้อย", "success");
   };
 
+  /*
   const handleDelete = async (item) => {
     const result = await Swal.fire({
       title: "ยืนยันการลบ?",
@@ -121,9 +122,19 @@ const YearManagementTab = ({ years = [], onSaveYear, onDeleteYear }) => {
       confirmButtonColor: "#d33",
     });
     if (!result.isConfirmed) return;
-    onDeleteYear(item);
-    Swal.fire("สำเร็จ", "ลบปีงบประมาณเรียบร้อย", "success");
+
+    try {
+      await onDeleteYear(item);
+    } catch (error) {
+      if (error?.handled) {
+        return;
+      }
+      console.error("Failed to delete year:", error);
+      const message = error?.message || "เกิดข้อผิดพลาดในการลบปีงบประมาณ";
+      Swal.fire("เกิดข้อผิดพลาด", message, "error");
+    }
   };
+  */
 
   // ====== UI ======
   return (
@@ -206,13 +217,16 @@ const YearManagementTab = ({ years = [], onSaveYear, onDeleteYear }) => {
                     >
                       <Edit size={16} /> แก้ไข
                     </button>
-                    <button
-                      onClick={() => handleDelete(item)}
-                      className="text-red-600 hover:bg-red-50 p-2 rounded-lg inline-flex items-center gap-1"
-                      title="ลบ"
-                    >
-                      <Trash2 size={16} /> ลบ
-                    </button>
+                    {/**
+                     * ระบบลบปีงบประมาณถูกปิดใช้งานชั่วคราว
+                     * <button
+                     *   onClick={() => handleDelete(item)}
+                     *   className="text-red-600 hover:bg-red-50 p-2 rounded-lg inline-flex items-center gap-1"
+                     *   title="ลบ"
+                     * >
+                     *   <Trash2 size={16} /> ลบ
+                     * </button>
+                     */}
                   </td>
                 </tr>
               ))}
