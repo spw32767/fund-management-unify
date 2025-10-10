@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { X, FileText, Save, Upload } from "lucide-react";
+import { X, FileText, Save } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
 const backdrop = { hidden: { opacity: 0 }, visible: { opacity: 1 }, exit: { opacity: 0 } };
@@ -17,6 +17,8 @@ export default function FundFormModal({
   data,            // null=create, object=edit
   onSubmit,        // (payload) => Promise
   onReplaceFile,   // (file) => Promise
+  yearOptions = [],
+  loadingYears = false,
 }) {
   const isEdit = !!data?.form_id;
 
@@ -25,7 +27,6 @@ export default function FundFormModal({
     description: "",
     form_type: "application",
     fund_category: "both",
-    display_order: "",
     status: "active",
     year_id: "",
   });
@@ -40,14 +41,18 @@ export default function FundFormModal({
   useEffect(() => {
     if (!open) return;
     if (isEdit) {
+      const resolvedYearId =
+        data?.year_id ??
+        data?.year?.year_id ??
+        data?.Year?.year_id ??
+        "";
       setForm({
         title: data?.title ?? "",
         description: data?.description ?? "",
         form_type: data?.form_type ?? "application",
         fund_category: data?.fund_category ?? "both",
-        display_order: data?.display_order ?? "",
         status: data?.status ?? "active",
-        year_id: data?.year_id ?? "",
+        year_id: resolvedYearId !== "" && resolvedYearId !== null && resolvedYearId !== undefined ? String(resolvedYearId) : "",
       });
     } else {
       setForm({
@@ -55,7 +60,6 @@ export default function FundFormModal({
         description: "",
         form_type: "application",
         fund_category: "both",
-        display_order: "",
         status: "active",
         year_id: "",
       });
@@ -67,11 +71,7 @@ export default function FundFormModal({
     e.preventDefault();
     const payload = { ...form };
 
-    if (payload.display_order === "") delete payload.display_order;
-    else payload.display_order = Number(payload.display_order);
-
     if (payload.year_id === "") delete payload.year_id;
-    else payload.year_id = Number(payload.year_id);
 
     if (!isEdit) {
       // create: ต้องมีไฟล์
@@ -198,18 +198,6 @@ export default function FundFormModal({
                 </select>
                 </div>
 
-                {/* ลำดับแสดง */}
-                <div>
-                <label className="block text-sm font-medium mb-1 text-gray-700">ลำดับแสดง</label>
-                <input
-                    type="number"
-                    value={form.display_order}
-                    onChange={(e) => setForm((s) => ({ ...s, display_order: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus-visible:ring-1 focus-visible:ring-blue-500 focus-visible:border-blue-500 text-gray-500"
-                    placeholder="ตัวเลขเรียงลำดับ"
-                />
-                </div>
-
                 {/* สถานะ */}
                 <div>
                 <label className="block text-sm font-medium mb-1 text-gray-700">สถานะ</label>
@@ -226,13 +214,22 @@ export default function FundFormModal({
                 {/* ปี */}
                 <div>
                 <label className="block text-sm font-medium mb-1 text-gray-700">ปี</label>
-                <input
-                    type="text"
+                <select
                     value={form.year_id}
                     onChange={(e) => setForm((s) => ({ ...s, year_id: e.target.value }))}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus-visible:ring-1 focus-visible:ring-blue-500 focus-visible:border-blue-500 text-gray-500"
-                    placeholder="เช่น 2568"
-                />
+                    disabled={loadingYears && yearOptions.length === 0}
+                >
+                    <option value="">ไม่ระบุ</option>
+                    {yearOptions.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                </select>
+                {loadingYears ? (
+                  <p className="text-xs text-gray-500 mt-1">กำลังโหลดปีงบประมาณ...</p>
+                ) : null}
                 </div>
 
                 {/* ไฟล์แนบ (PDF/DOC/DOCX) – แสดงชื่อไฟล์ปัจจุบันแบบไม่ลิงก์ */}
