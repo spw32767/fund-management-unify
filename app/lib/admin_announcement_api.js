@@ -12,7 +12,10 @@ export const adminAnnouncementAPI = {
   },
 
   async get(id) {
-    return apiClient.get(`/announcements/${id}`); // GET /api/v1/announcements/:id
+    if (id == null || id === "") {
+      throw new Error("announcement id is required");
+    }
+    return apiClient.get(`/announcements/${encodeURIComponent(id)}`); // GET /api/v1/announcements/:id
   },
 
   // ───────── Announcements ─────────
@@ -42,24 +45,23 @@ export const adminAnnouncementAPI = {
   },
 
   // Update metadata (JSON PUT)
-  // ───────── Fund Forms ─────────
   async update(id, body = {}) {
-    if (id == null || id === "" || Number.isNaN(Number(id))) {
-      throw new Error("form id is required");
+    if (id == null || id === "") {
+      throw new Error("announcement id is required");
     }
     const payload = { ...body };
     if (payload.display_order != null) {
       payload.display_order = Number(payload.display_order); // สำคัญ: บังคับเป็น number
     }
     try {
-      return await apiClient.put(`/fund-forms/${encodeURIComponent(id)}`, payload);
+      return await apiClient.put(`/announcements/${encodeURIComponent(id)}`, payload);
     } catch (err) {
       // โยนข้อความจาก backend ออกมาให้เห็นชัด ตอน dev
       const msg =
         err?.response?.data?.error ||
         err?.response?.data?.message ||
         err?.message ||
-        "Update fund form failed";
+        "Update announcement failed";
       throw new Error(msg);
     }
   },
@@ -67,8 +69,12 @@ export const adminAnnouncementAPI = {
   // (ออปชัน) สำหรับบันทึกลำดับทีละหลายรายการ เรียกแบบทีละตัวเรียงกัน
   async reorderForms(rows = []) {
     for (const r of rows) {
-      if (!r || r.form_id == null) continue;
-      await this.update(r.form_id, { display_order: Number(r.display_order) });
+      if (!r) continue;
+      const id = r.announcement_id ?? r.id ?? r.form_id;
+      if (id == null || id === "") continue;
+      const order = Number(r.display_order);
+      if (Number.isNaN(order)) continue;
+      await this.update(id, { display_order: order });
     }
     return { success: true };
   },
@@ -77,12 +83,18 @@ export const adminAnnouncementAPI = {
   async replaceFile(id, file) {
     const fd = new FormData();
     fd.append("file", file);
-    return apiClient.putFormData(`/announcements/${id}`, fd); // PUT multipart /announcements/:id
+    if (id == null || id === "") {
+      throw new Error("announcement id is required");
+    }
+    return apiClient.putFormData(`/announcements/${encodeURIComponent(id)}`, fd); // PUT multipart /announcements/:id
   },
 
   // Delete
   async remove(id) {
-    return apiClient.delete(`/announcements/${id}`); // DELETE /api/v1/announcements/:id
+    if (id == null || id === "") {
+      throw new Error("announcement id is required");
+    }
+    return apiClient.delete(`/announcements/${encodeURIComponent(id)}`); // DELETE /api/v1/announcements/:id
   },
 };
 

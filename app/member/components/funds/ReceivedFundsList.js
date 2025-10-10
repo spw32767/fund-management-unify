@@ -319,8 +319,8 @@ export default function ReceivedFundsList({ onNavigate }) {
           projectTitle != null && String(projectTitle).trim() !== "" && projectTitle !== "-";
 
         return (
-          <div className="flex flex-col gap-1 max-w-xs">
-            <span className="truncate" title={fundName}>
+          <div className="flex flex-col gap-1 max-w-sm">
+            <span className="break-words" title={fundName}>
               {fundName}
             </span>
             {hasProjectTitle && (

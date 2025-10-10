@@ -15,13 +15,14 @@ import {
 import Swal from 'sweetalert2';
 import adminAPI from "@/app/lib/admin_api";
 import StatusBadge from "@/app/admin/components/settings/StatusBadge";
+import { systemConfigAPI } from "@/app/lib/system_config_api";
 
 const RewardConfigManager = () => {
   const [activeSubTab, setActiveSubTab] = useState('rates');
   const [rewardRates, setRewardRates] = useState([]);
   const [rewardConfigs, setRewardConfigs] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [selectedYear, setSelectedYear] = useState('2568');
+  const [selectedYear, setSelectedYear] = useState('');
   const [years, setYears] = useState([]);
 
   // ====== Modal (เดิม) ======
@@ -31,14 +32,14 @@ const RewardConfigManager = () => {
   const [editingConfig, setEditingConfig] = useState(null);
 
   const [rateFormData, setRateFormData] = useState({
-    year: '2568',
+    year: '',
     author_status: '',
     journal_quartile: '',
     reward_amount: ''
   });
 
   const [configFormData, setConfigFormData] = useState({
-    year: '2568',
+    year: '',
     journal_quartile: '',
     max_amount: '',
     condition_description: ''
@@ -49,8 +50,8 @@ const RewardConfigManager = () => {
   const [configSort, setConfigSort] = useState({ key: null, dir: 'asc' });
 
   const authorStatusOptions = [
-    { value: 'first_author', label: 'First Author (ผู้ประพันธ์บรรณกิจ)' },
-    { value: 'corresponding_author', label: 'Corresponding Author (ผู้ประพันธ์ติดต่อ)' },
+    { value: 'first_author', label: 'First Author (ผู้ประพันธ์ชื่อแรก)' },
+    { value: 'corresponding_author', label: 'Corresponding Author (ผู้ประพันธ์บรรณกิจ)' },
   ];
 
   const quartileOptions = [
@@ -67,16 +68,63 @@ const RewardConfigManager = () => {
   // ====== Load Years ======
   const loadAvailableYears = async () => {
     try {
-      const [ratesResponse, configsResponse] = await Promise.all([
+      const [ratesResponse, configsResponse, currentYearResponse] = await Promise.all([
         adminAPI.getPublicationRewardRatesYears().catch(() => ({ years: [] })),
-        adminAPI.getRewardConfigYears().catch(() => ({ years: [] }))
+        adminAPI.getRewardConfigYears().catch(() => ({ years: [] })),
+        systemConfigAPI.getCurrentYear().catch(() => null)
       ]);
-      const rateYears = ratesResponse.years || [];
-      const configYears = configsResponse.years || [];
-      const allYears = [...new Set([...rateYears, ...configYears])];
-      const sortedYears = allYears.sort((a, b) => b - a);
-      setYears(sortedYears);
-      if (sortedYears.length > 0) setSelectedYear(sortedYears[0]);
+      const normalizeYearValue = (value) => {
+        if (value == null) return null;
+        if (typeof value === 'object') {
+          if (Object.prototype.hasOwnProperty.call(value, 'year') && value.year != null) {
+            return String(value.year);
+          }
+          if (Object.prototype.hasOwnProperty.call(value, 'value') && value.value != null) {
+            return String(value.value);
+          }
+        }
+        return String(value);
+      };
+
+      const toYearStrings = (list) => {
+        if (!Array.isArray(list)) return [];
+        return list
+          .map((item) => normalizeYearValue(item))
+          .filter((val) => val);
+      };
+
+      const rateYears = toYearStrings(ratesResponse?.years ?? ratesResponse?.data?.years ?? []);
+      const configYears = toYearStrings(configsResponse?.years ?? configsResponse?.data?.years ?? []);
+      const systemYearCandidateRaw =
+        currentYearResponse?.current_year ?? currentYearResponse?.data?.current_year ?? null;
+
+      const mergedYears = [...rateYears, ...configYears];
+      if (systemYearCandidateRaw != null) {
+        mergedYears.push(String(systemYearCandidateRaw));
+      }
+
+      const uniqueYears = Array.from(new Set(mergedYears.filter(Boolean)));
+      uniqueYears.sort((a, b) => Number(b) - Number(a));
+
+      if (uniqueYears.length > 0) {
+        setYears(uniqueYears);
+        const desiredYear = systemYearCandidateRaw != null ? String(systemYearCandidateRaw) : uniqueYears[0];
+        if (desiredYear) {
+          setSelectedYear(desiredYear);
+        }
+      } else {
+        const fallbackYear =
+          systemYearCandidateRaw != null
+            ? String(systemYearCandidateRaw)
+            : (new Date().getFullYear() + 543).toString();
+        if (fallbackYear) {
+          setYears([fallbackYear]);
+          setSelectedYear(fallbackYear);
+        } else {
+          setYears([]);
+          setSelectedYear('');
+        }
+      }
     } catch {
       const currentYear = (new Date().getFullYear() + 543).toString();
       setYears([currentYear]);
@@ -86,6 +134,11 @@ const RewardConfigManager = () => {
 
   useEffect(() => { loadAvailableYears(); }, []);
   useEffect(() => { if (selectedYear && years.length) loadData(); }, [selectedYear, activeSubTab, years]);
+  useEffect(() => {
+    if (!selectedYear) return;
+    setRateFormData((prev) => (prev.year === selectedYear ? prev : { ...prev, year: selectedYear }));
+    setConfigFormData((prev) => (prev.year === selectedYear ? prev : { ...prev, year: selectedYear }));
+  }, [selectedYear]);
 
   // ====== Load Data ======
   const loadData = async () => {

@@ -2921,7 +2921,7 @@ const showSubmissionConfirmation = async () => {
           console.log('=== Managing Submission Users via API ===');
           console.log('Current User:', currentUser);
           console.log('Co-authors:', coauthors);
-          console.log('Author Status:', formData.author_status);
+          console.log('Author Type:', formData.author_status);
 
           // Prepare all users data
           const allUsers = [];
@@ -3411,7 +3411,7 @@ const showSubmissionConfirmation = async () => {
             {/* Author Status */}
             <div id="field-author_status">
               <label htmlFor="author_status" className="block text-sm font-medium text-gray-700 mb-2">
-                สถานะผู้ยื่น (Author Status) <span className="text-red-500">*</span>
+                ประเภทผู้ประพันธ์ (Author Type) <span className="text-red-500">*</span>
               </label>
               <select
                 id="author_status"
@@ -3428,14 +3428,14 @@ const showSubmissionConfirmation = async () => {
                 } ${availableAuthorStatuses.length === 0 ? 'bg-gray-100 cursor-not-allowed' : ''}`}
               >
                 <option value="" disabled={formData.author_status !== ''} hidden={formData.author_status !== ''}>
-                  เลือกสถานะ (Select Status)
+                  เลือกประเภทผู้ประพันธ์ (Select Author Type)
                 </option>
                 {availableAuthorStatuses
                   .filter(status => status !== 'co_author')
                   .map(status => (
                     <option key={status} value={status}>
-                      {status === 'first_author' ? 'ผู้แต่งหลัก (First Author)' :
-                      status === 'corresponding_author' ? 'ผู้แต่งที่รับผิดชอบบทความ (Corresponding Author)' : status}
+                      {status === 'first_author' ? 'ผู้ประพันธ์ชื่อแรก (First Author)' :
+                      status === 'corresponding_author' ? 'ผู้ประพันธ์บรรณกิจ (Corresponding Author)' : status}
                     </option>
                   ))}
               </select>
