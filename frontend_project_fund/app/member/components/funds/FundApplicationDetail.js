@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import {
   ArrowLeft,
   FileText,
@@ -12,7 +12,6 @@ import {
   Eye,
   Download,
 } from "lucide-react";
-import { submissionAPI, submissionUsersAPI } from "@/app/lib/member_api";
 import apiClient, { announcementAPI } from "@/app/lib/api";
 import PageLayout from "../common/PageLayout";
 import Card from "../common/Card";
@@ -63,53 +62,237 @@ const getColoredStatusIcon = (statusCode) => {
 export default function FundApplicationDetail({ submissionId, onNavigate }) {
   const [submission, setSubmission] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [documents, setDocuments] = useState([]);
+  const [documentsLoading, setDocumentsLoading] = useState(false);
   const [mainAnnouncementDetail, setMainAnnouncementDetail] = useState(null);
   const [activityAnnouncementDetail, setActivityAnnouncementDetail] = useState(
     null
   );
   const { getCodeById } = useStatusMap();
 
+  const submissionCacheKey = useMemo(
+    () => ["memberSubmission", submissionId ?? null],
+    [submissionId]
+  );
+  const documentsCacheKey = useMemo(
+    () => ["memberSubmissionDocs", submissionId ?? null],
+    [submissionId]
+  );
+
+  const activeRequestsRef = useRef({
+    submission: { controller: null, token: null, cacheKey: submissionCacheKey },
+    documents: { controller: null, token: null, cacheKey: documentsCacheKey },
+  });
+
   useEffect(() => {
-    if (submissionId) {
-      loadSubmissionDetail();
-    }
-  }, [submissionId]);
+    activeRequestsRef.current.submission.cacheKey = submissionCacheKey;
+    activeRequestsRef.current.documents.cacheKey = documentsCacheKey;
+  }, [submissionCacheKey, documentsCacheKey]);
 
-  const loadSubmissionDetail = async () => {
-    setLoading(true);
-    try {
-      const response = await submissionAPI.getSubmission(submissionId);
-      const submissionData = response.submission || response;
+  const fetchSubmissionDetail = useCallback(
+    async ({ targetSubmissionId, signal }) => {
+      if (!targetSubmissionId) return null;
 
-      // Include applicant and related users from API response
-      if (response.applicant_user) {
-        submissionData.applicant_user = response.applicant_user;
-        if (!submissionData.user) {
-          submissionData.user = response.applicant_user;
+      const url = `${apiClient.baseURL}/submissions/${targetSubmissionId}`;
+      return apiClient.makeRequestWithRetry(url, { method: "GET", signal });
+    },
+    []
+  );
+
+  const fetchSubmissionUsers = useCallback(
+    async ({ targetSubmissionId, signal }) => {
+      if (!targetSubmissionId) return null;
+      try {
+        const url = `${apiClient.baseURL}/submissions/${targetSubmissionId}/users`;
+        const response = await apiClient.makeRequestWithRetry(url, {
+          method: "GET",
+          signal,
+        });
+        return response?.users || response?.data?.users || response || [];
+      } catch (error) {
+        if (error?.name === "AbortError") {
+          return null;
         }
+        console.log("Could not load submission users", error);
+        return null;
       }
+    },
+    []
+  );
 
-      if (response.submission_users) {
-        submissionData.submission_users = response.submission_users;
-      } else if (!submissionData.user && submissionData.user_id) {
-        // Fallback: fetch users if not provided
-        try {
-          const usersResponse = await submissionUsersAPI.getUsers(submissionId);
-          if (usersResponse && usersResponse.users) {
-            submissionData.submission_users = usersResponse.users;
+  const fetchSubmissionDocuments = useCallback(
+    async ({ targetSubmissionId, signal }) => {
+      if (!targetSubmissionId) return [];
+
+      const url = `${apiClient.baseURL}/submissions/${targetSubmissionId}/documents`;
+      const response = await apiClient.makeRequestWithRetry(url, {
+        method: "GET",
+        signal,
+      });
+
+      return response?.documents || response?.data?.documents || response || [];
+    },
+    []
+  );
+
+  useEffect(() => {
+    const submissionController = new AbortController();
+    const documentsController = new AbortController();
+    const submissionToken = Symbol("submission-request");
+    const documentsToken = Symbol("documents-request");
+
+    if (activeRequestsRef.current.submission.controller) {
+      activeRequestsRef.current.submission.controller.abort();
+    }
+    if (activeRequestsRef.current.documents.controller) {
+      activeRequestsRef.current.documents.controller.abort();
+    }
+
+    activeRequestsRef.current.submission = {
+      controller: submissionController,
+      token: submissionToken,
+      cacheKey: submissionCacheKey,
+    };
+    activeRequestsRef.current.documents = {
+      controller: documentsController,
+      token: documentsToken,
+      cacheKey: documentsCacheKey,
+    };
+
+    setSubmission(null);
+    setDocuments([]);
+    setLoading(Boolean(submissionId));
+    setDocumentsLoading(Boolean(submissionId));
+
+    if (!submissionId) {
+      return () => {
+        submissionController.abort();
+        documentsController.abort();
+      };
+    }
+
+    (async () => {
+      try {
+        const response = await fetchSubmissionDetail({
+          targetSubmissionId: submissionId,
+          signal: submissionController.signal,
+        });
+        if (!response || submissionController.signal.aborted) {
+          return;
+        }
+        if (activeRequestsRef.current.submission.token !== submissionToken) {
+          return;
+        }
+
+        let submissionData = response.submission || response;
+        const responseId =
+          submissionData?.submission_id ??
+          submissionData?.id ??
+          response?.submission_id ??
+          null;
+        if (
+          responseId != null &&
+          String(responseId) !== String(submissionId)
+        ) {
+          console.warn("Ignored submission response due to mismatched id", {
+            expected: submissionId,
+            received: responseId,
+          });
+          return;
+        }
+
+        if (response.applicant_user) {
+          submissionData.applicant_user = response.applicant_user;
+          if (!submissionData.user) {
+            submissionData.user = response.applicant_user;
           }
-        } catch (err) {
-          console.log("Could not load submission users", err);
+        }
+
+        if (response.submission_users) {
+          submissionData.submission_users = response.submission_users;
+        } else if (
+          (!submissionData.submission_users ||
+            submissionData.submission_users.length === 0) &&
+          submissionData.user_id
+        ) {
+          const users = await fetchSubmissionUsers({
+            targetSubmissionId: submissionId,
+            signal: submissionController.signal,
+          });
+          if (
+            users &&
+            !submissionController.signal.aborted &&
+            activeRequestsRef.current.submission.token === submissionToken
+          ) {
+            const normalizedUsers = Array.isArray(users)
+              ? users
+              : users?.users || [];
+            if (Array.isArray(normalizedUsers) && normalizedUsers.length > 0) {
+              submissionData.submission_users = normalizedUsers;
+            }
+          }
+        }
+
+        if (
+          submissionController.signal.aborted ||
+          activeRequestsRef.current.submission.token !== submissionToken
+        ) {
+          return;
+        }
+
+        setSubmission(submissionData);
+      } catch (error) {
+        if (error?.name === "AbortError") {
+          return;
+        }
+        console.error("Error loading submission detail:", error);
+      } finally {
+        if (activeRequestsRef.current.submission.token === submissionToken) {
+          setLoading(false);
         }
       }
+    })();
 
-      setSubmission(submissionData);
-    } catch (error) {
-      console.error("Error loading submission detail:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
+    (async () => {
+      try {
+        const response = await fetchSubmissionDocuments({
+          targetSubmissionId: submissionId,
+          signal: documentsController.signal,
+        });
+        if (documentsController.signal.aborted) {
+          return;
+        }
+        if (activeRequestsRef.current.documents.token !== documentsToken) {
+          return;
+        }
+        const normalized = Array.isArray(response)
+          ? response
+          : response?.documents || [];
+        setDocuments(Array.isArray(normalized) ? normalized : []);
+      } catch (error) {
+        if (error?.name === "AbortError") {
+          return;
+        }
+        console.error("Error loading submission documents:", error);
+      } finally {
+        if (activeRequestsRef.current.documents.token === documentsToken) {
+          setDocumentsLoading(false);
+        }
+      }
+    })();
+
+    return () => {
+      submissionController.abort();
+      documentsController.abort();
+    };
+  }, [
+    submissionId,
+    submissionCacheKey,
+    documentsCacheKey,
+    fetchSubmissionDetail,
+    fetchSubmissionDocuments,
+    fetchSubmissionUsers,
+  ]);
 
   const handleBack = () => {
     if (onNavigate) {
@@ -288,8 +471,26 @@ export default function FundApplicationDetail({ submissionId, onNavigate }) {
     );
   }
 
-  const documents =
-    submission.documents || submission.submission_documents || [];
+  const sortedDocuments = useMemo(() => {
+    const list = Array.isArray(documents) ? [...documents] : [];
+    return list.sort((a, b) => {
+      const orderA = Number(a?.display_order ?? a?.DisplayOrder ?? 0);
+      const orderB = Number(b?.display_order ?? b?.DisplayOrder ?? 0);
+      if (orderA !== orderB) {
+        return orderA - orderB;
+      }
+      const idA = Number(
+        a?.document_id ?? a?.DocumentID ?? a?.id ?? a?.ID ?? 0
+      );
+      const idB = Number(
+        b?.document_id ?? b?.DocumentID ?? b?.id ?? b?.ID ?? 0
+      );
+      if (!Number.isNaN(idA) && !Number.isNaN(idB) && idA !== idB) {
+        return idA - idB;
+      }
+      return 0;
+    });
+  }, [documents]);
   const applicant = getApplicant();
 
   const statusCode =
@@ -470,7 +671,11 @@ export default function FundApplicationDetail({ submissionId, onNavigate }) {
       {/* Documents */}
       <Card title="เอกสารแนบ (Attachments)" icon={FileText} collapsible={false}>
         <div className="space-y-4">
-          {documents.length > 0 ? (
+          {documentsLoading ? (
+            <div className="py-6 text-center text-sm text-gray-500">
+              กำลังโหลดเอกสารแนบ...
+            </div>
+          ) : sortedDocuments.length > 0 ? (
             <div className="overflow-x-auto">
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
@@ -490,7 +695,7 @@ export default function FundApplicationDetail({ submissionId, onNavigate }) {
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {documents.map((doc, index) => {
+                  {sortedDocuments.map((doc, index) => {
                     const fileId = doc.file_id || doc.File?.file_id || doc.file?.file_id;
                     const docName =
                       doc.File?.original_name ||
