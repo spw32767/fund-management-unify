@@ -154,12 +154,8 @@ const FundManagementTab = ({
   const copyDisabledReason = React.useMemo(() => {
     if (!selectedYear) return "กรุณาเลือกปีงบประมาณก่อน";
     if (!hasFundData) return "ปีที่เลือกยังไม่มีข้อมูลทุน";
-    if (!nextYear) return "ไม่พบปีถัดไป";
-    if (existingYears.includes(nextYear)) {
-      return `มีปีงบประมาณ ${nextYear} อยู่แล้ว`;
-    }
     return null;
-  }, [selectedYear, hasFundData, nextYear, existingYears]);
+  }, [selectedYear, hasFundData]);
 
   const handleCopyToNextYear = async () => {
     if (copyDisabledReason) {
