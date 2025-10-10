@@ -163,3 +163,89 @@ export const resolveDocumentFile = (doc, index) => {
   };
 };
 
+const getFileMetadataFromResponse = (response) => {
+  if (!response || typeof response !== 'object') {
+    return null;
+  }
+
+  return (
+    response.file ||
+    response.data?.file ||
+    response.data ||
+    response.result?.file ||
+    response.result ||
+    null
+  );
+};
+
+export const enrichDocumentsWithFileMetadata = async (
+  documents,
+  { fetchFileById, cache } = {}
+) => {
+  if (!Array.isArray(documents) || documents.length === 0) {
+    return Array.isArray(documents) ? documents.map((doc, index) => ({
+      ...doc,
+      resolvedFile: resolveDocumentFile(doc, index),
+    })) : [];
+  }
+
+  const metadataCache = cache instanceof Map ? cache : new Map();
+  const fetcher = typeof fetchFileById === 'function' ? fetchFileById : null;
+
+  const ensureFileMeta = async (fileId) => {
+    if (fileId == null) return null;
+
+    if (metadataCache.has(fileId)) {
+      return metadataCache.get(fileId);
+    }
+
+    if (!fetcher) {
+      metadataCache.set(fileId, null);
+      return null;
+    }
+
+    try {
+      const response = await fetcher(fileId);
+      const meta = getFileMetadataFromResponse(response);
+      metadataCache.set(fileId, meta ?? null);
+      return meta ?? null;
+    } catch (error) {
+      console.warn('[documentFiles] Failed to fetch file metadata', fileId, error);
+      metadataCache.set(fileId, null);
+      return null;
+    }
+  };
+
+  const enriched = await Promise.all(
+    documents.map(async (doc, index) => {
+      const baseResolved = resolveDocumentFile(doc, index);
+      const fileId = baseResolved.fileId;
+      let fileMeta = baseResolved.file ?? null;
+
+      if ((!fileMeta || !fileMeta.original_name) && fileId != null) {
+        fileMeta = await ensureFileMeta(fileId);
+      }
+
+      if (fileMeta) {
+        const mergedDoc = {
+          ...doc,
+          file: doc?.file ?? fileMeta,
+          File: doc?.File ?? fileMeta,
+        };
+
+        return {
+          ...mergedDoc,
+          resolvedFile: resolveDocumentFile({ ...mergedDoc, file: fileMeta }, index),
+        };
+      }
+
+      return {
+        ...doc,
+        resolvedFile: baseResolved,
+      };
+    })
+  );
+
+  return enriched;
+};
+

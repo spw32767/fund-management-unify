@@ -16,7 +16,7 @@ import deptHeadAPI from '@/app/lib/dept_head_api';
 import apiClient from '@/app/lib/api';
 import { toast } from 'react-hot-toast';
 import { useStatusMap } from '@/app/hooks/useStatusMap';
-import { resolveDocumentFile } from '@/app/utils/documentFiles';
+import { resolveDocumentFile, enrichDocumentsWithFileMetadata } from '@/app/utils/documentFiles';
 import { PDFDocument } from 'pdf-lib';
 import PublicationSubmissionDetailsDept from './PublicationSubmissionDetailsDept';
 import Swal from 'sweetalert2';
@@ -386,6 +386,7 @@ export default function GeneralSubmissionDetailsDept({ submissionId, onBack }) {
   // attachments
   const [attachments, setAttachments] = useState([]);
   const [attachmentsLoading, setAttachmentsLoading] = useState(false);
+  const fileMetaCacheRef = useRef(new Map());
 
   const pickArray = useCallback((...candidates) => {
     for (const candidate of candidates) {
@@ -516,8 +517,22 @@ export default function GeneralSubmissionDetailsDept({ submissionId, onBack }) {
         const docsFallback = submission.documents || submission.submission_documents || [];
         const rawDocs = (Array.isArray(docsApi) && docsApi.length > 0) ? docsApi : docsFallback;
 
-        const merged = (rawDocs || []).map((d, i) => {
-          const resolvedFile = resolveDocumentFile(d, i);
+        const normalizedDocs = await enrichDocumentsWithFileMetadata(rawDocs || [], {
+          fetchFileById: async (fileId) => {
+            const response = await apiClient.get(`/files/managed/${fileId}`);
+            return (
+              response?.file ||
+              response?.data?.file ||
+              response?.data ||
+              response ||
+              null
+            );
+          },
+          cache: fileMetaCacheRef.current,
+        });
+
+        const merged = (normalizedDocs || []).map((d, i) => {
+          const resolvedFile = d?.resolvedFile ?? resolveDocumentFile(d, i);
           const docTypeId = d.document_type_id ?? d.DocumentTypeID ?? d.doc_type_id ?? null;
           const docTypeName = d.document_type_name || typeMap[String(docTypeId)] || 'ไม่ระบุหมวด';
           return {

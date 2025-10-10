@@ -34,7 +34,7 @@ import apiClient from "@/app/lib/api";
 import deptHeadAPI from "@/app/lib/dept_head_api";
 import { rewardConfigAPI } from '@/app/lib/publication_api';
 import { notificationsAPI } from '@/app/lib/notifications_api';
-import { resolveDocumentFile } from '@/app/utils/documentFiles';
+import { resolveDocumentFile, enrichDocumentsWithFileMetadata } from '@/app/utils/documentFiles';
 
 import Swal from 'sweetalert2';
 import 'sweetalert2/dist/sweetalert2.min.css';
@@ -604,6 +604,7 @@ export default function PublicationSubmissionDetailsDept({ submissionId, onBack 
 
   const [attachments, setAttachments] = useState([]);
   const [attachmentsLoading, setAttachmentsLoading] = useState(false)
+  const fileMetaCacheRef = useRef(new Map());
   const { getCodeById } = useStatusMap();
 
   // แผงการตัดสินใจของหัวหน้าสาขา
@@ -930,8 +931,22 @@ export default function PublicationSubmissionDetailsDept({ submissionId, onBack 
 
         const rawDocs = docsApi.length > 0 ? docsApi : docsFallback;
 
-        const merged = (rawDocs || []).map((d, index) => {
-          const resolvedFile = resolveDocumentFile(d, index);
+        const normalizedDocs = await enrichDocumentsWithFileMetadata(rawDocs || [], {
+          fetchFileById: async (fileId) => {
+            const response = await apiClient.get(`/files/managed/${fileId}`);
+            return (
+              response?.file ||
+              response?.data?.file ||
+              response?.data ||
+              response ||
+              null
+            );
+          },
+          cache: fileMetaCacheRef.current,
+        });
+
+        const merged = (normalizedDocs || []).map((d, index) => {
+          const resolvedFile = d?.resolvedFile ?? resolveDocumentFile(d, index);
           const docTypeId =
             d?.document_type_id ??
             d?.document_type ??

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import {
   ArrowLeft,
   FileText,
@@ -14,11 +14,15 @@ import {
 } from "lucide-react";
 import { submissionAPI, submissionUsersAPI } from "@/app/lib/member_api";
 import apiClient, { announcementAPI } from "@/app/lib/api";
+import { toast } from "react-hot-toast";
 import PageLayout from "../common/PageLayout";
 import Card from "../common/Card";
 import StatusBadge from "../common/StatusBadge";
 import { formatCurrency } from "@/app/utils/format";
-import { resolveDocumentFile } from "@/app/utils/documentFiles";
+import {
+  resolveDocumentFile,
+  enrichDocumentsWithFileMetadata,
+} from "@/app/utils/documentFiles";
 import { useStatusMap } from "@/app/hooks/useStatusMap";
 
 const statusIconOf = (statusCode) => {
@@ -69,6 +73,19 @@ export default function FundApplicationDetail({ submissionId, onNavigate }) {
     null
   );
   const { getCodeById } = useStatusMap();
+  const fileMetaCacheRef = useRef(new Map());
+
+  const fetchManagedFileMetadata = useCallback(async (fileId) => {
+    if (fileId == null) return null;
+    const response = await apiClient.get(`/files/managed/${fileId}`);
+    return (
+      response?.file ||
+      response?.data?.file ||
+      response?.data ||
+      response ||
+      null
+    );
+  }, []);
 
   useEffect(() => {
     if (submissionId) {
@@ -102,6 +119,16 @@ export default function FundApplicationDetail({ submissionId, onNavigate }) {
         } catch (err) {
           console.log("Could not load submission users", err);
         }
+      }
+
+      if (Array.isArray(submissionData.documents) && submissionData.documents.length) {
+        submissionData.documents = await enrichDocumentsWithFileMetadata(
+          submissionData.documents,
+          {
+            fetchFileById: fetchManagedFileMetadata,
+            cache: fileMetaCacheRef.current,
+          }
+        );
       }
 
       setSubmission(submissionData);
