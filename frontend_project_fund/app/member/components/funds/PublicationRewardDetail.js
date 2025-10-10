@@ -439,6 +439,10 @@ export default function PublicationRewardDetail({ submissionId, onNavigate }) {
   };
 
   const handleView = async (fileId) => {
+    if (fileId == null) {
+      toast.error('ไม่พบไฟล์');
+      return;
+    }
     try {
       const token = apiClient.getToken();
       const url = `${apiClient.baseURL}/files/managed/${fileId}/download`;
@@ -456,6 +460,10 @@ export default function PublicationRewardDetail({ submissionId, onNavigate }) {
   };
 
   const handleDownload = async (fileId, fileName = 'document') => {
+    if (fileId == null) {
+      toast.error('ไม่พบไฟล์');
+      return;
+    }
     try {
       await apiClient.downloadFile(`/files/managed/${fileId}/download`, fileName);
     } catch (error) {
@@ -1097,7 +1105,8 @@ export default function PublicationRewardDetail({ submissionId, onNavigate }) {
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
                     {documents.map((doc, index) => {
-                      const fileId = doc.file_id || doc.File?.file_id || doc.file?.file_id;
+                      const fileId = doc.file_id ?? doc.File?.file_id ?? doc.file?.file_id ?? null;
+                      const hasFile = fileId != null;
                       const docName = doc.File?.original_name || doc.file?.original_name || doc.original_filename || doc.file_name || doc.name || `เอกสารที่ ${index + 1}`;
                       const docType =
                         doc.document_type_name && doc.document_type_name.trim() !== ""
@@ -1108,23 +1117,30 @@ export default function PublicationRewardDetail({ submissionId, onNavigate }) {
                           <td className="px-4 py-2 text-sm text-gray-500">{index + 1}</td>
                           <td className="px-4 py-2 text-sm text-gray-700">{docType}</td>
                           <td className="px-4 py-2">
-                            <div className="flex items-center">
-                              <FileText className="h-5 w-5 text-gray-400 mr-2" />
+                            <div className="flex flex-wrap items-center gap-2">
+                              <FileText className="h-5 w-5 text-gray-400" />
                               <span className="text-sm text-gray-700">{docName}</span>
+                              {!hasFile && (
+                                <span className="inline-flex items-center rounded-full bg-gray-200 px-2 py-0.5 text-[11px] font-medium text-gray-600">
+                                  ไม่มีไฟล์แนบ
+                                </span>
+                              )}
                             </div>
                           </td>
                           <td className="px-4 py-2">
                             <div className="flex items-center gap-2">
                               <button
                                 onClick={() => handleView(fileId)}
-                                className="inline-flex items-center gap-1 px-3 py-1 text-sm text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-md"
+                                className="inline-flex items-center gap-1 px-3 py-1 text-sm text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-md disabled:opacity-50 disabled:cursor-not-allowed"
+                                disabled={!hasFile}
                               >
                                 <Eye className="h-4 w-4" />
                                 ดู
                               </button>
                               <button
                                 onClick={() => handleDownload(fileId, docName)}
-                                className="inline-flex items-center gap-1 px-3 py-1 text-sm text-green-600 bg-green-50 hover:bg-green-100 rounded-md"
+                                className="inline-flex items-center gap-1 px-3 py-1 text-sm text-green-600 bg-green-50 hover:bg-green-100 rounded-md disabled:opacity-50 disabled:cursor-not-allowed"
+                                disabled={!hasFile}
                               >
                                 <Download className="h-4 w-4" />
                                 ดาวน์โหลด

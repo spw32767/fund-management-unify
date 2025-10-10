@@ -1083,7 +1083,7 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
         const rawDocs = (Array.isArray(docsApi) && docsApi.length > 0) ? docsApi : docsFallback;
 
         const merged = (rawDocs || []).map((d, i) => {
-          const fileId = d.file_id ?? d.File?.file_id ?? d.file?.file_id ?? d.id;
+          const fileId = d.file_id ?? d.File?.file_id ?? d.file?.file_id ?? null;
           const name =
             d.file_name ??
             d.original_name ??
@@ -1561,6 +1561,10 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
 
   // file handlers
   const handleView = async (fileId) => {
+    if (fileId == null) {
+      toast.error('ไม่พบไฟล์');
+      return;
+    }
     try {
       const token = apiClient.getToken();
       const url = `${apiClient.baseURL}/files/managed/${fileId}/download`;
@@ -1579,6 +1583,10 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
   };
 
   const handleDownload = async (fileId, fileName = 'document') => {
+    if (fileId == null) {
+      toast.error('ไม่พบไฟล์');
+      return;
+    }
     try {
       await apiClient.downloadFile(`/files/managed/${fileId}/download`, fileName);
     } catch (e) {
@@ -1589,6 +1597,9 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
 
   // merge attachments to pdf
   const fetchFileAsBlob = async (fileId) => {
+    if (fileId == null) {
+      throw new Error('Missing file_id');
+    }
     const token = apiClient.getToken();
     const url = `${apiClient.baseURL}/files/managed/${fileId}/download`;
     const resp = await fetch(url, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
@@ -1600,6 +1611,12 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
     const merged = await PDFDocument.create();
     const skipped = [];
     for (const doc of list) {
+      if (doc?.file_id == null) {
+        const skippedName = doc?.original_name || doc?.file_name || 'unknown.pdf';
+        console.warn('merge: skip (missing file_id)', skippedName);
+        skipped.push(skippedName);
+        continue;
+      }
       try {
         const blob = await fetchFileAsBlob(doc.file_id);
         const src = await PDFDocument.load(await blob.arrayBuffer(), { ignoreEncryption: true });
@@ -2080,7 +2097,8 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
           ) : attachments.length > 0 ? (
             <div className="space-y-4">
               {attachments.map((doc, index) => {
-                const fileId = doc.file_id || doc.File?.file_id || doc.file?.file_id;
+                const fileId = doc.file_id ?? doc.File?.file_id ?? doc.file?.file_id ?? null;
+                const hasFile = fileId != null;
                 const fileName =
                   doc.original_name ||
                   doc.File?.original_name ||
@@ -2113,7 +2131,7 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
                           </p>
                           </div>
                             {/* ชื่อไฟล์: ทำเป็นลิงก์สีน้ำเงิน กดแล้วเรียก handleView(fileId) */}
-                            {fileId ? (
+                            {hasFile ? (
                               <a
                                 href="#"
                                 onClick={(e) => { e.preventDefault(); handleView(fileId); }}
@@ -2123,12 +2141,17 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
                                 {fileName}
                               </a>
                             ) : (
-                              <span
-                                className="font-medium text-gray-400 truncate"
-                                title={fileName}
-                              >
-                                {fileName}
-                              </span>
+                              <div className="flex flex-wrap items-center gap-2">
+                                <span
+                                  className="font-medium text-gray-400 truncate"
+                                  title={fileName}
+                                >
+                                  {fileName}
+                                </span>
+                                <span className="inline-flex items-center rounded-full bg-gray-200 px-2 py-0.5 text-[11px] font-medium text-gray-600">
+                                  ไม่มีไฟล์แนบ
+                                </span>
+                              </div>
                             )}
                         </div>
                       </div>
@@ -2137,7 +2160,7 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
                         <button
                           className="inline-flex items-center gap-1 border border-blue-200 px-3 py-2 text-sm text-blue-600 hover:bg-blue-100 rounded-md transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
                           onClick={() => handleView(fileId)}
-                          disabled={!fileId}
+                          disabled={!hasFile}
                           title="เปิดดูไฟล์"
                         >
                           <Eye size={14} />
@@ -2146,7 +2169,7 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
                         <button
                           className="inline-flex items-center gap-1 border border-green-200 px-3 py-2 text-sm text-green-600 hover:bg-green-100 rounded-md transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
                           onClick={() => handleDownload(fileId, fileName)}
-                          disabled={!fileId}
+                          disabled={!hasFile}
                           title="ดาวน์โหลดไฟล์"
                         >
                           <Download size={14} />
