@@ -595,14 +595,14 @@ const FundManagementTab = ({
                     <button
                       type="button"
                       onClick={() => onEditCategory?.(category)}
-                      className="px-3 py-1.5 text-sm rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-100"
+                      className="text-blue-600 hover:bg-blue-50 p-2 rounded-lg mr-1 inline-flex items-center gap-1"
                     >
                       <Edit size={16} className="inline mr-1" /> แก้ไข
                     </button>
                     <button
                       type="button"
                       onClick={() => confirmDeleteCategory(category)}
-                      className="px-3 py-1.5 text-sm rounded-lg border border-red-200 text-red-600 hover:bg-red-50"
+                      className="text-red-600 hover:bg-red-50 p-2 rounded-lg mr-1 inline-flex items-center gap-1"
                     >
                       <Trash2 size={16} className="inline mr-1" /> ลบ
                     </button>
@@ -615,7 +615,7 @@ const FundManagementTab = ({
                       <button
                         type="button"
                         onClick={() => onAddSubcategory?.(category)}
-                        className="flex items-center gap-2 px-3 py-2 text-sm bg-blue-50 text-blue-700 border border-blue-200 rounded-lg hover:bg-blue-100"
+                        className="text-blue-600 hover:bg-blue-50 p-2 rounded-lg mr-1 inline-flex items-center gap-1"
                       >
                         <Plus size={14} /> เพิ่มทุนย่อย
                       </button>
@@ -685,14 +685,14 @@ const FundManagementTab = ({
                                   <button
                                     type="button"
                                     onClick={() => onEditSubcategory?.(subcategory, category)}
-                                    className="px-3 py-1.5 text-xs sm:text-sm rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-100"
+                                    className="text-blue-600 hover:bg-blue-50 p-2 rounded-lg mr-1 inline-flex items-center gap-1"
                                   >
                                     <Edit size={14} className="inline mr-1" /> แก้ไข
                                   </button>
                                   <button
                                     type="button"
                                     onClick={() => confirmDeleteSubcategory(subcategory, category)}
-                                    className="px-3 py-1.5 text-xs sm:text-sm rounded-lg border border-red-200 text-red-600 hover:bg-red-50"
+                                    className="text-red-600 hover:bg-red-50 p-2 rounded-lg mr-1 inline-flex items-center gap-1"
                                   >
                                     <Trash2 size={14} className="inline mr-1" /> ลบ
                                   </button>

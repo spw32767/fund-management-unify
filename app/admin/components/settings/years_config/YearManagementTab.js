@@ -201,17 +201,17 @@ const YearManagementTab = ({ years = [], onSaveYear, onDeleteYear }) => {
                   <td className="px-6 py-4 whitespace-nowrap text-center text-sm font-medium">
                     <button
                       onClick={() => handleEdit(item)}
-                      className="text-blue-600 hover:bg-blue-50 p-2 rounded-lg mr-1"
+                      className="text-blue-600 hover:bg-blue-50 p-2 rounded-lg mr-1 inline-flex items-center gap-1"
                       title="แก้ไข"
                     >
-                      <Edit size={16} />
+                      <Edit size={16} /> แก้ไข
                     </button>
                     <button
                       onClick={() => handleDelete(item)}
-                      className="text-red-600 hover:bg-red-50 p-2 rounded-lg"
+                      className="text-red-600 hover:bg-red-50 p-2 rounded-lg inline-flex items-center gap-1"
                       title="ลบ"
                     >
-                      <Trash2 size={16} />
+                      <Trash2 size={16} /> ลบ
                     </button>
                   </td>
                 </tr>
