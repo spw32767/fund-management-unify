@@ -1083,7 +1083,7 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
         const rawDocs = (Array.isArray(docsApi) && docsApi.length > 0) ? docsApi : docsFallback;
 
         const merged = (rawDocs || []).map((d, i) => {
-          const fileId = d.file_id ?? d.File?.file_id ?? d.file?.file_id ?? d.id;
+          const fileId = d.file_id ?? d.File?.file_id ?? d.file?.file_id ?? null;
           const name =
             d.file_name ??
             d.original_name ??
@@ -1561,6 +1561,10 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
 
   // file handlers
   const handleView = async (fileId) => {
+    if (!fileId) {
+      toast.error('ไม่พบไฟล์สำหรับเปิดดู');
+      return;
+    }
     try {
       const token = apiClient.getToken();
       const url = `${apiClient.baseURL}/files/managed/${fileId}/download`;
@@ -1579,6 +1583,10 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
   };
 
   const handleDownload = async (fileId, fileName = 'document') => {
+    if (!fileId) {
+      toast.error('ไม่พบไฟล์สำหรับดาวน์โหลด');
+      return;
+    }
     try {
       await apiClient.downloadFile(`/files/managed/${fileId}/download`, fileName);
     } catch (e) {
@@ -1589,6 +1597,9 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
 
   // merge attachments to pdf
   const fetchFileAsBlob = async (fileId) => {
+    if (!fileId) {
+      throw new Error('missing file identifier');
+    }
     const token = apiClient.getToken();
     const url = `${apiClient.baseURL}/files/managed/${fileId}/download`;
     const resp = await fetch(url, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
@@ -1600,14 +1611,23 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
     const merged = await PDFDocument.create();
     const skipped = [];
     for (const doc of list) {
+      const fileId = doc?.file_id ?? doc?.File?.file_id ?? doc?.file?.file_id ?? null;
+      if (!fileId) {
+        skipped.push(doc?.original_name || doc?.file_name || 'unknown-file');
+        continue;
+      }
       try {
-        const blob = await fetchFileAsBlob(doc.file_id);
+        const blob = await fetchFileAsBlob(fileId);
         const src = await PDFDocument.load(await blob.arrayBuffer(), { ignoreEncryption: true });
         const pages = await merged.copyPages(src, src.getPageIndices());
         pages.forEach((p) => merged.addPage(p));
       } catch (e) {
         console.warn('merge: skip', e);
-        skipped.push(doc?.original_name || doc?.file_name || `file-${doc.file_id}.pdf`);
+        skipped.push(
+          doc?.original_name ||
+            doc?.file_name ||
+            (fileId ? `file-${fileId}.pdf` : 'unknown-file')
+        );
         continue;
       }
     }

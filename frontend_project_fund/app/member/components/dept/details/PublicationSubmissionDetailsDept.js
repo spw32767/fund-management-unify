@@ -1174,6 +1174,9 @@ export default function PublicationSubmissionDetailsDept({ submissionId, onBack 
   };
 
   const fetchManagedFileBlob = async (fileId) => {
+    if (!fileId) {
+      throw new Error('missing file identifier');
+    }
     const token = apiClient.getToken();
     const url = `${apiClient.baseURL}/files/managed/${fileId}/download`;
     const resp = await fetch(url, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
