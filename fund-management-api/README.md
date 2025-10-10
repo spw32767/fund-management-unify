@@ -128,3 +128,19 @@ Check the release notes or diff for new environment variables or database migrat
 - Subsequent profile or document operations reuse the same helper, so it is safe for controllers to call folder provisioning whenever they handle user files.
 
 This means profile pictures can be uploaded immediately after account activation, even before the user submits any funding request.
+
+## 8. One-off user folder provisioning command
+
+The repository includes a small helper command that reuses the same folder-creation logic as the API. This is useful when you need to prepare storage for existing accounts without asking every user to log in first.
+
+1. Edit `cmd/provision-user-folder/main.go` and populate the `targetUserIDs` slice with the `user_id` values you want to provision (for example `[]int{12, 15, 23}`).
+2. Ensure your `.env` (or environment variables) contains valid database credentials and an `UPLOAD_PATH`.
+3. Run the command:
+
+   ```bash
+   go run ./cmd/provision-user-folder
+   ```
+
+   The command will report success or detail any user IDs that could not be processed.
+
+Because the helper is idempotent, you can safely re-run it later to verify the folder structure for the same users or additional IDs.

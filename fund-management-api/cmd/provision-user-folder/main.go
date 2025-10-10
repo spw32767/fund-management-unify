@@ -8,13 +8,15 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strconv"
+	"strings"
 
 	"github.com/joho/godotenv"
 	"gorm.io/gorm"
 )
 
 func main() {
-	log.Println("🗂  Starting single-user folder provisioning...")
+	log.Println("🗂  Starting targeted user folder provisioning...")
 
 	if err := godotenv.Load(); err != nil {
 		log.Println("No .env file found, falling back to environment variables")
@@ -22,10 +24,10 @@ func main() {
 
 	config.InitDB()
 
-	targetUserID := 0 // 👈 Set this to the user_id you want to provision
+	targetUserIDs := []int{} // 👈 Populate with the user_id values you want to provision, e.g. []int{1, 2, 3}
 
-	if targetUserID == 0 {
-		log.Fatal("targetUserID is 0. Please set it to the desired user_id before running this command.")
+	if len(targetUserIDs) == 0 {
+		log.Fatal("targetUserIDs is empty. Please add at least one user_id before running this command.")
 	}
 
 	uploadPath := os.Getenv("UPLOAD_PATH")
@@ -37,18 +39,44 @@ func main() {
 		log.Fatalf("failed to prepare base upload directory: %v", err)
 	}
 
-	var user models.User
-	if err := config.DB.First(&user, "user_id = ?", targetUserID).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			log.Fatalf("no user found with user_id %d", targetUserID)
+	var (
+		succeeded int
+		failed    []string
+	)
+
+	for _, targetUserID := range targetUserIDs {
+		log.Printf("➡️  Provisioning user_id=%d", targetUserID)
+
+		var user models.User
+		if err := config.DB.First(&user, "user_id = ?", targetUserID).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				log.Printf("❌ no user found with user_id %d", targetUserID)
+				failed = append(failed, formatFailureLabel(targetUserID, "record not found"))
+			} else {
+				log.Printf("❌ failed to query user_id %d: %v", targetUserID, err)
+				failed = append(failed, formatFailureLabel(targetUserID, err.Error()))
+			}
+			continue
 		}
-		log.Fatalf("failed to query user_id %d: %v", targetUserID, err)
+
+		folderPath, err := utils.CreateUserFolderIfNotExists(user, uploadPath)
+		if err != nil {
+			log.Printf("❌ failed to create folder structure for user_id %d: %v", targetUserID, err)
+			failed = append(failed, formatFailureLabel(targetUserID, err.Error()))
+			continue
+		}
+
+		log.Printf("✅ User folder ready at %s", folderPath)
+		succeeded++
 	}
 
-	folderPath, err := utils.CreateUserFolderIfNotExists(user, uploadPath)
-	if err != nil {
-		log.Fatalf("failed to create folder structure for user_id %d: %v", targetUserID, err)
+	if len(failed) > 0 {
+		log.Fatalf("completed with errors. successful: %d, failed: %s", succeeded, strings.Join(failed, ", "))
 	}
 
-	log.Printf("✅ User folder ready at %s", folderPath)
+	log.Printf("🎉 Successfully provisioned %d user(s)", succeeded)
+}
+
+func formatFailureLabel(userID int, reason string) string {
+	return "user_id=" + strconv.Itoa(userID) + " (" + reason + ")"
 }
