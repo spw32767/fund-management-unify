@@ -34,6 +34,7 @@ import apiClient from "@/app/lib/api";
 import deptHeadAPI from "@/app/lib/dept_head_api";
 import { rewardConfigAPI } from '@/app/lib/publication_api';
 import { notificationsAPI } from '@/app/lib/notifications_api';
+import { resolveDocumentFile } from '@/app/utils/documentFiles';
 
 import Swal from 'sweetalert2';
 import 'sweetalert2/dist/sweetalert2.min.css';
@@ -930,6 +931,7 @@ export default function PublicationSubmissionDetailsDept({ submissionId, onBack 
         const rawDocs = docsApi.length > 0 ? docsApi : docsFallback;
 
         const merged = (rawDocs || []).map((d, index) => {
+          const resolvedFile = resolveDocumentFile(d, index);
           const docTypeId =
             d?.document_type_id ??
             d?.document_type ??
@@ -959,8 +961,12 @@ export default function PublicationSubmissionDetailsDept({ submissionId, onBack 
 
           return {
             ...d,
+            file_id: resolvedFile.fileId,
+            original_name: resolvedFile.originalName ?? d?.original_name ?? null,
+            file_name: resolvedFile.originalName ?? resolvedFile.displayName ?? null,
             document_type_id: docTypeId ?? d?.document_type_id ?? null,
             document_type_name: docTypeName,
+            resolvedFile,
             _index: index,
           };
         });
@@ -1122,29 +1128,19 @@ export default function PublicationSubmissionDetailsDept({ submissionId, onBack 
 
 
 
-  const resolveFileId = (doc) =>
-    doc?.file_id ??
-    doc?.File?.file_id ??
-    doc?.file?.file_id ??
-    null;
-  const resolveFileName = (doc, fallback = 'document') => {
-    const candidates = [
-      doc?.original_name,
-      doc?.original_filename,
-      doc?.file_name,
-      doc?.File?.original_name,
-      doc?.file?.original_name,
-      doc?.File?.file_name,
-      doc?.file?.file_name,
-      doc?.name,
-      doc?.title,
-    ];
-    for (const candidate of candidates) {
-      if (typeof candidate === 'string' && candidate.trim() !== '') {
-        return candidate;
-      }
-    }
-    return fallback;
+  const resolveFileMeta = (doc, index) => {
+    if (!doc) return null;
+    return doc.resolvedFile ?? resolveDocumentFile(doc, index);
+  };
+
+  const resolveFileId = (doc, index) => {
+    const meta = resolveFileMeta(doc, index);
+    return meta?.fileId ?? null;
+  };
+
+  const resolveFileName = (doc, fallback = 'document', index) => {
+    const meta = resolveFileMeta(doc, index);
+    return meta?.displayName || meta?.originalName || fallback;
   };
 
   const fetchManagedFileBlob = async (fileId) => {
@@ -1255,10 +1251,11 @@ export default function PublicationSubmissionDetailsDept({ submissionId, onBack 
     const merged = await PDFDocument.create();
     const skipped = [];
 
-    for (const doc of list) {
-      const fileId = resolveFileId(doc);
-      if (fileId == null) {
-        const skippedName = resolveFileName(doc, 'unknown.pdf');
+    for (let idx = 0; idx < list.length; idx += 1) {
+      const doc = list[idx];
+      const meta = resolveFileMeta(doc, idx);
+      if (!meta?.fileId) {
+        const skippedName = meta?.displayName || meta?.originalName || 'unknown.pdf';
         console.warn('merge: skip (missing file_id)', skippedName);
         skipped.push(skippedName);
         continue;
@@ -1267,11 +1264,14 @@ export default function PublicationSubmissionDetailsDept({ submissionId, onBack 
         const blob = await fetchAttachmentBlob(doc);
         const src = await PDFDocument.load(await blob.arrayBuffer(), { ignoreEncryption: true });
         const pages = await merged.copyPages(src, src.getPageIndices());
-        pages.forEach(p => merged.addPage(p));
+        pages.forEach((p) => merged.addPage(p));
       } catch (e) {
-        const skippedName = resolveFileName(doc, doc?.file_id ? `file-${doc.file_id}.pdf` : 'unknown.pdf');
-        console.warn('merge: skip', skippedName, e);
-        skipped.push(skippedName);
+        const fallbackName =
+          meta?.displayName ||
+          meta?.originalName ||
+          (meta?.fileId ? `file-${meta.fileId}.pdf` : 'unknown.pdf');
+        console.warn('merge: skip', fallbackName, e);
+        skipped.push(fallbackName);
         continue;
       }
     }
@@ -1291,9 +1291,11 @@ export default function PublicationSubmissionDetailsDept({ submissionId, onBack 
     setMerging(true);
     try {
       // เลือกไฟล์ .pdf ก่อน ถ้าไม่มีเลยค่อยลองทุกไฟล์ (ให้ merge functionเป็นคนคัดทิ้งเอง)
-      const pdfLike = attachments.filter(d => {
-        const name = (d.original_name || d.file_name || '').toLowerCase();
-        return name.endsWith('.pdf');
+      const pdfLike = attachments.filter((d, idx) => {
+        const meta = resolveFileMeta(d, idx);
+        return String(meta?.originalName || meta?.displayName || '')
+          .toLowerCase()
+          .endsWith('.pdf');
       });
       const list = pdfLike.length ? pdfLike : attachments;
 
@@ -2055,9 +2057,11 @@ export default function PublicationSubmissionDetailsDept({ submissionId, onBack 
             ) : attachments.length > 0 ? (
               <div className="space-y-4">
                 {attachments.map((doc, index) => {
-                  const fileId = resolveFileId(doc);
-                  const hasFile = fileId != null;
-                  const fileName = resolveFileName(doc, `เอกสารที่ ${index + 1}`);
+                  const meta = resolveFileMeta(doc, index);
+                  const fileId = meta?.fileId ?? null;
+                  const hasFile = Boolean(meta?.hasFile);
+                  const fileName = meta?.displayName || `เอกสารที่ ${index + 1}`;
+                  const downloadName = meta?.downloadName || fileName;
                   const docType = (doc.document_type_name || '').trim() || 'ไม่ระบุประเภท';
 
                   return (
@@ -2122,7 +2126,7 @@ export default function PublicationSubmissionDetailsDept({ submissionId, onBack 
                           </button>
                           <button
                             className="inline-flex items-center gap-1 px-3 py-2 text-sm text-green-600 hover:bg-green-100 rounded-md transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-                            onClick={() => handleDownload(doc, fileName)}
+                            onClick={() => handleDownload(doc, downloadName)}
                             disabled={!hasFile}
                             title="ดาวน์โหลดไฟล์"
                           >

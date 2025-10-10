@@ -16,6 +16,7 @@ import deptHeadAPI from '@/app/lib/dept_head_api';
 import apiClient from '@/app/lib/api';
 import { toast } from 'react-hot-toast';
 import { useStatusMap } from '@/app/hooks/useStatusMap';
+import { resolveDocumentFile } from '@/app/utils/documentFiles';
 import { PDFDocument } from 'pdf-lib';
 import PublicationSubmissionDetailsDept from './PublicationSubmissionDetailsDept';
 import Swal from 'sweetalert2';
@@ -516,23 +517,17 @@ export default function GeneralSubmissionDetailsDept({ submissionId, onBack }) {
         const rawDocs = (Array.isArray(docsApi) && docsApi.length > 0) ? docsApi : docsFallback;
 
         const merged = (rawDocs || []).map((d, i) => {
-          const fileId = d.file_id ?? d.File?.file_id ?? d.file?.file_id ?? null;
-          const name =
-            d.file_name ??
-            d.original_name ??
-            d.original_filename ??
-            d.File?.original_name ??
-            d.file?.original_name ??
-            d.name ??
-            `เอกสารที่ ${i + 1}`;
+          const resolvedFile = resolveDocumentFile(d, i);
           const docTypeId = d.document_type_id ?? d.DocumentTypeID ?? d.doc_type_id ?? null;
           const docTypeName = d.document_type_name || typeMap[String(docTypeId)] || 'ไม่ระบุหมวด';
           return {
             ...d,
-            file_id: fileId,
-            original_name: name,
+            file_id: resolvedFile.fileId,
+            original_name: resolvedFile.originalName ?? null,
+            file_name: resolvedFile.originalName ?? resolvedFile.displayName ?? null,
             document_type_id: docTypeId,
             document_type_name: docTypeName,
+            resolvedFile,
           };
         });
 
@@ -802,30 +797,19 @@ export default function GeneralSubmissionDetailsDept({ submissionId, onBack }) {
   const statusCode = getCodeById(submission.status_id);
   const ColoredIcon = getColoredStatusIcon(statusCode);
 
-  const resolveFileId = (doc) =>
-    doc?.file_id ??
-    doc?.File?.file_id ??
-    doc?.file?.file_id ??
-    null;
+  const resolveFileMeta = (doc, index) => {
+    if (!doc) return null;
+    return doc.resolvedFile ?? resolveDocumentFile(doc, index);
+  };
 
-  const resolveFileName = (doc, fallback = 'document') => {
-    const candidates = [
-      doc?.original_name,
-      doc?.original_filename,
-      doc?.file_name,
-      doc?.File?.original_name,
-      doc?.file?.original_name,
-      doc?.File?.file_name,
-      doc?.file?.file_name,
-      doc?.name,
-      doc?.title,
-    ];
-    for (const candidate of candidates) {
-      if (typeof candidate === 'string' && candidate.trim() !== '') {
-        return candidate;
-      }
-    }
-    return fallback;
+  const resolveFileId = (doc, index) => {
+    const meta = resolveFileMeta(doc, index);
+    return meta?.fileId ?? null;
+  };
+
+  const resolveFileName = (doc, fallback = 'document', index) => {
+    const meta = resolveFileMeta(doc, index);
+    return meta?.displayName || meta?.originalName || fallback;
   };
 
   const fetchManagedFileBlob = async (fileId) => {
@@ -925,10 +909,11 @@ export default function GeneralSubmissionDetailsDept({ submissionId, onBack }) {
   const mergeAttachmentsToPdf = async (list) => {
     const merged = await PDFDocument.create();
     const skipped = [];
-    for (const doc of list) {
-      const fileId = resolveFileId(doc);
-      if (fileId == null) {
-        const skippedName = resolveFileName(doc, 'unknown.pdf');
+    for (let idx = 0; idx < list.length; idx += 1) {
+      const doc = list[idx];
+      const meta = resolveFileMeta(doc, idx);
+      if (!meta?.fileId) {
+        const skippedName = meta?.displayName || meta?.originalName || 'unknown.pdf';
         console.warn('merge: skip (missing file_id)', skippedName);
         skipped.push(skippedName);
         continue;
@@ -939,9 +924,12 @@ export default function GeneralSubmissionDetailsDept({ submissionId, onBack }) {
         const pages = await merged.copyPages(src, src.getPageIndices());
         pages.forEach((p) => merged.addPage(p));
       } catch (e) {
-        const skippedName = resolveFileName(doc, doc?.file_id ? `file-${doc.file_id}.pdf` : 'unknown.pdf');
-        console.warn('merge: skip', skippedName, e);
-        skipped.push(skippedName);
+        const fallbackName =
+          meta?.displayName ||
+          meta?.originalName ||
+          (meta?.fileId ? `file-${meta.fileId}.pdf` : 'unknown.pdf');
+        console.warn('merge: skip', fallbackName, e);
+        skipped.push(fallbackName);
         continue;
       }
     }
@@ -958,9 +946,12 @@ export default function GeneralSubmissionDetailsDept({ submissionId, onBack }) {
   const createMergedUrl = async () => {
     setCreatingMerged(true);
     try {
-      const pdfLike = attachments.filter((d) =>
-        String(d.original_name || d.file_name || '').toLowerCase().endsWith('.pdf')
-      );
+      const pdfLike = attachments.filter((d, idx) => {
+        const meta = resolveFileMeta(d, idx);
+        return String(meta?.originalName || meta?.displayName || '')
+          .toLowerCase()
+          .endsWith('.pdf');
+      });
       const list = pdfLike.length ? pdfLike : attachments;
 
       const { blob, skipped } = await mergeAttachmentsToPdf(list);
@@ -1180,16 +1171,11 @@ export default function GeneralSubmissionDetailsDept({ submissionId, onBack }) {
           ) : attachments.length > 0 ? (
             <div className="space-y-4">
               {attachments.map((doc, index) => {
-                const fileId = doc.file_id ?? doc.File?.file_id ?? doc.file?.file_id ?? null;
-                const hasFile = fileId != null;
-                const fileName =
-                  doc.original_name ||
-                  doc.File?.original_name ||
-                  doc.file?.original_name ||
-                  doc.original_filename ||
-                  doc.file_name ||
-                  doc.name ||
-                  `เอกสารที่ ${index + 1}`;
+                const meta = resolveFileMeta(doc, index);
+                const fileId = meta?.fileId ?? null;
+                const hasFile = Boolean(meta?.hasFile);
+                const fileName = meta?.displayName || `เอกสารที่ ${index + 1}`;
+                const downloadName = meta?.downloadName || fileName;
                 const docType = (doc.document_type_name || '').trim() || 'ไม่ระบุประเภท';
 
                 return (
@@ -1251,7 +1237,7 @@ export default function GeneralSubmissionDetailsDept({ submissionId, onBack }) {
                         </button>
                         <button
                           className="inline-flex items-center gap-1 px-3 py-2 text-sm text-green-600 hover:bg-green-100 rounded-md transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-                          onClick={() => handleDownload(doc, fileName)}
+                          onClick={() => handleDownload(doc, downloadName)}
                           disabled={!hasFile}
                           title="ดาวน์โหลดไฟล์"
                         >
