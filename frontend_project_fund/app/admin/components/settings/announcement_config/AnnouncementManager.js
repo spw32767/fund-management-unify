@@ -675,7 +675,14 @@ export default function AnnouncementManager() {
   const F = useMemo(() => fundForms, [fundForms]);
 
   const normalizedYears = useMemo(() => {
-    return years
+    const toNumber = (value) => {
+      if (value == null) return Number.NaN;
+      if (typeof value === "number") return value;
+      const numeric = parseInt(String(value).replace(/[^0-9]/g, ""), 10);
+      return Number.isNaN(numeric) ? Number.NaN : numeric;
+    };
+
+    const processed = years
       .map((item) => {
         if (!item) return null;
         const id =
@@ -697,6 +704,22 @@ export default function AnnouncementManager() {
         };
       })
       .filter(Boolean);
+
+    return processed.sort((a, b) => {
+      const aLabelNum = toNumber(a.label);
+      const bLabelNum = toNumber(b.label);
+      if (!Number.isNaN(aLabelNum) && !Number.isNaN(bLabelNum) && aLabelNum !== bLabelNum) {
+        return bLabelNum - aLabelNum;
+      }
+
+      const aIdNum = toNumber(a.id);
+      const bIdNum = toNumber(b.id);
+      if (!Number.isNaN(aIdNum) && !Number.isNaN(bIdNum) && aIdNum !== bIdNum) {
+        return bIdNum - aIdNum;
+      }
+
+      return String(b.label).localeCompare(String(a.label), "th-TH");
+    });
   }, [years]);
 
   const yearLabelMap = useMemo(() => {
