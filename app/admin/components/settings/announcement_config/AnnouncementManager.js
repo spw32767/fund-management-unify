@@ -1,13 +1,14 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { FileText, Eye, Download, Bell, BookOpen, Plus, Edit, Upload, Trash2, Save, X, GripVertical, RefreshCw } from "lucide-react";
+import { FileText, Eye, Download, Bell, BookOpen, Plus, Edit, Trash2, Save, X, GripVertical, RefreshCw } from "lucide-react";
 import Swal from "sweetalert2";
 import apiClient from "@/app/lib/api";
 import { adminAnnouncementAPI, adminFundFormAPI } from "@/app/lib/admin_announcement_api";
 import { motion, AnimatePresence } from "framer-motion";
 import AnnouncementModal from "@/app/admin/components/settings/announcement_config/AnnouncementModal";
 import FundFormModal from "@/app/admin/components/settings/announcement_config/FundFormModal";
+import { adminAPI } from "@/app/lib/admin_api";
 
 /** ========= Helpers ========= */
 function toast(icon, title) {
@@ -163,6 +164,10 @@ export default function AnnouncementManager() {
   const [fOrderDirty, setFOrderDirty] = useState(false);
   const [fBaselineOrder, setFBaselineOrder] = useState([]);
 
+  /** ===== State: Years ===== */
+  const [years, setYears] = useState([]);
+  const [loadingYears, setLoadingYears] = useState(false);
+
   const aSearchRef = useRef(null);
   const fSearchRef = useRef(null);
   const debounceA = useRef(null);
@@ -191,6 +196,7 @@ export default function AnnouncementManager() {
   useEffect(() => {
     loadAnnouncements();
     loadFundForms();
+    loadYears();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -228,6 +234,24 @@ export default function AnnouncementManager() {
       toast("error", e.message || "โหลดแบบฟอร์มไม่สำเร็จ");
     } finally {
       setLoadingForms(false);
+    }
+  }
+
+  async function loadYears() {
+    setLoadingYears(true);
+    try {
+      const response = await adminAPI.getYears();
+      const list = Array.isArray(response?.years)
+        ? response.years
+        : Array.isArray(response)
+        ? response
+        : [];
+      setYears(list.filter(Boolean));
+    } catch (error) {
+      console.error("[AnnouncementManager] Failed to load years", error);
+      toast("error", "โหลดปีงบประมาณไม่สำเร็จ");
+    } finally {
+      setLoadingYears(false);
     }
   }
 
@@ -650,6 +674,97 @@ export default function AnnouncementManager() {
   const A = useMemo(() => announcements, [announcements]);
   const F = useMemo(() => fundForms, [fundForms]);
 
+  const normalizedYears = useMemo(() => {
+    const toNumber = (value) => {
+      if (value == null) return Number.NaN;
+      if (typeof value === "number") return value;
+      const numeric = parseInt(String(value).replace(/[^0-9]/g, ""), 10);
+      return Number.isNaN(numeric) ? Number.NaN : numeric;
+    };
+
+    const processed = years
+      .map((item) => {
+        if (!item) return null;
+        const id =
+          item.year_id ??
+          item.id ??
+          (typeof item.year !== "undefined" ? item.year : null);
+        if (id == null || id === "") return null;
+        const labelSource =
+          item.year ??
+          item.year_label ??
+          item.label ??
+          item.name ??
+          item.title ??
+          item.year_text ??
+          id;
+        return {
+          id: String(id),
+          label: String(labelSource),
+        };
+      })
+      .filter(Boolean);
+
+    return processed.sort((a, b) => {
+      const aLabelNum = toNumber(a.label);
+      const bLabelNum = toNumber(b.label);
+      if (!Number.isNaN(aLabelNum) && !Number.isNaN(bLabelNum) && aLabelNum !== bLabelNum) {
+        return bLabelNum - aLabelNum;
+      }
+
+      const aIdNum = toNumber(a.id);
+      const bIdNum = toNumber(b.id);
+      if (!Number.isNaN(aIdNum) && !Number.isNaN(bIdNum) && aIdNum !== bIdNum) {
+        return bIdNum - aIdNum;
+      }
+
+      return String(b.label).localeCompare(String(a.label), "th-TH");
+    });
+  }, [years]);
+
+  const yearLabelMap = useMemo(() => {
+    const map = new Map();
+    for (const entry of normalizedYears) {
+      map.set(entry.id, entry.label);
+    }
+    return map;
+  }, [normalizedYears]);
+
+  const yearOptions = useMemo(
+    () =>
+      normalizedYears.map((entry) => ({
+        value: entry.id,
+        label: entry.label ? `ปีงบประมาณ ${entry.label}` : entry.id,
+      })),
+    [normalizedYears]
+  );
+
+  const resolveYearLabel = (row) => {
+    if (!row) return "-";
+    const idCandidates = [
+      row.year_id,
+      row.year?.year_id,
+      row.Year?.year_id,
+    ];
+    for (const candidate of idCandidates) {
+      if (candidate == null || candidate === "") continue;
+      const label = yearLabelMap.get(String(candidate));
+      if (label) return label;
+    }
+    const fallback = [
+      row.year,
+      row.year_label,
+      row.year_name,
+      row.year_text,
+      row.Year?.year,
+    ];
+    for (const candidate of fallback) {
+      if (candidate == null || candidate === "") continue;
+      return String(candidate);
+    }
+    return "-";
+  };
+
   return (
     <div className="animate-in fade-in duration-300 space-y-8">
       {/* Announcements Section (Admin Controls included) */}
@@ -741,7 +856,7 @@ export default function AnnouncementManager() {
                         </div>
                         </td>
                         <td className="px-3 py-2">{TYPE_LABEL[row.announcement_type] || "-"}</td>
-                        <td className="px-3 py-2">{row.year_id || row.year || "-"}</td>
+                        <td className="px-3 py-2">{resolveYearLabel(row)}</td>
                         <td className="px-3 py-2">{formatThaiDateTime(row.published_at)}</td>
                         <td className="px-3 py-2">
                           <span
@@ -882,7 +997,7 @@ export default function AnnouncementManager() {
                         </td>
                         <td className="px-3 py-2">{FORM_TYPE_LABEL[row.form_type] || row.form_type || "-"}</td>
                         <td className="px-3 py-2">{FUND_CATEGORY_LABEL[row.fund_category] || row.fund_category || "-"}</td>
-                        <td className="px-3 py-2">{row.year_id || row.year || "-"}</td>
+                        <td className="px-3 py-2">{resolveYearLabel(row)}</td>
                         <td className="px-3 py-2 align-center">
                           <div
                             className="text-gray-500 line-clamp-2 max-w-[48ch] break-words"
@@ -939,9 +1054,17 @@ export default function AnnouncementManager() {
         open={aEditOpen}
         onClose={() => setAEditOpen(false)}
         data={aEditing}
+        yearOptions={yearOptions}
+        loadingYears={loadingYears}
         onSubmit={async (payload) => {
           try {
             const toRFC3339 = (v) => (v ? new Date(v).toISOString() : "");
+            const priority = aEditing?.priority || "normal";
+            const status = payload.status || aEditing?.status || "active";
+            const normalizedYearId =
+              payload.year_id !== undefined && payload.year_id !== null && payload.year_id !== ""
+                ? Number(payload.year_id)
+                : null;
 
             if (!aEditing) {
               // === CREATE (multipart) ===
@@ -954,11 +1077,12 @@ export default function AnnouncementManager() {
               fd.append("title", (payload.title || "").trim());
               if (payload.description) fd.append("description", payload.description);
               fd.append("announcement_type", payload.announcement_type || "general");
-              fd.append("priority", payload.priority || "normal");
-              fd.append("status", payload.status || "active");
+              fd.append("priority", priority);
+              fd.append("status", status);
               if (payload.announcement_reference_number) fd.append("announcement_reference_number", payload.announcement_reference_number);
-              if (payload.year_id) fd.append("year_id", String(Number(payload.year_id)));
-              if (payload.display_order !== "" && payload.display_order != null) fd.append("display_order", String(Number(payload.display_order)));
+              if (normalizedYearId != null && !Number.isNaN(normalizedYearId)) {
+                fd.append("year_id", String(normalizedYearId));
+              }
               if (payload.published_at) fd.append("published_at", toRFC3339(payload.published_at));
               if (payload.expired_at) fd.append("expired_at", toRFC3339(payload.expired_at));
               fd.append("file", payload.file);
@@ -973,12 +1097,10 @@ export default function AnnouncementManager() {
                 title: (payload.title || "").trim(),
                 description: payload.description || null,
                 announcement_type: payload.announcement_type || "general",
-                priority: payload.priority || "normal",
-                status: payload.status || "active",
+                priority,
+                status,
                 announcement_reference_number: payload.announcement_reference_number || null,
-                year_id: payload.year_id ? Number(payload.year_id) : null,
-                display_order:
-                  payload.display_order === "" || payload.display_order == null ? null : Number(payload.display_order),
+                year_id: normalizedYearId,
                 published_at: payload.published_at ? toRFC3339(payload.published_at) : null,
                 expired_at: payload.expired_at ? toRFC3339(payload.expired_at) : null,
               };
@@ -1016,13 +1138,27 @@ export default function AnnouncementManager() {
         open={fEditOpen}
         onClose={() => setFEditOpen(false)}
         data={fEditing}
+        yearOptions={yearOptions}
+        loadingYears={loadingYears}
         onSubmit={async (payload) => {
+          const normalizedYearId =
+            payload.year_id !== undefined && payload.year_id !== null && payload.year_id !== ""
+              ? Number(payload.year_id)
+              : null;
           if (fEditing) {
             if (payload.file && !isAllowedUploadFile(payload.file)) {
               toast("error", `ไฟล์ต้องเป็น ${FILE_TYPE_LABEL}`);
               return;
             }
-            await adminFundFormAPI.update(getFormId(fEditing), payload);
+            const meta = {
+              title: (payload.title || "").trim(),
+              description: payload.description || null,
+              form_type: payload.form_type || "application",
+              fund_category: payload.fund_category || "both",
+              status: payload.status || "active",
+              year_id: normalizedYearId,
+            };
+            await adminFundFormAPI.update(getFormId(fEditing), meta);
             toast("success", "บันทึกแบบฟอร์มแล้ว");
           } else {
             if (!payload.file) {
@@ -1034,7 +1170,15 @@ export default function AnnouncementManager() {
               return;
             }
             const fd = new FormData();
-            Object.entries(payload).forEach(([k, v]) => v != null && fd.append(k, v));
+            fd.append("title", (payload.title || "").trim());
+            if (payload.description) fd.append("description", payload.description);
+            if (payload.form_type) fd.append("form_type", payload.form_type);
+            if (payload.fund_category) fd.append("fund_category", payload.fund_category);
+            fd.append("status", payload.status || "active");
+            if (normalizedYearId != null && !Number.isNaN(normalizedYearId)) {
+              fd.append("year_id", String(normalizedYearId));
+            }
+            fd.append("file", payload.file);
             await adminFundFormAPI.create(fd); // หรือ adminFundFormAPI.create(payload) ถ้า helper รองรับ
             toast("success", "เพิ่มแบบฟอร์มแล้ว");
           }

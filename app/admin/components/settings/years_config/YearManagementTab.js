@@ -155,50 +155,48 @@ const YearManagementTab = ({ years = [], onSaveYear /*, onDeleteYear */ }) => {
         </button>
       </div>
 
-      <div className="overflow-x-auto">
+      <div className="overflow-x-auto border border-gray-300 rounded-lg">
         {sortedYears.length ? (
-          <table className="min-w-full divide-y divide-gray-200">
+          <table className="min-w-full divide-y divide-gray-200 text-sm">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase">
+                <th className="px-4 py-3 text-left font-semibold text-gray-700">
                   <button
-                    className="inline-flex items-center"
+                    className="inline-flex items-center gap-1 hover:text-blue-600"
                     onClick={() => toggleSort("year")}
                   >
                     ปีงบประมาณ {sortIcon("year")}
                   </button>
                 </th>
-                <th className="px-6 py-3 text-right text-xs font-semibold text-gray-600 uppercase">
+                <th className="px-4 py-3 text-right font-semibold text-gray-700">
                   <button
-                    className="inline-flex items-center"
+                    className="inline-flex items-center gap-1 justify-end hover:text-blue-600"
                     onClick={() => toggleSort("budget")}
                   >
                     วงเงินรวม {sortIcon("budget")}
                   </button>
                 </th>
-                <th className="px-6 py-3 text-center text-xs font-semibold text-gray-600 uppercase">
+                <th className="px-4 py-3 text-center font-semibold text-gray-700">
                   <button
-                    className="inline-flex items-center"
+                    className="inline-flex items-center gap-1 justify-center hover:text-blue-600"
                     onClick={() => toggleSort("status")}
                   >
                     สถานะ {sortIcon("status")}
                   </button>
                 </th>
-                <th className="px-6 py-3 text-center text-xs font-semibold text-gray-600 uppercase">
-                  จัดการ
-                </th>
+                <th className="px-4 py-3 text-center font-semibold text-gray-700">จัดการ</th>
               </tr>
             </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
+            <tbody className="bg-white divide-y divide-gray-100">
               {sortedYears.map((item) => (
                 <tr key={item.year}>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                  <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900">
                     พ.ศ. {item.year}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-900">
+                  <td className="px-4 py-3 whitespace-nowrap text-sm text-right text-gray-900">
                     {new Intl.NumberFormat("th-TH").format(item.budget || 0)} บาท
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-center">
+                  <td className="px-4 py-3 whitespace-nowrap text-center">
                     <StatusBadge
                       status={item.status}
                       interactive
@@ -209,7 +207,7 @@ const YearManagementTab = ({ years = [], onSaveYear /*, onDeleteYear */ }) => {
                       }}
                     />
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-center text-sm font-medium">
+                  <td className="px-4 py-3 whitespace-nowrap text-center text-sm font-medium">
                     <button
                       onClick={() => handleEdit(item)}
                       className="text-blue-600 hover:bg-blue-50 p-2 rounded-lg mr-1 inline-flex items-center gap-1"
@@ -233,7 +231,7 @@ const YearManagementTab = ({ years = [], onSaveYear /*, onDeleteYear */ }) => {
             </tbody>
           </table>
         ) : (
-          <div className="text-center py-16">
+          <div className="bg-white text-center py-16 rounded-lg">
             <p className="text-gray-500 mb-4">เริ่มต้นโดยการเพิ่มปีงบประมาณใหม่</p>
             <button
               onClick={handleAddNew}
