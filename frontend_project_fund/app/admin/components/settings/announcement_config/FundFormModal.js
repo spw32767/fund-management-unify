@@ -235,10 +235,10 @@ export default function FundFormModal({
                 />
                 </div>
 
-                {/* ไฟล์แนบ (PDF) – แสดงชื่อไฟล์ปัจจุบันแบบไม่ลิงก์ */}
+                {/* ไฟล์แนบ (PDF/DOC/DOCX) – แสดงชื่อไฟล์ปัจจุบันแบบไม่ลิงก์ */}
                 <div className="md:col-span-2">
                 <label className="block text-sm font-medium mb-1 text-gray-700">
-                    {isEdit ? "แทนที่ไฟล์ (อัปโหลดไฟล์ใหม่เพื่อแทนที่)" : "ไฟล์แนบ (PDF) *"}
+                    {isEdit ? "แทนที่ไฟล์ (อัปโหลดไฟล์ใหม่เพื่อแทนที่)" : "ไฟล์แนบ (PDF/DOC/DOCX) *"}
                 </label>
 
                 {isEdit && data?.file_name && (
@@ -253,7 +253,7 @@ export default function FundFormModal({
 
                 <input
                     type="file"
-                    accept="application/pdf"
+                    accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
                     onChange={(e) => setFileObj(e.target.files?.[0] || null)}
                     required={!isEdit}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus-visible:ring-1 focus-visible:ring-blue-500 focus-visible:border-blue-500 text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border file:border-gray-300 file:bg-white file:text-gray-700 hover:file:bg-gray-50"
