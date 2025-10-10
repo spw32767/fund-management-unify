@@ -1239,20 +1239,48 @@ export default function PublicationSubmissionDetails({ submissionId, onBack }) {
         const docsFallback = submission.documents || submission.submission_documents || [];
         const rawDocs = docsApi.length ? docsApi : docsFallback;
 
-        const merged = rawDocs.map((d, i) => {
+        const merged = [];
+        const skippedWithoutFile = [];
+
+        const sourceDocs = Array.isArray(rawDocs) ? rawDocs : [];
+
+        sourceDocs.forEach((d, i) => {
+          if (!d || typeof d !== 'object') return;
+
           const fileId = d.file_id ?? d.File?.file_id ?? d.file?.file_id ?? null;
+          const filePath =
+            d.file_path ??
+            d.File?.file_path ??
+            d.File?.stored_path ??
+            d.file?.file_path ??
+            d.file?.stored_path ??
+            null;
+
+          if (fileId == null && !filePath) {
+            skippedWithoutFile.push(d);
+            return;
+          }
+
           const name = d.file_name ?? d.original_name ?? d.original_filename ?? d.File?.original_name ?? d.file?.original_name ?? d.name ?? `เอกสารที่ ${i + 1}`;
           const docTypeId = d.document_type_id ?? d.DocumentTypeID ?? d.doc_type_id ?? null;
           const docTypeName = d.document_type_name || typeMap[docTypeId] || 'ไม่ระบุหมวด';
 
-          return {
+          merged.push({
             ...d,
             file_id: fileId,
+            file_path: filePath,
             original_name: name,
             document_type_id: docTypeId,
             document_type_name: docTypeName,
-          };
+          });
         });
+
+        if (skippedWithoutFile.length > 0) {
+          console.warn(
+            '[PublicationSubmissionDetails] Skip documents without file metadata',
+            skippedWithoutFile.map((doc) => doc.document_id || doc.id || null)
+          );
+        }
 
         // Add console.log for attachments
         console.log('Publication Submission Attachments (merged):', merged);
