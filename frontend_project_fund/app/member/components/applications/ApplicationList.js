@@ -429,15 +429,14 @@ export default function ApplicationList({ onNavigate }) {
       accessor: "subcategory_name",
       className: "text-sm",
       render: (value, row) => {
-        const fundName =
-          value === null || value === undefined || value === '' ? '-' : String(value);
+        const fundName = value == null || value === "" ? "-" : String(value);
         const projectTitle = row?.project_title;
         const hasProjectTitle =
-          projectTitle != null && String(projectTitle).trim() !== '' && projectTitle !== '−' && projectTitle !== '-';
+          projectTitle != null && String(projectTitle).trim() !== "" && projectTitle !== "-";
 
         return (
-          <div className="flex flex-col gap-1 max-w-xs">
-            <span className="truncate" title={fundName}>
+          <div className="flex flex-col gap-1 max-w-sm">
+            <span className="break-words" title={fundName}>
               {fundName}
             </span>
             {hasProjectTitle && (
@@ -447,7 +446,7 @@ export default function ApplicationList({ onNavigate }) {
             )}
           </div>
         );
-      }
+      },
     },
     {
       header: "จำนวนเงิน",

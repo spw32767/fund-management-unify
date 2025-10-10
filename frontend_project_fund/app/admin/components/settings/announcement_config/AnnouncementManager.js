@@ -60,6 +60,21 @@ function toISOOrNull(v) {
   }
 }
 
+const ALLOWED_FILE_TYPES = new Set([
+  "application/pdf",
+  "application/msword",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+]);
+const ALLOWED_FILE_EXTENSIONS = [".pdf", ".doc", ".docx"];
+const FILE_TYPE_LABEL = "PDF, DOC หรือ DOCX";
+
+function isAllowedUploadFile(file) {
+  if (!file) return false;
+  if (file.type && ALLOWED_FILE_TYPES.has(file.type)) return true;
+  const name = typeof file.name === "string" ? file.name.toLowerCase() : "";
+  return ALLOWED_FILE_EXTENSIONS.some((ext) => name.endsWith(ext));
+}
+
  function getAnnouncementId(row) {
    return row.announcement_id ?? row.id;
  }
@@ -297,7 +312,13 @@ export default function AnnouncementManager() {
   async function handleASave(e) {
     e?.preventDefault?.();
     if (!String(aForm.title).trim()) return toast("warning", "กรุณากรอกหัวข้อประกาศ");
-    if (!aEditing && !aFileObj) return toast("warning", "กรุณาแนบไฟล์ PDF");
+    if (!aEditing && !aFileObj) return toast("warning", `กรุณาแนบไฟล์ ${FILE_TYPE_LABEL}`);
+    if (!aEditing && aFileObj && !isAllowedUploadFile(aFileObj)) {
+      return toast("warning", `ไฟล์ต้องเป็น ${FILE_TYPE_LABEL}`);
+    }
+    if (aEditing && aFileObj && !isAllowedUploadFile(aFileObj)) {
+      return toast("warning", `ไฟล์ต้องเป็น ${FILE_TYPE_LABEL}`);
+    }
     if (aForm.published_at && aForm.expired_at && new Date(aForm.published_at) > new Date(aForm.expired_at)) {
       return toast("warning", "วันเผยแพร่ต้องไม่เกินวันหมดอายุ");
     }
@@ -330,7 +351,8 @@ export default function AnnouncementManager() {
           expired_at: toISOOrNull(aForm.expired_at),
           year_id: aForm.year_id || null,
         };
-        await adminAnnouncementAPI.update(aEditing.announcement_id || aEditing.id, payload);
+        const updateId = getAnnouncementId(aEditing);
+        await adminAnnouncementAPI.update(updateId, payload);
         toast("success", "บันทึกข้อมูลสำเร็จ");
       }
       setAEditOpen(false);
@@ -341,9 +363,15 @@ export default function AnnouncementManager() {
   }
   async function handleAReplaceFile(e) {
     e?.preventDefault?.();
-    if (!aFileObj) return toast("warning", "กรุณาเลือกไฟล์ PDF");
+    if (!aFileObj) return toast("warning", `กรุณาเลือกไฟล์ ${FILE_TYPE_LABEL}`);
+    if (!isAllowedUploadFile(aFileObj)) {
+      return toast("warning", `ไฟล์ต้องเป็น ${FILE_TYPE_LABEL}`);
+    }
     try {
-      const id = aEditing?.announcement_id || aEditing?.id;
+      const id = aEditing ? getAnnouncementId(aEditing) : null;
+      if (id == null) {
+        return toast("error", "ไม่พบรหัสประกาศสำหรับแทนที่ไฟล์");
+      }
       await adminAnnouncementAPI.replaceFile(id, aFileObj);
       toast("success", "แทนที่ไฟล์สำเร็จ");
       setAFileOpen(false);
@@ -356,7 +384,7 @@ export default function AnnouncementManager() {
     const ok = await confirm(`ต้องการลบประกาศ “${row.title}” ใช่หรือไม่?`);
     if (!ok) return;
     try {
-      await adminAnnouncementAPI.remove(row.announcement_id || row.id);
+      await adminAnnouncementAPI.remove(getAnnouncementId(row));
       toast("success", "ลบประกาศสำเร็จ");
       await loadAnnouncements();
     } catch (e) {
@@ -403,7 +431,13 @@ export default function AnnouncementManager() {
   async function handleFSave(e) {
     e?.preventDefault?.();
     if (!String(fForm.title).trim()) return toast("warning", "กรุณากรอกชื่อไฟล์/หัวข้อ");
-    if (!fEditing && !fFileObj) return toast("warning", "กรุณาแนบไฟล์ PDF");
+    if (!fEditing && !fFileObj) return toast("warning", `กรุณาแนบไฟล์ ${FILE_TYPE_LABEL}`);
+    if (!fEditing && fFileObj && !isAllowedUploadFile(fFileObj)) {
+      return toast("warning", `ไฟล์ต้องเป็น ${FILE_TYPE_LABEL}`);
+    }
+    if (fEditing && fFileObj && !isAllowedUploadFile(fFileObj)) {
+      return toast("warning", `ไฟล์ต้องเป็น ${FILE_TYPE_LABEL}`);
+    }
     try {
       if (!fEditing) {
         await adminFundFormAPI.create({
@@ -438,7 +472,10 @@ export default function AnnouncementManager() {
   }
   async function handleFReplaceFile(e) {
     e?.preventDefault?.();
-    if (!fFileObj) return toast("warning", "กรุณาเลือกไฟล์ PDF");
+    if (!fFileObj) return toast("warning", `กรุณาเลือกไฟล์ ${FILE_TYPE_LABEL}`);
+    if (!isAllowedUploadFile(fFileObj)) {
+      return toast("warning", `ไฟล์ต้องเป็น ${FILE_TYPE_LABEL}`);
+    }
     try {
       const id = getFormId(fEditing);
       await adminFundFormAPI.replaceFile(id, fFileObj);
@@ -908,7 +945,11 @@ export default function AnnouncementManager() {
 
             if (!aEditing) {
               // === CREATE (multipart) ===
-              if (!payload.file) { toast("error","กรุณาเลือกไฟล์ PDF"); return; }
+              if (!payload.file) { toast("error", `กรุณาเลือกไฟล์ ${FILE_TYPE_LABEL}`); return; }
+              if (!isAllowedUploadFile(payload.file)) {
+                toast("error", `ไฟล์ต้องเป็น ${FILE_TYPE_LABEL}`);
+                return;
+              }
               const fd = new FormData();
               fd.append("title", (payload.title || "").trim());
               if (payload.description) fd.append("description", payload.description);
@@ -943,12 +984,17 @@ export default function AnnouncementManager() {
               };
               console.log("[UPDATE] meta:", meta);
 
-              const putResp = await adminAnnouncementAPI.update(aEditing.announcement_id, meta);
+              const targetId = getAnnouncementId(aEditing);
+              const putResp = await adminAnnouncementAPI.update(targetId, meta);
               console.log("[UPDATE] resp:", putResp?.status, putResp?.data);
 
               if (payload.file) {
-                console.log("[REPLACE FILE] id:", aEditing.announcement_id, "file:", payload.file?.name);
-                const rep = await adminAnnouncementAPI.replaceFile(aEditing.announcement_id, payload.file);
+                if (!isAllowedUploadFile(payload.file)) {
+                  toast("error", `ไฟล์ต้องเป็น ${FILE_TYPE_LABEL}`);
+                  return;
+                }
+                console.log("[REPLACE FILE] id:", targetId, "file:", payload.file?.name);
+                const rep = await adminAnnouncementAPI.replaceFile(targetId, payload.file);
                 console.log("[REPLACE FILE] resp:", rep?.status, rep?.data);
               }
 
@@ -972,9 +1018,21 @@ export default function AnnouncementManager() {
         data={fEditing}
         onSubmit={async (payload) => {
           if (fEditing) {
+            if (payload.file && !isAllowedUploadFile(payload.file)) {
+              toast("error", `ไฟล์ต้องเป็น ${FILE_TYPE_LABEL}`);
+              return;
+            }
             await adminFundFormAPI.update(getFormId(fEditing), payload);
             toast("success", "บันทึกแบบฟอร์มแล้ว");
           } else {
+            if (!payload.file) {
+              toast("error", `กรุณาเลือกไฟล์ ${FILE_TYPE_LABEL}`);
+              return;
+            }
+            if (!isAllowedUploadFile(payload.file)) {
+              toast("error", `ไฟล์ต้องเป็น ${FILE_TYPE_LABEL}`);
+              return;
+            }
             const fd = new FormData();
             Object.entries(payload).forEach(([k, v]) => v != null && fd.append(k, v));
             await adminFundFormAPI.create(fd); // หรือ adminFundFormAPI.create(payload) ถ้า helper รองรับ
@@ -983,6 +1041,10 @@ export default function AnnouncementManager() {
           await loadFundForms();
         }}
         onReplaceFile={async (file) => {
+          if (!isAllowedUploadFile(file)) {
+            toast("error", `ไฟล์ต้องเป็น ${FILE_TYPE_LABEL}`);
+            return;
+          }
           await adminFundFormAPI.replaceFile(getFormId(fEditing), file);
           toast("success", "อัปเดตไฟล์แบบฟอร์มแล้ว");
           await loadFundForms();
