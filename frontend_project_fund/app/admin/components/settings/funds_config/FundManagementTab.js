@@ -316,10 +316,6 @@ const FundManagementTab = ({
           Swal.showValidationMessage("ปีปลายทางไม่ถูกต้อง");
           return false;
         }
-        if (numeric <= (selectedYearNumber || 0)) {
-          Swal.showValidationMessage("ปีปลายทางต้องมากกว่าปีต้นทาง");
-          return false;
-        }
         if (existingYears.includes(numeric)) {
           Swal.showValidationMessage("ปีนี้มีอยู่แล้วในระบบ");
           return false;
