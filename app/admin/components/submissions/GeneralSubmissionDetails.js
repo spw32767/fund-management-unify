@@ -100,10 +100,141 @@ const safeNumber = (value, fallback = 0) => {
   return Number.isFinite(n) ? n : fallback;
 };
 
-const isResearchFundCategory = (categoryId) => {
-  if (categoryId === null || categoryId === undefined) return false;
-  const idStr = String(categoryId).toLowerCase();
-  return idStr === '1' || idStr === 'research_fund';
+const RESEARCH_FUND_KEYWORD = 'ทุนส่งเสริมการวิจัย';
+
+const normalizeThaiText = (value) => {
+  if (value === null || value === undefined) return '';
+  let normalized = String(value).trim().toLowerCase();
+  if (typeof normalized.normalize === 'function') {
+    normalized = normalized.normalize('NFC');
+  }
+  normalized = normalized.replace(/\s+/g, '');
+  normalized = normalized.replace(/[\u200B\u200C\u200D]/g, '');
+  return normalized;
+};
+
+const RESEARCH_FUND_KEYWORD_NORMALIZED = normalizeThaiText(RESEARCH_FUND_KEYWORD);
+
+const matchesResearchFundCategoryName = (value) => {
+  const normalized = normalizeThaiText(value);
+  if (!normalized || !RESEARCH_FUND_KEYWORD_NORMALIZED) return false;
+  return (
+    normalized.includes(RESEARCH_FUND_KEYWORD_NORMALIZED) ||
+    RESEARCH_FUND_KEYWORD_NORMALIZED.includes(normalized)
+  );
+};
+
+const CATEGORY_NAME_PATHS = [
+  ['category_name'],
+  ['CategoryName'],
+  ['category', 'category_name'],
+  ['category', 'CategoryName'],
+  ['Category', 'category_name'],
+  ['Category', 'CategoryName'],
+  ['category', 'name'],
+  ['category', 'label'],
+  ['Category', 'Name'],
+  ['Category', 'Label'],
+  ['fund_application_detail', 'category_name'],
+  ['fund_application_detail', 'CategoryName'],
+  ['fund_application_detail', 'category', 'category_name'],
+  ['fund_application_detail', 'category', 'CategoryName'],
+  ['fund_application_detail', 'subcategory', 'category_name'],
+  ['fund_application_detail', 'subcategory', 'category', 'category_name'],
+  ['fund_application_detail', 'subcategory', 'category', 'CategoryName'],
+  ['FundApplicationDetail', 'category_name'],
+  ['FundApplicationDetail', 'CategoryName'],
+  ['FundApplicationDetail', 'Category', 'category_name'],
+  ['FundApplicationDetail', 'Category', 'CategoryName'],
+  ['FundApplicationDetail', 'Subcategory', 'category_name'],
+  ['FundApplicationDetail', 'Subcategory', 'Category', 'category_name'],
+  ['FundApplicationDetail', 'Subcategory', 'Category', 'CategoryName'],
+  ['details', 'data', 'category_name'],
+  ['details', 'data', 'category', 'category_name'],
+  ['details', 'data', 'subcategory', 'category_name'],
+  ['details', 'data', 'subcategory', 'category', 'category_name'],
+  ['subcategory', 'category_name'],
+  ['subcategory', 'CategoryName'],
+  ['subcategory', 'category', 'category_name'],
+  ['subcategory', 'category', 'CategoryName'],
+  ['Subcategory', 'category_name'],
+  ['Subcategory', 'CategoryName'],
+  ['Subcategory', 'Category', 'category_name'],
+  ['Subcategory', 'Category', 'CategoryName'],
+];
+
+const getValueAtPath = (source, path) => {
+  return path.reduce((acc, key) => {
+    if (acc === null || acc === undefined) return undefined;
+    return acc[key];
+  }, source);
+};
+
+const collectResearchFundCategoryCandidates = (submission) => {
+  if (!submission) return [];
+
+  const seen = new Set();
+  const names = [];
+
+  const addCandidate = (value) => {
+    if (value === null || value === undefined) return;
+    if (typeof value !== 'string' && typeof value !== 'number') return;
+    const text = String(value).trim();
+    if (!text) return;
+    const lowered = text.toLowerCase();
+    if (seen.has(lowered)) return;
+    seen.add(lowered);
+    names.push(text);
+  };
+
+  CATEGORY_NAME_PATHS.forEach((path) => {
+    const value = getValueAtPath(submission, path);
+    if (Array.isArray(value)) {
+      value.forEach(addCandidate);
+    } else {
+      addCandidate(value);
+    }
+  });
+
+  return names;
+};
+
+const detectResearchFundSubmission = (submission) => {
+  if (!submission) {
+    return {
+      detected: false,
+      matchedCandidate: null,
+      candidates: [],
+      keyword: RESEARCH_FUND_KEYWORD,
+    };
+  }
+
+  const candidates = collectResearchFundCategoryCandidates(submission);
+  const matchedCandidate = candidates.find(matchesResearchFundCategoryName) || null;
+
+  const categoryId =
+    submission?.category_id ??
+    submission?.category?.category_id ??
+    submission?.Category?.CategoryID ??
+    null;
+
+  const categoryName =
+    submission?.category_name ??
+    submission?.CategoryName ??
+    submission?.category?.category_name ??
+    submission?.category?.CategoryName ??
+    submission?.Category?.category_name ??
+    submission?.Category?.CategoryName ??
+    (candidates.length > 0 ? candidates[0] : null);
+
+  return {
+    detected: Boolean(matchedCandidate),
+    matchedCandidate,
+    candidates,
+    keyword: RESEARCH_FUND_KEYWORD,
+    categoryId,
+    categoryName,
+  };
 };
 
 const formatDateTime = (value) => {
@@ -590,8 +721,13 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
   const fileMetaCacheRef = useRef(new Map());
 
   const submissionStatusId = submission?.status_id;
-  const submissionCategoryId = submission?.category_id;
   const submissionEntityId = submission?.submission_id;
+
+  const researchFundDetection = useMemo(
+    () => detectResearchFundSubmission(submission),
+    [submission]
+  );
+  const isResearchFundSubmission = researchFundDetection.detected;
 
   const cleanupMergedUrl = () => {
     if (mergedUrlRef.current) {
@@ -878,7 +1014,7 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
   }, [statusCode, submissionStatusId]);
 
   const isResearchFundApproved = useMemo(() => {
-    if (!isResearchFundCategory(submissionCategoryId)) return false;
+    if (!isResearchFundSubmission) return false;
 
     const normalizedCode = statusCode != null ? String(statusCode).toLowerCase() : undefined;
     if (normalizedCode === '1' || normalizedCode === '6') {
@@ -891,7 +1027,7 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
     }
 
     return false;
-  }, [submissionCategoryId, statusCode, submissionStatusId]);
+  }, [isResearchFundSubmission, statusCode, submissionStatusId]);
 
   // load submission details
   useEffect(() => {
@@ -984,9 +1120,10 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
     console.log('Submission ID', submission?.submission_id);
     console.log('Admin comment', submission?.admin_comment ?? submission?.approval_comment ?? submission?.comment);
     console.log('Head comment', submission?.head_comment ?? submission?.HeadComment ?? submission?.headComment);
+    console.log('Research fund detection', researchFundDetection);
     console.log('Raw submission object', submission);
     console.groupEnd();
-  }, [submission]);
+  }, [submission, researchFundDetection]);
 
   useEffect(() => {
     if (attachmentsLoading) return;
@@ -1046,6 +1183,20 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
     }
     const targetId = submissionEntityId ?? submissionId;
     if (!targetId) return;
+    console.groupCollapsed(
+      '[GeneralSubmissionDetails] Research fund events request',
+      `submission:${targetId}`
+    );
+    console.log('Timeline request context', {
+      submissionId: targetId,
+      categoryId: researchFundDetection.categoryId,
+      categoryName: researchFundDetection.categoryName,
+      candidates: researchFundDetection.candidates,
+      matchedCandidate: researchFundDetection.matchedCandidate,
+      keyword: researchFundDetection.keyword,
+      detectedResearchFund: isResearchFundSubmission,
+    });
+    console.groupEnd();
     loadResearchEvents(targetId);
   }, [
     isResearchFundApproved,
@@ -1053,6 +1204,8 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
     submissionId,
     loadResearchEvents,
     resetResearchSection,
+    researchFundDetection,
+    isResearchFundSubmission,
   ]);
 
   useEffect(() => {
