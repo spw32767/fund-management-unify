@@ -870,7 +870,6 @@ export const documentTypesAPI = {
    * @param {Object} filters - Filter options
    * @param {string} filters.fund_type - Fund type filter (e.g., 'fund_application', 'publication_reward')
    * @param {string} filters.subcategory_id - Subcategory ID filter
-   * @param {string} filters.category - Category filter
    * @returns {Promise} API response containing document types
    */
   async getDocumentTypes(filters = {}) {
@@ -883,9 +882,9 @@ export const documentTypesAPI = {
     if (filters.subcategory_id) {
       params.append('subcategory_id', filters.subcategory_id);
     }
-    
-    if (filters.category) {
-      params.append('category', filters.category);
+
+    if (filters.subcategory_name) {
+      params.append('subcategory_name', filters.subcategory_name);
     }
 
     const queryString = params.toString();

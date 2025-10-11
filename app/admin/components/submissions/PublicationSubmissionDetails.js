@@ -1232,7 +1232,14 @@ export default function PublicationSubmissionDetails({ submissionId, onBack }) {
         const typeMap = {};
         for (const t of typesArr) {
           const id = t.document_type_id ?? t.id;
-          typeMap[id] = t.document_type_name || t.name || t.code || t.category || 'ไม่ระบุหมวด';
+          typeMap[id] =
+            t.document_type_name ||
+            t.name ||
+            t.code ||
+            (Array.isArray(t.fund_types) && t.fund_types.length > 0
+              ? t.fund_types.join(', ')
+              : t.subcategory_name) ||
+            'ไม่ระบุหมวด';
         }
 
         // ถ้า API ไม่มีเอกสาร ให้ fallback ใช้จาก payload เดิม

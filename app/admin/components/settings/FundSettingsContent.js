@@ -1,6 +1,6 @@
 // FundSettingsContent.js - Updated Main Component with SweetAlert2
 import React, { useState, useEffect } from "react";
-import { Settings, Calendar, DollarSign, PencilLine, FileText } from "lucide-react";
+import { Settings, Calendar, DollarSign, PencilLine, FileText, FileStack } from "lucide-react";
 import Swal from 'sweetalert2';
 
 // Import separated components
@@ -11,6 +11,7 @@ import FundManagementTab from "@/app/admin/components/settings/funds_config/Fund
 import RewardConfigManager from "@/app/admin/components/settings/reward_config/RewardConfigManager";
 import SystemConfigSettings from "@/app/admin/components/settings/system_config/SystemConfigSettings";
 import AnnouncementManager from "@/app/admin/components/settings/announcement_config/AnnouncementManager";
+import DocumentTypeManager from "@/app/admin/components/settings/document_config/DocumentTypeManager";
 
 // Import modals
 import CategoryModal from "@/app/admin/components/settings/funds_config/CategoryModal";
@@ -28,6 +29,7 @@ const TAB_ITEMS = [
   { id: "reward-config", label: "จัดการเงินรางวัล", icon: Settings },
   { id: "system", label: "ตั้งค่าระบบ", icon: PencilLine },
   { id: "announcements", label: "ประกาศ/ไฟล์", icon: FileText },
+  { id: "document-types", label: "จัดการเอกสาร", icon: FileStack },
 ];
 
 // SweetAlert2 configuration
@@ -1277,6 +1279,8 @@ export default function FundSettingsContent({ onNavigate }) {
         return <SystemConfigSettings />;
       case "announcements":
         return <AnnouncementManager />;
+      case "document-types":
+        return <DocumentTypeManager />;
       default:
         return null;
     }

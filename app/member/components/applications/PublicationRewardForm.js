@@ -1457,9 +1457,36 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
       }
 
       // Handle document types response
-      if (docTypesResponse && docTypesResponse.document_types) {
-        console.log('Setting document types:', docTypesResponse.document_types);
-        setDocumentTypes(docTypesResponse.document_types);
+      const rawDocTypes = Array.isArray(docTypesResponse?.document_types)
+        ? docTypesResponse.document_types
+        : Array.isArray(docTypesResponse)
+          ? docTypesResponse
+          : [];
+
+      if (rawDocTypes.length > 0) {
+        const sortedDocTypes = rawDocTypes
+          .slice()
+          .sort((a, b) => (a?.document_order || 0) - (b?.document_order || 0));
+
+        const fundTypeFiltered = sortedDocTypes.filter((docType) => {
+          if (!docType) return false;
+          const fundTypes = Array.isArray(docType.fund_types) ? docType.fund_types : [];
+          if (fundTypes.length === 0) {
+            return false;
+          }
+          return fundTypes.includes('publication_reward');
+        });
+
+        if (fundTypeFiltered.length === 0) {
+          console.warn('No document types explicitly configured for publication_reward; falling back to legacy list.');
+          console.log('Legacy document types payload:', sortedDocTypes);
+        } else {
+          console.log('Filtered publication_reward document types:', fundTypeFiltered);
+        }
+
+        setDocumentTypes(fundTypeFiltered.length > 0 ? fundTypeFiltered : sortedDocTypes);
+      } else {
+        setDocumentTypes([]);
       }
 
       // Load enabled author status & quartile pairs
@@ -3197,12 +3224,15 @@ const showSubmissionConfirmation = async () => {
               throw new Error('Upload response missing file_id');
             }
 
+            const originalName = uploadResponse?.file?.original_name ?? fileData.file?.name ?? '';
+
             // Prepare document attachment data
             const attachData = {
               file_id: uploadResponse.file.file_id,
               document_type_id: fileData.document_type_id,
               description: fileData.description,
-              display_order: i + 1
+              display_order: i + 1,
+              original_name: originalName
             };
 
             // Add special data for external funding documents

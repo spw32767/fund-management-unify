@@ -32,12 +32,12 @@ export default function Navigation({
     user?.role_id === 4;
 
   const menuItems = [
-    {
-      id: "dashboard",
-      label: "แดชบอร์ด",
-      icon: LayoutDashboard,
-      hasSubmenu: false,
-    },
+    // {
+    //   id: "dashboard",
+    //   label: "แดชบอร์ด",
+    //   icon: LayoutDashboard,
+    //   hasSubmenu: false,
+    // },
     {
       id: "profile",
       label: "ข้อมูลส่วนตัว",
@@ -128,7 +128,7 @@ export default function Navigation({
     return (
       currentPage === itemId ||
       (itemId === "submit-request" &&
-        ["application-form", "draft"].includes(currentPage))
+        ["generic-fund-application", "application-form", "draft"].includes(currentPage))
     );
   };
 
