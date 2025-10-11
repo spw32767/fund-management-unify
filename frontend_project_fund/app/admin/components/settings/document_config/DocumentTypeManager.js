@@ -102,6 +102,13 @@ const formatDocumentType = (item) => {
   const fundTypeMode = determineFundTypeMode(item);
   const fundTypes = dedupeStringList(item.fund_types);
 
+  console.log("[DocumentTypeManager] normalize fund types", {
+    documentTypeId: item.document_type_id ?? item.id,
+    rawFundTypes: item.fund_types,
+    normalizedFundTypes: fundTypes,
+    fundTypeMode,
+  });
+
   return {
     document_type_id: item.document_type_id ?? item.id,
     document_type_name: item.document_type_name ?? item.name ?? "",
