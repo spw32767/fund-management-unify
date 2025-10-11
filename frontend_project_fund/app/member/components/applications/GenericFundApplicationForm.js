@@ -811,6 +811,11 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
       // Step 4: Submit the submission
       if (submissionId) {
         await submissionAPI.submitSubmission(submissionId);
+        try {
+          await submissionAPI.mergeSubmissionDocuments(submissionId);
+        } catch (mergeError) {
+          console.error('Failed to merge submission documents:', mergeError);
+        }
       }
 
 
