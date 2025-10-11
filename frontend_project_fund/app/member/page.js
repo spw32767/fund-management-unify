@@ -9,7 +9,6 @@ import Navigation from "./components/layout/Navigation";
 import DashboardContent from "./components/dashboard/DashboardContent";
 import ResearchFundContent from "./components/funds/ResearchFundContent";
 import ApplicationList from "./components/applications/ApplicationList";
-import ApplicationForm from "./components/applications/ApplicationForm";
 import UnderDevelopmentContent from "./components/common/UnderDevelopmentContent";
 import PromotionFundContent from "./components/funds/PromotionFundContent";
 import PublicationRewardForm from "./components/applications/PublicationRewardForm";
@@ -96,7 +95,12 @@ export function MemberPageContent({ initialPage = 'profile' }) {
       case 'received-funds':
         return <ReceivedFundsList onNavigate={handleNavigate} />;
       case 'application-form':
-        return <ApplicationForm selectedFund={selectedFundData} onNavigate={handleNavigate} />;
+        return (
+          <GenericFundApplicationForm
+            onNavigate={handleNavigate}
+            subcategoryData={selectedFundData}
+          />
+        );
       case 'publication-reward-detail':
         return <PublicationRewardDetail submissionId={selectedFundData?.submissionId} onNavigate={handleNavigate} />;
       case 'fund-application-detail':
