@@ -128,7 +128,7 @@ export default function Navigation({
     return (
       currentPage === itemId ||
       (itemId === "submit-request" &&
-        ["application-form", "draft"].includes(currentPage))
+        ["generic-fund-application", "application-form", "draft"].includes(currentPage))
     );
   };
 
