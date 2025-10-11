@@ -27,6 +27,8 @@ This document explains how merged submission PDFs are generated after a member s
 
 If a submission number is unavailable, the service falls back to a safe name such as `submission-42_merged_document.pdf`. Existing files are never overwritten; a numeric suffix is added when needed.
 
+The merged file's database record uses the existing `submission` folder type. This keeps downstream tooling—such as download reporting or admin dashboards that filter on submission files—compatible without requiring schema changes.
+
 ## API response
 
 A successful merge returns JSON that includes the stored file metadata:
