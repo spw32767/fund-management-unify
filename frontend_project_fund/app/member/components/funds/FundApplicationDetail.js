@@ -62,6 +62,18 @@ const getColoredStatusIcon = (statusCode) => {
   };
 };
 
+const parseAmount = (value) => {
+  if (value === null || value === undefined) return null;
+  if (typeof value === "string") {
+    const cleaned = value.replace(/,/g, "").trim();
+    if (cleaned === "") return null;
+    const num = Number(cleaned);
+    return Number.isFinite(num) ? num : null;
+  }
+  const num = Number(value);
+  return Number.isFinite(num) ? num : null;
+};
+
 export default function FundApplicationDetail({ submissionId, onNavigate }) {
   const [submission, setSubmission] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -299,6 +311,32 @@ export default function FundApplicationDetail({ submissionId, onNavigate }) {
       {}
     );
   }, [submission]);
+  const requestedAmount = useMemo(() => {
+    const candidates = [
+      detail?.requested_amount,
+      submission?.FundApplicationDetail?.requested_amount,
+      submission?.requested_amount,
+      submission?.details?.data?.requested_amount,
+    ];
+    for (const value of candidates) {
+      const parsed = parseAmount(value);
+      if (parsed != null) return parsed;
+    }
+    return 0;
+  }, [detail, submission]);
+  const approvedAmount = useMemo(() => {
+    const candidates = [
+      detail?.approved_amount,
+      submission?.FundApplicationDetail?.approved_amount,
+      submission?.approved_amount,
+      submission?.details?.data?.approved_amount,
+    ];
+    for (const value of candidates) {
+      const parsed = parseAmount(value);
+      if (parsed != null) return parsed;
+    }
+    return null;
+  }, [detail, submission]);
   const mainAnnouncementId = detail.main_annoucement || detail.main_announcement;
   const activityAnnouncementId =
     detail.activity_support_announcement || detail.activity_announcement;
@@ -591,13 +629,13 @@ export default function FundApplicationDetail({ submissionId, onNavigate }) {
           </div>
           <div className="text-right">
             <div className="text-2xl font-bold text-blue-600">
-              {formatCurrency(detail.requested_amount || 0)}
+              {formatCurrency(requestedAmount)}
             </div>
             <div className="text-sm text-gray-500">จำนวนเงินที่ขอ</div>
-            {detail.approved_amount != null && (
+            {approvedAmount != null && (
               <div className="mt-2">
                 <div className="text-lg font-bold text-green-600">
-                  {formatCurrency(detail.approved_amount || 0)}
+                  {formatCurrency(approvedAmount)}
                 </div>
                 <div className="text-sm text-gray-500">จำนวนเงินที่อนุมัติ</div>
               </div>
