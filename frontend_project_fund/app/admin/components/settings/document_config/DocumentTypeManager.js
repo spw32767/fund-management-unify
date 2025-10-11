@@ -38,6 +38,29 @@ const pickCategoryName = (category) => {
   return candidates.find((item) => typeof item === "string" && item.trim() !== "") || "";
 };
 
+const dedupeStringList = (items) => {
+  const list = Array.isArray(items)
+    ? items
+    : typeof items === "string"
+    ? [items]
+    : [];
+
+  const seen = new Set();
+  const result = [];
+
+  list.forEach((value) => {
+    if (typeof value !== "string") return;
+    const trimmed = value.trim();
+    if (!trimmed) return;
+    const lower = trimmed.toLowerCase();
+    if (seen.has(lower)) return;
+    seen.add(lower);
+    result.push(trimmed);
+  });
+
+  return result;
+};
+
 const buildSubcategoryOptions = (rawSubcategories) => {
   const unique = new Map();
 
@@ -80,11 +103,13 @@ const buildSubcategoryOptions = (rawSubcategories) => {
     }
   });
 
-  return Array.from(unique.values()).map((entry) => ({
-    id: entry.id,
-    name: entry.name,
-    category: entry.categories.join(", "),
-  }));
+  return Array.from(unique.values())
+    .map((entry) => ({
+      id: entry.id,
+      name: entry.name,
+      category: entry.categories.join(", "),
+    }))
+    .sort((a, b) => (a.name || "").localeCompare(b.name || "", "th"));
 };
 
 const formatDocumentType = (item) => {
@@ -95,13 +120,7 @@ const formatDocumentType = (item) => {
     ? item.subcategories
     : [];
 
-  const normalizedNames = Array.from(
-    new Set(
-      rawNames
-        .map((name) => (typeof name === "string" ? name.trim() : ""))
-        .filter((name) => name !== "")
-    )
-  );
+  const normalizedNames = dedupeStringList(rawNames);
 
   let primaryName = "";
   if (typeof item.subcategory_name === "string" && item.subcategory_name.trim() !== "") {
@@ -122,8 +141,7 @@ const formatDocumentType = (item) => {
     required: Boolean(item.required),
     multiple: Boolean(item.multiple),
     document_order: item.document_order ?? 0,
-    is_required: item.is_required ?? "",
-    fund_types: Array.isArray(item.fund_types) ? item.fund_types : [],
+    fund_types: dedupeStringList(item.fund_types),
     subcategory_name: primaryName,
     subcategory_names: normalizedNames,
     subcategory_ids: Array.isArray(item.subcategory_ids) ? item.subcategory_ids : [],
@@ -246,16 +264,11 @@ const DocumentTypeManager = () => {
       document_order: Number(formData.document_order) || 0,
       required: Boolean(formData.required),
       multiple: Boolean(formData.multiple),
-      fund_types: Array.isArray(formData.fund_types) ? formData.fund_types : [],
+      fund_types: dedupeStringList(formData.fund_types),
     };
 
     const selectedName = (formData.subcategory_name || "").trim();
     payload.subcategory_name = selectedName ? selectedName : null;
-
-    const isRequired = (formData.is_required || "").trim();
-    if (isRequired) {
-      payload.is_required = isRequired;
-    }
 
     try {
       setSaving(true);
@@ -385,38 +398,48 @@ const DocumentTypeManager = () => {
                       <td className="px-4 py-3 text-gray-700">{item.category || "-"}</td>
                       <td className="px-4 py-3">
                         <div className="flex flex-wrap gap-1">
-                          {(item.fund_types || []).length === 0 ? (
-                            <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-500">
-                              ทุกประเภททุน
-                            </span>
-                          ) : (
-                            item.fund_types.map((fund) => (
+                          {(() => {
+                            const fundTypes = dedupeStringList(item.fund_types);
+                            if (fundTypes.length === 0) {
+                              return (
+                                <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-500">
+                                  ทุกประเภททุน
+                                </span>
+                              );
+                            }
+
+                            return fundTypes.map((fund) => (
                               <span
-                                key={fund}
+                                key={`${item.document_type_id}-${fund.toLowerCase()}`}
                                 className="rounded-full bg-blue-50 px-2 py-0.5 text-xs text-blue-600"
                               >
                                 {fund}
                               </span>
-                            ))
-                          )}
+                            ));
+                          })()}
                         </div>
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex flex-wrap gap-1">
-                          {(item.subcategory_names || []).length === 0 ? (
-                            <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-500">
-                              ทุกประเภทย่อย
-                            </span>
-                          ) : (
-                            item.subcategory_names.map((name) => (
+                          {(() => {
+                            const badges = dedupeStringList(item.subcategory_names);
+                            if (badges.length === 0) {
+                              return (
+                                <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-500">
+                                  ทุกประเภทย่อย
+                                </span>
+                              );
+                            }
+
+                            return badges.map((name) => (
                               <span
-                                key={name}
+                                key={`${item.document_type_id}-${name.toLowerCase()}`}
                                 className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs text-emerald-600"
                               >
                                 {name}
                               </span>
-                            ))
-                          )}
+                            ));
+                          })()}
                         </div>
                       </td>
                       <td className="px-4 py-3 text-gray-700">
@@ -428,10 +451,6 @@ const DocumentTypeManager = () => {
                           <div>
                             <span className="font-medium text-gray-600">แนบหลายไฟล์:</span>{" "}
                             {item.multiple ? "ได้" : "ไม่ได้"}
-                          </div>
-                          <div>
-                            <span className="font-medium text-gray-600">is_required:</span>{" "}
-                            {item.is_required || "-"}
                           </div>
                         </div>
                       </td>

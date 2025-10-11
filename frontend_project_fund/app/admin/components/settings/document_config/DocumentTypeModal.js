@@ -15,7 +15,6 @@ const initialFormState = {
   document_order: 0,
   required: false,
   multiple: false,
-  is_required: "",
   fund_types: [],
   subcategory_name: "",
 };
@@ -30,6 +29,48 @@ const DocumentTypeModal = ({
 }) => {
   const [formState, setFormState] = useState(initialFormState);
   const [subcategorySearch, setSubcategorySearch] = useState("");
+
+  const normalizedSubcategoryOptions = useMemo(() => {
+    if (!Array.isArray(subcategoryOptions)) return [];
+
+    const unique = new Map();
+
+    subcategoryOptions.forEach((option) => {
+      const rawName =
+        typeof option?.name === "string" ? option.name.trim() : "";
+      if (!rawName) return;
+
+      const key = rawName.toLowerCase();
+      const rawCategory =
+        typeof option?.category === "string" ? option.category.trim() : "";
+
+      if (!unique.has(key)) {
+        unique.set(key, {
+          ...option,
+          name: rawName,
+          _categories: rawCategory ? [rawCategory] : [],
+        });
+        return;
+      }
+
+      if (rawCategory) {
+        const existing = unique.get(key);
+        if (!existing._categories.includes(rawCategory)) {
+          existing._categories.push(rawCategory);
+        }
+      }
+    });
+
+    return Array.from(unique.values())
+      .map((option) => {
+        const { _categories = [], ...rest } = option;
+        return {
+          ...rest,
+          category: _categories.length > 0 ? _categories.join(", ") : "",
+        };
+      })
+      .sort((a, b) => (a.name || "").localeCompare(b.name || "", "th"));
+  }, [subcategoryOptions]);
 
   useEffect(() => {
     if (isOpen) {
@@ -47,7 +88,6 @@ const DocumentTypeModal = ({
         document_order: Number(base.document_order || 0),
         required: Boolean(base.required),
         multiple: Boolean(base.multiple),
-        is_required: base.is_required || "",
         fund_types: Array.isArray(base.fund_types) ? base.fund_types : [],
         subcategory_name:
           typeof base.subcategory_name === "string" && base.subcategory_name.trim() !== ""
@@ -64,15 +104,15 @@ const DocumentTypeModal = ({
   }, [isOpen, initialData]);
 
   const filteredSubcategoryOptions = useMemo(() => {
-    if (!Array.isArray(subcategoryOptions)) return [];
+    if (!Array.isArray(normalizedSubcategoryOptions)) return [];
     const term = subcategorySearch.trim().toLowerCase();
-    if (!term) return subcategoryOptions;
-    return subcategoryOptions.filter((option) => {
+    if (!term) return normalizedSubcategoryOptions;
+    return normalizedSubcategoryOptions.filter((option) => {
       const name = option?.name?.toLowerCase?.() || "";
       const category = option?.category?.toLowerCase?.() || "";
       return name.includes(term) || category.includes(term);
     });
-  }, [subcategoryOptions, subcategorySearch]);
+  }, [normalizedSubcategoryOptions, subcategorySearch]);
 
   const handleSelectSubcategory = (name) => {
     setFormState((prev) => ({
@@ -118,12 +158,7 @@ const DocumentTypeModal = ({
     };
 
     const subcategoryName = (formState.subcategory_name || "").trim();
-    payload.subcategory_name = subcategoryName;
-
-    const isRequired = (formState.is_required || "").trim();
-    if (isRequired) {
-      payload.is_required = isRequired;
-    }
+    payload.subcategory_name = subcategoryName ? subcategoryName : null;
 
     onSubmit(payload);
   };
@@ -211,43 +246,21 @@ const DocumentTypeModal = ({
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="mb-2 block text-sm font-medium text-gray-700">
-                    ลำดับการแสดงผล
-                  </label>
-                  <input
-                    type="number"
-                    value={formState.document_order}
-                    onChange={(e) =>
-                      setFormState((prev) => ({
-                        ...prev,
-                        document_order: e.target.value,
-                      }))
-                    }
-                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
-                  />
-                </div>
-
-                <div>
-                  <label className="mb-2 block text-sm font-medium text-gray-700">
-                    เงื่อนไขบังคับ (is_required)
-                  </label>
-                  <select
-                    value={formState.is_required}
-                    onChange={(e) =>
-                      setFormState((prev) => ({
-                        ...prev,
-                        is_required: e.target.value,
-                      }))
-                    }
-                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
-                  >
-                    <option value="">ค่าเริ่มต้น (ตามระบบเดิม)</option>
-                    <option value="yes">บังคับแนบเอกสาร</option>
-                    <option value="no">ไม่บังคับ</option>
-                  </select>
-                </div>
+              <div>
+                <label className="mb-2 block text-sm font-medium text-gray-700">
+                  ลำดับการแสดงผล
+                </label>
+                <input
+                  type="number"
+                  value={formState.document_order}
+                  onChange={(e) =>
+                    setFormState((prev) => ({
+                      ...prev,
+                      document_order: e.target.value,
+                    }))
+                  }
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
+                />
               </div>
 
               <div className="space-y-2">
@@ -370,11 +383,19 @@ const DocumentTypeModal = ({
                           </span>
                         </label>
                       </li>
-                      {filteredSubcategoryOptions.map((option) => {
+                      {filteredSubcategoryOptions.map((option, index) => {
                         const name = option?.name || "";
                         const checked = formState.subcategory_name === name;
+                        const optionKey = name
+                          ? name.toLowerCase()
+                          : option?.id
+                          ? `option-${option.id}`
+                          : `option-index-${index}`;
                         return (
-                          <li key={`${name}-${option.category || ""}`} className="p-3 hover:bg-gray-50">
+                          <li
+                            key={optionKey}
+                            className="p-3 hover:bg-gray-50"
+                          >
                             <label className="flex items-start gap-3">
                               <input
                                 type="radio"
