@@ -69,6 +69,11 @@ const FUND_TYPE_LABELS = Object.fromEntries(
   FUND_TYPE_OPTIONS.map((option) => [option.value, option.label]),
 );
 
+const FUND_TYPE_DISPLAY_NAMES = {
+  fund_application: "แบบฟอร์มสมัครรับทุนส่งเสริมการวิจัย",
+  publication_reward: "แบบฟอร์มสมัครรับเงินรางวัลตีพิมพ์",
+};
+
 const formatDocumentType = (item) => {
   if (!item || typeof item !== "object") return null;
   const fundTypeMode = determineFundTypeMode(item);
@@ -314,7 +319,7 @@ const DocumentTypeManager = () => {
                       </td>
                       <td className="px-4 py-3 text-gray-700">{item.code}</td>
                       <td className="px-4 py-3">
-                        <div className="flex flex-wrap gap-1">
+                        <div className="space-y-1">
                           {(() => {
                             const fundTypes = Array.isArray(item.fund_types)
                               ? item.fund_types
@@ -324,7 +329,7 @@ const DocumentTypeManager = () => {
 
                             if (inactive) {
                               return (
-                                <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-500">
+                                <span className="block rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-500">
                                   ไม่ได้ใช้งาน
                                 </span>
                               );
@@ -332,7 +337,7 @@ const DocumentTypeManager = () => {
 
                             if (mode === "all" || fundTypes.length === 0) {
                               return (
-                                <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-500">
+                                <span className="block rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-500">
                                   ทุกประเภททุน
                                 </span>
                               );
@@ -341,9 +346,11 @@ const DocumentTypeManager = () => {
                             return fundTypes.map((fund) => (
                               <span
                                 key={`${item.document_type_id}-${fund.toLowerCase()}`}
-                                className="rounded-full bg-blue-50 px-2 py-0.5 text-xs text-blue-600"
+                                className="block rounded-lg bg-blue-50 px-3 py-1 text-xs text-blue-700"
                               >
-                                {FUND_TYPE_LABELS[fund] || fund}
+                                {FUND_TYPE_DISPLAY_NAMES[fund] ||
+                                  FUND_TYPE_LABELS[fund] ||
+                                  fund}
                               </span>
                             ));
                           })()}
