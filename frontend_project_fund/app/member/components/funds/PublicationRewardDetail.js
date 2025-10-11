@@ -340,6 +340,10 @@ export default function PublicationRewardDetail({ submissionId, onNavigate }) {
       toArray(docs).forEach((doc) => {
         addFile(doc?.File);
         addFile(doc?.file);
+        addFile(doc?.file_upload);
+        addFile(doc?.fileUpload);
+        addFile(doc?.file_upload?.file);
+        addFile(doc?.fileUpload?.file);
       });
     });
 
@@ -352,6 +356,11 @@ export default function PublicationRewardDetail({ submissionId, onNavigate }) {
         doc.file_id ??
         doc.File?.file_id ??
         doc.file?.file_id ??
+        doc.file_upload?.file_id ??
+        doc.fileUpload?.file_id ??
+        doc.file_upload_id ??
+        doc.file_upload?.id ??
+        doc.fileUpload?.id ??
         doc.fileId ??
         doc.managed_file_id ??
         null;
@@ -370,6 +379,8 @@ export default function PublicationRewardDetail({ submissionId, onNavigate }) {
           : null) ||
         doc.File ||
         doc.file ||
+        doc.file_upload ||
+        doc.fileUpload ||
         null;
 
       if (!resolvedFile && rawFileId != null) {
@@ -395,11 +406,18 @@ export default function PublicationRewardDetail({ submissionId, onNavigate }) {
         firstNonEmpty(
           doc.File?.original_name,
           doc.file?.original_name,
+          doc.file_upload?.original_name,
+          doc.fileUpload?.original_name,
+          doc.file_upload?.file?.original_name,
+          doc.fileUpload?.file?.original_name,
+          resolvedFile?.file?.original_name,
           resolvedFile?.original_name,
           resolvedFile?.file_name,
           resolvedFile?.name,
           doc.document_name,
           doc.document_title,
+          doc.file_name,
+          doc.file_label,
           doc.document_type_name,
           doc.name,
           doc.title,
@@ -419,7 +437,7 @@ export default function PublicationRewardDetail({ submissionId, onNavigate }) {
         ...doc,
         file_id: normalizedFileId ?? rawFileId ?? null,
         document_type_name: docTypeName,
-        resolved_file: resolvedFile || null,
+        resolved_file: resolvedFile || doc.file_upload || doc.fileUpload || null,
         display_name: docName,
       };
     });
