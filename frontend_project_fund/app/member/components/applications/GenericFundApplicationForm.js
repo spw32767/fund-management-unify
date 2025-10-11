@@ -304,21 +304,43 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
     };
 
     const attempts = [];
+    const fallbackAttempts = [];
 
     if (subcategoryName) {
       attempts.push(buildFilters({ subcategory_name: subcategoryName }));
+      fallbackAttempts.push({ subcategory_name: subcategoryName });
     }
 
     if (subcategoryId) {
       attempts.push(buildFilters({ subcategory_id: subcategoryId }));
+      fallbackAttempts.push({ subcategory_id: subcategoryId });
     }
 
     if (attempts.length === 0) {
       attempts.push(buildFilters());
     }
 
-    for (let index = 0; index < attempts.length; index += 1) {
-      const filters = attempts[index];
+    if (fallbackAttempts.length === 0) {
+      fallbackAttempts.push({});
+    }
+
+    const combinedAttempts = [...attempts];
+    const attemptMetadata = attempts.map(() => ({ usedLegacyFallback: false }));
+
+    // Preserve compatibility with legacy records that haven't been
+    // reclassified with fund_types yet by retrying without fund_type.
+    for (const fallback of fallbackAttempts) {
+      const normalized = JSON.stringify(fallback);
+      const alreadyQueued = combinedAttempts.some((filters) => JSON.stringify(filters) === normalized);
+
+      if (!alreadyQueued) {
+        combinedAttempts.push(fallback);
+        attemptMetadata.push({ usedLegacyFallback: true });
+      }
+    }
+
+    for (let index = 0; index < combinedAttempts.length; index += 1) {
+      const filters = combinedAttempts[index];
       const result = await fetchWithFilters(filters);
 
       if (result.document_types.length > 0) {
@@ -327,10 +349,19 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
           .sort((a, b) => (a.document_order || 0) - (b.document_order || 0));
 
         setDocumentRequirements(sortedDocs);
+
+        if (attemptMetadata[index]?.usedLegacyFallback) {
+          console.warn('Loaded fund documents via legacy filter fallback. Please assign fund_types for', {
+            subcategoryName,
+            subcategoryId,
+          });
+        }
+
         return sortedDocs;
       }
 
-      if (result.success === false && result.error && index === attempts.length - 1) {
+      const isFinalAttempt = index === combinedAttempts.length - 1;
+      if (result.success === false && result.error && isFinalAttempt) {
         throw new Error(result.error);
       }
     }
