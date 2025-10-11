@@ -14,6 +14,7 @@ import Swal from "sweetalert2";
 
 import { documentTypesAPI } from "@/app/lib/api";
 import DocumentTypeModal, { FUND_TYPE_OPTIONS } from "./DocumentTypeModal";
+import SettingsSectionCard from "@/app/admin/components/settings/common/SettingsSectionCard";
 
 const Toast = Swal.mixin({
   toast: true,
@@ -418,20 +419,13 @@ const DocumentTypeManager = () => {
 
   return (
     <div className="space-y-6">
-      <div className="rounded-xl bg-white shadow-sm">
-        <div className="flex flex-col gap-4 border-b px-6 py-6 md:flex-row md:items-center md:justify-between">
-          <div className="flex items-center gap-3">
-            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-blue-50 text-blue-600">
-              <FileStack size={24} />
-            </div>
-            <div>
-              <h2 className="text-xl font-semibold text-gray-900">จัดการประเภทเอกสาร</h2>
-              <p className="text-sm text-gray-500">
-                เพิ่ม แก้ไข หรือกำหนดเงื่อนไขของไฟล์ที่ต้องใช้ในแบบฟอร์มต่างๆ
-              </p>
-            </div>
-          </div>
-          <div className="flex flex-wrap items-center gap-3">
+      <SettingsSectionCard
+        icon={FileStack}
+        iconSize={20}
+        title="จัดการประเภทเอกสาร"
+        description="เพิ่ม แก้ไข หรือกำหนดเงื่อนไขของไฟล์ที่ต้องใช้ในแบบฟอร์มต่างๆ"
+        actions={
+          <>
             <button
               type="button"
               onClick={loadDocumentTypes}
@@ -458,150 +452,149 @@ const DocumentTypeManager = () => {
               <PlusCircle size={18} />
               เพิ่มประเภทเอกสาร
             </button>
+          </>
+        }
+        contentClassName="space-y-4"
+      >
+        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <div className="text-sm text-gray-500">
+            ทั้งหมด {documentTypes.length} รายการ | แสดง {filteredTypes.length} รายการ
+          </div>
+          <div className="relative w-full md:w-72">
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full rounded-lg border border-gray-300 px-4 py-2 text-sm text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
+              placeholder="ค้นหาโดยชื่อ รหัส หรือประเภททุน"
+            />
           </div>
         </div>
 
-        <div className="px-6 py-4">
-          <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            <div className="text-sm text-gray-500">
-              ทั้งหมด {documentTypes.length} รายการ | แสดง {filteredTypes.length} รายการ
-            </div>
-            <div className="relative w-full md:w-72">
-              <input
-                type="text"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full rounded-lg border border-gray-300 px-4 py-2 text-sm text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
-                placeholder="ค้นหาโดยชื่อ รหัส หรือประเภททุน"
-              />
-            </div>
-          </div>
-
-          <div className="overflow-x-auto rounded-lg border border-gray-200">
-            <table className="min-w-full divide-y divide-gray-200 text-sm">
-              <thead className="bg-gray-50">
+        <div className="overflow-x-auto rounded-lg border border-gray-200">
+          <table className="min-w-full divide-y divide-gray-200 text-sm">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="w-16 px-3 py-3 text-center font-medium text-gray-600">ลำดับ</th>
+                <th className="px-3 py-3 text-left font-medium text-gray-600">ชื่อเอกสาร</th>
+                <th className="px-3 py-3 text-left font-medium text-gray-600">รหัส</th>
+                <th className="px-3 py-3 text-left font-medium text-gray-600">ประเภททุน</th>
+                <th className="px-3 py-3 text-left font-medium text-gray-600">ตัวเลือก</th>
+                <th className="px-3 py-3 text-right font-medium text-gray-600">การจัดการ</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {loading ? (
                 <tr>
-                  <th className="w-16 px-3 py-3 text-center font-medium text-gray-600">ลำดับ</th>
-                  <th className="px-3 py-3 text-left font-medium text-gray-600">ชื่อเอกสาร</th>
-                  <th className="px-3 py-3 text-left font-medium text-gray-600">รหัส</th>
-                  <th className="px-3 py-3 text-left font-medium text-gray-600">ประเภททุน</th>
-                  <th className="px-3 py-3 text-left font-medium text-gray-600">ตัวเลือก</th>
-                  <th className="px-3 py-3 text-right font-medium text-gray-600">การจัดการ</th>
+                  <td colSpan={6} className="px-4 py-6 text-center text-gray-500">
+                    กำลังโหลดข้อมูล...
+                  </td>
                 </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {loading ? (
-                  <tr>
-                    <td colSpan={6} className="px-4 py-6 text-center text-gray-500">
-                      กำลังโหลดข้อมูล...
+              ) : filteredTypes.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="px-4 py-6 text-center text-gray-500">
+                    ไม่พบประเภทเอกสาร
+                  </td>
+                </tr>
+              ) : (
+                filteredTypes.map((item, index) => (
+                  <tr
+                    key={item.document_type_id}
+                    draggable={!isFiltering}
+                    onDragStart={(event) => handleDragStart(event, item.document_type_id)}
+                    onDragOver={(event) => handleDragOver(event, item.document_type_id)}
+                    onDragEnd={handleDragEnd}
+                    className={`${draggingId === item.document_type_id ? "bg-blue-50" : "hover:bg-gray-50"}`}
+                  >
+                    <td className="px-3 py-3 text-gray-400">
+                      <div
+                        className={`inline-flex items-center gap-1 ${isFiltering ? "cursor-not-allowed" : "cursor-grab"}`}
+                      >
+                        <GripVertical size={16} />
+                        {item.document_order ?? index + 1}
+                      </div>
                     </td>
-                  </tr>
-                ) : filteredTypes.length === 0 ? (
-                  <tr>
-                    <td colSpan={6} className="px-4 py-6 text-center text-gray-500">
-                      ไม่พบประเภทเอกสาร
+                    <td className="px-3 py-3">
+                      <div className="font-medium text-gray-900">
+                        {item.document_type_name || "(ไม่ระบุชื่อ)"}
+                      </div>
                     </td>
-                  </tr>
-                ) : (
-                  filteredTypes.map((item, index) => (
-                    <tr
-                      key={item.document_type_id}
-                      draggable={!isFiltering}
-                      onDragStart={(event) => handleDragStart(event, item.document_type_id)}
-                      onDragOver={(event) => handleDragOver(event, item.document_type_id)}
-                      onDragEnd={handleDragEnd}
-                      className={`${draggingId === item.document_type_id ? "bg-blue-50" : "hover:bg-gray-50"}`}
-                    >
-                      <td className="px-3 py-3 text-gray-400">
-                        <div
-                          className={`inline-flex items-center gap-1 ${isFiltering ? "cursor-not-allowed" : "cursor-grab"}`}
-                        >
-                          <GripVertical size={16} />
-                          {item.document_order ?? index + 1}
-                        </div>
-                      </td>
-                      <td className="px-3 py-3">
-                        <div className="font-medium text-gray-900">
-                          {item.document_type_name || "(ไม่ระบุชื่อ)"}
-                        </div>
-                      </td>
-                      <td className="px-3 py-3 text-gray-700">{item.code || "-"}</td>
-                      <td className="px-3 py-3">
-                        <div className="space-y-1">
-                          {(() => {
-                            const fundTypes = Array.isArray(item.fund_types)
-                              ? item.fund_types
-                              : [];
-                            const mode = item.fund_type_mode || determineFundTypeMode(item);
-                            const inactive = item.is_inactive || mode === "inactive";
+                    <td className="px-3 py-3 text-gray-700">{item.code || "-"}</td>
+                    <td className="px-3 py-3">
+                      <div className="space-y-1">
+                        {(() => {
+                          const fundTypes = Array.isArray(item.fund_types)
+                            ? item.fund_types
+                            : [];
+                          const mode = item.fund_type_mode || determineFundTypeMode(item);
+                          const inactive = item.is_inactive || mode === "inactive";
 
-                            if (inactive) {
-                              return (
-                                <span className="block rounded-full bg-gray-100 px-3 py-1 text-xs text-gray-500">
-                                  ไม่ได้ใช้งาน
-                                </span>
-                              );
-                            }
-
-                            if (mode === "all" || fundTypes.length === 0) {
-                              return (
-                                <span className="block rounded-full bg-gray-100 px-3 py-1 text-xs text-gray-500">
-                                  ทุกประเภททุน
-                                </span>
-                              );
-                            }
-
-                            return fundTypes.map((fund) => (
-                              <span
-                                key={`${item.document_type_id}-${fund.toLowerCase()}`}
-                                className="block rounded-lg bg-blue-50 px-3 py-1 text-xs text-blue-700"
-                              >
-                                {FUND_TYPE_DISPLAY_NAMES[fund] ||
-                                  FUND_TYPE_LABELS[fund] ||
-                                  fund}
+                          if (inactive) {
+                            return (
+                              <span className="block rounded-full bg-gray-100 px-3 py-1 text-xs text-gray-500">
+                                ไม่ได้ใช้งาน
                               </span>
-                            ));
-                          })()}
+                            );
+                          }
+
+                          if (mode === "all" || fundTypes.length === 0) {
+                            return (
+                              <span className="block rounded-full bg-gray-100 px-3 py-1 text-xs text-gray-500">
+                                ทุกประเภททุน
+                              </span>
+                            );
+                          }
+
+                          return fundTypes.map((fund) => (
+                            <span
+                              key={`${item.document_type_id}-${fund.toLowerCase()}`}
+                              className="block rounded-lg bg-blue-50 px-3 py-1 text-xs text-blue-700"
+                            >
+                              {FUND_TYPE_DISPLAY_NAMES[fund] ||
+                                FUND_TYPE_LABELS[fund] ||
+                                fund}
+                            </span>
+                          ));
+                        })()}
+                      </div>
+                    </td>
+                    <td className="px-3 py-3 text-gray-700">
+                      <div className="space-y-1 text-xs">
+                        <div>
+                          <span className="font-medium text-gray-600">ต้องแนบ:</span>{" "}
+                          {item.required ? "ใช่" : "ไม่"}
                         </div>
-                      </td>
-                      <td className="px-3 py-3 text-gray-700">
-                        <div className="space-y-1 text-xs">
-                          <div>
-                            <span className="font-medium text-gray-600">ต้องแนบ:</span>{" "}
-                            {item.required ? "ใช่" : "ไม่"}
-                          </div>
-                          <div>
-                            <span className="font-medium text-gray-600">แนบหลายไฟล์:</span>{" "}
-                            {item.multiple ? "ได้" : "ไม่ได้"}
-                          </div>
+                        <div>
+                          <span className="font-medium text-gray-600">แนบหลายไฟล์:</span>{" "}
+                          {item.multiple ? "ได้" : "ไม่ได้"}
                         </div>
-                      </td>
-                      <td className="px-3 py-3 text-right">
-                        <div className="flex justify-end gap-2">
-                          <button
-                            type="button"
-                            onClick={() => handleEditDocumentType(item)}
-                            className="inline-flex items-center gap-1 rounded-lg border border-gray-200 px-3 py-1 text-xs font-medium text-gray-600 transition hover:bg-gray-50"
-                          >
-                            <Pencil size={14} /> แก้ไข
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteDocumentType(item)}
-                            className="inline-flex items-center gap-1 rounded-lg border border-red-200 px-3 py-1 text-xs font-medium text-red-600 transition hover:bg-red-50"
-                          >
-                            <Trash2 size={14} /> ลบ
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
+                      </div>
+                    </td>
+                    <td className="px-3 py-3 text-right">
+                      <div className="flex justify-end gap-2">
+                        <button
+                          type="button"
+                          onClick={() => handleEditDocumentType(item)}
+                          className="inline-flex items-center gap-1 rounded-lg border border-gray-200 px-3 py-1 text-xs font-medium text-gray-600 transition hover:bg-gray-50"
+                        >
+                          <Pencil size={14} /> แก้ไข
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteDocumentType(item)}
+                          className="inline-flex items-center gap-1 rounded-lg border border-red-200 px-3 py-1 text-xs font-medium text-red-600 transition hover:bg-red-50"
+                        >
+                          <Trash2 size={14} /> ลบ
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
         </div>
-      </div>
+      </SettingsSectionCard>
 
       <DocumentTypeModal
         isOpen={modalOpen}

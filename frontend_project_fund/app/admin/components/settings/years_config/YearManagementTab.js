@@ -9,9 +9,11 @@ import {
   ArrowUpDown,
   ArrowUp,
   ArrowDown,
+  Calendar,
 } from "lucide-react";
 import Swal from "sweetalert2";
 import StatusBadge from "@/app/admin/components/settings/StatusBadge";
+import SettingsSectionCard from "@/app/admin/components/settings/common/SettingsSectionCard";
 
 const YearManagementTab = ({ years = [], onSaveYear /*, onDeleteYear */ }) => {
   // ====== Editing + Form state (keep original names) ======
@@ -138,26 +140,27 @@ const YearManagementTab = ({ years = [], onSaveYear /*, onDeleteYear */ }) => {
 
   // ====== UI ======
   return (
-    <div className="bg-white rounded-lg shadow-sm p-8">
-      <div className="mb-6 flex items-start justify-between">
-        <div>
-          <h2 className="text-xl font-semibold text-gray-900">จัดการปีงบประมาณ</h2>
-          <p className="text-gray-600 mt-1">
-            เพิ่ม/แก้ไข ปีงบประมาณและวงเงินรวม พร้อมสถานะการเปิดใช้งาน
-          </p>
-        </div>
-        <button
-          onClick={handleAddNew}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-        >
-          <Plus size={16} />
-          เพิ่มปีงบประมาณ
-        </button>
-      </div>
-
-      <div className="overflow-x-auto border border-gray-300 rounded-lg">
-        {sortedYears.length ? (
-          <table className="min-w-full divide-y divide-gray-200 text-sm">
+    <>
+      <SettingsSectionCard
+        icon={Calendar}
+        iconBgClass="bg-orange-100"
+        iconColorClass="text-orange-600"
+        title="จัดการปีงบประมาณ"
+        description="เพิ่ม/แก้ไข ปีงบประมาณและวงเงินรวม พร้อมสถานะการเปิดใช้งาน"
+        actions={
+          <button
+            onClick={handleAddNew}
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+          >
+            <Plus size={16} />
+            เพิ่มปีงบประมาณ
+          </button>
+        }
+        contentClassName="space-y-6"
+      >
+        <div className="overflow-x-auto border border-gray-300 rounded-lg">
+          {sortedYears.length ? (
+            <table className="min-w-full divide-y divide-gray-200 text-sm">
             <thead className="bg-gray-50">
               <tr>
                 <th className="px-4 py-3 text-left font-semibold text-gray-700">
@@ -241,7 +244,8 @@ const YearManagementTab = ({ years = [], onSaveYear /*, onDeleteYear */ }) => {
             </button>
           </div>
         )}
-      </div>
+        </div>
+      </SettingsSectionCard>
 
       {/* ===== Modal (เดิม) สำหรับเพิ่ม/แก้ไขปีงบประมาณ ===== */}
       {showForm && (
@@ -328,7 +332,7 @@ const YearManagementTab = ({ years = [], onSaveYear /*, onDeleteYear */ }) => {
           </div>
         </div>
       )}
-    </div>
+    </>
   );
 };
 

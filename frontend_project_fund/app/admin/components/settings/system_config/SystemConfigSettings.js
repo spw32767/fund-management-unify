@@ -2,9 +2,10 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import Swal from "sweetalert2";
-import { Save, RefreshCw, Calendar as CalendarIcon, Clock } from "lucide-react";
+import { Save, RefreshCw, Calendar as CalendarIcon, Clock, Settings as SettingsIcon } from "lucide-react";
 import systemConfigAPI from "@/app/lib/system_config_api";
 import apiClient from "@/app/lib/api";
+import SettingsSectionCard from "@/app/admin/components/settings/common/SettingsSectionCard";
 
 /** ไทย: แปลงวันที่ ISO เป็นรูปแบบไทยอ่านง่าย (ปี พ.ศ., เดือนแบบคำ, เวลา HH:mm) */
 function formatThaiFull(dtStr) {
@@ -837,37 +838,34 @@ export default function SystemConfigSettings() {
   })();
 
   return (
-    <div className="bg-white rounded-xl shadow-sm">
-      {/* Top bar */}
-      <div className="flex flex-wrap items-center justify-between gap-3 p-6 border-b border-gray-300">
-        <div>
-          <h2 className="text-lg font-semibold text-gray-900">ตั้งค่าระบบ</h2>
-          <p className="text-sm text-gray-600">กำหนดปีงบประมาณ ช่วงเวลาเปิด–ปิด และประกาศหลักเกณฑ์</p>
-        </div>
-        <div className="flex gap-2">
-          <button
-            onClick={() => {
-              setLoading(true);
-              Promise.all([
-                loadAnnouncements(),
-                loadConfig(),
-                loadAllUsersAndFilter(), // รีโหลดผู้ใช้ทั้งหมดแล้วค่อยกรอง
-                loadCurrentHead(),
-                loadHeadHistory(),
-                loadAnnouncementHistory(),
-              ]).finally(() => setLoading(false));
-            }}
-            className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50"
-            disabled={loading}
-          >
-            <RefreshCw size={16} />
-            รีเฟรช
-          </button>
-        </div>
-      </div>
-
-      {/* Content */}
-      <div className="space-y-6 p-6">
+    <SettingsSectionCard
+      icon={SettingsIcon}
+      iconBgClass="bg-slate-100"
+      iconColorClass="text-slate-700"
+      title="ตั้งค่าระบบ"
+      description="กำหนดปีงบประมาณ ช่วงเวลาเปิด–ปิด และประกาศหลักเกณฑ์"
+      actions={
+        <button
+          onClick={() => {
+            setLoading(true);
+            Promise.all([
+              loadAnnouncements(),
+              loadConfig(),
+              loadAllUsersAndFilter(), // รีโหลดผู้ใช้ทั้งหมดแล้วค่อยกรอง
+              loadCurrentHead(),
+              loadHeadHistory(),
+              loadAnnouncementHistory(),
+            ]).finally(() => setLoading(false));
+          }}
+          className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50"
+          disabled={loading}
+        >
+          <RefreshCw size={16} />
+          รีเฟรช
+        </button>
+      }
+      contentClassName="space-y-6"
+    >
         {/* Section 1: ปีงบประมาณ + Window */}
         <section className="space-y-4">
           <div className="rounded-lg border border-gray-300 p-5">
@@ -1135,7 +1133,6 @@ export default function SystemConfigSettings() {
             </div>
           </div>
         </section>
-      </div>
-    </div>
+    </SettingsSectionCard>
   );
 }
