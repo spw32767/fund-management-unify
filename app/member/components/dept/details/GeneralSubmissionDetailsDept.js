@@ -517,20 +517,15 @@ export default function GeneralSubmissionDetailsDept({ submissionId, onBack }) {
 
         const merged = (rawDocs || []).map((d, i) => {
           const fileId = d.file_id ?? d.File?.file_id ?? d.file?.file_id ?? d.id;
-          const name =
-            d.file_name ??
-            d.original_name ??
-            d.original_filename ??
-            d.File?.original_name ??
-            d.file?.original_name ??
-            d.name ??
-            `เอกสารที่ ${i + 1}`;
+          const trimmedOriginal =
+            typeof d.original_name === 'string' ? d.original_name.trim() : '';
+          const originalName = trimmedOriginal || null;
           const docTypeId = d.document_type_id ?? d.DocumentTypeID ?? d.doc_type_id ?? null;
           const docTypeName = d.document_type_name || typeMap[String(docTypeId)] || 'ไม่ระบุหมวด';
           return {
             ...d,
             file_id: fileId,
-            original_name: name,
+            original_name: originalName,
             document_type_id: docTypeId,
             document_type_name: docTypeName,
           };
@@ -834,23 +829,9 @@ export default function GeneralSubmissionDetailsDept({ submissionId, onBack }) {
   };
 
   const resolveFileName = (doc, fallback = 'document') => {
-    const candidates = [
-      doc?.original_name,
-      doc?.original_filename,
-      doc?.file_name,
-      doc?.File?.original_name,
-      doc?.file?.original_name,
-      doc?.File?.file_name,
-      doc?.file?.file_name,
-      doc?.name,
-      doc?.title,
-    ];
-    for (const candidate of candidates) {
-      if (typeof candidate === 'string' && candidate.trim() !== '') {
-        return candidate;
-      }
-    }
-    return fallback;
+    const candidate =
+      typeof doc?.original_name === 'string' ? doc.original_name.trim() : '';
+    return candidate || fallback;
   };
 
   const fetchManagedFileBlob = async (fileId) => {
@@ -1000,7 +981,7 @@ export default function GeneralSubmissionDetailsDept({ submissionId, onBack }) {
     setCreatingMerged(true);
     try {
       const pdfLike = attachments.filter((d) =>
-        String(d.original_name || d.file_name || '').toLowerCase().endsWith('.pdf')
+        String(d.original_name || '').toLowerCase().endsWith('.pdf')
       );
       const list = pdfLike.length ? pdfLike : attachments;
 
@@ -1222,14 +1203,11 @@ export default function GeneralSubmissionDetailsDept({ submissionId, onBack }) {
             <div className="space-y-4">
               {attachments.map((doc, index) => {
                 const fileId = doc.file_id || doc.File?.file_id || doc.file?.file_id;
-                const fileName =
-                  doc.original_name ||
-                  doc.File?.original_name ||
-                  doc.file?.original_name ||
-                  doc.original_filename ||
-                  doc.file_name ||
-                  doc.name ||
-                  `เอกสารที่ ${index + 1}`;
+                const trimmedOriginal =
+                  typeof doc.original_name === 'string' ? doc.original_name.trim() : '';
+                const fileName = trimmedOriginal || '-';
+                const downloadName =
+                  trimmedOriginal || `document-${fileId ?? index + 1}`;
                 const docType = (doc.document_type_name || '').trim() || 'ไม่ระบุประเภท';
 
                 const canOpen = fileId != null || !!resolveFilePath(doc);
@@ -1288,7 +1266,7 @@ export default function GeneralSubmissionDetailsDept({ submissionId, onBack }) {
                         </button>
                         <button
                           className="inline-flex items-center gap-1 px-3 py-2 text-sm text-green-600 hover:bg-green-100 rounded-md transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-                          onClick={() => handleDownload(doc, fileName)}
+                          onClick={() => handleDownload(doc, downloadName)}
                           disabled={!canOpen}
                           title="ดาวน์โหลดไฟล์"
                         >

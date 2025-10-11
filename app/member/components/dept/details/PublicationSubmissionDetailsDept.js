@@ -956,11 +956,15 @@ export default function PublicationSubmissionDetailsDept({ submissionId, onBack 
               ? d.document_type_code.trim()
               : null) ??
             'ไม่ระบุประเภท';
+          const trimmedOriginal =
+            typeof d?.original_name === 'string' ? d.original_name.trim() : '';
+          const originalName = trimmedOriginal || null;
 
           return {
             ...d,
             document_type_id: docTypeId ?? d?.document_type_id ?? null,
             document_type_name: docTypeName,
+            original_name: originalName,
             _index: index,
           };
         });
@@ -1154,23 +1158,9 @@ export default function PublicationSubmissionDetailsDept({ submissionId, onBack 
   };
 
   const resolveFileName = (doc, fallback = 'document') => {
-    const candidates = [
-      doc?.original_name,
-      doc?.original_filename,
-      doc?.file_name,
-      doc?.File?.original_name,
-      doc?.file?.original_name,
-      doc?.File?.file_name,
-      doc?.file?.file_name,
-      doc?.name,
-      doc?.title,
-    ];
-    for (const candidate of candidates) {
-      if (typeof candidate === 'string' && candidate.trim() !== '') {
-        return candidate;
-      }
-    }
-    return fallback;
+    const candidate =
+      typeof doc?.original_name === 'string' ? doc.original_name.trim() : '';
+    return candidate || fallback;
   };
 
   const fetchManagedFileBlob = async (fileId) => {
@@ -1334,7 +1324,7 @@ export default function PublicationSubmissionDetailsDept({ submissionId, onBack 
     try {
       // เลือกไฟล์ .pdf ก่อน ถ้าไม่มีเลยค่อยลองทุกไฟล์ (ให้ merge functionเป็นคนคัดทิ้งเอง)
       const pdfLike = attachments.filter(d => {
-        const name = (d.original_name || d.file_name || '').toLowerCase();
+        const name = (d.original_name || '').toLowerCase();
         return name.endsWith('.pdf');
       });
       const list = pdfLike.length ? pdfLike : attachments;
@@ -2098,7 +2088,13 @@ export default function PublicationSubmissionDetailsDept({ submissionId, onBack 
               <div className="space-y-4">
                 {attachments.map((doc, index) => {
                   const fileId = resolveFileId(doc);
-                  const fileName = resolveFileName(doc, `เอกสารที่ ${index + 1}`);
+                  const trimmedOriginal =
+                    typeof doc?.original_name === 'string'
+                      ? doc.original_name.trim()
+                      : '';
+                  const fileName = trimmedOriginal || '-';
+                  const downloadName =
+                    trimmedOriginal || `document-${fileId ?? index + 1}`;
                   const docType = (doc.document_type_name || '').trim() || 'ไม่ระบุประเภท';
                   const canOpen = fileId != null || !!resolveFilePath(doc);
 
@@ -2125,12 +2121,12 @@ export default function PublicationSubmissionDetailsDept({ submissionId, onBack 
                                   href="#"
                                   onClick={(e) => { e.preventDefault(); handleView(doc); }}
                                   className="font-medium text-blue-600 hover:underline truncate cursor-pointer"
-                                  title={`เปิดดู: ${fileName}`}
-                                >
-                                  {fileName}
-                                </a>
-                              ) : (
-                                <span
+                                title={`เปิดดู: ${fileName}`}
+                              >
+                                {fileName}
+                              </a>
+                            ) : (
+                              <span
                                   className="font-medium text-gray-400 truncate"
                                   title={fileName}
                                 >
@@ -2159,7 +2155,7 @@ export default function PublicationSubmissionDetailsDept({ submissionId, onBack 
                           </button>
                           <button
                             className="inline-flex items-center gap-1 px-3 py-2 text-sm text-green-600 hover:bg-green-100 rounded-md transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-                            onClick={() => handleDownload(doc, fileName)}
+                            onClick={() => handleDownload(doc, downloadName)}
                             disabled={!canOpen}
                             title="ดาวน์โหลดไฟล์"
                           >
