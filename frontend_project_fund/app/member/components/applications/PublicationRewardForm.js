@@ -769,188 +769,34 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
     reward_announcement: null,
   });
 
-  const parseDocumentSubcategoryIds = useCallback((doc) => {
-    const result = [];
-    if (!doc || typeof doc !== 'object') {
-      return result;
-    }
-
-    const rawValue = doc.subcategory_ids;
-    const seen = new Set();
-
-    const pushId = (value) => {
-      const parsed = Number(value);
-      if (Number.isNaN(parsed)) return;
-      if (seen.has(parsed)) return;
-      seen.add(parsed);
-      result.push(parsed);
-    };
-
-    if (Array.isArray(rawValue)) {
-      rawValue.forEach(pushId);
-    } else if (typeof rawValue === 'string' && rawValue.trim()) {
-      try {
-        const parsed = JSON.parse(rawValue);
-        if (Array.isArray(parsed)) {
-          parsed.forEach(pushId);
-        }
-      } catch (error) {
-        console.warn('Failed to parse subcategory_ids JSON:', rawValue, error);
-      }
-    }
-
-    return result;
-  }, []);
-
   const computeDocumentRequirements = useCallback(
-    (docs, { subcategoryId, subcategoryName }) => {
+    (docs) => {
       const sortedDocs = Array.isArray(docs)
         ? docs
             .slice()
             .sort((a, b) => (a?.document_order || 0) - (b?.document_order || 0))
         : [];
 
-      const matches = [];
-      const seen = new Set();
-
-      const resolveIdentifier = (doc) => {
+      return sortedDocs.filter((doc) => {
         if (!doc || typeof doc !== 'object') {
-          return null;
-        }
-
-        if (doc.document_type_id != null) {
-          return `doc-${doc.document_type_id}`;
-        }
-
-        if (doc.id != null) {
-          return `legacy-${doc.id}`;
-        }
-
-        if (doc.code) {
-          return `code-${doc.code}`;
-        }
-
-        return null;
-      };
-
-      const addContext = (context, scope, matchInfo = {}) => {
-        if (!context || !context.doc) {
-          return;
-        }
-
-        const { identifier, doc, fundTypeMode, names, ids } = context;
-
-        if (identifier && seen.has(identifier)) {
-          return;
-        }
-
-        const matchedNames = Array.isArray(matchInfo.names)
-          ? matchInfo.names
-          : [];
-        const matchedIds = Array.isArray(matchInfo.ids)
-          ? matchInfo.ids
-          : [];
-
-        matches.push({
-          ...doc,
-          __match_scope: scope,
-          __resolved_fund_type_mode: fundTypeMode,
-          __matched_subcategory_names:
-            matchedNames.length > 0 ? matchedNames : Array.isArray(names) ? names : [],
-          __matched_subcategory_ids:
-            matchedIds.length > 0 ? matchedIds : Array.isArray(ids) ? ids : [],
-        });
-
-        if (identifier) {
-          seen.add(identifier);
-        }
-      };
-
-      const normalizedName =
-        typeof subcategoryName === 'string' && subcategoryName.trim()
-          ? subcategoryName.trim().toLowerCase()
-          : null;
-
-      const numericSubcategoryId =
-        subcategoryId != null && !Number.isNaN(Number(subcategoryId))
-          ? Number(subcategoryId)
-          : null;
-
-      const universalDocs = [];
-
-      sortedDocs.forEach((doc) => {
-        if (!doc || typeof doc !== 'object') {
-          return;
+          return false;
         }
 
         const fundTypeMode = resolveFundTypeMode(doc);
         if (fundTypeMode === 'inactive') {
-          return;
+          return false;
         }
 
-        if (fundTypeMode !== 'all') {
-          const fundTypes = Array.isArray(doc.fund_types)
-            ? doc.fund_types
-            : [];
-          if (!fundTypes.includes('publication_reward')) {
-            return;
-          }
+        if (fundTypeMode === 'all') {
+          return true;
         }
 
-        const names = dedupeStringList(doc?.subcategory_names);
-        const ids = parseDocumentSubcategoryIds(doc);
-        const identifier = resolveIdentifier(doc);
-        const context = {
-          doc,
-          fundTypeMode,
-          names,
-          ids,
-          identifier,
-        };
-
-        if (names.length === 0 && ids.length === 0) {
-          universalDocs.push(context);
-          return;
-        }
-
-        const matchedNames = normalizedName
-          ? names.filter(
-              (name) =>
-                typeof name === 'string' &&
-                name.trim().toLowerCase() === normalizedName,
-            )
-          : [];
-
-        const matchedIds =
-          numericSubcategoryId !== null
-            ? ids.filter((id) => id === numericSubcategoryId)
-            : [];
-
-        if (matchedNames.length > 0 || matchedIds.length > 0) {
-          addContext(context, 'subcategory', {
-            names: matchedNames,
-            ids: matchedIds,
-          });
-        }
+        const fundTypes = Array.isArray(doc.fund_types) ? doc.fund_types : [];
+        return fundTypes.includes('publication_reward');
       });
-
-      if (universalDocs.length > 0) {
-        universalDocs.forEach((context) => addContext(context, 'universal'));
-      }
-
-      return matches;
     },
-    [parseDocumentSubcategoryIds],
+    [],
   );
-
-  useEffect(() => {
-    return () => {
-      if (previewUrlRef.current) {
-        URL.revokeObjectURL(previewUrlRef.current);
-        previewUrlRef.current = null;
-      }
-    };
-  }, []);
   useEffect(() => {
     let ro = false;
 
@@ -1198,39 +1044,9 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
       return;
     }
 
-    const optionKey =
-      formData.author_status && formData.journal_quartile
-        ? `${formData.author_status}|${formData.journal_quartile}`
-        : null;
-    const optionContext = optionKey ? budgetOptionMap[optionKey] : null;
-    const activeSubcategoryId =
-      formData.subcategory_id ??
-      optionContext?.subcategory_id ??
-      optionContext?.subcategoryId ??
-      null;
-
-    const optionName = findFirstString([
-      resolvedSubcategoryName,
-      optionContext?.subcategory_name,
-      optionContext?.subcategory_name_th,
-      optionContext?.fund_description,
-    ]);
-
-    const computed = computeDocumentRequirements(availableDocumentTypes, {
-      subcategoryId: activeSubcategoryId,
-      subcategoryName: optionName,
-    });
-
+    const computed = computeDocumentRequirements(availableDocumentTypes);
     setDocumentTypes(computed);
-  }, [
-    availableDocumentTypes,
-    budgetOptionMap,
-    computeDocumentRequirements,
-    formData.author_status,
-    formData.journal_quartile,
-    formData.subcategory_id,
-    resolvedSubcategoryName,
-  ]);
+  }, [availableDocumentTypes, computeDocumentRequirements]);
 
   useEffect(() => {
     if (!formData.subcategory_id && resolvedSubcategoryName) {

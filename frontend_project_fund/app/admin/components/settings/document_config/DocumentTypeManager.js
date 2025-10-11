@@ -1,11 +1,10 @@
 "use client";
 
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { PlusCircle, Pencil, Trash2, RefreshCcw, FileStack } from "lucide-react";
 import Swal from "sweetalert2";
 
 import { documentTypesAPI } from "@/app/lib/api";
-import { adminAPI } from "@/app/lib/admin_api";
 import DocumentTypeModal, { FUND_TYPE_OPTIONS } from "./DocumentTypeModal";
 
 const Toast = Swal.mixin({
@@ -66,87 +65,14 @@ const determineFundTypeMode = (item) => {
   return fundTypes.length === 0 ? "all" : "limited";
 };
 
-const determineSubcategoryMode = (item, normalizedNames, fundTypeMode) => {
-  if (typeof item?.subcategory_mode === "string") {
-    const trimmed = item.subcategory_mode.trim();
-    if (trimmed) return trimmed;
-  }
-
-  if (item?.subcategory_name === null && normalizedNames.length === 0) {
-    return fundTypeMode === "inactive" ? "inactive" : "all";
-  }
-
-  return normalizedNames.length === 0 ? "all" : "limited";
-};
-
 const FUND_TYPE_LABELS = Object.fromEntries(
   FUND_TYPE_OPTIONS.map((option) => [option.value, option.label]),
 );
-
-const buildSubcategoryOptions = (rawSubcategories) => {
-  const unique = new Map();
-
-  rawSubcategories.forEach((item) => {
-    const candidates = [
-      item.subcategory_name,
-      item.name,
-      item.name_th,
-      item.title,
-      item.title_th,
-      item.label,
-      item.label_th,
-    ];
-    const nameCandidate = candidates.find(
-      (entry) => typeof entry === "string" && entry.trim() !== ""
-    );
-
-    if (!nameCandidate) {
-      return;
-    }
-
-    const name = nameCandidate.trim();
-    const lower = name.toLowerCase();
-    if (!unique.has(lower)) {
-      unique.set(lower, {
-        id: item.subcategory_id ?? item.id,
-        name,
-      });
-      return;
-    }
-  });
-
-  return Array.from(unique.values())
-    .map((entry) => ({
-      id: entry.id,
-      name: entry.name,
-    }))
-    .sort((a, b) => (a.name || "").localeCompare(b.name || "", "th"));
-};
 
 const formatDocumentType = (item) => {
   if (!item || typeof item !== "object") return null;
   const fundTypeMode = determineFundTypeMode(item);
   const fundTypes = dedupeStringList(item.fund_types);
-  const rawNames = Array.isArray(item.subcategory_names)
-    ? item.subcategory_names
-    : Array.isArray(item.subcategories)
-    ? item.subcategories
-    : [];
-
-  const normalizedNames = dedupeStringList(rawNames);
-
-  let primaryName = null;
-  if (typeof item.subcategory_name === "string" && item.subcategory_name.trim() !== "") {
-    primaryName = item.subcategory_name.trim();
-  } else if (normalizedNames.length > 0) {
-    primaryName = normalizedNames[0];
-  }
-
-  if (primaryName && !normalizedNames.includes(primaryName)) {
-    normalizedNames.unshift(primaryName);
-  }
-
-  const subcategoryMode = determineSubcategoryMode(item, normalizedNames, fundTypeMode);
 
   return {
     document_type_id: item.document_type_id ?? item.id,
@@ -157,10 +83,6 @@ const formatDocumentType = (item) => {
     document_order: item.document_order ?? 0,
     fund_types: fundTypes,
     fund_type_mode: fundTypeMode,
-    subcategory_name: primaryName,
-    subcategory_names: normalizedNames,
-    subcategory_mode: subcategoryMode,
-    subcategory_ids: Array.isArray(item.subcategory_ids) ? item.subcategory_ids : [],
     update_at: item.update_at || item.updated_at || null,
     is_inactive: fundTypeMode === "inactive",
   };
@@ -174,21 +96,9 @@ const DocumentTypeManager = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [modalOpen, setModalOpen] = useState(false);
   const [editingDocumentType, setEditingDocumentType] = useState(null);
-  const [subcategoryOptions, setSubcategoryOptions] = useState([]);
 
   const showSuccess = (message) => Toast.fire({ icon: "success", title: message });
   const showError = (message) => Toast.fire({ icon: "error", title: message });
-
-  const loadSubcategories = useCallback(async () => {
-    try {
-      const response = await adminAPI.getAllSubcategories();
-      const list = normalizeApiList(response, "subcategories");
-      setSubcategoryOptions(buildSubcategoryOptions(list));
-    } catch (error) {
-      console.error("Failed to load subcategories:", error);
-      showError("ไม่สามารถโหลดรายชื่อประเภทย่อยของทุนได้");
-    }
-  }, []);
 
   const loadDocumentTypes = useCallback(async () => {
     setLoading(true);
@@ -208,8 +118,7 @@ const DocumentTypeManager = () => {
 
   useEffect(() => {
     loadDocumentTypes();
-    loadSubcategories();
-  }, [loadDocumentTypes, loadSubcategories]);
+  }, [loadDocumentTypes]);
 
   useEffect(() => {
     const term = searchTerm.trim().toLowerCase();
@@ -222,8 +131,6 @@ const DocumentTypeManager = () => {
         const candidates = [
           item.document_type_name,
           item.code,
-          item.subcategory_name,
-          ...(item.subcategory_names || []),
           ...(item.fund_types || []),
         ];
         return candidates.some(
@@ -282,19 +189,7 @@ const DocumentTypeManager = () => {
       fund_types: dedupeStringList(formData.fund_types),
     };
 
-    const normalizedNames = Array.isArray(formData.subcategory_names)
-      ? dedupeStringList(formData.subcategory_names)
-      : [];
-
-    payload.subcategory_names = normalizedNames;
-    payload.subcategory_name = normalizedNames.length > 0 ? normalizedNames[0] : null;
-
     const mode = editingDocumentType?.document_type_id ? "update" : "create";
-    console.log("[DocumentTypeManager] submitting payload", {
-      mode,
-      payload,
-      rawFormData: formData,
-    });
 
     try {
       setSaving(true);
@@ -329,7 +224,6 @@ const DocumentTypeManager = () => {
     setEditingDocumentType(null);
   };
 
-  const subcategoryOptionList = useMemo(() => subcategoryOptions, [subcategoryOptions]);
 
   return (
     <div className="space-y-6">
@@ -378,7 +272,7 @@ const DocumentTypeManager = () => {
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="w-full rounded-lg border border-gray-300 px-4 py-2 text-sm text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
-                placeholder="ค้นหาโดยชื่อ รหัส หรือประเภทย่อย"
+                placeholder="ค้นหาโดยชื่อ รหัส หรือประเภททุน"
               />
             </div>
           </div>
@@ -390,7 +284,6 @@ const DocumentTypeManager = () => {
                   <th className="px-4 py-3 text-left font-medium text-gray-600">ชื่อเอกสาร</th>
                   <th className="px-4 py-3 text-left font-medium text-gray-600">รหัส</th>
                   <th className="px-4 py-3 text-left font-medium text-gray-600">ประเภททุน</th>
-                  <th className="px-4 py-3 text-left font-medium text-gray-600">ประเภทย่อยที่ใช้ได้</th>
                   <th className="px-4 py-3 text-left font-medium text-gray-600">ตัวเลือก</th>
                   <th className="px-4 py-3 text-right font-medium text-gray-600">การจัดการ</th>
                 </tr>
@@ -456,49 +349,6 @@ const DocumentTypeManager = () => {
                           })()}
                         </div>
                       </td>
-                      <td className="px-4 py-3">
-                        <div className="flex flex-wrap gap-1">
-                          {(() => {
-                            const rawBadges = Array.isArray(item.subcategory_names)
-                              ? item.subcategory_names
-                              : [];
-                            const badges = dedupeStringList(rawBadges);
-                            const mode =
-                              item.subcategory_mode ||
-                              determineSubcategoryMode(
-                                item,
-                                badges,
-                                item.fund_type_mode || determineFundTypeMode(item),
-                              );
-                            const inactive = item.is_inactive || mode === "inactive";
-
-                            if (inactive) {
-                              return (
-                                <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-500">
-                                  ไม่ได้ใช้งาน
-                                </span>
-                              );
-                            }
-
-                            if (mode === "all" || badges.length === 0) {
-                              return (
-                                <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-500">
-                                  ทุกประเภทย่อย
-                                </span>
-                              );
-                            }
-
-                            return badges.map((name) => (
-                              <span
-                                key={`${item.document_type_id}-${name.toLowerCase()}`}
-                                className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs text-emerald-600"
-                              >
-                                {name}
-                              </span>
-                            ));
-                          })()}
-                        </div>
-                      </td>
                       <td className="px-4 py-3 text-gray-700">
                         <div className="space-y-1 text-xs">
                           <div>
@@ -543,7 +393,6 @@ const DocumentTypeManager = () => {
         onClose={closeModal}
         onSubmit={handleModalSubmit}
         initialData={editingDocumentType}
-        subcategoryOptions={subcategoryOptionList}
         saving={saving}
       />
     </div>

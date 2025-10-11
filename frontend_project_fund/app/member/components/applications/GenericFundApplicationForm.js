@@ -242,22 +242,10 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
       setLoading(true);
       setErrors({});
 
-      const hasSubcategoryId = Boolean(
-        extractSubcategoryId(subcategoryData)
-      );
-      const hasSubcategoryName = Boolean(
-        extractSubcategoryName(subcategoryData)
-      );
-
-      // Validate subcategoryData
-      if (!hasSubcategoryId && !hasSubcategoryName) {
-        throw new Error('ไม่พบข้อมูลทุนที่เลือก');
-      }
-
       // Load user data and document requirements in parallel
       const [userData, docRequirements] = await Promise.all([
         loadUserData(),
-        loadDocumentRequirements(subcategoryData)
+        loadDocumentRequirements(),
       ]);
 
       console.log('Loaded user data:', userData);
@@ -301,51 +289,19 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
     throw new Error('ไม่สามารถดึงข้อมูลผู้ใช้ได้');
   };
 
-  const loadDocumentRequirements = async (subcategoryInfo) => {
-    const subcategoryName = extractSubcategoryName(subcategoryInfo);
-    const normalizedSubcategoryName = subcategoryName?.trim()?.toLowerCase() || null;
-    const subcategoryId = extractSubcategoryId(subcategoryInfo);
-    const numericSubcategoryId = subcategoryId != null ? Number(subcategoryId) : null;
-
+  const loadDocumentRequirements = async () => {
     const normalizePayload = (payload) => {
-      if (!payload) {
-        return [];
-      }
-
-      if (Array.isArray(payload)) {
-        return payload;
-      }
-
-      if (Array.isArray(payload.document_types)) {
-        return payload.document_types;
-      }
-
+      if (!payload) return [];
+      if (Array.isArray(payload)) return payload;
+      if (Array.isArray(payload.document_types)) return payload.document_types;
       return [];
     };
 
-    const parseSubcategoryIds = (doc) => {
-      const rawValue = doc?.subcategory_ids;
-      if (Array.isArray(rawValue)) {
-        return rawValue;
-      }
-
-      if (typeof rawValue === 'string' && rawValue.trim()) {
-        try {
-          const parsed = JSON.parse(rawValue);
-          return Array.isArray(parsed) ? parsed : [];
-        } catch (error) {
-          console.warn('Failed to parse subcategory_ids JSON:', rawValue, error);
-        }
-      }
-
-      return [];
-    };
-
-    const response = await documentTypesAPI.getDocumentTypes();
+    const response = await documentTypesAPI.getDocumentTypes({ fund_type: 'fund_application' });
     const rawDocTypes = normalizePayload(response);
 
     if (!Array.isArray(rawDocTypes) || rawDocTypes.length === 0) {
-      console.warn('No document types returned from API payload.');
+      console.warn('No document types returned for fund_application.');
       setDocumentRequirements([]);
       return [];
     }
@@ -354,7 +310,7 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
       .slice()
       .sort((a, b) => (a?.document_order || 0) - (b?.document_order || 0));
 
-    const fundTypeFiltered = sortedDocTypes.filter((docType) => {
+    const activeDocs = sortedDocTypes.filter((docType) => {
       if (!docType) return false;
       const mode = resolveFundTypeMode(docType);
       if (mode === 'inactive') {
@@ -364,174 +320,14 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
         return true;
       }
       const fundTypes = Array.isArray(docType.fund_types) ? docType.fund_types : [];
-      return fundTypes.includes('fund_application');
+      return fundTypes.some((entry) => entry === 'fund_application');
     });
 
-    if (fundTypeFiltered.length === 0) {
-      console.warn('No document types explicitly configured for fund_application; falling back to legacy list.');
-      console.log('Legacy document types payload:', sortedDocTypes);
-    } else {
-      console.log('Filtered fund_application document types:', fundTypeFiltered);
-    }
+    const finalDocs = activeDocs.length > 0 ? activeDocs : sortedDocTypes.filter((doc) => resolveFundTypeMode(doc) !== 'inactive');
 
-    const fallbackDocs = fundTypeFiltered.length > 0 ? fundTypeFiltered : sortedDocTypes;
-    const candidateDocs = fallbackDocs.filter((doc) => resolveFundTypeMode(doc) !== 'inactive');
-
-    const matches = [];
-    const seen = new Set();
-    const resolveIdentifier = (doc) => {
-      if (!doc || typeof doc !== 'object') {
-        return null;
-      }
-
-      if (doc.document_type_id != null) {
-        return `doc-${doc.document_type_id}`;
-      }
-
-      if (doc.id != null) {
-        return `legacy-${doc.id}`;
-      }
-
-      if (doc.code) {
-        return `code-${doc.code}`;
-      }
-
-      return null;
-    };
-
-    const addContext = (context, scope, matchInfo = {}) => {
-      if (!context || !context.doc) {
-        return;
-      }
-
-      const { identifier, doc, fundTypeMode, names, ids } = context;
-
-      if (identifier && seen.has(identifier)) {
-        return;
-      }
-
-      const matchedNames = Array.isArray(matchInfo.names) ? matchInfo.names : [];
-      const matchedIds = Array.isArray(matchInfo.ids) ? matchInfo.ids : [];
-
-      matches.push({
-        ...doc,
-        __match_scope: scope,
-        __resolved_fund_type_mode: fundTypeMode,
-        __matched_subcategory_names:
-          matchedNames.length > 0 ? matchedNames : Array.isArray(names) ? names : [],
-        __matched_subcategory_ids:
-          matchedIds.length > 0 ? matchedIds : Array.isArray(ids) ? ids : [],
-      });
-
-      if (identifier) {
-        seen.add(identifier);
-      }
-    };
-
-    const docContexts = candidateDocs.map((doc) => {
-      if (!doc || typeof doc !== 'object') {
-        return null;
-      }
-
-      const fundTypeMode = resolveFundTypeMode(doc);
-      if (fundTypeMode === 'inactive') {
-        return null;
-      }
-
-      const names = Array.isArray(doc?.subcategory_names)
-        ? dedupeStringList(doc.subcategory_names)
-        : [];
-      const ids = parseSubcategoryIds(doc)
-        .map((value) => Number(value))
-        .filter((value) => !Number.isNaN(value));
-      const identifier = resolveIdentifier(doc);
-
-      return {
-        doc,
-        fundTypeMode,
-        names,
-        ids,
-        identifier,
-      };
-    }).filter(Boolean);
-
-    const universalContexts = docContexts.filter(
-      (context) => context.names.length === 0 && context.ids.length === 0,
-    );
-
-    docContexts.forEach((context) => {
-      const matchedNames = normalizedSubcategoryName
-        ? context.names.filter(
-            (name) =>
-              typeof name === 'string' && name.trim().toLowerCase() === normalizedSubcategoryName,
-          )
-        : [];
-
-      const matchedIds =
-        numericSubcategoryId != null && context.ids.includes(numericSubcategoryId)
-          ? [numericSubcategoryId]
-          : [];
-
-      if (matchedNames.length > 0 || matchedIds.length > 0) {
-        addContext(context, 'subcategory', {
-          names: matchedNames,
-          ids: matchedIds,
-        });
-      }
-    });
-
-    if (universalContexts.length > 0) {
-      universalContexts.forEach((context) => addContext(context, 'universal'));
-    }
-
-    setDocumentRequirements(matches);
-
-    if (matches.length === 0) {
-      console.warn('No document requirements configured for fund_application with subcategory:', {
-        subcategoryName,
-        subcategoryId,
-      });
-    }
-
-    return matches;
+    setDocumentRequirements(finalDocs);
+    return finalDocs;
   };
-
-  function extractSubcategoryName(data) {
-    const candidates = [
-      data?.subcategory_name,
-      data?.subcategorie_name,
-      data?.subcategoryName,
-      data?.subcategory?.subcategory_name,
-      data?.subcategory?.subcategorie_name,
-      data?.subcategory?.subcategoryName,
-    ];
-
-    for (const candidate of candidates) {
-      if (typeof candidate === 'string' && candidate.trim()) {
-        return candidate.trim();
-      }
-    }
-
-    return null;
-  }
-
-  function extractSubcategoryId(data) {
-    const candidates = [
-      data?.subcategory_id,
-      data?.subcategoryId,
-      data?.subcategory?.subcategory_id,
-      data?.subcategory?.subcategoryId,
-    ];
-
-    for (const candidate of candidates) {
-      const parsed = Number(candidate);
-      if (!Number.isNaN(parsed) && parsed > 0) {
-        return parsed;
-      }
-    }
-
-    return null;
-  }
 
   // =================================================================
   // FORM HANDLING
