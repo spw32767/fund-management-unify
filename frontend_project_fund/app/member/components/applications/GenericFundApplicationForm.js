@@ -399,6 +399,56 @@ const formatFileSize = (bytes) => {
   return `${value.toFixed(i === 0 ? 0 : 2)} ${sizes[i]}`;
 };
 
+const findFirstValue = (source, keys = []) => {
+  if (!source || typeof source !== 'object') {
+    return null;
+  }
+
+  for (const key of keys) {
+    if (Object.prototype.hasOwnProperty.call(source, key) && source[key] != null) {
+      return source[key];
+    }
+  }
+
+  return null;
+};
+
+const extractAnnouncementSnapshot = (rawWindow, fallback = {}) => {
+  const normalized =
+    typeof systemConfigAPI.normalizeWindow === 'function'
+      ? systemConfigAPI.normalizeWindow(rawWindow)
+      : rawWindow?.data ?? rawWindow ?? {};
+
+  const mainFromRoot = findFirstValue(normalized, [
+    'main_annoucement',
+    'main_announcement',
+    'main_ann_id',
+    'config_id',
+  ]);
+  const mainFromWindow = findFirstValue(normalized?.main_window ?? normalized?.main ?? {}, [
+    'id',
+    'announcement_id',
+    'announcementId',
+  ]);
+
+  const activityFromRoot = findFirstValue(normalized, [
+    'activity_support_announcement',
+    'activity_support_ann_id',
+  ]);
+  const activityFromWindow = findFirstValue(
+    normalized?.activity_support_window ?? normalized?.activity_support ?? {},
+    ['id', 'announcement_id', 'announcementId']
+  );
+
+  const snapshot = {
+    main_annoucement: mainFromRoot ?? mainFromWindow ?? fallback.main_annoucement ?? null,
+    activity_support_announcement:
+      activityFromRoot ?? activityFromWindow ?? fallback.activity_support_announcement ?? null,
+  };
+
+  return snapshot;
+};
+
 // =================================================================
 // MAIN COMPONENT
 // =================================================================
@@ -438,6 +488,23 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
     activity_support_announcement: null,
   });
   const [hasDraft, setHasDraft] = useState(false);
+
+  const refreshAnnouncementLock = async () => {
+    try {
+      const rawWindow = await systemConfigAPI.getWindow();
+      const snapshot = extractAnnouncementSnapshot(rawWindow, announcementLock);
+      setAnnouncementLock(snapshot);
+      return snapshot;
+    } catch (error) {
+      console.warn('Cannot fetch system-config window for announcements', error);
+      const fallback = {
+        main_annoucement: announcementLock.main_annoucement ?? null,
+        activity_support_announcement: announcementLock.activity_support_announcement ?? null,
+      };
+      setAnnouncementLock(fallback);
+      return fallback;
+    }
+  };
 
   // =================================================================
   // INITIAL DATA LOADING
@@ -559,25 +626,7 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
     return finalDocs;
   };
 
-  const loadSystemAnnouncements = async () => {
-    try {
-      const rawWindow = await systemConfigAPI.getWindow();
-      const root = rawWindow?.data ?? rawWindow ?? {};
-
-      const normalized = {
-        main_annoucement: root?.main_annoucement ?? root?.config_id ?? null,
-        activity_support_announcement: root?.activity_support_announcement ?? null,
-      };
-
-      setAnnouncementLock(normalized);
-      return normalized;
-    } catch (error) {
-      console.warn('Cannot fetch system-config window for announcements', error);
-      const fallback = { main_annoucement: null, activity_support_announcement: null };
-      setAnnouncementLock(fallback);
-      return fallback;
-    }
-  };
+  const loadSystemAnnouncements = async () => refreshAnnouncementLock();
 
   // =================================================================
   // FORM HANDLING
@@ -1078,11 +1127,29 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
         throw new Error('ไม่พบสถานะสำหรับการพิจารณาของหัวหน้าสาขา');
       }
 
+      const resolvedStatusCode = statusForSubmission.code ?? DEPT_HEAD_PENDING_STATUS_CODE;
+      const parsedStatusCode = Number(resolvedStatusCode);
+      const statusPayload = {
+        status_id: Number(statusForSubmission.id),
+        status_code: Number.isNaN(parsedStatusCode) ? resolvedStatusCode : parsedStatusCode,
+        status_name: (statusForSubmission.name ?? DEPT_HEAD_PENDING_STATUS_NAME_HINT).trim() ||
+          DEPT_HEAD_PENDING_STATUS_NAME_HINT,
+      };
+
+      if (Number.isNaN(statusPayload.status_id)) {
+        throw new Error('รูปแบบสถานะไม่ถูกต้อง');
+      }
+
+      const announcementSnapshot = await refreshAnnouncementLock();
+      const announcementForSubmit = announcementSnapshot ?? announcementLock;
+
       // Step 1: Create submission record
       const submissionRes = await submissionAPI.createSubmission({
         submission_type: 'fund_application',
         year_id: subcategoryData?.year_id,
-        status_id: statusForSubmission.id
+        status_id: statusPayload.status_id,
+        status_code: statusPayload.status_code,
+        status_name: statusPayload.status_name,
       });
       const submissionId = submissionRes?.submission?.submission_id;
 
@@ -1093,8 +1160,8 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
           project_description: formData.project_description || '',
           requested_amount: parseFloat(formData.requested_amount) || 0,
           subcategory_id: subcategoryData.subcategory_id,
-          main_annoucement: announcementLock.main_annoucement,
-          activity_support_announcement: announcementLock.activity_support_announcement,
+          main_annoucement: announcementForSubmit.main_annoucement,
+          activity_support_announcement: announcementForSubmit.activity_support_announcement,
         });
       }
 
