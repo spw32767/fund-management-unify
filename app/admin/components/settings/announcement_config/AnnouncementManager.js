@@ -77,27 +77,67 @@ function isAllowedUploadFile(file) {
   return ALLOWED_FILE_EXTENSIONS.some((ext) => name.endsWith(ext));
 }
 
- function getAnnouncementId(row) {
-   return row.announcement_id ?? row.id;
- }
-
- // ==== Helpers ฝั่งฟอร์ม ====
-  function getFormId(row) {
-    return row.fund_form_id ?? row.form_id ?? row.id;
+function safeDecodeURIComponent(value) {
+  if (typeof value !== "string") return "";
+  try {
+    return decodeURIComponent(value);
+  } catch (error) {
+    console.warn("[AnnouncementManager] Failed to decode file name", {
+      value,
+      error,
+    });
+    return value;
   }
+}
 
-  /** ทำแถวให้มีไฮไลต์เฉพาะตอน "ลากอยู่" และ "เมาส์อยู่เหนือ" */
-  function getFRowClass(row, fDraggingId, fOverId) {
-    const id = getFormId(row);
-    const isDragging = fDraggingId === id;
-    const isOver = fOverId === id && !isDragging;
-    return [
-      isDragging ? "bg-green-50 ring-2 ring-green-300" : "",
-      isOver ? "ring-2 ring-green-200" : "",
-    ].join(" ").trim();
-  }
+function extractFileNameFromPath(path) {
+  if (!path) return "";
+  const segments = String(path).split(/[\\/]/);
+  return segments.pop() || "";
+}
 
-  function sameOrder(a, b) {
+function normalizeFileName(rawName, fallbackPath = "") {
+  const primary = typeof rawName === "string" ? rawName.trim() : "";
+  const candidate = primary || extractFileNameFromPath(fallbackPath) || "";
+  const decoded = safeDecodeURIComponent(candidate);
+  return decoded || candidate || "";
+}
+
+function getFileExtension(fileName) {
+  if (typeof fileName !== "string") return "";
+  const trimmed = fileName.trim();
+  if (!trimmed) return "";
+  const match = /\.([^.]+)$/.exec(trimmed);
+  return match ? match[1].toLowerCase() : "";
+}
+
+function sanitizeDownloadFileName(fileName) {
+  const normalized = typeof fileName === "string" ? fileName.trim() : "";
+  const safeName = normalized.replace(/[\\/:*?"<>|]/g, "_");
+  return safeName || "file";
+}
+
+function getAnnouncementId(row) {
+  return row.announcement_id ?? row.id;
+}
+
+// ==== Helpers ฝั่งฟอร์ม ====
+function getFormId(row) {
+  return row.fund_form_id ?? row.form_id ?? row.id;
+}
+
+/** ทำแถวให้มีไฮไลต์เฉพาะตอน "ลากอยู่" และ "เมาส์อยู่เหนือ" */
+function getFRowClass(row, fDraggingId, fOverId) {
+  const id = getFormId(row);
+  const isDragging = fDraggingId === id;
+  const isOver = fOverId === id && !isDragging;
+  return [
+    isDragging ? "bg-green-50 ring-2 ring-green-300" : "",
+    isOver ? "ring-2 ring-green-200" : "",
+  ].join(" ").trim();
+}
+
+function sameOrder(a, b) {
     if (a.length !== b.length) return false;
     for (let i = 0; i < a.length; i++) {
       if (a[i] !== b[i]) return false;
@@ -170,6 +210,7 @@ export default function AnnouncementManager() {
   const [fOverId, setFOverId] = useState(null);
   const [fOrderDirty, setFOrderDirty] = useState(false);
   const [fBaselineOrder, setFBaselineOrder] = useState([]);
+  const [downloadingIds, setDownloadingIds] = useState(new Set());
 
   /** ===== State: Years ===== */
   const [years, setYears] = useState([]);
@@ -355,9 +396,8 @@ export default function AnnouncementManager() {
       base && encodedId ? `${base}/${apiSegment}/${encodedId}/view` : "";
     const downloadEndpoint =
       base && encodedId ? `${base}/${apiSegment}/${encodedId}/download` : "";
-    const fallbackFileName =
-      row?.file_name ||
-      (filePath ? filePath.toString().split(/[\\/]/).pop() : "");
+    const fallbackFileName = normalizeFileName(row?.file_name, filePath);
+    const fileExtension = getFileExtension(fallbackFileName);
 
     return {
       filePath,
@@ -365,6 +405,7 @@ export default function AnnouncementManager() {
       viewEndpoint,
       downloadEndpoint,
       fallbackFileName,
+      fileExtension,
       id,
       entity,
     };
@@ -429,26 +470,26 @@ export default function AnnouncementManager() {
       rowSnapshot: row,
     });
 
-    const { viewEndpoint, directURL } = meta;
-    if (!viewEndpoint && !directURL) {
-      toast("error", "ไม่พบไฟล์สำหรับเปิดดู");
+    const { viewEndpoint, fileExtension } = meta;
+    const isPDF = fileExtension === "pdf";
+
+    if (!isPDF) {
+      console.info(
+        "[AnnouncementManager] Non-PDF file requested for viewing, switching to download",
+        {
+          meta,
+        }
+      );
+      await handleDownloadFile(row, entity);
       return;
     }
 
-    const tryDirect = (reason = "") => {
-      if (!directURL) return false;
-      if (reason) {
-        console.warn("[AnnouncementManager] Falling back to direct URL", {
-          reason,
-          directURL,
-        });
-      }
-      openURLInNewTab(directURL);
-      return true;
-    };
-
-    if (!viewEndpoint && directURL) {
-      tryDirect();
+    if (!viewEndpoint) {
+      console.warn(
+        "[AnnouncementManager] Missing view endpoint for PDF file, switching to download",
+        { meta }
+      );
+      await handleDownloadFile(row, entity);
       return;
     }
 
@@ -467,82 +508,65 @@ export default function AnnouncementManager() {
         errorStack: error?.stack,
       });
 
-      if (tryDirect(error?.message || "fetch failed")) {
-        return;
-      }
-
-      toast("error", "ไม่สามารถเปิดไฟล์ได้");
+      toast("error", "ไม่สามารถเปิดไฟล์ PDF ได้ กำลังดาวน์โหลดไฟล์แทน");
+      await handleDownloadFile(row, entity);
     }
   }
 
   async function handleDownloadFile(row, entity) {
-    const meta = getFileAccessMeta(row, entity);
-    console.log("[AnnouncementManager] handleDownloadFile", {
-      ...meta,
-      rowSnapshot: row,
-    });
+      const meta = getFileAccessMeta(row, entity);
+      console.log("[AnnouncementManager] handleDownloadFile", {
+        ...meta,
+        rowSnapshot: row,
+      });
 
-    const { downloadEndpoint, directURL } = meta;
-    if (!downloadEndpoint && !directURL) {
-      toast("error", "ไม่พบไฟล์สำหรับดาวน์โหลด");
-      return;
-    }
-
-    try {
-      if (!downloadEndpoint && directURL) {
-        const tempLink = document.createElement("a");
-        tempLink.href = directURL;
-        tempLink.target = "_blank";
-        tempLink.rel = "noopener";
-        if (meta.fallbackFileName) {
-          tempLink.download = meta.fallbackFileName;
-        }
-        document.body.appendChild(tempLink);
-        tempLink.click();
-        document.body.removeChild(tempLink);
+      // 1. ตรวจสอบว่าไฟล์นี้กำลังถูกดาวน์โหลดอยู่หรือไม่
+      if (downloadingIds.has(meta.id)) {
+        console.log(`[AnnouncementManager] Download for ID ${meta.id} already in progress.`);
         return;
       }
 
-      const blob = await fetchFileBlob(downloadEndpoint, {
-        requiresAuth: true,
-      });
-      const link = document.createElement("a");
-      link.href = URL.createObjectURL(blob);
-      link.download = meta.fallbackFileName || "file";
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(link.href);
-    } catch (error) {
-      console.error("[AnnouncementManager] Failed to download file", {
-        meta,
-        error,
-        errorMessage: error?.message,
-        errorStack: error?.stack,
-      });
+      const { downloadEndpoint, directURL, fallbackFileName } = meta;
+      const downloadFileName = sanitizeDownloadFileName(fallbackFileName);
 
-      if (directURL) {
-        console.warn("[AnnouncementManager] Falling back to direct download", {
-          directURL,
+      if (!downloadEndpoint) { // เราจะใช้ downloadEndpoint เป็นหลัก
+        toast("error", "ไม่พบไฟล์สำหรับดาวน์โหลด");
+        return;
+      }
+
+      try {
+        // 2. เพิ่ม ID เข้าไปใน state เพื่อเริ่มสถานะ "กำลังดาวน์โหลด"
+        setDownloadingIds(prev => new Set(prev).add(meta.id));
+
+        const blob = await fetchFileBlob(downloadEndpoint, {
+          requiresAuth: true,
         });
-        const tempLink = document.createElement("a");
-        tempLink.href = directURL;
-        tempLink.target = "_blank";
-        tempLink.rel = "noopener";
-        if (meta.fallbackFileName) {
-          tempLink.download = meta.fallbackFileName;
-        }
-        document.body.appendChild(tempLink);
-        tempLink.click();
-        document.body.removeChild(tempLink);
-        return;
+        const link = document.createElement("a");
+        link.href = URL.createObjectURL(blob);
+        link.download = downloadFileName;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(link.href);
+
+      } catch (error) {
+        console.error("[AnnouncementManager] Failed to download file", {
+          meta,
+          error,
+          errorMessage: error?.message,
+          errorStack: error?.stack,
+        });
+        toast("error", "ดาวน์โหลดไม่สำเร็จ");
+      } finally {
+          // 4. ไม่ว่าจะสำเร็จหรือล้มเหลว ให้เอา ID ออกจาก state เสมอ
+          setDownloadingIds(prev => {
+              const next = new Set(prev);
+              next.delete(meta.id);
+              return next;
+          });
       }
-
-      toast("error", "ดาวน์โหลดไม่สำเร็จ");
-    }
   }
-
-  /** ===== Forms (Announcement) ===== */
+    /** ===== Forms (Announcement) ===== */
   function blankAnnouncementForm() {
     return {
       title: "",
@@ -1121,14 +1145,16 @@ export default function AnnouncementManager() {
                         </div>
                       </td>
                       <td className="px-3 py-2">
-                        <div className="flex flex-row justify-end gap-2 flex-nowrap [&>button]:whitespace-nowrap">
-                          <button
-                            onClick={() => handleDownloadFile(row, "announcement")}
-                            className="text-green-600 hover:bg-green-50 p-2 rounded-lg inline-flex items-center gap-1"
-                            title="ดาวน์โหลดไฟล์"
-                          >
-                            <Download size={16} /> ดาวน์โหลด
-                          </button>
+                          <div className="flex flex-row justify-end gap-2 flex-nowrap [&>button]:whitespace-nowrap">
+                              <button
+                                  onClick={() => handleDownloadFile(row, "announcement")}
+                                  disabled={downloadingIds.has(id)} // เพิ่มบรรทัดนี้
+                                  className="text-green-600 hover:bg-green-50 p-2 rounded-lg inline-flex items-center gap-1 disabled:opacity-50 disabled:cursor-wait" // เพิ่ม class
+                                  title="ดาวน์โหลดไฟล์"
+                              >
+                                  <Download size={16} />
+                                  {downloadingIds.has(id) ? "กำลังโหลด..." : "ดาวน์โหลด"}
+                              </button>
                           <button
                             onClick={() => openAEdit(row)}
                             className="text-blue-600 hover:bg-blue-50 p-2 rounded-lg inline-flex items-center gap-1"
@@ -1263,11 +1289,13 @@ export default function AnnouncementManager() {
                       <td className="px-3 py-2">
                         <div className="flex flex-row justify-end gap-2 flex-nowrap [&>button]:whitespace-nowrap">
                           <button
-                            onClick={() => handleDownloadFile(row, "fundForm")}
-                            className="text-green-600 hover:bg-green-50 p-2 rounded-lg inline-flex items-center gap-1"
-                            title="ดาวน์โหลดไฟล์"
+                              onClick={() => handleDownloadFile(row, "fundForm")}
+                              disabled={downloadingIds.has(id)} // เพิ่มบรรทัดนี้
+                              className="text-green-600 hover:bg-green-50 p-2 rounded-lg inline-flex items-center gap-1 disabled:opacity-50 disabled:cursor-wait" // เพิ่ม class
+                              title="ดาวน์โหลดไฟล์"
                           >
-                            <Download size={16} /> ดาวน์โหลด
+                              <Download size={16} />
+                              {downloadingIds.has(id) ? "กำลังโหลด..." : "ดาวน์โหลด"} {/* เปลี่ยนข้อความ */}
                           </button>
                           <button
                             onClick={() => openFEdit(row)}
