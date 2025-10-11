@@ -58,7 +58,16 @@ export default function Header({ isOpen, setIsOpen, Navigation }) {
   // Get user display name
   const getUserDisplayName = () => {
     if (!user) return 'Loading...';
-    return `${user.position || ''}${user.user_fname || ''} ${user.user_lname || ''}`.trim();
+
+    const prefix = user.prefix || user.position || '';
+    const firstName = user.user_fname || user.first_name || '';
+    const lastName = user.user_lname || user.last_name || '';
+
+    return [prefix, firstName, lastName]
+      .filter(Boolean)
+      .join(' ')
+      .replace(/\s+/g, ' ')
+      .trim();
   };
 
   // Get initials for avatar
@@ -66,7 +75,16 @@ export default function Header({ isOpen, setIsOpen, Navigation }) {
     if (!user) return 'AD';
     const fname = user.user_fname || '';
     const lname = user.user_lname || '';
-    return `${fname.charAt(0)}${lname.charAt(0)}`.toUpperCase() || 'AD';
+    const initialsSource = `${fname} ${lname}`.trim() || user.prefix || 'AD';
+    const parts = initialsSource
+      .split(' ')
+      .map((part) => part.trim())
+      .filter(Boolean);
+
+    if (parts.length === 0) return 'AD';
+    if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase() || 'AD';
+
+    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
   };
 
   // Get role display

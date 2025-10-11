@@ -356,7 +356,20 @@ export function AuthProvider({ children }) {
   // Get user display name
   const getUserDisplayName = () => {
     if (!state.user) return '';
-    return `${state.user.user_fname || ''} ${state.user.user_lname || ''}`.trim();
+
+    const prefix =
+      state.user.prefix ||
+      state.user.prefix_name ||
+      state.user.title ||
+      '';
+    const firstName = state.user.user_fname || state.user.first_name || '';
+    const lastName = state.user.user_lname || state.user.last_name || '';
+
+    return [prefix, firstName, lastName]
+      .filter(Boolean)
+      .join(' ')
+      .replace(/\s+/g, ' ')
+      .trim();
   };
 
   // Get user role display name
