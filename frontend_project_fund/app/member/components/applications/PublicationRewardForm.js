@@ -3356,7 +3356,7 @@ const showSubmissionConfirmation = async () => {
             // Upload file
             const uploadResponse = await fileAPI.uploadFile(fileData.file);
             console.log(`File ${i + 1} upload response:`, uploadResponse);
-            
+
             if (!uploadResponse.success || !uploadResponse.file || !uploadResponse.file.file_id) {
               throw new Error('Upload response missing file_id');
             }
