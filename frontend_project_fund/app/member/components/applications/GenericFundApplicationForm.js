@@ -19,24 +19,37 @@ import { systemConfigAPI } from '../../../lib/system_config_api';
 const DEPT_HEAD_PENDING_STATUS_CODE = '5';
 const DEPT_HEAD_PENDING_STATUS_NAME_HINT = 'อยู่ระหว่างการพิจารณาจากหัวหน้าสาขา';
 
+const DEFAULT_DEPT_HEAD_PENDING_STATUS = Object.freeze({
+  id: 6,
+  code: DEPT_HEAD_PENDING_STATUS_CODE,
+  name: DEPT_HEAD_PENDING_STATUS_NAME_HINT,
+});
+
+const applyFixedDeptHeadPendingStatus = (status) => {
+  const base = status && typeof status === 'object' ? status : {};
+
+  return {
+    ...base,
+    id: DEFAULT_DEPT_HEAD_PENDING_STATUS.id,
+    status_id: DEFAULT_DEPT_HEAD_PENDING_STATUS.id,
+    code: DEFAULT_DEPT_HEAD_PENDING_STATUS.code,
+    status_code: DEFAULT_DEPT_HEAD_PENDING_STATUS.code,
+    status_name: DEFAULT_DEPT_HEAD_PENDING_STATUS.name,
+    name: DEFAULT_DEPT_HEAD_PENDING_STATUS.name,
+  };
+};
+
 const DRAFT_KEY = 'generic_fund_application_draft';
 const DRAFT_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 
 const buildResolvedStatus = (status) => {
   if (!status || typeof status !== 'object') {
-    return null;
+    return applyFixedDeptHeadPendingStatus();
   }
 
   const rawId =
     status.application_status_id ?? status.status_id ?? status.id ?? status.raw?.application_status_id;
-  if (rawId == null) {
-    return null;
-  }
-
   const numericId = Number(rawId);
-  if (Number.isNaN(numericId)) {
-    return null;
-  }
 
   const resolvedCode =
     status.status_code != null
@@ -48,22 +61,24 @@ const buildResolvedStatus = (status) => {
   const resolvedName =
     String(status.status_name ?? status.name ?? '').trim() || DEPT_HEAD_PENDING_STATUS_NAME_HINT;
 
-  return {
-    id: numericId,
+  const resolved = {
+    ...(Number.isNaN(numericId) ? {} : { id: numericId }),
     code: resolvedCode,
     name: resolvedName,
     raw: status,
   };
+
+  return applyFixedDeptHeadPendingStatus(resolved);
 };
 
 const attemptResolveDeptHeadPendingStatus = (statuses) => {
   if (!Array.isArray(statuses)) {
-    return null;
+    return applyFixedDeptHeadPendingStatus();
   }
 
   const normalizedStatuses = statuses.filter((status) => status && typeof status === 'object');
   if (normalizedStatuses.length === 0) {
-    return null;
+    return applyFixedDeptHeadPendingStatus();
   }
 
   const normalizedCode = String(DEPT_HEAD_PENDING_STATUS_CODE);
@@ -76,7 +91,7 @@ const attemptResolveDeptHeadPendingStatus = (statuses) => {
   if (byCode) {
     const resolved = buildResolvedStatus(byCode);
     if (resolved) {
-      return resolved;
+      return applyFixedDeptHeadPendingStatus(resolved);
     }
   }
 
@@ -87,7 +102,7 @@ const attemptResolveDeptHeadPendingStatus = (statuses) => {
   if (byExactName) {
     const resolved = buildResolvedStatus(byExactName);
     if (resolved) {
-      return resolved;
+      return applyFixedDeptHeadPendingStatus(resolved);
     }
   }
 
@@ -98,11 +113,11 @@ const attemptResolveDeptHeadPendingStatus = (statuses) => {
   if (byPartialName) {
     const resolved = buildResolvedStatus(byPartialName);
     if (resolved) {
-      return resolved;
+      return applyFixedDeptHeadPendingStatus(resolved);
     }
   }
 
-  return null;
+  return applyFixedDeptHeadPendingStatus();
 };
 
 const resolveDeptHeadPendingStatus = async ({ force = false } = {}) => {
@@ -134,11 +149,11 @@ const resolveDeptHeadPendingStatus = async ({ force = false } = {}) => {
     }
   }
 
-  const resolutionError = new Error('ไม่พบสถานะสำหรับการพิจารณาของหัวหน้าสาขา');
   if (lastError) {
-    resolutionError.cause = lastError;
+    console.warn('Falling back to default dept-head pending status due to errors:', lastError);
   }
-  throw resolutionError;
+
+  return applyFixedDeptHeadPendingStatus();
 };
 
 const resolveFundTypeMode = (doc) => {
@@ -432,7 +447,7 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
 
   // Current user data
   const [currentUser, setCurrentUser] = useState(null);
-  const [pendingStatus, setPendingStatus] = useState(null);
+  const [pendingStatus, setPendingStatus] = useState(() => applyFixedDeptHeadPendingStatus());
   const [announcementLock, setAnnouncementLock] = useState({
     main_annoucement: null,
     activity_support_announcement: null,
@@ -450,7 +465,7 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
     try {
       setLoading(true);
       setErrors({});
-      setPendingStatus(null);
+      setPendingStatus(applyFixedDeptHeadPendingStatus());
 
       // Load user data and document requirements in parallel
       const [userData, docRequirements, statusInfo] = await Promise.all([
@@ -478,12 +493,12 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
       console.log('Loaded document requirements:', docRequirements);
       console.log('Resolved pending status:', statusInfo);
 
-      setPendingStatus(statusInfo);
+      setPendingStatus(applyFixedDeptHeadPendingStatus(statusInfo));
 
     } catch (error) {
       console.error('Error loading initial data:', error);
       setErrors({ general: error.message || 'เกิดข้อผิดพลาดในการโหลดข้อมูล' });
-      setPendingStatus(null);
+      setPendingStatus(applyFixedDeptHeadPendingStatus());
     } finally {
       setLoading(false);
     }
@@ -1068,21 +1083,37 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
     try {
       setSubmitting(true);
 
-      let statusForSubmission = pendingStatus;
-      if (!statusForSubmission?.id) {
-        statusForSubmission = await resolveDeptHeadPendingStatus({ force: true });
-        setPendingStatus(statusForSubmission);
+      let statusForSubmission = applyFixedDeptHeadPendingStatus(pendingStatus);
+
+      if (!pendingStatus?.raw) {
+        try {
+          const refreshedStatus = await resolveDeptHeadPendingStatus({ force: true });
+          statusForSubmission = applyFixedDeptHeadPendingStatus(refreshedStatus);
+        } catch (error) {
+          console.warn('Unable to refresh dept-head pending status, using default fallback', error);
+        }
       }
+
+      setPendingStatus(statusForSubmission);
 
       if (!statusForSubmission?.id) {
         throw new Error('ไม่พบสถานะสำหรับการพิจารณาของหัวหน้าสาขา');
       }
 
+      const announcementSnapshot = await loadSystemAnnouncements();
+
+      const normalizedAnnouncements = {
+        main_annoucement: announcementSnapshot?.main_annoucement ?? null,
+        activity_support_announcement: announcementSnapshot?.activity_support_announcement ?? null,
+      };
+
       // Step 1: Create submission record
       const submissionRes = await submissionAPI.createSubmission({
         submission_type: 'fund_application',
         year_id: subcategoryData?.year_id,
-        status_id: statusForSubmission.id
+        status_id: statusForSubmission.id,
+        status_code: statusForSubmission.code,
+        status_name: statusForSubmission.name,
       });
       const submissionId = submissionRes?.submission?.submission_id;
 
@@ -1093,8 +1124,8 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
           project_description: formData.project_description || '',
           requested_amount: parseFloat(formData.requested_amount) || 0,
           subcategory_id: subcategoryData.subcategory_id,
-          main_annoucement: announcementLock.main_annoucement,
-          activity_support_announcement: announcementLock.activity_support_announcement,
+          main_annoucement: normalizedAnnouncements.main_annoucement,
+          activity_support_announcement: normalizedAnnouncements.activity_support_announcement,
         });
       }
 
