@@ -48,6 +48,47 @@ const resolveDeptHeadPendingStatusId = async () => {
   return null;
 };
 
+const resolveFundTypeMode = (doc) => {
+  if (!doc || typeof doc !== 'object') return 'inactive';
+  if (typeof doc.fund_type_mode === 'string') {
+    const trimmed = doc.fund_type_mode.trim();
+    if (trimmed) return trimmed;
+  }
+
+  if (
+    Object.prototype.hasOwnProperty.call(doc, 'fund_types') &&
+    doc.fund_types === null
+  ) {
+    return 'inactive';
+  }
+
+  const fundTypes = Array.isArray(doc?.fund_types) ? doc.fund_types : [];
+  return fundTypes.length === 0 ? 'all' : 'limited';
+};
+
+const dedupeStringList = (items) => {
+  const list = Array.isArray(items)
+    ? items
+    : typeof items === 'string'
+    ? [items]
+    : [];
+
+  const seen = new Set();
+  const result = [];
+
+  list.forEach((value) => {
+    if (typeof value !== 'string') return;
+    const trimmed = value.trim();
+    if (!trimmed) return;
+    const lower = trimmed.toLowerCase();
+    if (seen.has(lower)) return;
+    seen.add(lower);
+    result.push(trimmed);
+  });
+
+  return result;
+};
+
 // =================================================================
 // FILE UPLOAD COMPONENT
 // =================================================================
@@ -201,22 +242,10 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
       setLoading(true);
       setErrors({});
 
-      const hasSubcategoryId = Boolean(
-        extractSubcategoryId(subcategoryData)
-      );
-      const hasSubcategoryName = Boolean(
-        extractSubcategoryName(subcategoryData)
-      );
-
-      // Validate subcategoryData
-      if (!hasSubcategoryId && !hasSubcategoryName) {
-        throw new Error('ไม่พบข้อมูลทุนที่เลือก');
-      }
-
       // Load user data and document requirements in parallel
       const [userData, docRequirements] = await Promise.all([
         loadUserData(),
-        loadDocumentRequirements(subcategoryData)
+        loadDocumentRequirements(),
       ]);
 
       console.log('Loaded user data:', userData);
@@ -260,51 +289,19 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
     throw new Error('ไม่สามารถดึงข้อมูลผู้ใช้ได้');
   };
 
-  const loadDocumentRequirements = async (subcategoryInfo) => {
-    const subcategoryName = extractSubcategoryName(subcategoryInfo);
-    const normalizedSubcategoryName = subcategoryName?.trim()?.toLowerCase() || null;
-    const subcategoryId = extractSubcategoryId(subcategoryInfo);
-    const numericSubcategoryId = subcategoryId != null ? Number(subcategoryId) : null;
-
+  const loadDocumentRequirements = async () => {
     const normalizePayload = (payload) => {
-      if (!payload) {
-        return [];
-      }
-
-      if (Array.isArray(payload)) {
-        return payload;
-      }
-
-      if (Array.isArray(payload.document_types)) {
-        return payload.document_types;
-      }
-
+      if (!payload) return [];
+      if (Array.isArray(payload)) return payload;
+      if (Array.isArray(payload.document_types)) return payload.document_types;
       return [];
     };
 
-    const parseSubcategoryIds = (doc) => {
-      const rawValue = doc?.subcategory_ids;
-      if (Array.isArray(rawValue)) {
-        return rawValue;
-      }
-
-      if (typeof rawValue === 'string' && rawValue.trim()) {
-        try {
-          const parsed = JSON.parse(rawValue);
-          return Array.isArray(parsed) ? parsed : [];
-        } catch (error) {
-          console.warn('Failed to parse subcategory_ids JSON:', rawValue, error);
-        }
-      }
-
-      return [];
-    };
-
-    const response = await documentTypesAPI.getDocumentTypes();
+    const response = await documentTypesAPI.getDocumentTypes({ fund_type: 'fund_application' });
     const rawDocTypes = normalizePayload(response);
 
     if (!Array.isArray(rawDocTypes) || rawDocTypes.length === 0) {
-      console.warn('No document types returned from API payload.');
+      console.warn('No document types returned for fund_application.');
       setDocumentRequirements([]);
       return [];
     }
@@ -313,141 +310,24 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
       .slice()
       .sort((a, b) => (a?.document_order || 0) - (b?.document_order || 0));
 
-    const fundTypeFiltered = sortedDocTypes.filter((docType) => {
+    const activeDocs = sortedDocTypes.filter((docType) => {
       if (!docType) return false;
-      const fundTypes = Array.isArray(docType.fund_types) ? docType.fund_types : [];
-      if (fundTypes.length === 0) {
+      const mode = resolveFundTypeMode(docType);
+      if (mode === 'inactive') {
         return false;
       }
-      return fundTypes.includes('fund_application');
+      if (mode === 'all') {
+        return true;
+      }
+      const fundTypes = Array.isArray(docType.fund_types) ? docType.fund_types : [];
+      return fundTypes.some((entry) => entry === 'fund_application');
     });
 
-    if (fundTypeFiltered.length === 0) {
-      console.warn('No document types explicitly configured for fund_application; falling back to legacy list.');
-      console.log('Legacy document types payload:', sortedDocTypes);
-    } else {
-      console.log('Filtered fund_application document types:', fundTypeFiltered);
-    }
+    const finalDocs = activeDocs.length > 0 ? activeDocs : sortedDocTypes.filter((doc) => resolveFundTypeMode(doc) !== 'inactive');
 
-    const candidateDocs = fundTypeFiltered.length > 0 ? fundTypeFiltered : sortedDocTypes;
-
-    const matches = [];
-    const seenIds = new Set();
-    const resolveIdentifier = (doc) => {
-      if (!doc || typeof doc !== 'object') {
-        return null;
-      }
-
-      if (doc.document_type_id != null) {
-        return `doc-${doc.document_type_id}`;
-      }
-
-      if (doc.id != null) {
-        return `legacy-${doc.id}`;
-      }
-
-      if (doc.code) {
-        return `code-${doc.code}`;
-      }
-
-      return null;
-    };
-    const addDocs = (docs) => {
-      for (const doc of docs) {
-        const identifier = resolveIdentifier(doc);
-        if (!doc || (identifier && seenIds.has(identifier))) {
-          continue;
-        }
-        if (identifier) {
-          seenIds.add(identifier);
-        }
-        matches.push(doc);
-      }
-    };
-
-    const universalDocs = candidateDocs.filter((doc) => {
-      const names = Array.isArray(doc?.subcategory_names) ? doc.subcategory_names : [];
-      const ids = parseSubcategoryIds(doc);
-      return names.length === 0 && ids.length === 0;
-    });
-
-    if (normalizedSubcategoryName) {
-      const nameMatches = candidateDocs.filter((doc) => {
-        const names = Array.isArray(doc?.subcategory_names) ? doc.subcategory_names : [];
-        return names.some((name) => typeof name === 'string' && name.trim().toLowerCase() === normalizedSubcategoryName);
-      });
-
-      if (nameMatches.length > 0) {
-        addDocs(nameMatches);
-      }
-    }
-
-    if (matches.length === 0 && numericSubcategoryId != null) {
-      const idMatches = candidateDocs.filter((doc) => {
-        const ids = parseSubcategoryIds(doc).map((value) => Number(value));
-        return ids.includes(numericSubcategoryId);
-      });
-
-      if (idMatches.length > 0) {
-        addDocs(idMatches);
-      }
-    }
-
-    if (matches.length === 0 && universalDocs.length > 0) {
-      console.warn('No subcategory-specific document types found; including universal requirements.');
-      addDocs(universalDocs);
-    } else {
-      addDocs(universalDocs);
-    }
-
-    setDocumentRequirements(matches);
-
-    if (matches.length === 0) {
-      console.warn('No document requirements configured for fund_application with subcategory:', {
-        subcategoryName,
-        subcategoryId,
-      });
-    }
-
-    return matches;
+    setDocumentRequirements(finalDocs);
+    return finalDocs;
   };
-
-  function extractSubcategoryName(data) {
-    const candidates = [
-      data?.subcategory_name,
-      data?.subcategorie_name,
-      data?.subcategoryName,
-      data?.subcategory?.subcategory_name,
-      data?.subcategory?.subcategorie_name,
-      data?.subcategory?.subcategoryName,
-    ];
-
-    for (const candidate of candidates) {
-      if (typeof candidate === 'string' && candidate.trim()) {
-        return candidate.trim();
-      }
-    }
-
-    return null;
-  }
-
-  function extractSubcategoryId(data) {
-    const candidates = [
-      data?.subcategory_id,
-      data?.subcategoryId,
-      data?.subcategory?.subcategory_id,
-      data?.subcategory?.subcategoryId,
-    ];
-
-    for (const candidate of candidates) {
-      const parsed = Number(candidate);
-      if (!Number.isNaN(parsed) && parsed > 0) {
-        return parsed;
-      }
-    }
-
-    return null;
-  }
 
   // =================================================================
   // FORM HANDLING

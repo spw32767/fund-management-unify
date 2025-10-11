@@ -1,7 +1,7 @@
 // app/teacher/components/applications/PublicationRewardForm.js
 "use client";
 
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { Award, Upload, Users, FileText, Plus, X, Save, Send, AlertCircle, Calculator, Search, Eye, Signature, ArrowLeft } from "lucide-react";
 import PageLayout from "../common/PageLayout";
@@ -118,6 +118,60 @@ const normalizePolicyPayload = (policy = {}) => {
       amount: parseNumberOrNull(userRemaining.amount),
     }
   };
+};
+
+const dedupeStringList = (items) => {
+  const list = Array.isArray(items)
+    ? items
+    : typeof items === 'string'
+    ? [items]
+    : [];
+
+  const seen = new Set();
+  const result = [];
+
+  list.forEach((value) => {
+    if (typeof value !== 'string') return;
+    const trimmed = value.trim();
+    if (!trimmed) return;
+    const lower = trimmed.toLowerCase();
+    if (seen.has(lower)) return;
+    seen.add(lower);
+    result.push(trimmed);
+  });
+
+  return result;
+};
+
+const resolveFundTypeMode = (doc) => {
+  if (!doc || typeof doc !== 'object') return 'inactive';
+  if (typeof doc.fund_type_mode === 'string') {
+    const trimmed = doc.fund_type_mode.trim();
+    if (trimmed) return trimmed;
+  }
+
+  if (
+    Object.prototype.hasOwnProperty.call(doc, 'fund_types') &&
+    doc.fund_types === null
+  ) {
+    return 'inactive';
+  }
+
+  const fundTypes = dedupeStringList(doc?.fund_types);
+  return fundTypes.length === 0 ? 'all' : 'limited';
+};
+
+const findFirstString = (candidates) => {
+  if (!Array.isArray(candidates)) return null;
+  for (const candidate of candidates) {
+    if (typeof candidate === 'string') {
+      const trimmed = candidate.trim();
+      if (trimmed) {
+        return trimmed;
+      }
+    }
+  }
+  return null;
 };
 
 const formatGrantLimit = (value) => {
@@ -613,6 +667,8 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
   const [errors, setErrors] = useState({});
   const [users, setUsers] = useState([]);
   const [documentTypes, setDocumentTypes] = useState([]);
+  const [availableDocumentTypes, setAvailableDocumentTypes] = useState([]);
+  const [resolvedSubcategoryName, setResolvedSubcategoryName] = useState(null);
   const [years, setYears] = useState([]);
   const [currentSubmissionId, setCurrentSubmissionId] = useState(null);
   const [currentUser, setCurrentUser] = useState(null);
@@ -713,14 +769,34 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
     reward_announcement: null,
   });
 
-  useEffect(() => {
-    return () => {
-      if (previewUrlRef.current) {
-        URL.revokeObjectURL(previewUrlRef.current);
-        previewUrlRef.current = null;
-      }
-    };
-  }, []);
+  const computeDocumentRequirements = useCallback(
+    (docs) => {
+      const sortedDocs = Array.isArray(docs)
+        ? docs
+            .slice()
+            .sort((a, b) => (a?.document_order || 0) - (b?.document_order || 0))
+        : [];
+
+      return sortedDocs.filter((doc) => {
+        if (!doc || typeof doc !== 'object') {
+          return false;
+        }
+
+        const fundTypeMode = resolveFundTypeMode(doc);
+        if (fundTypeMode === 'inactive') {
+          return false;
+        }
+
+        if (fundTypeMode === 'all') {
+          return true;
+        }
+
+        const fundTypes = Array.isArray(doc.fund_types) ? doc.fund_types : [];
+        return fundTypes.includes('publication_reward');
+      });
+    },
+    [],
+  );
   useEffect(() => {
     let ro = false;
 
@@ -962,6 +1038,49 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
     checkAndLoadDraft();
   }, [categoryId, yearId]);
 
+  useEffect(() => {
+    if (!Array.isArray(availableDocumentTypes) || availableDocumentTypes.length === 0) {
+      setDocumentTypes([]);
+      return;
+    }
+
+    const computed = computeDocumentRequirements(availableDocumentTypes);
+    setDocumentTypes(computed);
+  }, [availableDocumentTypes, computeDocumentRequirements]);
+
+  useEffect(() => {
+    if (!formData.subcategory_id && resolvedSubcategoryName) {
+      setResolvedSubcategoryName(null);
+      return;
+    }
+
+    if (!formData.subcategory_id || resolvedSubcategoryName) {
+      return;
+    }
+
+    const targetId = Number(formData.subcategory_id);
+    if (Number.isNaN(targetId)) {
+      return;
+    }
+
+    const entries = Object.values(budgetOptionMap || {});
+    for (const entry of entries) {
+      const candidateId =
+        entry?.subcategory_id ?? entry?.subcategoryId ?? null;
+      if (candidateId != null && Number(candidateId) === targetId) {
+        const label = findFirstString([
+          entry?.subcategory_name,
+          entry?.subcategory_name_th,
+          entry?.fund_description,
+        ]);
+        if (label) {
+          setResolvedSubcategoryName(label);
+        }
+        break;
+      }
+    }
+  }, [budgetOptionMap, formData.subcategory_id, resolvedSubcategoryName]);
+
   // Reload quartile configs when year changes
   useEffect(() => {
     const loadQuartileConfigs = async () => {
@@ -1014,6 +1133,7 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
         setFormData(prev => ({ ...prev, author_status: '', journal_quartile: '', subcategory_id: null, subcategory_budget_id: null, publication_reward: 0, reward_amount: 0 }));
         setResolutionError(pairs.length === 0 ? 'ไม่พบทุนสำหรับปี/สถานะ/ควอร์ไทล์ที่เลือก' : '');
         setPolicyContext(null);
+        setResolvedSubcategoryName(null);
       }
     };
     recompute();
@@ -1039,6 +1159,7 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
         setResolutionError('');
       }
       setPolicyContext(null);
+      setResolvedSubcategoryName(null);
     }
   }, [formData.author_status, enabledPairs]);
 
@@ -1062,6 +1183,14 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
             const resolvedBudgetId = parseIntegerOrNull(result?.subcategory_budget_id ?? optionContext.subcategory_budget_id);
             const resolvedReward = parseNumberOrNull(result?.reward_amount);
             const normalizedPolicy = normalizePolicyPayload(result.policy);
+            const resolvedName = findFirstString([
+              result?.subcategory_name,
+              result?.subcategory_name_th,
+              optionContext.subcategory_name,
+              optionContext.subcategory_name_th,
+              optionContext.fund_description,
+            ]);
+            setResolvedSubcategoryName(resolvedName);
             setPolicyContext(normalizedPolicy);
             setFormData(prev => ({
               ...prev,
@@ -1104,6 +1233,7 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
 
             setResolutionError('');
           } else {
+            setResolvedSubcategoryName(null);
             setFormData(prev => ({
               ...prev,
               subcategory_id: null,
@@ -1117,6 +1247,7 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
           }
         } catch (error) {
           console.error('resolveBudgetAndSubcategory error:', error);
+          setResolvedSubcategoryName(null);
           setFormData(prev => ({
             ...prev,
             subcategory_id: null,
@@ -1468,24 +1599,30 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
           .slice()
           .sort((a, b) => (a?.document_order || 0) - (b?.document_order || 0));
 
-        const fundTypeFiltered = sortedDocTypes.filter((docType) => {
+        const relevantDocs = sortedDocTypes.filter((docType) => {
           if (!docType) return false;
-          const fundTypes = Array.isArray(docType.fund_types) ? docType.fund_types : [];
-          if (fundTypes.length === 0) {
+          const mode = resolveFundTypeMode(docType);
+          if (mode === 'inactive') {
             return false;
           }
+          if (mode === 'all') {
+            return true;
+          }
+          const fundTypes = Array.isArray(docType.fund_types) ? docType.fund_types : [];
           return fundTypes.includes('publication_reward');
         });
 
-        if (fundTypeFiltered.length === 0) {
+        if (relevantDocs.length === 0) {
           console.warn('No document types explicitly configured for publication_reward; falling back to legacy list.');
           console.log('Legacy document types payload:', sortedDocTypes);
         } else {
-          console.log('Filtered publication_reward document types:', fundTypeFiltered);
+          console.log('Filtered publication_reward document types:', relevantDocs);
         }
 
-        setDocumentTypes(fundTypeFiltered.length > 0 ? fundTypeFiltered : sortedDocTypes);
+        setDocumentTypes([]);
+        setAvailableDocumentTypes(relevantDocs.length > 0 ? relevantDocs : sortedDocTypes);
       } else {
+        setAvailableDocumentTypes([]);
         setDocumentTypes([]);
       }
 
