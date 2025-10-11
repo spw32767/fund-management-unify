@@ -263,54 +263,228 @@ export default function AnnouncementManager() {
   }
 
   /** ===== Handlers: Common ===== */
-  function getFileURL(filePath) {
-    if (!filePath) return "#";
+  function getApiBaseURL() {
+    const raw =
+      process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") ||
+      apiClient.baseURL?.replace(/\/$/, "") ||
+      "";
+    return raw;
+  }
 
-    if (/^https?:\/\//i.test(filePath)) {
-      return filePath;
+  function extractFilePath(filePath) {
+    if (!filePath) return "";
+    if (typeof filePath === "string") {
+      return filePath.trim();
     }
+    if (Array.isArray(filePath)) {
+      for (const item of filePath) {
+        const value = extractFilePath(item);
+        if (value) return value;
+      }
+      return "";
+    }
+    if (typeof filePath === "object") {
+      const candidates = [
+        filePath.file_path,
+        filePath.path,
+        filePath.url,
+        filePath.href,
+        filePath.fileUrl,
+        filePath.location,
+      ];
+      for (const candidate of candidates) {
+        if (typeof candidate === "string" && candidate.trim()) {
+          return candidate.trim();
+        }
+      }
+    }
+    return "";
+  }
+
+  function getFileURL(filePath) {
+    const rawPath = extractFilePath(filePath);
+    if (!rawPath) return "";
+
+    if (/^https?:\/\//i.test(rawPath)) {
+      return rawPath;
+    }
+
+    const cleanedPath = rawPath
+      .replace(/^\.\/?/, "")
+      .replace(/\\/g, "/")
+      .replace(/\/+/g, "/");
 
     const rawBase =
       process.env.NEXT_PUBLIC_FILE_BASE_URL?.replace(/\/$/, "") ||
-      apiClient.baseURL ||
+      apiClient.baseURL?.replace(/\/$/, "") ||
       "";
 
-    const baseWithoutApi = rawBase.replace(/\/?api\/v1.*/, "");
-    const normalizedPath = filePath.startsWith("/") ? filePath : `/${filePath}`;
+    const baseWithoutApi = rawBase.replace(/\/?api\/v\d+.*/i, "");
+    const base = baseWithoutApi || rawBase;
+    if (!base) {
+      return cleanedPath.startsWith("/") ? cleanedPath : `/${cleanedPath}`;
+    }
+
+    const normalizedPath = cleanedPath.startsWith("/")
+      ? cleanedPath
+      : `/${cleanedPath}`;
 
     try {
-      return new URL(normalizedPath, `${baseWithoutApi || rawBase}/`).href;
+      return new URL(normalizedPath, `${base}/`).href;
     } catch (error) {
-      console.error("[AnnouncementManager] Failed to resolve file URL", error);
-      return `${baseWithoutApi}${normalizedPath}`;
+      console.error("[AnnouncementManager] Failed to resolve file URL", {
+        filePath: rawPath,
+        normalizedPath,
+        base,
+        error,
+      });
+      return `${base}${normalizedPath}`;
     }
   }
 
-  function handleViewFile(filePath) {
-    const url = getFileURL(filePath);
-    if (!url || url === "#") return;
-    window.open(url, "_blank", "noopener");
+  function getFileAccessMeta(row, entity) {
+    const filePath = extractFilePath(row?.file_path);
+    const directURL = getFileURL(filePath);
+    const base = getApiBaseURL();
+    const id =
+      entity === "announcement" ? getAnnouncementId(row) : getFormId(row);
+    const apiSegment = entity === "announcement" ? "announcements" : "fund-forms";
+    const encodedId =
+      id == null || id === "" ? "" : encodeURIComponent(String(id));
+    const viewEndpoint =
+      base && encodedId ? `${base}/${apiSegment}/${encodedId}/view` : "";
+    const downloadEndpoint =
+      base && encodedId ? `${base}/${apiSegment}/${encodedId}/download` : "";
+    const fallbackFileName =
+      row?.file_name ||
+      (filePath ? filePath.toString().split(/[\\/]/).pop() : "");
+
+    return {
+      filePath,
+      directURL,
+      viewEndpoint,
+      downloadEndpoint,
+      fallbackFileName,
+      id,
+      entity,
+    };
   }
 
-  async function handleDownloadFile(filePath) {
-    const url = getFileURL(filePath);
-    if (!url || url === "#") return;
+  async function fetchFileBlob(url, { requiresAuth = false } = {}) {
+    if (!url) {
+      throw new Error("URL is required");
+    }
+
+    const headers = new Headers();
+    if (requiresAuth) {
+      const token = typeof apiClient.getToken === "function" ? apiClient.getToken() : null;
+      if (token) {
+        headers.set("Authorization", `Bearer ${token}`);
+      }
+    }
+
+    const response = await fetch(url, {
+      method: "GET",
+      headers,
+      credentials: "include",
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch file: ${response.status}`);
+    }
+
+    return response.blob();
+  }
+
+  async function handleViewFile(row, entity) {
+    const meta = getFileAccessMeta(row, entity);
+    console.log("[AnnouncementManager] handleViewFile", {
+      ...meta,
+      rowSnapshot: row,
+    });
+
+    const viewer = window.open("", "_blank", "noopener");
+    if (!viewer) {
+      toast("error", "กรุณาอนุญาตป๊อปอัพเพื่อดูไฟล์");
+      return;
+    }
+
+    viewer.document.write(
+      '<p style="font-family: sans-serif; padding: 16px;">กำลังโหลดไฟล์...</p>'
+    );
+
+    const urlToUse = meta.viewEndpoint || meta.directURL;
+    if (!urlToUse) {
+      viewer.close();
+      toast("error", "ไม่พบไฟล์สำหรับเปิดดู");
+      return;
+    }
+
     try {
-      const res = await fetch(url);
-      const blob = await res.blob();
+      if (!meta.viewEndpoint && meta.directURL) {
+        viewer.location.href = meta.directURL;
+        return;
+      }
+
+      const blob = await fetchFileBlob(urlToUse, {
+        requiresAuth: Boolean(meta.viewEndpoint),
+      });
+      const objectURL = URL.createObjectURL(blob);
+      viewer.location.href = objectURL;
+      setTimeout(() => URL.revokeObjectURL(objectURL), 60_000);
+    } catch (error) {
+      console.error("[AnnouncementManager] Failed to open file", {
+        meta,
+        error,
+      });
+      viewer.close();
+      toast("error", "ไม่สามารถเปิดไฟล์ได้");
+    }
+  }
+
+  async function handleDownloadFile(row, entity) {
+    const meta = getFileAccessMeta(row, entity);
+    console.log("[AnnouncementManager] handleDownloadFile", {
+      ...meta,
+      rowSnapshot: row,
+    });
+
+    const urlToUse = meta.downloadEndpoint || meta.directURL;
+    if (!urlToUse) {
+      toast("error", "ไม่พบไฟล์สำหรับดาวน์โหลด");
+      return;
+    }
+
+    try {
+      if (!meta.downloadEndpoint && meta.directURL) {
+        const tempLink = document.createElement("a");
+        tempLink.href = meta.directURL;
+        tempLink.target = "_blank";
+        tempLink.rel = "noopener";
+        if (meta.fallbackFileName) {
+          tempLink.download = meta.fallbackFileName;
+        }
+        document.body.appendChild(tempLink);
+        tempLink.click();
+        document.body.removeChild(tempLink);
+        return;
+      }
+
+      const blob = await fetchFileBlob(urlToUse, {
+        requiresAuth: Boolean(meta.downloadEndpoint),
+      });
       const link = document.createElement("a");
       link.href = URL.createObjectURL(blob);
-      try {
-        const parsed = new URL(url);
-        link.download = decodeURIComponent(parsed.pathname.split("/").pop() || "file");
-      } catch {
-        link.download = filePath?.split("/").pop() || "file";
-      }
+      link.download = meta.fallbackFileName || "file";
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
       URL.revokeObjectURL(link.href);
-    } catch (e) {
+    } catch (error) {
+      console.error("[AnnouncementManager] Failed to download file", {
+        meta,
+        error,
+      });
       toast("error", "ดาวน์โหลดไม่สำเร็จ");
     }
   }
@@ -865,7 +1039,7 @@ export default function AnnouncementManager() {
                         <div className="flex flex-col gap-1 text-sm">
                           {row.file_path ? (
                             <button
-                              onClick={() => handleViewFile(row.file_path)}
+                              onClick={() => handleViewFile(row, "announcement")}
                               className="text-blue-600 hover:underline text-left inline-flex max-w-[28ch]"
                               title={row.file_name || "เปิดไฟล์"}
                             >
@@ -896,7 +1070,7 @@ export default function AnnouncementManager() {
                       <td className="px-3 py-2">
                         <div className="flex flex-row justify-end gap-2 flex-nowrap [&>button]:whitespace-nowrap">
                           <button
-                            onClick={() => handleDownloadFile(row.file_path)}
+                            onClick={() => handleDownloadFile(row, "announcement")}
                             className="text-green-600 hover:bg-green-50 p-2 rounded-lg inline-flex items-center gap-1"
                             title="ดาวน์โหลดไฟล์"
                           >
@@ -1005,7 +1179,7 @@ export default function AnnouncementManager() {
                         <div className="flex flex-col gap-1 text-sm">
                           {row.file_path ? (
                             <button
-                              onClick={() => handleViewFile(row.file_path)}
+                              onClick={() => handleViewFile(row, "fundForm")}
                               className="text-blue-600 hover:underline text-left inline-flex max-w-[28ch]"
                               title={row.file_name || "เปิดไฟล์"}
                             >
@@ -1036,7 +1210,7 @@ export default function AnnouncementManager() {
                       <td className="px-3 py-2">
                         <div className="flex flex-row justify-end gap-2 flex-nowrap [&>button]:whitespace-nowrap">
                           <button
-                            onClick={() => handleDownloadFile(row.file_path)}
+                            onClick={() => handleDownloadFile(row, "fundForm")}
                             className="text-green-600 hover:bg-green-50 p-2 rounded-lg inline-flex items-center gap-1"
                             title="ดาวน์โหลดไฟล์"
                           >
