@@ -3314,6 +3314,7 @@ const showSubmissionConfirmation = async () => {
               </ul>
             </div>
             <p class="text-green-600 mt-3">ระบบจะแจ้งผลการพิจารณาผ่านอีเมล</p>
+            <p class="text-sm text-gray-600">ระบบได้จัดเก็บไฟล์แบบฟอร์มทั้งในรูปแบบ DOCX และ PDF</p>
           </div>
         `,
         confirmButtonColor: '#10b981',
