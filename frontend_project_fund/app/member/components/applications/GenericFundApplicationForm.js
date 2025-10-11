@@ -6,7 +6,8 @@ import { FileText, Upload, Save, Send, X, Eye, ArrowLeft, AlertCircle, DollarSig
 import Swal from "sweetalert2";
 import PageLayout from "../common/PageLayout";
 import SimpleCard from "../common/SimpleCard";
-import { authAPI, systemAPI, documentTypesAPI } from '../../../lib/api';
+import { authAPI, documentTypesAPI } from '../../../lib/api';
+import { systemConfigAPI } from '../../../lib/system_config_api';
 import { PDFDocument } from "pdf-lib";
 
 // เพิ่ม apiClient สำหรับเรียก API โดยตรง
@@ -15,7 +16,13 @@ import { submissionAPI, documentAPI, fileAPI} from '../../../lib/member_api';
 import { getStatusIdByCode, statusService } from '../../../lib/status_service';
 
 // Match backend utils.StatusCodeDeptHeadPending for initial submission status
-const DEPT_HEAD_PENDING_STATUS_CODE = '5';
+const DEPT_HEAD_PENDING_STATUS = {
+  id: 6,
+  code: '5',
+  name: 'อยู่ระหว่างการพิจารณาจากหัวหน้าสาขา',
+};
+
+const DEPT_HEAD_PENDING_STATUS_CODE = DEPT_HEAD_PENDING_STATUS.code;
 
 const resolveDeptHeadPendingStatusId = async () => {
   try {
@@ -229,6 +236,10 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
   
   // Current user data
   const [currentUser, setCurrentUser] = useState(null);
+  const [announcementLock, setAnnouncementLock] = useState({
+    main_annoucement: null,
+    activity_support_announcement: null,
+  });
 
   // =================================================================
   // INITIAL DATA LOADING
@@ -251,11 +262,39 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
       console.log('Loaded user data:', userData);
       console.log('Loaded document requirements:', docRequirements);
 
+      await loadSystemConfigSnapshot();
+
     } catch (error) {
       console.error('Error loading initial data:', error);
       setErrors({ general: error.message || 'เกิดข้อผิดพลาดในการโหลดข้อมูล' });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadSystemConfigSnapshot = async () => {
+    try {
+      const rawWindow = await systemConfigAPI.getWindow();
+      const normalized =
+        typeof systemConfigAPI.normalizeWindow === 'function'
+          ? systemConfigAPI.normalizeWindow(rawWindow)
+          : rawWindow?.data ?? rawWindow;
+
+      const snapshot = {
+        main_annoucement: normalized?.main_annoucement ?? null,
+        activity_support_announcement: normalized?.activity_support_announcement ?? null,
+      };
+
+      setAnnouncementLock(snapshot);
+      return snapshot;
+    } catch (error) {
+      console.warn('Cannot fetch system-config window; announcements will default to null', error);
+      const fallback = {
+        main_annoucement: null,
+        activity_support_announcement: null,
+      };
+      setAnnouncementLock(fallback);
+      return fallback;
     }
   };
 
@@ -771,26 +810,53 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
     try {
       setSubmitting(true);
 
-      const deptPendingStatusId = await resolveDeptHeadPendingStatusId();
-      if (!deptPendingStatusId) {
+      const resolvedStatusId = await resolveDeptHeadPendingStatusId();
+      const statusId =
+        resolvedStatusId != null && !Number.isNaN(Number(resolvedStatusId))
+          ? Number(resolvedStatusId)
+          : DEPT_HEAD_PENDING_STATUS.id;
+
+      if (!statusId) {
         throw new Error('ไม่พบสถานะสำหรับการพิจารณาของหัวหน้าสาขา');
       }
+
+      const statusMeta = {
+        status_id: statusId,
+        status_code: DEPT_HEAD_PENDING_STATUS.code,
+        status_name: DEPT_HEAD_PENDING_STATUS.name,
+      };
 
       // Step 1: Create submission record
       const submissionRes = await submissionAPI.createSubmission({
         submission_type: 'fund_application',
         year_id: subcategoryData?.year_id,
-        status_id: deptPendingStatusId
+        ...statusMeta,
       });
       const submissionId = submissionRes?.submission?.submission_id;
 
       // Step 2: Save basic fund details (ใช้ข้อมูลที่มีอยู่)
       if (submissionId) {
+        const hasLockedAnnouncements =
+          announcementLock?.main_annoucement != null ||
+          announcementLock?.activity_support_announcement != null;
+
+        const announcementSnapshot = hasLockedAnnouncements
+          ? announcementLock
+          : await loadSystemConfigSnapshot();
+
         await apiClient.post(`/submissions/${submissionId}/fund-details`, {
           project_title: formData.name,
           project_description: formData.phone,
           requested_amount: parseFloat(formData.requested_amount) || 0,
-          subcategory_id: subcategoryData.subcategory_id
+          subcategory_id: subcategoryData.subcategory_id,
+          main_annoucement:
+            announcementSnapshot?.main_annoucement != null
+              ? Number(announcementSnapshot.main_annoucement)
+              : null,
+          activity_support_announcement:
+            announcementSnapshot?.activity_support_announcement != null
+              ? Number(announcementSnapshot.activity_support_announcement)
+              : null,
         });
       }
 
@@ -810,7 +876,7 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
 
       // Step 4: Submit the submission
       if (submissionId) {
-        await submissionAPI.submitSubmission(submissionId);
+        await submissionAPI.submitSubmission(submissionId, statusMeta);
       }
 
 

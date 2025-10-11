@@ -245,9 +245,13 @@ export const submissionAPI = {
   },
 
   // 6. Submit submission (change status to submitted)
-  async submitSubmission(submissionId) {
+  async submitSubmission(submissionId, payload = null) {
     try {
-      const response = await apiClient.post(`/submissions/${submissionId}/submit`);
+      const body =
+        payload && typeof payload === 'object' && Object.keys(payload).length > 0
+          ? payload
+          : null;
+      const response = await apiClient.post(`/submissions/${submissionId}/submit`, body);
       return response;
     } catch (error) {
       console.error('Error submitting submission:', error);
