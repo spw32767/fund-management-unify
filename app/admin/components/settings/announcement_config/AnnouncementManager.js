@@ -263,40 +263,284 @@ export default function AnnouncementManager() {
   }
 
   /** ===== Handlers: Common ===== */
-  function handleViewFile(filePath) {
-    if (!filePath) return;
-    const baseUrl = apiClient.baseURL.replace(/\/?api\/v1$/, "");
-    const url = new URL(filePath, baseUrl).href;
-    window.open(url, "_blank");
+  function getApiBaseURL() {
+    const raw =
+      process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") ||
+      apiClient.baseURL?.replace(/\/$/, "") ||
+      "";
+    return raw;
   }
 
-  async function handleDownloadFile(filePath) {
-    if (!filePath) return;
-    const baseUrl = apiClient.baseURL.replace(/\/?api\/v1$/, "");
-    const url = new URL(filePath, baseUrl).href;
+  function extractFilePath(filePath) {
+    if (!filePath) return "";
+    if (typeof filePath === "string") {
+      return filePath.trim();
+    }
+    if (Array.isArray(filePath)) {
+      for (const item of filePath) {
+        const value = extractFilePath(item);
+        if (value) return value;
+      }
+      return "";
+    }
+    if (typeof filePath === "object") {
+      const candidates = [
+        filePath.file_path,
+        filePath.path,
+        filePath.url,
+        filePath.href,
+        filePath.fileUrl,
+        filePath.location,
+      ];
+      for (const candidate of candidates) {
+        if (typeof candidate === "string" && candidate.trim()) {
+          return candidate.trim();
+        }
+      }
+    }
+    return "";
+  }
+
+  function getFileURL(filePath) {
+    const rawPath = extractFilePath(filePath);
+    if (!rawPath) return "";
+
+    if (/^https?:\/\//i.test(rawPath)) {
+      return rawPath;
+    }
+
+    const cleanedPath = rawPath
+      .replace(/^\.\/?/, "")
+      .replace(/\\/g, "/")
+      .replace(/\/+/g, "/");
+
+    const rawBase =
+      process.env.NEXT_PUBLIC_FILE_BASE_URL?.replace(/\/$/, "") ||
+      apiClient.baseURL?.replace(/\/$/, "") ||
+      "";
+
+    const baseWithoutApi = rawBase.replace(/\/?api\/v\d+.*/i, "");
+    const base = baseWithoutApi || rawBase;
+    if (!base) {
+      return cleanedPath.startsWith("/") ? cleanedPath : `/${cleanedPath}`;
+    }
+
+    const normalizedPath = cleanedPath.startsWith("/")
+      ? cleanedPath
+      : `/${cleanedPath}`;
+
     try {
-      const res = await fetch(url);
-      const blob = await res.blob();
+      return new URL(normalizedPath, `${base}/`).href;
+    } catch (error) {
+      console.error("[AnnouncementManager] Failed to resolve file URL", {
+        filePath: rawPath,
+        normalizedPath,
+        base,
+        error,
+      });
+      return `${base}${normalizedPath}`;
+    }
+  }
+
+  function getFileAccessMeta(row, entity) {
+    const filePath = extractFilePath(row?.file_path);
+    const directURL = getFileURL(filePath);
+    const base = getApiBaseURL();
+    const id =
+      entity === "announcement" ? getAnnouncementId(row) : getFormId(row);
+    const apiSegment = entity === "announcement" ? "announcements" : "fund-forms";
+    const encodedId =
+      id == null || id === "" ? "" : encodeURIComponent(String(id));
+    const viewEndpoint =
+      base && encodedId ? `${base}/${apiSegment}/${encodedId}/view` : "";
+    const downloadEndpoint =
+      base && encodedId ? `${base}/${apiSegment}/${encodedId}/download` : "";
+    const fallbackFileName =
+      row?.file_name ||
+      (filePath ? filePath.toString().split(/[\\/]/).pop() : "");
+
+    return {
+      filePath,
+      directURL,
+      viewEndpoint,
+      downloadEndpoint,
+      fallbackFileName,
+      id,
+      entity,
+    };
+  }
+
+  async function fetchFileBlob(url, { requiresAuth = false } = {}) {
+    if (!url) {
+      throw new Error("URL is required");
+    }
+
+    const headers = new Headers();
+    if (requiresAuth) {
+      const token = typeof apiClient.getToken === "function" ? apiClient.getToken() : null;
+      if (token) {
+        headers.set("Authorization", `Bearer ${token}`);
+      }
+    }
+
+    const response = await fetch(url, {
+      method: "GET",
+      headers,
+      credentials: "include",
+    });
+
+    if (!response.ok) {
+      let errorBody = "";
+      try {
+        errorBody = await response.text();
+      } catch (readError) {
+        console.warn("[AnnouncementManager] Failed to read error response", readError);
+      }
+      const message = [`Failed to fetch file: ${response.status}`, response.statusText]
+        .filter(Boolean)
+        .join(" ");
+      const error = new Error(message);
+      error.status = response.status;
+      error.statusText = response.statusText;
+      error.responseBody = errorBody;
+      throw error;
+    }
+
+    return response.blob();
+  }
+
+  function openURLInNewTab(url) {
+    if (!url) return;
+
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.target = "_blank";
+    anchor.rel = "noopener noreferrer";
+    anchor.style.display = "none";
+    document.body.appendChild(anchor);
+    anchor.click();
+    document.body.removeChild(anchor);
+  }
+
+  async function handleViewFile(row, entity) {
+    const meta = getFileAccessMeta(row, entity);
+    console.log("[AnnouncementManager] handleViewFile", {
+      ...meta,
+      rowSnapshot: row,
+    });
+
+    const { viewEndpoint, directURL } = meta;
+    if (!viewEndpoint && !directURL) {
+      toast("error", "ไม่พบไฟล์สำหรับเปิดดู");
+      return;
+    }
+
+    const tryDirect = (reason = "") => {
+      if (!directURL) return false;
+      if (reason) {
+        console.warn("[AnnouncementManager] Falling back to direct URL", {
+          reason,
+          directURL,
+        });
+      }
+      openURLInNewTab(directURL);
+      return true;
+    };
+
+    if (!viewEndpoint && directURL) {
+      tryDirect();
+      return;
+    }
+
+    try {
+      const blob = await fetchFileBlob(viewEndpoint, {
+        requiresAuth: true,
+      });
+      const objectURL = URL.createObjectURL(blob);
+      openURLInNewTab(objectURL);
+      setTimeout(() => URL.revokeObjectURL(objectURL), 60_000);
+    } catch (error) {
+      console.error("[AnnouncementManager] Failed to open file", {
+        meta,
+        error,
+        errorMessage: error?.message,
+        errorStack: error?.stack,
+      });
+
+      if (tryDirect(error?.message || "fetch failed")) {
+        return;
+      }
+
+      toast("error", "ไม่สามารถเปิดไฟล์ได้");
+    }
+  }
+
+  async function handleDownloadFile(row, entity) {
+    const meta = getFileAccessMeta(row, entity);
+    console.log("[AnnouncementManager] handleDownloadFile", {
+      ...meta,
+      rowSnapshot: row,
+    });
+
+    const { downloadEndpoint, directURL } = meta;
+    if (!downloadEndpoint && !directURL) {
+      toast("error", "ไม่พบไฟล์สำหรับดาวน์โหลด");
+      return;
+    }
+
+    try {
+      if (!downloadEndpoint && directURL) {
+        const tempLink = document.createElement("a");
+        tempLink.href = directURL;
+        tempLink.target = "_blank";
+        tempLink.rel = "noopener";
+        if (meta.fallbackFileName) {
+          tempLink.download = meta.fallbackFileName;
+        }
+        document.body.appendChild(tempLink);
+        tempLink.click();
+        document.body.removeChild(tempLink);
+        return;
+      }
+
+      const blob = await fetchFileBlob(downloadEndpoint, {
+        requiresAuth: true,
+      });
       const link = document.createElement("a");
       link.href = URL.createObjectURL(blob);
-      link.download = filePath.split("/").pop() || "file";
+      link.download = meta.fallbackFileName || "file";
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
       URL.revokeObjectURL(link.href);
-    } catch (e) {
+    } catch (error) {
+      console.error("[AnnouncementManager] Failed to download file", {
+        meta,
+        error,
+        errorMessage: error?.message,
+        errorStack: error?.stack,
+      });
+
+      if (directURL) {
+        console.warn("[AnnouncementManager] Falling back to direct download", {
+          directURL,
+        });
+        const tempLink = document.createElement("a");
+        tempLink.href = directURL;
+        tempLink.target = "_blank";
+        tempLink.rel = "noopener";
+        if (meta.fallbackFileName) {
+          tempLink.download = meta.fallbackFileName;
+        }
+        document.body.appendChild(tempLink);
+        tempLink.click();
+        document.body.removeChild(tempLink);
+        return;
+      }
+
       toast("error", "ดาวน์โหลดไม่สำเร็จ");
     }
   }
-
- function getFileURL(filePath) {
-   if (!filePath) return "#";
-   // ถ้าเป็น absolute (http/https) ใช้ได้เลย
-   if (/^https?:\/\//i.test(filePath)) return filePath;
-   // ต่อกับ BASE ของ backend (ตัด /api/v1 ทิ้งก่อน)
-   const base = apiClient.baseURL.replace(/\/?api\/v1$/, "");
-   return new URL(filePath, base).href;
- }
 
   /** ===== Forms (Announcement) ===== */
   function blankAnnouncementForm() {
@@ -845,19 +1089,25 @@ export default function AnnouncementManager() {
                         </div>
                       </td>
                       <td className="px-3 py-2">
-                        <div className="text-gray-500 line-clamp-1 max-w-[30ch] break-words">
+                        <div className="flex flex-col gap-1 text-sm">
                           {row.file_path ? (
                             <button
-                              onClick={() => handleViewFile(row.file_path)}
-                              className="text-blue-600 hover:underline"
+                              onClick={() => handleViewFile(row, "announcement")}
+                              className="text-blue-600 hover:underline text-left inline-flex max-w-[28ch]"
+                              title={row.file_name || "เปิดไฟล์"}
                             >
-                              {row.file_name || "เปิดไฟล์"}
+                              <span className="truncate">{row.file_name || "เปิดไฟล์"}</span>
                             </button>
                           ) : (
                             <span className="text-gray-400">-</span>
                           )}
+                          <div
+                            className="text-gray-500 truncate max-w-[36ch]"
+                            title={row.title || "-"}
+                          >
+                            {row.title || "-"}
+                          </div>
                         </div>
-                        <div className="text-sm text-gray-500">{row.title || "-"}</div>
                       </td>
                       <td className="px-3 py-2">{TYPE_LABEL[row.announcement_type] || row.announcement_type || "-"}</td>
                       <td className="px-3 py-2">{resolveYearLabel(row)}</td>
@@ -871,24 +1121,24 @@ export default function AnnouncementManager() {
                         </div>
                       </td>
                       <td className="px-3 py-2">
-                        <div className="flex flex-row flex-wrap justify-end gap-2 [&>button]:whitespace-nowrap">
+                        <div className="flex flex-row justify-end gap-2 flex-nowrap [&>button]:whitespace-nowrap">
                           <button
-                            onClick={() => handleDownloadFile(row.file_path)}
-                            className="text-green-600 hover:bg-green-50 p-2 rounded-lg mr-1 inline-flex items-center gap-1"
+                            onClick={() => handleDownloadFile(row, "announcement")}
+                            className="text-green-600 hover:bg-green-50 p-2 rounded-lg inline-flex items-center gap-1"
                             title="ดาวน์โหลดไฟล์"
                           >
                             <Download size={16} /> ดาวน์โหลด
                           </button>
                           <button
                             onClick={() => openAEdit(row)}
-                            className="text-blue-600 hover:bg-blue-50 p-2 rounded-lg mr-1 inline-flex items-center gap-1"
+                            className="text-blue-600 hover:bg-blue-50 p-2 rounded-lg inline-flex items-center gap-1"
                             title="แก้ไข"
                           >
                             <Edit size={16} /> แก้ไข
                           </button>
                           <button
                             onClick={() => handleADelete(row)}
-                            className="text-red-600 hover:bg-red-50 p-2 rounded-lg mr-1 inline-flex items-center gap-1"
+                            className="text-red-600 hover:bg-red-50 p-2 rounded-lg inline-flex items-center gap-1"
                             title="ลบ"
                           >
                             <Trash2 size={16} /> ลบ
@@ -979,22 +1229,25 @@ export default function AnnouncementManager() {
                         </div>
                       </td>
                       <td className="px-3 py-2">
-                        <div className="font-medium">
+                        <div className="flex flex-col gap-1 text-sm">
                           {row.file_path ? (
-                            <a
-                              href={getFileURL(row.file_path)}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-blue-600 hover:underline"
-                              title="เปิดดูไฟล์"
+                            <button
+                              onClick={() => handleViewFile(row, "fundForm")}
+                              className="text-blue-600 hover:underline text-left inline-flex max-w-[28ch]"
+                              title={row.file_name || "เปิดไฟล์"}
                             >
-                              {row.file_name || "เปิดไฟล์"}
-                            </a>
+                              <span className="truncate">{row.file_name || "เปิดไฟล์"}</span>
+                            </button>
                           ) : (
                             <span className="text-gray-500">-</span>
                           )}
+                          <div
+                            className="text-gray-500 truncate max-w-[36ch]"
+                            title={row.title || "-"}
+                          >
+                            {row.title || "-"}
+                          </div>
                         </div>
-                        <div className="text-sm text-gray-500">{row.title || "-"}</div>
                       </td>
                       <td className="px-3 py-2">{FORM_TYPE_LABEL[row.form_type] || row.form_type || "-"}</td>
                       <td className="px-3 py-2">{FUND_CATEGORY_LABEL[row.fund_category] || row.fund_category || "-"}</td>
@@ -1008,24 +1261,24 @@ export default function AnnouncementManager() {
                         </div>
                       </td>
                       <td className="px-3 py-2">
-                        <div className="flex flex-row flex-wrap justify-end gap-2 [&>button]:whitespace-nowrap">
+                        <div className="flex flex-row justify-end gap-2 flex-nowrap [&>button]:whitespace-nowrap">
                           <button
-                            onClick={() => handleDownloadFile(getFileURL(row.file_path))}
-                            className="text-green-600 hover:bg-green-50 p-2 rounded-lg mr-1 inline-flex items-center gap-1"
+                            onClick={() => handleDownloadFile(row, "fundForm")}
+                            className="text-green-600 hover:bg-green-50 p-2 rounded-lg inline-flex items-center gap-1"
                             title="ดาวน์โหลดไฟล์"
                           >
                             <Download size={16} /> ดาวน์โหลด
                           </button>
                           <button
                             onClick={() => openFEdit(row)}
-                            className="text-blue-600 hover:bg-blue-50 p-2 rounded-lg mr-1 inline-flex items-center gap-1"
+                            className="text-blue-600 hover:bg-blue-50 p-2 rounded-lg inline-flex items-center gap-1"
                             title="แก้ไข"
                           >
                             <Edit size={16} /> แก้ไข
                           </button>
                           <button
                             onClick={() => handleFDelete(row)}
-                            className="text-red-600 hover:bg-red-50 p-2 rounded-lg mr-1 inline-flex items-center gap-1"
+                            className="text-red-600 hover:bg-red-50 p-2 rounded-lg inline-flex items-center gap-1"
                             title="ลบ"
                           >
                             <Trash2 size={16} /> ลบ
