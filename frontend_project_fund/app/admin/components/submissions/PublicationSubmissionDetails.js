@@ -1246,20 +1246,26 @@ export default function PublicationSubmissionDetails({ submissionId, onBack }) {
         const docsFallback = submission.documents || submission.submission_documents || [];
         const rawDocs = docsApi.length ? docsApi : docsFallback;
 
-        const merged = rawDocs.map((d, i) => {
-          const fileId = d.file_id ?? d.File?.file_id ?? d.file?.file_id ?? d.id;
+        const merged = rawDocs.reduce((acc, d, i) => {
+          const fileId = d.file_id ?? d.File?.file_id ?? d.file?.file_id ?? null;
+          if (fileId == null) {
+            console.warn('Skipped publication document without file_id', d);
+            return acc;
+          }
+
           const name = d.file_name ?? d.original_name ?? d.original_filename ?? d.File?.original_name ?? d.file?.original_name ?? d.name ?? `เอกสารที่ ${i + 1}`;
           const docTypeId = d.document_type_id ?? d.DocumentTypeID ?? d.doc_type_id ?? null;
           const docTypeName = d.document_type_name || typeMap[docTypeId] || 'ไม่ระบุหมวด';
 
-          return {
+          acc.push({
             ...d,
             file_id: fileId,
             original_name: name,
             document_type_id: docTypeId,
             document_type_name: docTypeName,
-          };
-        });
+          });
+          return acc;
+        }, []);
 
         // Add console.log for attachments
         console.log('Publication Submission Attachments (merged):', merged);
@@ -2319,7 +2325,9 @@ export default function PublicationSubmissionDetails({ submissionId, onBack }) {
             ) : attachments.length > 0 ? (
               <div className="space-y-4">
                 {attachments.map((doc, index) => {
-                  const fileId = doc.file_id || doc.File?.file_id || doc.file?.file_id;
+                  const fileId = doc.file_id ?? doc.File?.file_id ?? doc.file?.file_id ?? null;
+                  if (fileId == null) return null;
+
                   const fileName =
                     doc.original_name ||
                     doc.File?.original_name ||
