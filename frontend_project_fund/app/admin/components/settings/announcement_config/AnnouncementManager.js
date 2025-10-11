@@ -1011,7 +1011,7 @@ export default function AnnouncementManager() {
                             {/* ดาวน์โหลด */}
                             <button
                               onClick={() => handleDownloadFile(getFileURL(row.file_path))}
-                              className="inline-flex items-center gap-1 px-3 py-1 text-sm text-green-600 bg-green-50 hover:bg-green-100 rounded-md"
+                              className="text-green-600 hover:bg-green-50 p-2 rounded-lg mr-1 inline-flex items-center gap-1"
                               title="ดาวน์โหลดไฟล์"
                             >
                               <Download size={16} /> ดาวน์โหลด
@@ -1020,7 +1020,7 @@ export default function AnnouncementManager() {
                             {/* แก้ไข (ธีมเดียวกับ 'ดู') */}
                             <button
                               onClick={() => openFEdit(row)}
-                              className="inline-flex items-center gap-1 px-3 py-1 text-sm text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-md"
+                              className="text-blue-600 hover:bg-blue-50 p-2 rounded-lg mr-1 inline-flex items-center gap-1"
                               title="แก้ไข"
                             >
                               <Edit size={16} /> แก้ไข
@@ -1029,7 +1029,7 @@ export default function AnnouncementManager() {
                             {/* ลบ (โทนอ่อน) */}
                             <button
                               onClick={() => handleFDelete(row)}
-                              className="inline-flex items-center gap-1 px-3 py-1 text-sm text-red-600 bg-red-50 hover:bg-red-100 rounded-md"
+                              className="text-red-600 hover:bg-red-50 p-2 rounded-lg mr-1 inline-flex items-center gap-1"
                               title="ลบ"
                             >
                               <Trash2 size={16} /> ลบ
