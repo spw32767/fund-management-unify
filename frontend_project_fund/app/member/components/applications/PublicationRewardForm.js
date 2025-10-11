@@ -3192,17 +3192,20 @@ const showSubmissionConfirmation = async () => {
             // Upload file
             const uploadResponse = await fileAPI.uploadFile(fileData.file);
             console.log(`File ${i + 1} upload response:`, uploadResponse);
-            
+
             if (!uploadResponse.success || !uploadResponse.file || !uploadResponse.file.file_id) {
               throw new Error('Upload response missing file_id');
             }
+
+            const originalName = uploadResponse?.file?.original_name ?? fileData.file?.name ?? '';
 
             // Prepare document attachment data
             const attachData = {
               file_id: uploadResponse.file.file_id,
               document_type_id: fileData.document_type_id,
               description: fileData.description,
-              display_order: i + 1
+              display_order: i + 1,
+              original_name: originalName
             };
 
             // Add special data for external funding documents
