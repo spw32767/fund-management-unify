@@ -13,6 +13,7 @@ import (
 	"regexp"
 	"strings"
 	"unicode"
+	"unicode/utf8"
 )
 
 // SanitizeFilename ทำความสะอาดชื่อไฟล์ให้ปลอดภัย
@@ -36,7 +37,7 @@ func SanitizeFilename(filename string) string {
 	// Remove leading/trailing underscores
 	filename = strings.Trim(filename, "_")
 
-	const maxFilenameLength = 512
+	const maxFilenameLength = 240
 
 	// Preserve file extension while enforcing the max length
 	ext := filepath.Ext(filename)
@@ -55,18 +56,69 @@ func SanitizeFilename(filename string) string {
 	allowedBaseLength := maxFilenameLength - len(ext)
 	if allowedBaseLength <= 0 {
 		base = ""
-	} else if len(base) > allowedBaseLength {
-		base = base[:allowedBaseLength]
+	} else {
+		trimmedBase := strings.Trim(base, "_")
+		if len(trimmedBase) > allowedBaseLength {
+			trimmedBase = truncateToMaxBytes(trimmedBase, allowedBaseLength)
+			trimmedBase = strings.Trim(trimmedBase, "_")
+		}
+		base = trimmedBase
 	}
 
-	filename = strings.Trim(base, "_") + ext
+	base = strings.Trim(base, "_")
+	if base == "" && allowedBaseLength > 0 {
+		fallback := GenerateRandomString(10)
+		if len(fallback) > allowedBaseLength {
+			fallback = truncateToMaxBytes(fallback, allowedBaseLength)
+		}
+		base = fallback
+	}
 
-	// If empty, generate random name
+	filename := base + ext
+	if len(filename) > maxFilenameLength {
+		base = truncateToMaxBytes(base, maxFilenameLength-len(ext))
+		base = strings.Trim(base, "_")
+		if base == "" {
+			base = GenerateRandomString(10)
+			if len(base) > maxFilenameLength-len(ext) {
+				base = truncateToMaxBytes(base, maxFilenameLength-len(ext))
+			}
+		}
+		filename = base + ext
+	}
+
 	if filename == "" {
 		filename = GenerateRandomString(10)
 	}
 
 	return filename
+}
+
+func truncateToMaxBytes(input string, maxBytes int) string {
+	if maxBytes <= 0 || len(input) <= maxBytes {
+		if maxBytes <= 0 {
+			return ""
+		}
+		return input
+	}
+
+	var builder strings.Builder
+	builder.Grow(maxBytes)
+
+	count := 0
+	for _, r := range input {
+		size := utf8.RuneLen(r)
+		if size < 0 {
+			size = 1
+		}
+		if count+size > maxBytes {
+			break
+		}
+		builder.WriteRune(r)
+		count += size
+	}
+
+	return builder.String()
 }
 
 // DefaultString returns default value if input is empty
