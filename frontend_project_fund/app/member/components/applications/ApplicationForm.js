@@ -189,7 +189,7 @@ export default function ApplicationForm({ selectedFund, onNavigate }) {
             return null;
           }),
         documentTypesAPI
-          .getDocumentTypes({ category: 'fund_application' })
+          .getDocumentTypes({ fund_type: 'fund_application' })
           .catch((error) => {
             console.error('Error fetching fund document types:', error);
             return null;

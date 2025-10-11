@@ -1,5 +1,5 @@
 // app/lib/publication_api.js - Updated with submissionUsersAPI
-import apiClient from './api';
+import apiClient, { documentTypesAPI } from './api';
 
 // Helper function to get auth headers
 const getAuthHeaders = () => {
@@ -487,7 +487,9 @@ export const publicationFormAPI = {
 
   async getDocumentTypes() {
     try {
-      const response = await apiClient.get('/document-types', { category: 'publication' });
+      const response = await documentTypesAPI.getDocumentTypes({
+        fund_type: 'publication_reward',
+      });
       return response;
     } catch (error) {
       console.error('Error fetching document types:', error);

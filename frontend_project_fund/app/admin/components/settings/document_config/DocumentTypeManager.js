@@ -6,7 +6,7 @@ import Swal from "sweetalert2";
 
 import { documentTypesAPI } from "@/app/lib/api";
 import { adminAPI } from "@/app/lib/admin_api";
-import DocumentTypeModal from "./DocumentTypeModal";
+import DocumentTypeModal, { FUND_TYPE_OPTIONS } from "./DocumentTypeModal";
 
 const Toast = Swal.mixin({
   toast: true,
@@ -24,18 +24,6 @@ const normalizeApiList = (value, fallbackKey) => {
     if (Array.isArray(value[fallbackKey])) return value[fallbackKey];
   }
   return [];
-};
-
-const pickCategoryName = (category) => {
-  if (!category) return "";
-  const candidates = [
-    category.category_name,
-    category.name,
-    category.name_th,
-    category.title,
-    category.title_th,
-  ];
-  return candidates.find((item) => typeof item === "string" && item.trim() !== "") || "";
 };
 
 const dedupeStringList = (items) => {
@@ -61,6 +49,10 @@ const dedupeStringList = (items) => {
   return result;
 };
 
+const FUND_TYPE_LABELS = Object.fromEntries(
+  FUND_TYPE_OPTIONS.map((option) => [option.value, option.label]),
+);
+
 const buildSubcategoryOptions = (rawSubcategories) => {
   const unique = new Map();
 
@@ -84,22 +76,12 @@ const buildSubcategoryOptions = (rawSubcategories) => {
 
     const name = nameCandidate.trim();
     const lower = name.toLowerCase();
-    const categoryName = pickCategoryName(item.category);
-
     if (!unique.has(lower)) {
       unique.set(lower, {
         id: item.subcategory_id ?? item.id,
         name,
-        categories: categoryName ? [categoryName] : [],
       });
       return;
-    }
-
-    if (categoryName) {
-      const entry = unique.get(lower);
-      if (!entry.categories.includes(categoryName)) {
-        entry.categories.push(categoryName);
-      }
     }
   });
 
@@ -107,7 +89,6 @@ const buildSubcategoryOptions = (rawSubcategories) => {
     .map((entry) => ({
       id: entry.id,
       name: entry.name,
-      category: entry.categories.join(", "),
     }))
     .sort((a, b) => (a.name || "").localeCompare(b.name || "", "th"));
 };
@@ -137,7 +118,6 @@ const formatDocumentType = (item) => {
     document_type_id: item.document_type_id ?? item.id,
     document_type_name: item.document_type_name ?? item.name ?? "",
     code: item.code || "",
-    category: item.category || "",
     required: Boolean(item.required),
     multiple: Boolean(item.multiple),
     document_order: item.document_order ?? 0,
@@ -205,7 +185,6 @@ const DocumentTypeManager = () => {
         const candidates = [
           item.document_type_name,
           item.code,
-          item.category,
           item.subcategory_name,
           ...(item.subcategory_names || []),
           ...(item.fund_types || []),
@@ -260,7 +239,6 @@ const DocumentTypeManager = () => {
     const payload = {
       document_type_name: formData.document_type_name,
       code: formData.code,
-      category: formData.category,
       document_order: Number(formData.document_order) || 0,
       required: Boolean(formData.required),
       multiple: Boolean(formData.multiple),
@@ -363,7 +341,6 @@ const DocumentTypeManager = () => {
                 <tr>
                   <th className="px-4 py-3 text-left font-medium text-gray-600">ชื่อเอกสาร</th>
                   <th className="px-4 py-3 text-left font-medium text-gray-600">รหัส</th>
-                  <th className="px-4 py-3 text-left font-medium text-gray-600">หมวดหมู่</th>
                   <th className="px-4 py-3 text-left font-medium text-gray-600">ประเภททุน</th>
                   <th className="px-4 py-3 text-left font-medium text-gray-600">ประเภทย่อยที่ใช้ได้</th>
                   <th className="px-4 py-3 text-left font-medium text-gray-600">ตัวเลือก</th>
@@ -373,13 +350,13 @@ const DocumentTypeManager = () => {
               <tbody className="divide-y divide-gray-100">
                 {loading ? (
                   <tr>
-                    <td colSpan={7} className="px-4 py-6 text-center text-gray-500">
+                    <td colSpan={6} className="px-4 py-6 text-center text-gray-500">
                       กำลังโหลดข้อมูล...
                     </td>
                   </tr>
                 ) : filteredTypes.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="px-4 py-6 text-center text-gray-500">
+                    <td colSpan={6} className="px-4 py-6 text-center text-gray-500">
                       ไม่พบประเภทเอกสาร
                     </td>
                   </tr>
@@ -395,7 +372,6 @@ const DocumentTypeManager = () => {
                         </div>
                       </td>
                       <td className="px-4 py-3 text-gray-700">{item.code}</td>
-                      <td className="px-4 py-3 text-gray-700">{item.category || "-"}</td>
                       <td className="px-4 py-3">
                         <div className="flex flex-wrap gap-1">
                           {(() => {
@@ -413,7 +389,7 @@ const DocumentTypeManager = () => {
                                 key={`${item.document_type_id}-${fund.toLowerCase()}`}
                                 className="rounded-full bg-blue-50 px-2 py-0.5 text-xs text-blue-600"
                               >
-                                {fund}
+                                {FUND_TYPE_LABELS[fund] || fund}
                               </span>
                             ));
                           })()}

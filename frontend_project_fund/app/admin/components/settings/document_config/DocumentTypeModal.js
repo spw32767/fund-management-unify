@@ -3,7 +3,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { X } from "lucide-react";
 
-const FUND_TYPE_OPTIONS = [
+export const FUND_TYPE_OPTIONS = [
   { value: "fund_application", label: "คำขอรับทุนวิจัย" },
   { value: "publication_reward", label: "เงินรางวัลผลงานเผยแพร่" },
 ];
@@ -11,7 +11,6 @@ const FUND_TYPE_OPTIONS = [
 const initialFormState = {
   document_type_name: "",
   code: "",
-  category: "",
   document_order: 0,
   required: false,
   multiple: false,
@@ -41,42 +40,27 @@ const DocumentTypeModal = ({
       if (!rawName) return;
 
       const key = rawName.toLowerCase();
-      const rawCategory =
-        typeof option?.category === "string" ? option.category.trim() : "";
 
       if (!unique.has(key)) {
         unique.set(key, {
           ...option,
           name: rawName,
-          _categories: rawCategory ? [rawCategory] : [],
         });
-        return;
-      }
-
-      if (rawCategory) {
-        const existing = unique.get(key);
-        if (!existing._categories.includes(rawCategory)) {
-          existing._categories.push(rawCategory);
-        }
       }
     });
 
-    return Array.from(unique.values())
-      .map((option) => {
-        const { _categories = [], ...rest } = option;
-        return {
-          ...rest,
-          category: _categories.length > 0 ? _categories.join(", ") : "",
-        };
-      })
-      .sort((a, b) => (a.name || "").localeCompare(b.name || "", "th"));
+    return Array.from(unique.values()).sort((a, b) =>
+      (a.name || "").localeCompare(b.name || "", "th"),
+    );
   }, [subcategoryOptions]);
 
   useEffect(() => {
     if (isOpen) {
+      const { category: _legacyCategory, ...restInitialData } =
+        initialData || {};
       const base = {
         ...initialFormState,
-        ...initialData,
+        ...restInitialData,
       };
 
       setFormState({
@@ -84,7 +68,6 @@ const DocumentTypeModal = ({
         ...base,
         document_type_name: base.document_type_name || "",
         code: base.code || "",
-        category: base.category || "",
         document_order: Number(base.document_order || 0),
         required: Boolean(base.required),
         multiple: Boolean(base.multiple),
@@ -109,8 +92,7 @@ const DocumentTypeModal = ({
     if (!term) return normalizedSubcategoryOptions;
     return normalizedSubcategoryOptions.filter((option) => {
       const name = option?.name?.toLowerCase?.() || "";
-      const category = option?.category?.toLowerCase?.() || "";
-      return name.includes(term) || category.includes(term);
+      return name.includes(term);
     });
   }, [normalizedSubcategoryOptions, subcategorySearch]);
 
@@ -148,7 +130,6 @@ const DocumentTypeModal = ({
     const payload = {
       document_type_name: formState.document_type_name.trim(),
       code: formState.code.trim(),
-      category: formState.category.trim(),
       document_order: Number(formState.document_order) || 0,
       required: Boolean(formState.required),
       multiple: Boolean(formState.multiple),
@@ -225,24 +206,6 @@ const DocumentTypeModal = ({
                   }
                   className="w-full rounded-lg border border-gray-300 px-3 py-2 text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
                   placeholder="เช่น publication_reward_form"
-                />
-              </div>
-
-              <div>
-                <label className="mb-2 block text-sm font-medium text-gray-700">
-                  หมวดหมู่ (Category)
-                </label>
-                <input
-                  type="text"
-                  value={formState.category}
-                  onChange={(e) =>
-                    setFormState((prev) => ({
-                      ...prev,
-                      category: e.target.value,
-                    }))
-                  }
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
-                  placeholder="เช่น publication"
                 />
               </div>
 
@@ -355,7 +318,7 @@ const DocumentTypeModal = ({
                   value={subcategorySearch}
                   onChange={(e) => setSubcategorySearch(e.target.value)}
                   className="mb-3 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-600 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
-                  placeholder="ค้นหาชื่อประเภทย่อยหรือหมวดหมู่"
+                  placeholder="ค้นหาชื่อประเภทย่อย"
                 />
                 <div className="max-h-80 overflow-y-auto rounded-lg border border-gray-200">
                   {filteredSubcategoryOptions.length === 0 ? (
@@ -408,11 +371,6 @@ const DocumentTypeModal = ({
                                 <span className="block text-sm font-medium text-gray-800">
                                   {name || "(ไม่ระบุชื่อ)"}
                                 </span>
-                                {option?.category ? (
-                                  <span className="mt-1 block text-xs text-gray-500">
-                                    หมวดหมู่: {option.category}
-                                  </span>
-                                ) : null}
                               </span>
                             </label>
                           </li>
