@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { 
   ArrowLeft,
   FileText,
@@ -23,7 +23,6 @@ import {
   Building,
   FileCheck,
 } from "lucide-react";
-import { submissionAPI, submissionUsersAPI } from "@/app/lib/member_api";
 import apiClient, { announcementAPI } from "@/app/lib/api";
 import PageLayout from "../common/PageLayout";
 import Card from "../common/Card";
@@ -203,10 +202,77 @@ const resolveAnnouncementInfo = (value, fallbackLabel) => {
 export default function PublicationRewardDetail({ submissionId, onNavigate }) {
   const [submission, setSubmission] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [documents, setDocuments] = useState([]);
+  const [documentsLoading, setDocumentsLoading] = useState(false);
   const [activeTab, setActiveTab] = useState("details");
   const [mainAnnouncementDetail, setMainAnnouncementDetail] = useState(null);
   const [rewardAnnouncementDetail, setRewardAnnouncementDetail] = useState(null);
   const { getLabelById, getCodeById } = useStatusMap();
+
+  const submissionCacheKey = useMemo(
+    () => ["memberSubmission", submissionId ?? null],
+    [submissionId]
+  );
+  const documentsCacheKey = useMemo(
+    () => ["memberSubmissionDocs", submissionId ?? null],
+    [submissionId]
+  );
+
+  const activeRequestsRef = useRef({
+    submission: { controller: null, token: null, cacheKey: submissionCacheKey },
+    documents: { controller: null, token: null, cacheKey: documentsCacheKey },
+  });
+
+  useEffect(() => {
+    activeRequestsRef.current.submission.cacheKey = submissionCacheKey;
+    activeRequestsRef.current.documents.cacheKey = documentsCacheKey;
+  }, [submissionCacheKey, documentsCacheKey]);
+
+  const fetchSubmissionDetail = useCallback(
+    async ({ targetSubmissionId, signal }) => {
+      if (!targetSubmissionId) return null;
+
+      const url = `${apiClient.baseURL}/submissions/${targetSubmissionId}`;
+      return apiClient.makeRequestWithRetry(url, { method: "GET", signal });
+    },
+    []
+  );
+
+  const fetchSubmissionUsers = useCallback(
+    async ({ targetSubmissionId, signal }) => {
+      if (!targetSubmissionId) return null;
+      try {
+        const url = `${apiClient.baseURL}/submissions/${targetSubmissionId}/users`;
+        const response = await apiClient.makeRequestWithRetry(url, {
+          method: "GET",
+          signal,
+        });
+        return response?.users || response?.data?.users || response || [];
+      } catch (error) {
+        if (error?.name === "AbortError") {
+          return null;
+        }
+        console.log("Could not load submission users separately", error);
+        return null;
+      }
+    },
+    []
+  );
+
+  const fetchSubmissionDocuments = useCallback(
+    async ({ targetSubmissionId, signal }) => {
+      if (!targetSubmissionId) return [];
+
+      const url = `${apiClient.baseURL}/submissions/${targetSubmissionId}/documents`;
+      const response = await apiClient.makeRequestWithRetry(url, {
+        method: "GET",
+        signal,
+      });
+
+      return response?.documents || response?.data?.documents || response || [];
+    },
+    []
+  );
 
   const getUserFullName = (user) => {
     if (!user) return "-";
@@ -277,10 +343,188 @@ export default function PublicationRewardDetail({ submissionId, onNavigate }) {
   };
 
   useEffect(() => {
-    if (submissionId) {
-      loadSubmissionDetail();
+    const submissionController = new AbortController();
+    const documentsController = new AbortController();
+    const submissionToken = Symbol("submission-request");
+    const documentsToken = Symbol("documents-request");
+
+    if (activeRequestsRef.current.submission.controller) {
+      activeRequestsRef.current.submission.controller.abort();
     }
-  }, [submissionId]);
+    if (activeRequestsRef.current.documents.controller) {
+      activeRequestsRef.current.documents.controller.abort();
+    }
+
+    activeRequestsRef.current.submission = {
+      controller: submissionController,
+      token: submissionToken,
+      cacheKey: submissionCacheKey,
+    };
+    activeRequestsRef.current.documents = {
+      controller: documentsController,
+      token: documentsToken,
+      cacheKey: documentsCacheKey,
+    };
+
+    setSubmission(null);
+    setDocuments([]);
+    setLoading(Boolean(submissionId));
+    setDocumentsLoading(Boolean(submissionId));
+
+    if (!submissionId) {
+      return () => {
+        submissionController.abort();
+        documentsController.abort();
+      };
+    }
+
+    (async () => {
+      try {
+        const response = await fetchSubmissionDetail({
+          targetSubmissionId: submissionId,
+          signal: submissionController.signal,
+        });
+        if (!response || submissionController.signal.aborted) {
+          return;
+        }
+        if (activeRequestsRef.current.submission.token !== submissionToken) {
+          return;
+        }
+
+        let submissionData = response.submission || response;
+        const responseId =
+          submissionData?.submission_id ??
+          submissionData?.id ??
+          response?.submission_id ??
+          null;
+        if (
+          responseId != null &&
+          String(responseId) !== String(submissionId)
+        ) {
+          console.warn("Ignored submission response due to mismatched id", {
+            expected: submissionId,
+            received: responseId,
+          });
+          return;
+        }
+
+        const applicant =
+          response.applicant ||
+          response.applicant_user ||
+          submissionData.user ||
+          submissionData.User;
+        if (applicant) {
+          submissionData.applicant = applicant;
+          submissionData.user = applicant;
+        }
+        if (response.applicant_user_id) {
+          submissionData.applicant_user_id = response.applicant_user_id;
+        }
+
+        if (response.submission_users && response.submission_users.length > 0) {
+          submissionData.submission_users = response.submission_users;
+        }
+
+        const needsUserData =
+          !submissionData.submission_users ||
+          submissionData.submission_users.some((u) => {
+            const ud = u.User || u.user;
+            if (!ud) return true;
+            const idValid =
+              ud.user_id ||
+              ud.id ||
+              u.user_id ||
+              u.UserID;
+            const hasName =
+              ud.user_fname ||
+              ud.user_lname ||
+              ud.first_name ||
+              ud.last_name ||
+              ud.full_name ||
+              ud.fullname ||
+              ud.name;
+            return !idValid || !hasName;
+          });
+
+        if (needsUserData) {
+          const users = await fetchSubmissionUsers({
+            targetSubmissionId: submissionId,
+            signal: submissionController.signal,
+          });
+          if (
+            users &&
+            !submissionController.signal.aborted &&
+            activeRequestsRef.current.submission.token === submissionToken
+          ) {
+            const normalizedUsers = Array.isArray(users)
+              ? users
+              : users?.users || [];
+            if (Array.isArray(normalizedUsers) && normalizedUsers.length > 0) {
+              submissionData.submission_users = normalizedUsers;
+            }
+          }
+        }
+
+        if (
+          submissionController.signal.aborted ||
+          activeRequestsRef.current.submission.token !== submissionToken
+        ) {
+          return;
+        }
+
+        setSubmission(submissionData);
+      } catch (error) {
+        if (error?.name === "AbortError") {
+          return;
+        }
+        console.error("Error loading submission detail:", error);
+      } finally {
+        if (activeRequestsRef.current.submission.token === submissionToken) {
+          setLoading(false);
+        }
+      }
+    })();
+
+    (async () => {
+      try {
+        const response = await fetchSubmissionDocuments({
+          targetSubmissionId: submissionId,
+          signal: documentsController.signal,
+        });
+        if (documentsController.signal.aborted) {
+          return;
+        }
+        if (activeRequestsRef.current.documents.token !== documentsToken) {
+          return;
+        }
+        const normalized = Array.isArray(response)
+          ? response
+          : response?.documents || [];
+        setDocuments(Array.isArray(normalized) ? normalized : []);
+      } catch (error) {
+        if (error?.name === "AbortError") {
+          return;
+        }
+        console.error("Error loading submission documents:", error);
+      } finally {
+        if (activeRequestsRef.current.documents.token === documentsToken) {
+          setDocumentsLoading(false);
+        }
+      }
+    })();
+
+    return () => {
+      submissionController.abort();
+      documentsController.abort();
+    };
+  }, [
+    submissionId,
+    submissionCacheKey,
+    documentsCacheKey,
+    fetchSubmissionDetail,
+    fetchSubmissionDocuments,
+    fetchSubmissionUsers,
+  ]);
 
   useEffect(() => {
     if (!submission) {
@@ -357,73 +601,6 @@ export default function PublicationRewardDetail({ submissionId, onNavigate }) {
       cancelled = true;
     };
   }, [submission]);
-
-  const loadSubmissionDetail = async () => {
-    setLoading(true);
-    try {
-      // โหลด submission detail
-      const response = await submissionAPI.getSubmission(submissionId);
-      //console.log('Submission Detail:', response);
-      console.log('Submission Detail:', JSON.stringify(response, null, 2));
-      
-       // เริ่มจากข้อมูล submission พื้นฐาน
-      let submissionData = response.submission || response;
-
-      // แนบข้อมูลผู้ยื่นคำร้องจาก response หากมี
-      const applicant =
-        response.applicant ||
-        response.applicant_user ||
-        submissionData.user ||
-        submissionData.User;
-      if (applicant) {
-        submissionData.applicant = applicant;
-        submissionData.user = applicant;
-      }
-      if (response.applicant_user_id) {
-        submissionData.applicant_user_id = response.applicant_user_id;
-      }
-      
-      // นำข้อมูล submission_users จาก response ถ้ามีมาใช้ก่อน
-      if (response.submission_users && response.submission_users.length > 0) {
-        submissionData.submission_users = response.submission_users;
-      }
-      
-      // ถ้าผู้แต่งที่ได้มายังไม่มีข้อมูล User ให้โหลดแยก
-      const needsUserData =
-        !submissionData.submission_users ||
-        submissionData.submission_users.some((u) => {
-          const ud = u.User || u.user;
-          if (!ud) return true;
-          const idValid = ud.user_id && ud.user_id !== 0;
-          const hasName =
-            ud.user_fname ||
-            ud.user_lname ||
-            ud.first_name ||
-            ud.last_name ||
-            ud.full_name ||
-            ud.fullname ||
-            ud.name;
-          return !idValid || !hasName;
-        });
-
-      if (needsUserData) {
-        try {
-          const usersResponse = await submissionUsersAPI.getUsers(submissionId);
-          if (usersResponse && usersResponse.users) {
-            submissionData.submission_users = usersResponse.users;
-          }
-        } catch (error) {
-          console.log('Could not load submission users separately');
-        }
-      }
-      
-      setSubmission(submissionData);
-    } catch (error) {
-      console.error('Error loading submission detail:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleBack = () => {
     if (onNavigate) {
@@ -537,9 +714,26 @@ export default function PublicationRewardDetail({ submissionId, onNavigate }) {
     approvedTotal !== null &&
     !Number.isNaN(approvedTotal);
 
-  // documents may come from different property names depending on the API response
-  const documents =
-    submission.documents || submission.submission_documents || [];
+  const sortedDocuments = useMemo(() => {
+    const list = Array.isArray(documents) ? [...documents] : [];
+    return list.sort((a, b) => {
+      const orderA = Number(a?.display_order ?? a?.DisplayOrder ?? 0);
+      const orderB = Number(b?.display_order ?? b?.DisplayOrder ?? 0);
+      if (orderA !== orderB) {
+        return orderA - orderB;
+      }
+      const idA = Number(
+        a?.document_id ?? a?.DocumentID ?? a?.id ?? a?.ID ?? 0
+      );
+      const idB = Number(
+        b?.document_id ?? b?.DocumentID ?? b?.id ?? b?.ID ?? 0
+      );
+      if (!Number.isNaN(idA) && !Number.isNaN(idB) && idA !== idB) {
+        return idA - idB;
+      }
+      return 0;
+    });
+  }, [documents]);
   const applicant = getApplicant();
 
   const statusCode =
@@ -1076,7 +1270,11 @@ export default function PublicationRewardDetail({ submissionId, onNavigate }) {
       {activeTab === 'documents' && (
         <Card title="เอกสารแนบ (Attachments)" icon={FileText} collapsible={false}>
           <div className="space-y-4">
-            {documents.length > 0 ? (
+            {documentsLoading ? (
+              <div className="py-6 text-center text-sm text-gray-500">
+                กำลังโหลดเอกสารแนบ...
+              </div>
+            ) : sortedDocuments.length > 0 ? (
               <div className="overflow-x-auto">
                 <table className="min-w-full divide-y divide-gray-200">
                   <thead className="bg-gray-50">
@@ -1096,7 +1294,7 @@ export default function PublicationRewardDetail({ submissionId, onNavigate }) {
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
-                    {documents.map((doc, index) => {
+                    {sortedDocuments.map((doc, index) => {
                       const fileId = doc.file_id || doc.File?.file_id || doc.file?.file_id;
                       const originalName =
                         typeof doc.original_name === "string"
