@@ -715,6 +715,21 @@ export default function PublicationRewardDetail({ submissionId, onNavigate }) {
     anchor.remove();
   };
 
+  // Extract publication details
+  const pubDetail =
+    submission?.PublicationRewardDetail ||
+    submission?.publication_reward_detail ||
+    {};
+
+  const requestedSummary = useMemo(
+    () => deriveRequestedSummary(pubDetail, submission),
+    [pubDetail, submission]
+  );
+  const approvedSummary = useMemo(
+    () => deriveApprovedSummary(pubDetail, submission, requestedSummary),
+    [pubDetail, submission, requestedSummary]
+  );
+
   if (loading) {
     return (
       <PageLayout
@@ -751,21 +766,6 @@ export default function PublicationRewardDetail({ submissionId, onNavigate }) {
       </PageLayout>
     );
   }
-
-  // Extract publication details
-  const pubDetail =
-    submission.PublicationRewardDetail ||
-    submission.publication_reward_detail ||
-    {};
-
-  const requestedSummary = useMemo(
-    () => deriveRequestedSummary(pubDetail, submission),
-    [pubDetail, submission]
-  );
-  const approvedSummary = useMemo(
-    () => deriveApprovedSummary(pubDetail, submission, requestedSummary),
-    [pubDetail, submission, requestedSummary]
-  );
 
   const requestedReward = requestedSummary.reward ?? 0;
   const requestedRevision = requestedSummary.revision ?? 0;
