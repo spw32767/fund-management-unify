@@ -12,41 +12,129 @@ import { PDFDocument } from "pdf-lib";
 // เพิ่ม apiClient สำหรับเรียก API โดยตรง
 import apiClient from '../../../lib/api';
 import { submissionAPI, documentAPI, fileAPI} from '../../../lib/member_api';
-import { getStatusIdByCode, statusService } from '../../../lib/status_service';
+import { statusService } from '../../../lib/status_service';
 
 // Match backend utils.StatusCodeDeptHeadPending for initial submission status
 const DEPT_HEAD_PENDING_STATUS_CODE = '5';
-const DEPT_HEAD_PENDING_STATUS_ID_FALLBACK = 6;
+const DEPT_HEAD_PENDING_STATUS_NAME_HINT = 'อยู่ระหว่างการพิจารณาจากหัวหน้าสาขา';
 
-const resolveDeptHeadPendingStatusId = async () => {
-  try {
-    const statusId = await getStatusIdByCode(DEPT_HEAD_PENDING_STATUS_CODE);
-    if (statusId) {
-      return Number(statusId);
-    }
-  } catch (error) {
-    console.warn('Unable to resolve status via code lookup', error);
+const buildResolvedStatus = (status) => {
+  if (!status || typeof status !== 'object') {
+    return null;
   }
 
-  try {
-    const statuses = await statusService.fetchAll({ force: true });
-    const targetStatus = statuses.find((status) => {
-      if (!status) return false;
-
-      const codeMatches = String(status.status_code) === DEPT_HEAD_PENDING_STATUS_CODE;
-      const nameMatches = status.status_name?.toLowerCase?.().includes('หัวหน้าสาขา');
-
-      return codeMatches || nameMatches;
-    });
-
-    if (targetStatus?.application_status_id != null) {
-      return Number(targetStatus.application_status_id);
-    }
-  } catch (error) {
-    console.warn('Unable to resolve status via status service cache', error);
+  const rawId =
+    status.application_status_id ?? status.status_id ?? status.id ?? status.raw?.application_status_id;
+  if (rawId == null) {
+    return null;
   }
 
-  return DEPT_HEAD_PENDING_STATUS_ID_FALLBACK;
+  const numericId = Number(rawId);
+  if (Number.isNaN(numericId)) {
+    return null;
+  }
+
+  const resolvedCode =
+    status.status_code != null
+      ? String(status.status_code)
+      : status.code != null
+      ? String(status.code)
+      : DEPT_HEAD_PENDING_STATUS_CODE;
+
+  const resolvedName =
+    String(status.status_name ?? status.name ?? '').trim() || DEPT_HEAD_PENDING_STATUS_NAME_HINT;
+
+  return {
+    id: numericId,
+    code: resolvedCode,
+    name: resolvedName,
+    raw: status,
+  };
+};
+
+const attemptResolveDeptHeadPendingStatus = (statuses) => {
+  if (!Array.isArray(statuses)) {
+    return null;
+  }
+
+  const normalizedStatuses = statuses.filter((status) => status && typeof status === 'object');
+  if (normalizedStatuses.length === 0) {
+    return null;
+  }
+
+  const normalizedCode = String(DEPT_HEAD_PENDING_STATUS_CODE);
+  const normalizedNameHint = DEPT_HEAD_PENDING_STATUS_NAME_HINT.trim().toLowerCase();
+
+  const byCode = normalizedStatuses.find((status) => {
+    const statusCode = status.status_code ?? status.code;
+    return statusCode != null && String(statusCode) === normalizedCode;
+  });
+  if (byCode) {
+    const resolved = buildResolvedStatus(byCode);
+    if (resolved) {
+      return resolved;
+    }
+  }
+
+  const byExactName = normalizedStatuses.find((status) => {
+    const statusName = String(status.status_name ?? status.name ?? '').trim().toLowerCase();
+    return statusName && statusName === normalizedNameHint;
+  });
+  if (byExactName) {
+    const resolved = buildResolvedStatus(byExactName);
+    if (resolved) {
+      return resolved;
+    }
+  }
+
+  const byPartialName = normalizedStatuses.find((status) => {
+    const statusName = String(status.status_name ?? status.name ?? '').toLowerCase();
+    return statusName.includes('หัวหน้าสาขา');
+  });
+  if (byPartialName) {
+    const resolved = buildResolvedStatus(byPartialName);
+    if (resolved) {
+      return resolved;
+    }
+  }
+
+  return null;
+};
+
+const resolveDeptHeadPendingStatus = async ({ force = false } = {}) => {
+  if (!force) {
+    try {
+      const cachedStatuses = statusService.getCached();
+      const cachedResult = attemptResolveDeptHeadPendingStatus(cachedStatuses);
+      if (cachedResult) {
+        return cachedResult;
+      }
+    } catch (error) {
+      console.warn('Unable to resolve status from cache', error);
+    }
+  }
+
+  const fetchAttempts = force ? [{ force: true }] : [{}, { force: true }];
+  let lastError = null;
+
+  for (const options of fetchAttempts) {
+    try {
+      const statuses = await statusService.fetchAll(options);
+      const resolved = attemptResolveDeptHeadPendingStatus(statuses);
+      if (resolved) {
+        return resolved;
+      }
+    } catch (error) {
+      lastError = error;
+      console.warn('Unable to fetch application statuses', error);
+    }
+  }
+
+  const resolutionError = new Error('ไม่พบสถานะสำหรับการพิจารณาของหัวหน้าสาขา');
+  if (lastError) {
+    resolutionError.cause = lastError;
+  }
+  throw resolutionError;
 };
 
 const resolveFundTypeMode = (doc) => {
@@ -227,9 +315,10 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
     hasPreviewed: false
   });
   const attachmentsPreviewUrlRef = useRef(null);
-  
+
   // Current user data
   const [currentUser, setCurrentUser] = useState(null);
+  const [pendingStatus, setPendingStatus] = useState(null);
 
   // =================================================================
   // INITIAL DATA LOADING
@@ -242,19 +331,25 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
     try {
       setLoading(true);
       setErrors({});
+      setPendingStatus(null);
 
       // Load user data and document requirements in parallel
-      const [userData, docRequirements] = await Promise.all([
+      const [userData, docRequirements, statusInfo] = await Promise.all([
         loadUserData(),
         loadDocumentRequirements(),
+        resolveDeptHeadPendingStatus(),
       ]);
 
       console.log('Loaded user data:', userData);
       console.log('Loaded document requirements:', docRequirements);
+      console.log('Resolved pending status:', statusInfo);
+
+      setPendingStatus(statusInfo);
 
     } catch (error) {
       console.error('Error loading initial data:', error);
       setErrors({ general: error.message || 'เกิดข้อผิดพลาดในการโหลดข้อมูล' });
+      setPendingStatus(null);
     } finally {
       setLoading(false);
     }
@@ -772,8 +867,13 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
     try {
       setSubmitting(true);
 
-      const deptPendingStatusId = await resolveDeptHeadPendingStatusId();
-      if (!deptPendingStatusId) {
+      let statusForSubmission = pendingStatus;
+      if (!statusForSubmission?.id) {
+        statusForSubmission = await resolveDeptHeadPendingStatus({ force: true });
+        setPendingStatus(statusForSubmission);
+      }
+
+      if (!statusForSubmission?.id) {
         throw new Error('ไม่พบสถานะสำหรับการพิจารณาของหัวหน้าสาขา');
       }
 
@@ -781,7 +881,7 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
       const submissionRes = await submissionAPI.createSubmission({
         submission_type: 'fund_application',
         year_id: subcategoryData?.year_id,
-        status_id: deptPendingStatusId
+        status_id: statusForSubmission.id
       });
       const submissionId = submissionRes?.submission?.submission_id;
 
@@ -886,7 +986,8 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
     { label: 'ทุนวิจัย', href: '/member?tab=research-fund' },
     { label: subcategoryData?.subcategory_name || 'ยื่นคำร้อง' }
   ];
-  const pendingStatusName = 'อยู่ระหว่างการพิจารณาจากหัวหน้าสาขา';
+  const pendingStatusName = pendingStatus?.name || 'กำลังโหลดสถานะ...';
+  const pendingStatusCode = pendingStatus?.code ?? '—';
   const formattedRequestedAmount = formatCurrency(formData.requested_amount || 0);
   const requiredDocumentCount = documentRequirements.filter((doc) => doc.required).length;
 
@@ -1171,7 +1272,7 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
               <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 shadow-sm">
                 <p className="text-sm text-emerald-800">เมื่อส่งคำร้อง ระบบจะตั้งสถานะการพิจารณาเป็น</p>
                 <div className="mt-3 flex flex-wrap items-center gap-3">
-                  <span className="inline-flex items-center rounded-full bg-white px-3 py-1 text-xs font-semibold text-emerald-700 shadow">รหัส {DEPT_HEAD_PENDING_STATUS_CODE}</span>
+                  <span className="inline-flex items-center rounded-full bg-white px-3 py-1 text-xs font-semibold text-emerald-700 shadow">รหัส {pendingStatusCode}</span>
                   <span className="text-base font-semibold text-emerald-900">{pendingStatusName}</span>
                 </div>
                 <p className="mt-3 text-xs text-emerald-700 leading-relaxed">
