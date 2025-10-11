@@ -62,6 +62,13 @@ returns the refreshed list of documents. This provides a safety valve for
 fixing historical submissions whose order may have diverged before the
 helper was introduced.
 
+> **Note:** the current frontend does not automatically call this route. It is
+> exposed for operations staff to invoke via tooling such as cURL, Postman, or a
+> future admin screen. Day-to-day submission flows already trigger
+> resequencing automatically through the controller hooks described above, so
+> manual calls are only needed when administrators wish to tidy up legacy data
+> explicitly.
+
 ## Impact on existing flows
 
 The helper preserves the rest of the workflow:
