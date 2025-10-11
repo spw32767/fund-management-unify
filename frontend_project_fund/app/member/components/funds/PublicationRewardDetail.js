@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { 
   ArrowLeft,
   FileText,
@@ -94,6 +94,15 @@ const firstNonEmpty = (...vals) => {
     }
   }
   return null;
+};
+
+const toArray = (value) => {
+  if (!value) return [];
+  if (Array.isArray(value)) return value;
+  if (typeof value === "object") {
+    return Object.values(value);
+  }
+  return [];
 };
 
 const getSubcategoryName = (submission, pubDetail) => {
@@ -275,6 +284,165 @@ export default function PublicationRewardDetail({ submissionId, onNavigate }) {
       })
       .sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
   };
+
+  const rawDocuments = useMemo(() => {
+    if (!submission) return [];
+    if (Array.isArray(submission.documents) && submission.documents.length > 0) {
+      return submission.documents;
+    }
+    if (Array.isArray(submission.submission_documents)) {
+      return submission.submission_documents;
+    }
+    return [];
+  }, [submission]);
+
+  const documentFileMap = useMemo(() => {
+    const map = {};
+    if (!submission) return map;
+
+    const addFile = (file) => {
+      if (!file) return;
+      const candidate = file.file || file.File || file;
+      if (!candidate) return;
+      const fidRaw =
+        candidate.file_id ??
+        candidate.FileID ??
+        candidate.id ??
+        candidate.fileId ??
+        candidate.managed_file_id;
+      if (fidRaw == null) return;
+      const fidNum = Number(fidRaw);
+      if (Number.isNaN(fidNum)) return;
+      const key = String(fidNum);
+      if (!map[key]) {
+        map[key] = { ...candidate, file_id: fidNum };
+      }
+    };
+
+    const potentialCollections = [
+      submission.files,
+      submission.file_uploads,
+      submission.fileUploads,
+      submission.Files,
+      submission.managed_files,
+      submission.managedFiles,
+      submission.document_files,
+      submission.documentFiles,
+      submission.files_list,
+      submission.filesList,
+    ];
+
+    potentialCollections.forEach((collection) => {
+      toArray(collection).forEach(addFile);
+    });
+
+    [submission.documents, submission.submission_documents].forEach((docs) => {
+      toArray(docs).forEach((doc) => {
+        addFile(doc?.File);
+        addFile(doc?.file);
+        addFile(doc?.file_upload);
+        addFile(doc?.fileUpload);
+        addFile(doc?.file_upload?.file);
+        addFile(doc?.fileUpload?.file);
+      });
+    });
+
+    return map;
+  }, [submission]);
+
+  const documents = useMemo(() => {
+    return rawDocuments.map((doc, index) => {
+      const rawFileId =
+        doc.file_id ??
+        doc.File?.file_id ??
+        doc.file?.file_id ??
+        doc.file_upload?.file_id ??
+        doc.fileUpload?.file_id ??
+        doc.file_upload_id ??
+        doc.file_upload?.id ??
+        doc.fileUpload?.id ??
+        doc.fileId ??
+        doc.managed_file_id ??
+        null;
+
+      let normalizedFileId =
+        rawFileId != null && rawFileId !== ""
+          ? Number(rawFileId)
+          : null;
+      if (Number.isNaN(normalizedFileId)) {
+        normalizedFileId = null;
+      }
+
+      let resolvedFile =
+        (normalizedFileId != null
+          ? documentFileMap[String(normalizedFileId)] || null
+          : null) ||
+        doc.File ||
+        doc.file ||
+        doc.file_upload ||
+        doc.fileUpload ||
+        null;
+
+      if (!resolvedFile && rawFileId != null) {
+        const fallback = documentFileMap[String(rawFileId)];
+        if (fallback) {
+          resolvedFile = fallback;
+          if (normalizedFileId == null && !Number.isNaN(Number(rawFileId))) {
+            normalizedFileId = Number(rawFileId);
+          }
+        }
+      }
+
+      if (
+        normalizedFileId == null &&
+        resolvedFile &&
+        resolvedFile.file_id != null &&
+        !Number.isNaN(Number(resolvedFile.file_id))
+      ) {
+        normalizedFileId = Number(resolvedFile.file_id);
+      }
+
+      const docName =
+        firstNonEmpty(
+          doc.File?.original_name,
+          doc.file?.original_name,
+          doc.file_upload?.original_name,
+          doc.fileUpload?.original_name,
+          doc.file_upload?.file?.original_name,
+          doc.fileUpload?.file?.original_name,
+          resolvedFile?.file?.original_name,
+          resolvedFile?.original_name,
+          resolvedFile?.file_name,
+          resolvedFile?.name,
+          doc.document_name,
+          doc.document_title,
+          doc.file_name,
+          doc.file_label,
+          doc.document_type_name,
+          doc.name,
+          doc.title,
+        ) ||
+        (doc.document_type
+          ? doc.document_type.document_type_name || doc.document_type.name
+          : null) ||
+        `เอกสารแนบที่ ${index + 1}`;
+
+      const docTypeName =
+        doc.document_type_name ||
+        doc.document_type?.document_type_name ||
+        doc.document_type?.name ||
+        null;
+
+      return {
+        ...doc,
+        file_id: normalizedFileId ?? rawFileId ?? null,
+        document_type_name: docTypeName,
+        resolved_file: resolvedFile || doc.file_upload || doc.fileUpload || null,
+        display_name: docName,
+      };
+    });
+  }, [rawDocuments, documentFileMap]);
+
 
   useEffect(() => {
     if (submissionId) {
@@ -538,8 +706,6 @@ export default function PublicationRewardDetail({ submissionId, onNavigate }) {
     !Number.isNaN(approvedTotal);
 
   // documents may come from different property names depending on the API response
-  const documents =
-    submission.documents || submission.submission_documents || [];
   const applicant = getApplicant();
 
   const statusCode =
@@ -1097,12 +1263,27 @@ export default function PublicationRewardDetail({ submissionId, onNavigate }) {
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
                     {documents.map((doc, index) => {
-                      const fileId = doc.file_id || doc.File?.file_id || doc.file?.file_id;
-                      const docName = doc.File?.original_name || doc.file?.original_name || doc.original_filename || doc.file_name || doc.name || `เอกสารที่ ${index + 1}`;
+                      const fileId =
+                        doc.file_id ??
+                        doc.resolved_file?.file_id ??
+                        doc.File?.file_id ??
+                        doc.file?.file_id ??
+                        null;
+                      const docName = doc.display_name || `เอกสารที่ ${index + 1}`;
                       const docType =
                         doc.document_type_name && doc.document_type_name.trim() !== ""
                           ? doc.document_type_name
                           : "-";
+                      const handleViewClick = () => {
+                        if (fileId != null) {
+                          handleView(fileId);
+                        }
+                      };
+                      const handleDownloadClick = () => {
+                        if (fileId != null) {
+                          handleDownload(fileId, docName);
+                        }
+                      };
                       return (
                         <tr key={doc.document_id || fileId || index}>
                           <td className="px-4 py-2 text-sm text-gray-500">{index + 1}</td>
@@ -1116,14 +1297,16 @@ export default function PublicationRewardDetail({ submissionId, onNavigate }) {
                           <td className="px-4 py-2">
                             <div className="flex items-center gap-2">
                               <button
-                                onClick={() => handleView(fileId)}
+                                onClick={handleViewClick}
+                                disabled={fileId == null}
                                 className="inline-flex items-center gap-1 px-3 py-1 text-sm text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-md"
                               >
                                 <Eye className="h-4 w-4" />
                                 ดู
                               </button>
                               <button
-                                onClick={() => handleDownload(fileId, docName)}
+                                onClick={handleDownloadClick}
+                                disabled={fileId == null}
                                 className="inline-flex items-center gap-1 px-3 py-1 text-sm text-green-600 bg-green-50 hover:bg-green-100 rounded-md"
                               >
                                 <Download className="h-4 w-4" />
