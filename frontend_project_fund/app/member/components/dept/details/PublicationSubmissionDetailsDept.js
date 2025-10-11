@@ -103,6 +103,123 @@ const escapeHtml = (value) =>
 const formatCurrencyParen = (n) =>
   `(${Number(Math.abs(n || 0)).toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})`;
 
+const parseAmount = (value) => {
+  if (value === null || value === undefined) return null;
+  if (typeof value === 'string') {
+    const cleaned = value.replace(/,/g, '').trim();
+    if (cleaned === '') return null;
+    const num = Number(cleaned);
+    return Number.isFinite(num) ? num : null;
+  }
+  const num = Number(value);
+  return Number.isFinite(num) ? num : null;
+};
+
+const deriveRequestedSummary = (pubDetail = {}, submission = {}) => {
+  const rewardRaw = parseAmount(pubDetail?.reward_amount ?? submission?.reward_amount);
+  const revisionRaw = parseAmount(
+    pubDetail?.revision_fee ?? pubDetail?.editing_fee ?? submission?.revision_fee
+  );
+  const publicationRaw = parseAmount(
+    pubDetail?.publication_fee ?? pubDetail?.page_charge ?? submission?.publication_fee
+  );
+  const externalRaw = parseAmount(
+    pubDetail?.external_funding_amount ?? submission?.external_funding_amount
+  );
+
+  const hasBreakdown =
+    rewardRaw != null || revisionRaw != null || publicationRaw != null;
+
+  const fallbackTotals = [
+    parseAmount(pubDetail?.total_amount),
+    parseAmount(submission?.total_amount),
+    parseAmount(submission?.requested_amount),
+  ];
+
+  let baseTotal = hasBreakdown
+    ? (rewardRaw ?? 0) + (revisionRaw ?? 0) + (publicationRaw ?? 0)
+    : fallbackTotals.find((value) => value != null);
+
+  if (baseTotal == null) {
+    baseTotal = (rewardRaw ?? 0) + (revisionRaw ?? 0) + (publicationRaw ?? 0);
+  }
+
+  let reward = rewardRaw;
+  if (reward == null) {
+    reward = hasBreakdown ? 0 : baseTotal ?? 0;
+  }
+
+  const revision = revisionRaw ?? 0;
+  const publication = publicationRaw ?? 0;
+  const external = externalRaw ?? 0;
+
+  const total = Math.max(0, (baseTotal ?? 0) - external);
+
+  return {
+    reward,
+    revision,
+    publication,
+    external,
+    baseTotal: baseTotal ?? 0,
+    total,
+    hasBreakdown,
+  };
+};
+
+const deriveApprovedSummary = (pubDetail = {}, submission = {}, requestedSummary) => {
+  const rewardRaw = parseAmount(
+    pubDetail?.reward_approve_amount ??
+      pubDetail?.reward_approved_amount ??
+      submission?.reward_approve_amount
+  );
+  const revisionRaw = parseAmount(
+    pubDetail?.revision_fee_approve_amount ??
+      pubDetail?.revision_fee_approved_amount ??
+      submission?.revision_fee_approve_amount
+  );
+  const publicationRaw = parseAmount(
+    pubDetail?.publication_fee_approve_amount ??
+      pubDetail?.publication_fee_approved_amount ??
+      submission?.publication_fee_approve_amount
+  );
+
+  const hasBreakdown =
+    rewardRaw != null || revisionRaw != null || publicationRaw != null;
+
+  const fallbackTotals = [
+    parseAmount(pubDetail?.total_approve_amount),
+    parseAmount(pubDetail?.approved_amount),
+    parseAmount(submission?.approved_amount),
+  ];
+
+  let baseTotal = hasBreakdown
+    ? (rewardRaw ?? 0) + (revisionRaw ?? 0) + (publicationRaw ?? 0)
+    : fallbackTotals.find((value) => value != null);
+
+  if (baseTotal == null && requestedSummary) {
+    baseTotal = requestedSummary.baseTotal;
+  }
+
+  const external =
+    requestedSummary?.external ??
+    parseAmount(
+      pubDetail?.external_funding_amount ?? submission?.external_funding_amount
+    ) ??
+    0;
+
+  const total = Math.max(0, (baseTotal ?? 0) - external);
+
+  return {
+    reward: rewardRaw ?? null,
+    revision: revisionRaw ?? null,
+    publication: publicationRaw ?? null,
+    external,
+    baseTotal: baseTotal ?? null,
+    total: baseTotal != null ? total : null,
+    hasBreakdown,
+  };
+};
+
 const getUserFullName = (user) => {
   if (!user) return '-';
   const firstName =
@@ -856,6 +973,32 @@ export default function PublicationSubmissionDetailsDept({ submissionId, onBack 
       Number(pubDetail?.revision_fee_approve_amount || 0) +
       Number(pubDetail?.publication_fee_approve_amount || 0));
 
+  const requestedSummary = useMemo(
+    () => deriveRequestedSummary(pubDetail, submission || {}),
+    [pubDetail, submission]
+  );
+  const approvedSummary = useMemo(
+    () => deriveApprovedSummary(pubDetail, submission || {}, requestedSummary),
+    [pubDetail, submission, requestedSummary]
+  );
+
+  const requestedTotal = requestedSummary.total ?? requestedSummary.baseTotal ?? 0;
+  const requestedReward = requestedSummary.reward ?? 0;
+  const requestedRevision = requestedSummary.revision ?? 0;
+  const requestedPublication = requestedSummary.publication ?? 0;
+  const requestedExternal = requestedSummary.external ?? 0;
+  const approvedTotalDisplay = (() => {
+    if (approvedSummary?.total != null) return approvedSummary.total;
+    const legacy = Number(approvedTotal);
+    return Number.isFinite(legacy) ? legacy : null;
+  })();
+  const approvedRewardValue =
+    approvedSummary && approvedSummary.reward != null ? approvedSummary.reward : null;
+  const approvedRevisionValue =
+    approvedSummary && approvedSummary.revision != null ? approvedSummary.revision : null;
+  const approvedPublicationValue =
+    approvedSummary && approvedSummary.publication != null ? approvedSummary.publication : null;
+
   const submittedAt =
     submission?.submitted_at ??
     pubDetail?.submitted_at ??
@@ -998,12 +1141,12 @@ export default function PublicationSubmissionDetailsDept({ submissionId, onBack 
 
   const showApprovedColumn =
     submission?.status_id === 2 &&
-    approvedTotal != null &&
-    !Number.isNaN(Number(approvedTotal));
+    approvedTotalDisplay != null &&
+    Number.isFinite(Number(approvedTotalDisplay));
 
   // --- helpers for showing requested rows (0 should still show if shared cap or approved exists) ---
-  const reqRevision    = Number(pubDetail?.revision_fee ?? pubDetail?.editing_fee ?? 0);
-  const reqPublication = Number(pubDetail?.publication_fee ?? pubDetail?.page_charge ?? 0);
+  const reqRevision    = requestedSummary.revision ?? 0;
+  const reqPublication = requestedSummary.publication ?? 0;
 
   // shared cap ถือว่ามี ก็ต่อเมื่อดึงมาได้เป็นตัวเลข > 0 เท่านั้น (ถ้า null/0 = ไม่มี)
   const hasSharedCap = typeof feeCap === 'number' && feeCap > 0;
@@ -1729,19 +1872,14 @@ export default function PublicationSubmissionDetailsDept({ submissionId, onBack 
         {/* Amounts (คอลัมน์ขวา) */}
         <div className="text-right">
           <div className="text-2xl font-bold text-blue-600">
-            {formatCurrency(pubDetail.reward_amount || 0)}
+            {formatCurrency(requestedTotal || 0)}
           </div>
           <div className="text-sm text-gray-500">จำนวนเงินที่ขอ</div>
 
-          {submission?.status_id === 2 && (
+          {submission?.status_id === 2 && approvedTotalDisplay != null && (
             <div className="mt-2">
               <div className="text-lg font-bold text-green-600">
-                {formatCurrency(
-                  pubDetail?.total_approve_amount ??
-                    (Number(pubDetail?.reward_approve_amount || 0) +
-                    Number(pubDetail?.revision_fee_approve_amount || 0) +
-                    Number(pubDetail?.publication_fee_approve_amount || 0))
-                )}
+                {formatCurrency(approvedTotalDisplay || 0)}
               </div>
               <div className="text-sm text-gray-500">จำนวนเงินที่อนุมัติ</div>
             </div>
@@ -1937,10 +2075,10 @@ export default function PublicationSubmissionDetailsDept({ submissionId, onBack 
                   <br />
                   <span className="text-xs font-normal text-gray-600">Requested Reward Amount</span>
                 </label>
-                <span className="text-right font-semibold">฿{formatCurrency(pubDetail.reward_amount || 0)}</span>
+                <span className="text-right font-semibold">฿{formatCurrency(requestedReward)}</span>
                 {submission?.status_id === 2 && (
                   <span className="text-right font-semibold">
-                    {pubDetail.reward_approve_amount != null ? `฿${formatCurrency(pubDetail.reward_approve_amount)}` : '-'}
+                    {approvedRewardValue != null ? `฿${formatCurrency(approvedRewardValue)}` : '-'}
                   </span>
                 )}
               </div>
@@ -1951,11 +2089,11 @@ export default function PublicationSubmissionDetailsDept({ submissionId, onBack 
                   ค่าปรับปรุงบทความ
                   <br /><span className="text-xs font-normal text-gray-600">Requested Manuscript Editing Fee</span>
                 </label>
-                <span className="text-right">฿{formatCurrency(pubDetail.revision_fee || pubDetail.editing_fee || 0)}</span>
+                <span className="text-right">฿{formatCurrency(requestedRevision)}</span>
                 {submission?.status_id === 2 && (
                   <span className="text-right">
-                    {pubDetail.revision_fee_approve_amount != null
-                      ? `฿${formatCurrency(pubDetail.revision_fee_approve_amount)}`
+                    {approvedRevisionValue != null
+                      ? `฿${formatCurrency(approvedRevisionValue)}`
                       : '-'}
                   </span>
                 )}
@@ -1967,18 +2105,18 @@ export default function PublicationSubmissionDetailsDept({ submissionId, onBack 
                   ค่าธรรมเนียมการตีพิมพ์
                   <br /><span className="text-xs font-normal text-gray-600">Requested Page Charge</span>
                 </label>
-                <span className="text-right">฿{formatCurrency(pubDetail.publication_fee || pubDetail.page_charge || 0)}</span>
+                <span className="text-right">฿{formatCurrency(requestedPublication)}</span>
                 {submission?.status_id === 2 && (
                   <span className="text-right">
-                    {pubDetail.publication_fee_approve_amount != null
-                      ? `฿${formatCurrency(pubDetail.publication_fee_approve_amount)}`
+                    {approvedPublicationValue != null
+                      ? `฿${formatCurrency(approvedPublicationValue)}`
                       : '-'}
                   </span>
                 )}
               </div>
 
               {/* External funding */}
-              {pubDetail.external_funding_amount > 0 && (
+              {requestedExternal > 0 && (
                 <div className={`grid ${submission?.status_id === 2 ? 'grid-cols-3' : 'grid-cols-2'} items-center pt-2 mt-2 border-t`}>
                   <label className="block text-sm font-medium text-gray-700">
                     เงินสนับสนุนจากภายนอก
@@ -1986,7 +2124,7 @@ export default function PublicationSubmissionDetailsDept({ submissionId, onBack 
                     <span className="text-xs font-normal text-gray-600">External Funding Sources</span>
                   </label>
                   <span className="text-right text-red-600">
-                    ฿{formatCurrencyParen(pubDetail.external_funding_amount)}
+                    ฿{formatCurrencyParen(requestedExternal)}
                   </span>
                   {submission?.status_id === 2 && <span></span>}
                 </div>
@@ -2000,16 +2138,11 @@ export default function PublicationSubmissionDetailsDept({ submissionId, onBack 
                   <span className="text-xs font-normal text-gray-600">Total Requested to CP-KKU</span>
                 </label>
                 <span className="text-right font-bold text-blue-600">
-                  ฿{formatCurrency(pubDetail.total_amount || pubDetail.reward_amount || 0)}
+                  ฿{formatCurrency(requestedTotal || 0)}
                 </span>
                 {submission?.status_id === 2 && (
                   <span className="text-right font-bold text-green-600">
-                    ฿{formatCurrency(
-                      pubDetail?.total_approve_amount ??
-                        (Number(pubDetail?.reward_approve_amount || 0) +
-                          Number(pubDetail?.revision_fee_approve_amount || 0) +
-                          Number(pubDetail?.publication_fee_approve_amount || 0))
-                    )}
+                    {approvedTotalDisplay != null ? `฿${formatCurrency(approvedTotalDisplay || 0)}` : '—'}
                   </span>
                 )}
               </div>
