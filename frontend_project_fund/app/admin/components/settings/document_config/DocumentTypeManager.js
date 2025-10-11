@@ -49,6 +49,36 @@ const dedupeStringList = (items) => {
   return result;
 };
 
+const determineFundTypeMode = (item) => {
+  if (typeof item?.fund_type_mode === "string") {
+    const trimmed = item.fund_type_mode.trim();
+    if (trimmed) return trimmed;
+  }
+
+  if (
+    Object.prototype.hasOwnProperty.call(item, "fund_types") &&
+    item.fund_types === null
+  ) {
+    return "inactive";
+  }
+
+  const fundTypes = dedupeStringList(item?.fund_types);
+  return fundTypes.length === 0 ? "all" : "limited";
+};
+
+const determineSubcategoryMode = (item, normalizedNames, fundTypeMode) => {
+  if (typeof item?.subcategory_mode === "string") {
+    const trimmed = item.subcategory_mode.trim();
+    if (trimmed) return trimmed;
+  }
+
+  if (item?.subcategory_name === null && normalizedNames.length === 0) {
+    return fundTypeMode === "inactive" ? "inactive" : "all";
+  }
+
+  return normalizedNames.length === 0 ? "all" : "limited";
+};
+
 const FUND_TYPE_LABELS = Object.fromEntries(
   FUND_TYPE_OPTIONS.map((option) => [option.value, option.label]),
 );
@@ -95,6 +125,8 @@ const buildSubcategoryOptions = (rawSubcategories) => {
 
 const formatDocumentType = (item) => {
   if (!item || typeof item !== "object") return null;
+  const fundTypeMode = determineFundTypeMode(item);
+  const fundTypes = dedupeStringList(item.fund_types);
   const rawNames = Array.isArray(item.subcategory_names)
     ? item.subcategory_names
     : Array.isArray(item.subcategories)
@@ -103,7 +135,7 @@ const formatDocumentType = (item) => {
 
   const normalizedNames = dedupeStringList(rawNames);
 
-  let primaryName = "";
+  let primaryName = null;
   if (typeof item.subcategory_name === "string" && item.subcategory_name.trim() !== "") {
     primaryName = item.subcategory_name.trim();
   } else if (normalizedNames.length > 0) {
@@ -114,6 +146,8 @@ const formatDocumentType = (item) => {
     normalizedNames.unshift(primaryName);
   }
 
+  const subcategoryMode = determineSubcategoryMode(item, normalizedNames, fundTypeMode);
+
   return {
     document_type_id: item.document_type_id ?? item.id,
     document_type_name: item.document_type_name ?? item.name ?? "",
@@ -121,11 +155,14 @@ const formatDocumentType = (item) => {
     required: Boolean(item.required),
     multiple: Boolean(item.multiple),
     document_order: item.document_order ?? 0,
-    fund_types: dedupeStringList(item.fund_types),
+    fund_types: fundTypes,
+    fund_type_mode: fundTypeMode,
     subcategory_name: primaryName,
     subcategory_names: normalizedNames,
+    subcategory_mode: subcategoryMode,
     subcategory_ids: Array.isArray(item.subcategory_ids) ? item.subcategory_ids : [],
     update_at: item.update_at || item.updated_at || null,
+    is_inactive: fundTypeMode === "inactive",
   };
 };
 
@@ -245,22 +282,12 @@ const DocumentTypeManager = () => {
       fund_types: dedupeStringList(formData.fund_types),
     };
 
-    const selectedName = (formData.subcategory_name || "").trim();
-    const rawNameList = Array.isArray(formData.subcategory_names)
+    const normalizedNames = Array.isArray(formData.subcategory_names)
       ? dedupeStringList(formData.subcategory_names)
       : [];
-    const normalizedNames = selectedName
-      ? dedupeStringList([selectedName, ...rawNameList])
-      : rawNameList;
 
     payload.subcategory_names = normalizedNames;
-    if (selectedName) {
-      payload.subcategory_name = selectedName;
-    } else if (normalizedNames.length > 0) {
-      payload.subcategory_name = normalizedNames[0];
-    } else {
-      payload.subcategory_name = null;
-    }
+    payload.subcategory_name = normalizedNames.length > 0 ? normalizedNames[0] : null;
 
     const mode = editingDocumentType?.document_type_id ? "update" : "create";
     console.log("[DocumentTypeManager] submitting payload", {
@@ -396,8 +423,21 @@ const DocumentTypeManager = () => {
                       <td className="px-4 py-3">
                         <div className="flex flex-wrap gap-1">
                           {(() => {
-                            const fundTypes = dedupeStringList(item.fund_types);
-                            if (fundTypes.length === 0) {
+                            const fundTypes = Array.isArray(item.fund_types)
+                              ? item.fund_types
+                              : [];
+                            const mode = item.fund_type_mode || determineFundTypeMode(item);
+                            const inactive = item.is_inactive || mode === "inactive";
+
+                            if (inactive) {
+                              return (
+                                <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-500">
+                                  ไม่ได้ใช้งาน
+                                </span>
+                              );
+                            }
+
+                            if (mode === "all" || fundTypes.length === 0) {
                               return (
                                 <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-500">
                                   ทุกประเภททุน
@@ -419,8 +459,28 @@ const DocumentTypeManager = () => {
                       <td className="px-4 py-3">
                         <div className="flex flex-wrap gap-1">
                           {(() => {
-                            const badges = dedupeStringList(item.subcategory_names);
-                            if (badges.length === 0) {
+                            const rawBadges = Array.isArray(item.subcategory_names)
+                              ? item.subcategory_names
+                              : [];
+                            const badges = dedupeStringList(rawBadges);
+                            const mode =
+                              item.subcategory_mode ||
+                              determineSubcategoryMode(
+                                item,
+                                badges,
+                                item.fund_type_mode || determineFundTypeMode(item),
+                              );
+                            const inactive = item.is_inactive || mode === "inactive";
+
+                            if (inactive) {
+                              return (
+                                <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-500">
+                                  ไม่ได้ใช้งาน
+                                </span>
+                              );
+                            }
+
+                            if (mode === "all" || badges.length === 0) {
                               return (
                                 <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-500">
                                   ทุกประเภทย่อย

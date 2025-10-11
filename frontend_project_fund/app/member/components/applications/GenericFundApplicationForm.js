@@ -48,6 +48,47 @@ const resolveDeptHeadPendingStatusId = async () => {
   return null;
 };
 
+const resolveFundTypeMode = (doc) => {
+  if (!doc || typeof doc !== 'object') return 'inactive';
+  if (typeof doc.fund_type_mode === 'string') {
+    const trimmed = doc.fund_type_mode.trim();
+    if (trimmed) return trimmed;
+  }
+
+  if (
+    Object.prototype.hasOwnProperty.call(doc, 'fund_types') &&
+    doc.fund_types === null
+  ) {
+    return 'inactive';
+  }
+
+  const fundTypes = Array.isArray(doc?.fund_types) ? doc.fund_types : [];
+  return fundTypes.length === 0 ? 'all' : 'limited';
+};
+
+const dedupeStringList = (items) => {
+  const list = Array.isArray(items)
+    ? items
+    : typeof items === 'string'
+    ? [items]
+    : [];
+
+  const seen = new Set();
+  const result = [];
+
+  list.forEach((value) => {
+    if (typeof value !== 'string') return;
+    const trimmed = value.trim();
+    if (!trimmed) return;
+    const lower = trimmed.toLowerCase();
+    if (seen.has(lower)) return;
+    seen.add(lower);
+    result.push(trimmed);
+  });
+
+  return result;
+};
+
 // =================================================================
 // FILE UPLOAD COMPONENT
 // =================================================================
@@ -315,10 +356,14 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
 
     const fundTypeFiltered = sortedDocTypes.filter((docType) => {
       if (!docType) return false;
-      const fundTypes = Array.isArray(docType.fund_types) ? docType.fund_types : [];
-      if (fundTypes.length === 0) {
+      const mode = resolveFundTypeMode(docType);
+      if (mode === 'inactive') {
         return false;
       }
+      if (mode === 'all') {
+        return true;
+      }
+      const fundTypes = Array.isArray(docType.fund_types) ? docType.fund_types : [];
       return fundTypes.includes('fund_application');
     });
 
@@ -329,10 +374,11 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
       console.log('Filtered fund_application document types:', fundTypeFiltered);
     }
 
-    const candidateDocs = fundTypeFiltered.length > 0 ? fundTypeFiltered : sortedDocTypes;
+    const fallbackDocs = fundTypeFiltered.length > 0 ? fundTypeFiltered : sortedDocTypes;
+    const candidateDocs = fallbackDocs.filter((doc) => resolveFundTypeMode(doc) !== 'inactive');
 
     const matches = [];
-    const seenIds = new Set();
+    const seen = new Set();
     const resolveIdentifier = (doc) => {
       if (!doc || typeof doc !== 'object') {
         return null;
@@ -352,52 +398,90 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
 
       return null;
     };
-    const addDocs = (docs) => {
-      for (const doc of docs) {
-        const identifier = resolveIdentifier(doc);
-        if (!doc || (identifier && seenIds.has(identifier))) {
-          continue;
-        }
-        if (identifier) {
-          seenIds.add(identifier);
-        }
-        matches.push(doc);
+
+    const addContext = (context, scope, matchInfo = {}) => {
+      if (!context || !context.doc) {
+        return;
+      }
+
+      const { identifier, doc, fundTypeMode, names, ids } = context;
+
+      if (identifier && seen.has(identifier)) {
+        return;
+      }
+
+      const matchedNames = Array.isArray(matchInfo.names) ? matchInfo.names : [];
+      const matchedIds = Array.isArray(matchInfo.ids) ? matchInfo.ids : [];
+
+      matches.push({
+        ...doc,
+        __match_scope: scope,
+        __resolved_fund_type_mode: fundTypeMode,
+        __matched_subcategory_names:
+          matchedNames.length > 0 ? matchedNames : Array.isArray(names) ? names : [],
+        __matched_subcategory_ids:
+          matchedIds.length > 0 ? matchedIds : Array.isArray(ids) ? ids : [],
+      });
+
+      if (identifier) {
+        seen.add(identifier);
       }
     };
 
-    const universalDocs = candidateDocs.filter((doc) => {
-      const names = Array.isArray(doc?.subcategory_names) ? doc.subcategory_names : [];
-      const ids = parseSubcategoryIds(doc);
-      return names.length === 0 && ids.length === 0;
+    const docContexts = candidateDocs.map((doc) => {
+      if (!doc || typeof doc !== 'object') {
+        return null;
+      }
+
+      const fundTypeMode = resolveFundTypeMode(doc);
+      if (fundTypeMode === 'inactive') {
+        return null;
+      }
+
+      const names = Array.isArray(doc?.subcategory_names)
+        ? dedupeStringList(doc.subcategory_names)
+        : [];
+      const ids = parseSubcategoryIds(doc)
+        .map((value) => Number(value))
+        .filter((value) => !Number.isNaN(value));
+      const identifier = resolveIdentifier(doc);
+
+      return {
+        doc,
+        fundTypeMode,
+        names,
+        ids,
+        identifier,
+      };
+    }).filter(Boolean);
+
+    const universalContexts = docContexts.filter(
+      (context) => context.names.length === 0 && context.ids.length === 0,
+    );
+
+    docContexts.forEach((context) => {
+      const matchedNames = normalizedSubcategoryName
+        ? context.names.filter(
+            (name) =>
+              typeof name === 'string' && name.trim().toLowerCase() === normalizedSubcategoryName,
+          )
+        : [];
+
+      const matchedIds =
+        numericSubcategoryId != null && context.ids.includes(numericSubcategoryId)
+          ? [numericSubcategoryId]
+          : [];
+
+      if (matchedNames.length > 0 || matchedIds.length > 0) {
+        addContext(context, 'subcategory', {
+          names: matchedNames,
+          ids: matchedIds,
+        });
+      }
     });
 
-    if (normalizedSubcategoryName) {
-      const nameMatches = candidateDocs.filter((doc) => {
-        const names = Array.isArray(doc?.subcategory_names) ? doc.subcategory_names : [];
-        return names.some((name) => typeof name === 'string' && name.trim().toLowerCase() === normalizedSubcategoryName);
-      });
-
-      if (nameMatches.length > 0) {
-        addDocs(nameMatches);
-      }
-    }
-
-    if (matches.length === 0 && numericSubcategoryId != null) {
-      const idMatches = candidateDocs.filter((doc) => {
-        const ids = parseSubcategoryIds(doc).map((value) => Number(value));
-        return ids.includes(numericSubcategoryId);
-      });
-
-      if (idMatches.length > 0) {
-        addDocs(idMatches);
-      }
-    }
-
-    if (matches.length === 0 && universalDocs.length > 0) {
-      console.warn('No subcategory-specific document types found; including universal requirements.');
-      addDocs(universalDocs);
-    } else {
-      addDocs(universalDocs);
+    if (universalContexts.length > 0) {
+      universalContexts.forEach((context) => addContext(context, 'universal'));
     }
 
     setDocumentRequirements(matches);

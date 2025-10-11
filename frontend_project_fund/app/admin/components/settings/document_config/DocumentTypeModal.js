@@ -19,6 +19,24 @@ const initialFormState = {
   subcategory_names: [],
 };
 
+const dedupeNames = (values) => {
+  const list = Array.isArray(values) ? values : [];
+  const seen = new Set();
+  const normalized = [];
+
+  list.forEach((value) => {
+    if (typeof value !== "string") return;
+    const trimmed = value.trim();
+    if (!trimmed) return;
+    const lower = trimmed.toLowerCase();
+    if (seen.has(lower)) return;
+    seen.add(lower);
+    normalized.push(trimmed);
+  });
+
+  return normalized;
+};
+
 const DocumentTypeModal = ({
   isOpen,
   onClose,
@@ -64,6 +82,14 @@ const DocumentTypeModal = ({
         ...restInitialData,
       };
 
+      const initialNames = dedupeNames(
+        Array.isArray(base.subcategory_names)
+          ? base.subcategory_names
+          : typeof base.subcategory_name === "string"
+          ? [base.subcategory_name]
+          : [],
+      );
+
       setFormState({
         ...initialFormState,
         ...base,
@@ -73,15 +99,8 @@ const DocumentTypeModal = ({
         required: Boolean(base.required),
         multiple: Boolean(base.multiple),
         fund_types: Array.isArray(base.fund_types) ? base.fund_types : [],
-        subcategory_name:
-          typeof base.subcategory_name === "string" && base.subcategory_name.trim() !== ""
-            ? base.subcategory_name.trim()
-            : Array.isArray(base.subcategory_names) && base.subcategory_names.length > 0
-            ? base.subcategory_names[0]
-            : "",
-        subcategory_names: Array.isArray(base.subcategory_names)
-          ? base.subcategory_names
-          : [],
+        subcategory_names: initialNames,
+        subcategory_name: initialNames[0] || "",
       });
       setSubcategorySearch("");
     } else {
@@ -100,18 +119,44 @@ const DocumentTypeModal = ({
     });
   }, [normalizedSubcategoryOptions, subcategorySearch]);
 
-  const handleSelectSubcategory = (name) => {
-    setFormState((prev) => ({
-      ...prev,
-      subcategory_name: prev.subcategory_name === name ? "" : name,
-    }));
-  };
-
   const handleClearSubcategory = () => {
     setFormState((prev) => ({
       ...prev,
+      subcategory_names: [],
       subcategory_name: "",
     }));
+  };
+
+  const handleToggleSubcategory = (rawName) => {
+    const trimmed = typeof rawName === "string" ? rawName.trim() : "";
+    if (!trimmed) {
+      return;
+    }
+
+    setFormState((prev) => {
+      const current = Array.isArray(prev.subcategory_names)
+        ? prev.subcategory_names
+        : [];
+
+      const normalizedCurrent = dedupeNames(current);
+      const lower = trimmed.toLowerCase();
+      const filtered = normalizedCurrent.filter(
+        (name) => name.toLowerCase() !== lower,
+      );
+
+      const updated =
+        filtered.length !== normalizedCurrent.length
+          ? filtered
+          : [...normalizedCurrent, trimmed];
+
+      const deduped = dedupeNames(updated);
+
+      return {
+        ...prev,
+        subcategory_names: deduped,
+        subcategory_name: deduped[0] || "",
+      };
+    });
   };
 
   const handleFundTypeToggle = (value) => {
@@ -142,14 +187,25 @@ const DocumentTypeModal = ({
         : [],
     };
 
-    const subcategoryName = (formState.subcategory_name || "").trim();
-    payload.subcategory_name = subcategoryName ? subcategoryName : null;
-    payload.subcategory_names = subcategoryName ? [subcategoryName] : [];
+    const normalizedNames = dedupeNames(formState.subcategory_names);
+    payload.subcategory_names = normalizedNames;
+    payload.subcategory_name = normalizedNames.length > 0 ? normalizedNames[0] : null;
 
     onSubmit(payload);
   };
 
   if (!isOpen) return null;
+
+  const selectedSubcategories = useMemo(
+    () => dedupeNames(formState.subcategory_names),
+    [formState.subcategory_names],
+  );
+
+  const selectedSubcategorySet = useMemo(() => {
+    const set = new Set();
+    selectedSubcategories.forEach((name) => set.add(name.toLowerCase()));
+    return set;
+  }, [selectedSubcategories]);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
@@ -291,37 +347,57 @@ const DocumentTypeModal = ({
             </div>
 
             <div className="space-y-4">
-              <div>
-                <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">
-                      ใช้กับประเภทย่อยของทุน
-                    </label>
-                    <p className="text-xs text-gray-500">
-                      เลือกได้ 1 รายการ หรือปล่อยว่างเพื่อใช้กับทุกประเภทย่อย
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-2 text-xs text-gray-500">
-                    <span>
-                      {formState.subcategory_name
-                        ? `เลือกแล้ว: ${formState.subcategory_name}`
-                        : "ทุกประเภทย่อย"}
-                    </span>
-                    {formState.subcategory_name && (
-                      <button
-                        type="button"
-                        onClick={handleClearSubcategory}
-                        className="rounded border border-gray-200 px-2 py-1 text-xs font-medium text-gray-600 transition hover:bg-gray-50"
-                      >
-                        ล้างการเลือก
-                      </button>
-                    )}
-                  </div>
+            <div>
+              <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">
+                    ใช้กับประเภทย่อยของทุน
+                  </label>
+                  <p className="text-xs text-gray-500">
+                    เลือกได้หลายรายการ หรือปล่อยว่างเพื่อใช้กับทุกประเภทย่อย
+                  </p>
                 </div>
-                <input
-                  type="text"
-                  value={subcategorySearch}
-                  onChange={(e) => setSubcategorySearch(e.target.value)}
+                <div className="flex items-center gap-2 text-xs text-gray-500">
+                  <span>
+                    {selectedSubcategories.length > 0
+                      ? `เลือกแล้ว ${selectedSubcategories.length} รายการ`
+                      : "ทุกประเภทย่อย"}
+                  </span>
+                  {selectedSubcategories.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={handleClearSubcategory}
+                      className="rounded border border-gray-200 px-2 py-1 text-xs font-medium text-gray-600 transition hover:bg-gray-50"
+                    >
+                      ล้างการเลือก
+                    </button>
+                  )}
+                </div>
+                {selectedSubcategories.length > 0 && (
+                  <div className="flex flex-wrap gap-1">
+                    {selectedSubcategories.map((name) => (
+                      <span
+                        key={`selected-${name.toLowerCase()}`}
+                        className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-xs text-emerald-600"
+                      >
+                        {name}
+                        <button
+                          type="button"
+                          onClick={() => handleToggleSubcategory(name)}
+                          className="text-emerald-500 hover:text-emerald-700"
+                          aria-label={`นำ ${name} ออกจากการเลือก`}
+                        >
+                          <X size={12} />
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <input
+                type="text"
+                value={subcategorySearch}
+                onChange={(e) => setSubcategorySearch(e.target.value)}
                   className="mb-3 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-600 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
                   placeholder="ค้นหาชื่อประเภทย่อย"
                 />
@@ -332,28 +408,10 @@ const DocumentTypeModal = ({
                     </div>
                   ) : (
                     <ul className="divide-y">
-                      <li className="p-3 hover:bg-gray-50">
-                        <label className="flex items-start gap-3">
-                          <input
-                            type="radio"
-                            name="subcategory-option"
-                            checked={!formState.subcategory_name}
-                            onChange={() => handleSelectSubcategory("")}
-                            className="mt-1 h-4 w-4 border-gray-300 text-blue-600 focus:ring-blue-500"
-                          />
-                          <span>
-                            <span className="block text-sm font-medium text-gray-800">
-                              ทุกประเภทย่อยของทุน
-                            </span>
-                            <span className="mt-1 block text-xs text-gray-500">
-                              เลือกตัวเลือกนี้หากต้องการให้ใช้กับทุกประเภทย่อย
-                            </span>
-                          </span>
-                        </label>
-                      </li>
                       {filteredSubcategoryOptions.map((option, index) => {
                         const name = option?.name || "";
-                        const checked = formState.subcategory_name === name;
+                        const lower = name.trim().toLowerCase();
+                        const checked = selectedSubcategorySet.has(lower);
                         const optionKey = name
                           ? name.toLowerCase()
                           : option?.id
@@ -366,10 +424,9 @@ const DocumentTypeModal = ({
                           >
                             <label className="flex items-start gap-3">
                               <input
-                                type="radio"
-                                name="subcategory-option"
+                                type="checkbox"
                                 checked={checked}
-                                onChange={() => handleSelectSubcategory(name)}
+                                onChange={() => handleToggleSubcategory(name)}
                                 className="mt-1 h-4 w-4 border-gray-300 text-blue-600 focus:ring-blue-500"
                               />
                               <span>
@@ -383,6 +440,15 @@ const DocumentTypeModal = ({
                       })}
                     </ul>
                   )}
+                </div>
+                <div className="mt-3 text-right">
+                  <button
+                    type="button"
+                    onClick={handleClearSubcategory}
+                    className="text-xs font-medium text-blue-600 hover:text-blue-700"
+                  >
+                    ใช้กับทุกประเภทย่อย
+                  </button>
                 </div>
               </div>
             </div>
