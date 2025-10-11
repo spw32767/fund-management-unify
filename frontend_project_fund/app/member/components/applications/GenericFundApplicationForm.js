@@ -565,9 +565,11 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
       const root = rawWindow?.data ?? rawWindow ?? {};
 
       const normalized = {
-        main_annoucement: root?.main_annoucement ?? root?.config_id ?? null,
+        main_annoucement: root?.main_annoucement ?? null,
         activity_support_announcement: root?.activity_support_announcement ?? null,
       };
+
+      console.log('System announcement snapshot resolved:', normalized);
 
       setAnnouncementLock(normalized);
       return normalized;
@@ -1079,23 +1081,33 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
       }
 
       // Step 1: Create submission record
-      const submissionRes = await submissionAPI.createSubmission({
+      const submissionPayload = {
         submission_type: 'fund_application',
         year_id: subcategoryData?.year_id,
-        status_id: statusForSubmission.id
-      });
+        status_id: statusForSubmission.id,
+      };
+
+      console.log('Creating submission with payload:', submissionPayload, 'resolved status:', statusForSubmission);
+
+      const submissionRes = await submissionAPI.createSubmission(submissionPayload);
       const submissionId = submissionRes?.submission?.submission_id;
+
+      console.log('Submission creation response:', submissionRes);
 
       // Step 2: Save basic fund details (ใช้ข้อมูลที่มีอยู่)
       if (submissionId) {
-        await apiClient.post(`/submissions/${submissionId}/fund-details`, {
+        const fundDetailsPayload = {
           project_title: formData.project_title || '',
           project_description: formData.project_description || '',
           requested_amount: parseFloat(formData.requested_amount) || 0,
           subcategory_id: subcategoryData.subcategory_id,
           main_annoucement: announcementLock.main_annoucement,
           activity_support_announcement: announcementLock.activity_support_announcement,
-        });
+        };
+
+        console.log('Saving fund details payload:', fundDetailsPayload);
+
+        await apiClient.post(`/submissions/${submissionId}/fund-details`, fundDetailsPayload);
       }
 
       // Step 3: Upload files and attach to submission
@@ -1114,6 +1126,7 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
 
       // Step 4: Submit the submission
       if (submissionId) {
+        console.log('Submitting submission ID:', submissionId);
         await submissionAPI.submitSubmission(submissionId);
       }
 
