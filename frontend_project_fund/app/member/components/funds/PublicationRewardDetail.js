@@ -1,6 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
+import { toast } from "react-hot-toast";
+import { PDFDocument } from "pdf-lib";
 import { 
   ArrowLeft,
   FileText,
@@ -206,7 +208,70 @@ export default function PublicationRewardDetail({ submissionId, onNavigate }) {
   const [activeTab, setActiveTab] = useState("details");
   const [mainAnnouncementDetail, setMainAnnouncementDetail] = useState(null);
   const [rewardAnnouncementDetail, setRewardAnnouncementDetail] = useState(null);
+  const [merging, setMerging] = useState(false);
   const { getLabelById, getCodeById } = useStatusMap();
+  const mergedUrlRef = useRef(null);
+  // documents may come from different property names depending on the API response
+  const documents =
+    submission?.documents || submission?.submission_documents || [];
+
+  const cleanupMergedUrl = () => {
+    if (mergedUrlRef.current) {
+      URL.revokeObjectURL(mergedUrlRef.current);
+      mergedUrlRef.current = null;
+    }
+  };
+
+  const fetchFileAsBlob = async (fileId) => {
+    const token = apiClient.getToken();
+    const url = `${apiClient.baseURL}/files/managed/${fileId}/download`;
+    const response = await fetch(url, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+
+    if (!response.ok) {
+      throw new Error("File not found");
+    }
+
+    return response.blob();
+  };
+
+  const mergeAttachmentsToPdf = async (list) => {
+    const merged = await PDFDocument.create();
+    const skipped = [];
+
+    for (const doc of list) {
+      const fileId =
+        doc?.file_id ?? doc?.File?.file_id ?? doc?.file?.file_id ?? doc?.id;
+
+      if (!fileId) {
+        skipped.push(doc?.original_name || "ไม่พบข้อมูลไฟล์");
+        continue;
+      }
+
+      try {
+        const blob = await fetchFileAsBlob(fileId);
+        const src = await PDFDocument.load(await blob.arrayBuffer(), {
+          ignoreEncryption: true,
+        });
+        const pages = await merged.copyPages(src, src.getPageIndices());
+        pages.forEach((page) => merged.addPage(page));
+      } catch (error) {
+        console.warn("merge: skip", doc?.original_name || fileId, error);
+        skipped.push(doc?.original_name || `file-${fileId}.pdf`);
+      }
+    }
+
+    if (merged.getPageCount() === 0) {
+      const err = new Error("No PDF pages");
+      err.skipped = skipped;
+      throw err;
+    }
+
+    const bytes = await merged.save();
+    const blob = new Blob([bytes], { type: "application/pdf" });
+    return { blob, skipped };
+  };
 
   const getUserFullName = (user) => {
     if (!user) return "-";
@@ -358,6 +423,14 @@ export default function PublicationRewardDetail({ submissionId, onNavigate }) {
     };
   }, [submission]);
 
+  useEffect(() => {
+    return () => cleanupMergedUrl();
+  }, []);
+
+  useEffect(() => {
+    cleanupMergedUrl();
+  }, [submissionId]);
+
   const loadSubmissionDetail = async () => {
     setLoading(true);
     try {
@@ -463,6 +536,68 @@ export default function PublicationRewardDetail({ submissionId, onNavigate }) {
     }
   };
 
+  const createMergedUrl = async () => {
+    if (!documents.length) {
+      return null;
+    }
+
+    setMerging(true);
+
+    try {
+      const pdfCandidates = documents.filter((doc) => {
+        const name = (doc?.original_name || '').toLowerCase();
+        return name.endsWith('.pdf');
+      });
+
+      const workingList = (pdfCandidates.length ? pdfCandidates : documents).filter(
+        (doc) =>
+          (doc?.file_id ?? doc?.File?.file_id ?? doc?.file?.file_id ?? doc?.id) != null,
+      );
+
+      if (!workingList.length) {
+        throw new Error('ไม่มีไฟล์ที่สามารถรวมได้');
+      }
+
+      const { blob, skipped } = await mergeAttachmentsToPdf(workingList);
+      cleanupMergedUrl();
+      const url = URL.createObjectURL(blob);
+      mergedUrlRef.current = url;
+
+      if (skipped.length) {
+        toast((t) => <span>ข้ามไฟล์ที่ไม่ใช่/เสียหาย {skipped.length} รายการ</span>);
+      }
+
+      return url;
+    } catch (error) {
+      console.error('merge failed', error);
+      toast.error(`รวมไฟล์ไม่สำเร็จ: ${error?.message || 'ไม่ทราบสาเหตุ'}`);
+      return null;
+    } finally {
+      setMerging(false);
+    }
+  };
+
+  const handleViewMerged = async () => {
+    const url = mergedUrlRef.current || (await createMergedUrl());
+    if (url) {
+      window.open(url, '_blank');
+    }
+  };
+
+  const handleDownloadMerged = async () => {
+    const url = mergedUrlRef.current || (await createMergedUrl());
+    if (!url) return;
+
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = `merged_documents_${
+      submission?.submission_number || submission?.submission_id || ''
+    }.pdf`;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+  };
+
   if (loading) {
     return (
       <PageLayout
@@ -537,9 +672,6 @@ export default function PublicationRewardDetail({ submissionId, onNavigate }) {
     approvedTotal !== null &&
     !Number.isNaN(approvedTotal);
 
-  // documents may come from different property names depending on the API response
-  const documents =
-    submission.documents || submission.submission_documents || [];
   const applicant = getApplicant();
 
   const statusCode =
@@ -1079,11 +1211,13 @@ export default function PublicationRewardDetail({ submissionId, onNavigate }) {
             {documents.length > 0 ? (
               <div className="space-y-4">
                 {documents.map((doc, index) => {
-                  const fileId = doc.file_id || doc.File?.file_id || doc.file?.file_id;
+                  const fileId =
+                    doc?.file_id ?? doc?.File?.file_id ?? doc?.file?.file_id ?? doc?.id;
                   const trimmedOriginal =
                     typeof doc.original_name === "string" ? doc.original_name.trim() : "";
                   const fileName = trimmedOriginal || "-";
-                  const downloadName = trimmedOriginal || `document-${fileId ?? index + 1}`;
+                  const downloadName =
+                    trimmedOriginal || `document-${fileId ?? index + 1}`;
                   const docType = (doc.document_type_name || "").trim() || "ไม่ระบุประเภท";
 
                   return (
@@ -1154,6 +1288,27 @@ export default function PublicationRewardDetail({ submissionId, onNavigate }) {
                 </div>
                 <p className="text-gray-500 text-lg font-medium mb-2">ไม่มีเอกสารแนบ</p>
                 <p className="text-gray-400 text-sm">ยังไม่มีการอัปโหลดเอกสารสำหรับคำร้องนี้</p>
+              </div>
+            )}
+
+            {documents.length > 0 && (
+              <div className="flex justify-end gap-3 pt-4 border-t border-gray-200">
+                <button
+                  className="inline-flex items-center gap-1 border border-blue-200 px-3 py-2 text-sm text-blue-600 hover:bg-blue-50 rounded-md transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                  onClick={handleViewMerged}
+                  disabled={documents.length === 0 || merging}
+                  title="เปิดดูไฟล์แนบที่ถูกรวมเป็น PDF"
+                >
+                  <Eye size={16} /> ดูไฟล์รวม (PDF)
+                </button>
+                <button
+                  className="inline-flex items-center gap-1 border border-green-200 px-3 py-2 text-sm text-green-600 hover:bg-green-50 rounded-md transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                  onClick={handleDownloadMerged}
+                  disabled={documents.length === 0 || merging}
+                  title="ดาวน์โหลดไฟล์แนบที่ถูกรวมเป็น PDF เดียว"
+                >
+                  <Download size={16} /> ดาวน์โหลดไฟล์รวม
+                </button>
               </div>
             )}
           </div>
