@@ -236,8 +236,10 @@ func CreateAnnouncement(c *gin.Context) {
 		return
 	}
 	// ใช้ชื่อไฟล์เดิม (sanitize กันอักขระต้องห้าม) — ไม่มี timestamp
-	safeName := utils.SanitizeFilename(header.Filename)
-	dstPath := filepath.Join(uploadDir, safeName)
+	displayName := utils.NormalizeDisplayFilename(header.Filename)
+	storedFile := utils.GenerateStoredFileName(header.Filename)
+	dstPath := filepath.Join(uploadDir, storedFile)
+	normalizedPath := filepath.ToSlash(dstPath)
 
 	// ถ้าไฟล์ปลายทางมีอยู่แล้ว: เขียนทับ (ลบไฟล์เก่าก่อนเพื่อความชัวร์)
 	if _, statErr := os.Stat(dstPath); statErr == nil {
@@ -253,8 +255,8 @@ func CreateAnnouncement(c *gin.Context) {
 	ann := models.Announcement{
 		Title:                       req.Title,
 		Description:                 req.Description,
-		FileName:                    safeName, // ใช้ชื่อเดิม
-		FilePath:                    dstPath,  // เก็บ relative path
+		FileName:                    displayName,
+		FilePath:                    normalizedPath,
 		FileSize:                    &header.Size,
 		MimeType:                    &ct,
 		AnnouncementType:            req.AnnouncementType,
@@ -334,8 +336,10 @@ func UpdateAnnouncement(c *gin.Context) {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create upload directory"})
 			return
 		}
-		safeName := utils.SanitizeFilename(header.Filename)
-		dstPath := filepath.Join(uploadDir, safeName)
+		displayName := utils.NormalizeDisplayFilename(header.Filename)
+		storedFile := utils.GenerateStoredFileName(header.Filename)
+		dstPath := filepath.Join(uploadDir, storedFile)
+		normalizedPath := filepath.ToSlash(dstPath)
 
 		// ถ้าไฟล์ปลายทางมีอยู่แล้ว ให้ลบทิ้งเพื่อเขียนทับ
 		if _, statErr := os.Stat(dstPath); statErr == nil {
@@ -349,8 +353,8 @@ func UpdateAnnouncement(c *gin.Context) {
 		// อัปเดตฟิลด์ไฟล์ใน record
 		oldFilePath = announcement.FilePath
 		newFilePath = dstPath
-		announcement.FileName = safeName
-		announcement.FilePath = dstPath
+		announcement.FileName = displayName
+		announcement.FilePath = normalizedPath
 		announcement.FileSize = &header.Size
 		announcement.MimeType = &ct
 	}
@@ -481,7 +485,7 @@ func DownloadAnnouncementFile(c *gin.Context) {
 		}()
 
 		// Set headers for download
-		c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", announcement.FileName))
+		c.Header("Content-Disposition", utils.BuildContentDispositionHeader("attachment", announcement.FileName))
 		c.Header("Content-Type", "application/octet-stream")
 		c.File(resolvedPath)
 		return
@@ -564,7 +568,7 @@ func ViewAnnouncementFile(c *gin.Context) {
 		if announcement.MimeType != nil {
 			c.Header("Content-Type", *announcement.MimeType)
 		}
-		c.Header("Content-Disposition", fmt.Sprintf("inline; filename=\"%s\"", announcement.FileName))
+		c.Header("Content-Disposition", utils.BuildContentDispositionHeader("inline", announcement.FileName))
 		c.File(resolvedPath)
 		return
 	}
@@ -790,8 +794,10 @@ func CreateFundForm(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create upload directory"})
 		return
 	}
-	safeName := utils.SanitizeFilename(header.Filename)
-	dstPath := filepath.Join(uploadDir, safeName)
+	displayName := utils.NormalizeDisplayFilename(header.Filename)
+	storedFile := utils.GenerateStoredFileName(header.Filename)
+	dstPath := filepath.Join(uploadDir, storedFile)
+	normalizedPath := filepath.ToSlash(dstPath)
 
 	// ถ้ามีไฟล์ชื่อซ้ำ ให้ลบทิ้งก่อนเพื่อเขียนทับ
 	if _, statErr := os.Stat(dstPath); statErr == nil {
@@ -807,8 +813,8 @@ func CreateFundForm(c *gin.Context) {
 	form := models.FundForm{
 		Title:        req.Title,
 		Description:  req.Description,
-		FileName:     safeName,
-		FilePath:     dstPath,
+		FileName:     displayName,
+		FilePath:     normalizedPath,
 		FileSize:     &header.Size,
 		MimeType:     &ct,
 		FormType:     req.FormType,
@@ -902,8 +908,10 @@ func UpdateFundForm(c *gin.Context) {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create upload directory"})
 			return
 		}
-		safeName := utils.SanitizeFilename(header.Filename)
-		dstPath := filepath.Join(uploadDir, safeName)
+		displayName := utils.NormalizeDisplayFilename(header.Filename)
+		storedFile := utils.GenerateStoredFileName(header.Filename)
+		dstPath := filepath.Join(uploadDir, storedFile)
+		normalizedPath := filepath.ToSlash(dstPath)
 
 		if _, statErr := os.Stat(dstPath); statErr == nil {
 			_ = os.Remove(dstPath)
@@ -915,8 +923,8 @@ func UpdateFundForm(c *gin.Context) {
 
 		oldPath = form.FilePath
 		newPath = dstPath
-		form.FileName = safeName
-		form.FilePath = dstPath
+		form.FileName = displayName
+		form.FilePath = normalizedPath
 		form.FileSize = &header.Size
 		form.MimeType = &ct
 	}
@@ -1031,7 +1039,7 @@ func DownloadFundForm(c *gin.Context) {
 			config.DB.Create(&download)
 		}()
 
-		c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", form.FileName))
+		c.Header("Content-Disposition", utils.BuildContentDispositionHeader("attachment", form.FileName))
 		c.Header("Content-Type", "application/octet-stream")
 		c.File(resolvedPath)
 		return
@@ -1095,7 +1103,7 @@ func ViewFundForm(c *gin.Context) {
 		if form.MimeType != nil {
 			c.Header("Content-Type", *form.MimeType)
 		}
-		c.Header("Content-Disposition", fmt.Sprintf("inline; filename=\"%s\"", form.FileName))
+		c.Header("Content-Disposition", utils.BuildContentDispositionHeader("inline", form.FileName))
 		c.File(resolvedPath)
 		return
 	}
@@ -1195,7 +1203,7 @@ func streamRemoteFile(c *gin.Context, remoteURL, displayName string, inline bool
 		disposition = "inline"
 	}
 
-	c.Header("Content-Disposition", fmt.Sprintf("%s; filename=\"%s\"", disposition, name))
+	c.Header("Content-Disposition", utils.BuildContentDispositionHeader(disposition, name))
 	c.DataFromReader(http.StatusOK, resp.ContentLength, contentType, resp.Body, nil)
 	return nil
 }

@@ -69,6 +69,76 @@ func SanitizeFilename(filename string) string {
 	return filename
 }
 
+// NormalizeDisplayFilename ตัดช่องว่างหัว/ท้ายและอักขระควบคุมออก แต่คงอักขระภาษาไทยไว้
+func NormalizeDisplayFilename(filename string) string {
+	cleaned := strings.TrimSpace(filename)
+	cleaned = strings.ReplaceAll(cleaned, "\x00", "")
+	if cleaned == "" {
+		return "file"
+	}
+
+	const maxDisplayRunes = 255
+	runes := []rune(cleaned)
+	if len(runes) > maxDisplayRunes {
+		cleaned = string(runes[:maxDisplayRunes])
+	}
+	return cleaned
+}
+
+// GenerateStoredFileName สร้างชื่อไฟล์สั้นสำหรับเก็บบนเซิร์ฟเวอร์ ลดปัญหา path ยาวเกิน
+func GenerateStoredFileName(original string) string {
+	sanitized := SanitizeFilename(original)
+	ext := strings.ToLower(filepath.Ext(sanitized))
+	base := strings.TrimSuffix(sanitized, ext)
+	base = strings.Trim(base, "_")
+
+	if base == "" {
+		base = "file"
+	}
+
+	baseRunes := []rune(base)
+	const maxBaseRunes = 60
+	if len(baseRunes) > maxBaseRunes {
+		base = string(baseRunes[:maxBaseRunes])
+	}
+
+	randomSuffix := GenerateRandomString(8)
+	candidate := fmt.Sprintf("%s_%s%s", base, randomSuffix, ext)
+
+	const maxBytes = 200
+	if len(candidate) > maxBytes {
+		trimRunes := []rune(base)
+		limit := maxBaseRunes / 2
+		if limit < 12 {
+			limit = 12
+		}
+		if len(trimRunes) > limit {
+			base = string(trimRunes[:limit])
+			candidate = fmt.Sprintf("%s_%s%s", base, randomSuffix, ext)
+		}
+	}
+
+	if len(candidate) > maxBytes {
+		candidate = fmt.Sprintf("%s%s", GenerateRandomString(16), ext)
+	}
+
+	return candidate
+}
+
+// BuildContentDispositionHeader คืนค่า header Content-Disposition รองรับชื่อไฟล์ UTF-8
+func BuildContentDispositionHeader(disposition, filename string) string {
+	disp := strings.TrimSpace(disposition)
+	if disp == "" {
+		disp = "attachment"
+	}
+
+	display := NormalizeDisplayFilename(filename)
+	quoted := strings.ReplaceAll(display, "\"", "'")
+	escaped := url.PathEscape(display)
+
+	return fmt.Sprintf("%s; filename=\"%s\"; filename*=UTF-8''%s", disp, quoted, escaped)
+}
+
 // DefaultString returns default value if input is empty
 func DefaultString(value, defaultValue string) string {
 	if value == "" {
