@@ -26,11 +26,34 @@ const normalizeApiList = (value, fallbackKey) => {
 };
 
 const dedupeStringList = (items) => {
-  const list = Array.isArray(items)
-    ? items
-    : typeof items === "string"
-    ? [items]
-    : [];
+  let list;
+
+  if (Array.isArray(items)) {
+    list = items;
+  } else if (typeof items === "string") {
+    const raw = items.trim();
+    if (!raw) {
+      list = [];
+    } else if (raw.startsWith("[") && raw.endsWith("]")) {
+      try {
+        const parsed = JSON.parse(raw);
+        list = Array.isArray(parsed) ? parsed : [raw];
+      } catch (error) {
+        console.warn("Failed to parse fund type list string:", raw, error);
+        list = raw.split(",");
+      }
+    } else {
+      list = raw.split(",");
+    }
+  } else if (items && typeof items === "object") {
+    list = Array.isArray(items.data)
+      ? items.data
+      : Array.isArray(items.items)
+      ? items.items
+      : [];
+  } else {
+    list = [];
+  }
 
   const seen = new Set();
   const result = [];
