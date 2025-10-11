@@ -29,6 +29,18 @@ import 'sweetalert2/dist/sweetalert2.min.css';
 const formatCurrency = (n) =>
   Number(n || 0).toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
+const parseAmount = (value) => {
+  if (value === null || value === undefined) return null;
+  if (typeof value === 'string') {
+    const cleaned = value.replace(/,/g, '').trim();
+    if (cleaned === '') return null;
+    const num = Number(cleaned);
+    return Number.isFinite(num) ? num : null;
+  }
+  const num = Number(value);
+  return Number.isFinite(num) ? num : null;
+};
+
 const escapeHtml = (value) =>
   String(value ?? '')
     .replace(/&/g, '&amp;')
@@ -655,10 +667,11 @@ export default function GeneralSubmissionDetailsDept({ submissionId, onBack }) {
     submission?.payload ||
     submission;
 
-  const requestedAmount = Number(detail?.requested_amount ?? submission?.requested_amount ?? 0);
+  const requestedAmount =
+    parseAmount(detail?.requested_amount ?? submission?.requested_amount) ?? 0;
   const approvedAmount =
     submission?.status_id === 2
-      ? Number(detail?.approved_amount ?? submission?.approved_amount ?? 0)
+      ? parseAmount(detail?.approved_amount ?? submission?.approved_amount)
       : null;
 
   const submittedAt =

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { toast } from "react-hot-toast";
 import { PDFDocument } from "pdf-lib";
 import { 
@@ -87,6 +87,123 @@ const formatDate = (value) => {
     month: "long",
     day: "numeric",
   });
+};
+
+const parseAmount = (value) => {
+  if (value === null || value === undefined) return null;
+  if (typeof value === "string") {
+    const cleaned = value.replace(/,/g, "").trim();
+    if (cleaned === "") return null;
+    const num = Number(cleaned);
+    return Number.isFinite(num) ? num : null;
+  }
+  const num = Number(value);
+  return Number.isFinite(num) ? num : null;
+};
+
+const deriveRequestedSummary = (pubDetail = {}, submission = {}) => {
+  const rewardRaw = parseAmount(pubDetail?.reward_amount ?? submission?.reward_amount);
+  const revisionRaw = parseAmount(
+    pubDetail?.revision_fee ?? pubDetail?.editing_fee ?? submission?.revision_fee
+  );
+  const publicationRaw = parseAmount(
+    pubDetail?.publication_fee ?? pubDetail?.page_charge ?? submission?.publication_fee
+  );
+  const externalRaw = parseAmount(
+    pubDetail?.external_funding_amount ?? submission?.external_funding_amount
+  );
+
+  const hasBreakdown =
+    rewardRaw != null || revisionRaw != null || publicationRaw != null;
+
+  const fallbackTotals = [
+    parseAmount(pubDetail?.total_amount),
+    parseAmount(submission?.total_amount),
+    parseAmount(submission?.requested_amount),
+  ];
+
+  let baseTotal = hasBreakdown
+    ? (rewardRaw ?? 0) + (revisionRaw ?? 0) + (publicationRaw ?? 0)
+    : fallbackTotals.find((value) => value != null);
+
+  if (baseTotal == null) {
+    baseTotal = (rewardRaw ?? 0) + (revisionRaw ?? 0) + (publicationRaw ?? 0);
+  }
+
+  let reward = rewardRaw;
+  if (reward == null) {
+    reward = hasBreakdown ? 0 : baseTotal ?? 0;
+  }
+
+  const revision = revisionRaw ?? 0;
+  const publication = publicationRaw ?? 0;
+  const external = externalRaw ?? 0;
+
+  const total = Math.max(0, (baseTotal ?? 0) - external);
+
+  return {
+    reward,
+    revision,
+    publication,
+    external,
+    baseTotal: baseTotal ?? 0,
+    total,
+    hasBreakdown,
+  };
+};
+
+const deriveApprovedSummary = (pubDetail = {}, submission = {}, requestedSummary) => {
+  const rewardRaw = parseAmount(
+    pubDetail?.reward_approve_amount ??
+      pubDetail?.reward_approved_amount ??
+      submission?.reward_approve_amount
+  );
+  const revisionRaw = parseAmount(
+    pubDetail?.revision_fee_approve_amount ??
+      pubDetail?.revision_fee_approved_amount ??
+      submission?.revision_fee_approve_amount
+  );
+  const publicationRaw = parseAmount(
+    pubDetail?.publication_fee_approve_amount ??
+      pubDetail?.publication_fee_approved_amount ??
+      submission?.publication_fee_approve_amount
+  );
+
+  const hasBreakdown =
+    rewardRaw != null || revisionRaw != null || publicationRaw != null;
+
+  const fallbackTotals = [
+    parseAmount(pubDetail?.total_approve_amount),
+    parseAmount(pubDetail?.approved_amount),
+    parseAmount(submission?.approved_amount),
+  ];
+
+  let baseTotal = hasBreakdown
+    ? (rewardRaw ?? 0) + (revisionRaw ?? 0) + (publicationRaw ?? 0)
+    : fallbackTotals.find((value) => value != null);
+
+  if (baseTotal == null && requestedSummary) {
+    baseTotal = requestedSummary.baseTotal;
+  }
+
+  const external =
+    requestedSummary?.external ??
+    parseAmount(
+      pubDetail?.external_funding_amount ?? submission?.external_funding_amount
+    ) ??
+    0;
+
+  const total = Math.max(0, (baseTotal ?? 0) - external);
+
+  return {
+    reward: rewardRaw ?? null,
+    revision: revisionRaw ?? null,
+    publication: publicationRaw ?? null,
+    external,
+    baseTotal: baseTotal ?? null,
+    total: baseTotal != null ? total : null,
+    hasBreakdown,
+  };
 };
 
 const firstNonEmpty = (...vals) => {
@@ -598,6 +715,21 @@ export default function PublicationRewardDetail({ submissionId, onNavigate }) {
     anchor.remove();
   };
 
+  // Extract publication details
+  const pubDetail =
+    submission?.PublicationRewardDetail ||
+    submission?.publication_reward_detail ||
+    {};
+
+  const requestedSummary = useMemo(
+    () => deriveRequestedSummary(pubDetail, submission),
+    [pubDetail, submission]
+  );
+  const approvedSummary = useMemo(
+    () => deriveApprovedSummary(pubDetail, submission, requestedSummary),
+    [pubDetail, submission, requestedSummary]
+  );
+
   if (loading) {
     return (
       <PageLayout
@@ -635,42 +767,33 @@ export default function PublicationRewardDetail({ submissionId, onNavigate }) {
     );
   }
 
-  // Extract publication details
-  const pubDetail =
-    submission.PublicationRewardDetail ||
-    submission.publication_reward_detail ||
-    {};
+  const requestedReward = requestedSummary.reward ?? 0;
+  const requestedRevision = requestedSummary.revision ?? 0;
+  const requestedPublication = requestedSummary.publication ?? 0;
+  const requestedExternal = requestedSummary.external ?? 0;
+  const requestedTotal = requestedSummary.total ?? requestedSummary.baseTotal ?? 0;
 
-  // Approved amounts may come from different fields depending on API version
-  const toNumber = (val) =>
-    val !== undefined && val !== null ? Number(val) : null;
-
-  const approvedReward = toNumber(
-    pubDetail?.reward_approve_amount ?? pubDetail?.reward_approved_amount,
-  );
-  const approvedRevision = toNumber(
-    pubDetail?.revision_fee_approve_amount ??
-      pubDetail?.revision_fee_approved_amount,
-  );
-  const approvedPublication = toNumber(
-    pubDetail?.publication_fee_approve_amount ??
-      pubDetail?.publication_fee_approved_amount,
-  );
-
-  const approvedTotalRaw =
-    pubDetail?.total_approve_amount ??
-    pubDetail?.approved_amount ??
-    submission.approved_amount ??
-    (approvedReward ?? 0) +
-      (approvedRevision ?? 0) +
-      (approvedPublication ?? 0);
-
-  const approvedTotal = toNumber(approvedTotalRaw);
+  const approvedReward =
+    approvedSummary && approvedSummary.reward != null
+      ? approvedSummary.reward
+      : null;
+  const approvedRevision =
+    approvedSummary && approvedSummary.revision != null
+      ? approvedSummary.revision
+      : null;
+  const approvedPublication =
+    approvedSummary && approvedSummary.publication != null
+      ? approvedSummary.publication
+      : null;
+  const approvedTotal =
+    approvedSummary && approvedSummary.total != null
+      ? approvedSummary.total
+      : null;
 
   const showApprovedColumn =
     submission.status_id === 2 &&
-    approvedTotal !== null &&
-    !Number.isNaN(approvedTotal);
+    approvedTotal != null &&
+    Number.isFinite(Number(approvedTotal));
 
   const applicant = getApplicant();
 
@@ -861,13 +984,13 @@ export default function PublicationRewardDetail({ submissionId, onNavigate }) {
           </div>
           <div className="text-right lg:text-right min-w-[200px]">
             <div className="text-2xl font-bold text-blue-600">
-              {formatCurrency(pubDetail.reward_amount || 0)}
+              {formatCurrency(requestedTotal || 0)}
             </div>
             <div className="text-sm text-gray-500">จำนวนเงินที่ขอ</div>
             {showApprovedColumn && (
               <div className="mt-2">
                 <div className="text-lg font-bold text-green-600">
-                  {formatCurrency(approvedTotal)}
+                  {formatCurrency(approvedTotal || 0)}
                 </div>
                 <div className="text-sm text-gray-500">จำนวนเงินที่อนุมัติ</div>
               </div>
@@ -1034,7 +1157,7 @@ export default function PublicationRewardDetail({ submissionId, onNavigate }) {
                   <span className="text-xs font-normal text-gray-600">Requested Reward Amount</span>
                 </label>
                 <span className="text-right font-semibold">
-                  {formatCurrency(pubDetail.reward_amount || 0)}
+                  {formatCurrency(requestedReward)}
                 </span>
                 {showApprovedColumn && (
                   <span className="text-right font-semibold">
@@ -1044,14 +1167,14 @@ export default function PublicationRewardDetail({ submissionId, onNavigate }) {
               </div>
 
               {/* Revision fee */}
-              {pubDetail.revision_fee > 0 && (
+              {requestedRevision > 0 && (
                 <div className={`grid ${showApprovedColumn ? "grid-cols-3" : "grid-cols-2"} items-center`}>
                   <label className="block text-sm font-medium text-gray-700">
                     ค่าปรับปรุงบทความ
                     <br />
                     <span className="text-xs font-normal text-gray-600">Manuscript Editing Fee (Baht)</span>
                   </label>
-                  <span className="text-right">{formatCurrency(pubDetail.revision_fee)}</span>
+                  <span className="text-right">{formatCurrency(requestedRevision)}</span>
                   {showApprovedColumn && (
                     <span className="text-right">
                       {approvedRevision !== null ? formatCurrency(approvedRevision) : "-"}
@@ -1061,14 +1184,14 @@ export default function PublicationRewardDetail({ submissionId, onNavigate }) {
               )}
 
               {/* Publication fee */}
-              {pubDetail.publication_fee > 0 && (
+              {requestedPublication > 0 && (
                 <div className={`grid ${showApprovedColumn ? "grid-cols-3" : "grid-cols-2"} items-center`}>
                   <label className="block text-sm font-medium text-gray-700">
                     ค่าธรรมเนียมการตีพิมพ์
                     <br />
                     <span className="text-xs font-normal text-gray-600">Page Charge</span>
                   </label>
-                  <span className="text-right">{formatCurrency(pubDetail.publication_fee)}</span>
+                  <span className="text-right">{formatCurrency(requestedPublication)}</span>
                   {showApprovedColumn && (
                     <span className="text-right">
                       {approvedPublication !== null ? formatCurrency(approvedPublication) : "-"}
@@ -1078,7 +1201,7 @@ export default function PublicationRewardDetail({ submissionId, onNavigate }) {
               )}
 
               {/* External funding */}
-              {pubDetail.external_funding_amount > 0 && (
+              {requestedExternal > 0 && (
                 <div className={`grid ${showApprovedColumn ? "grid-cols-3" : "grid-cols-2"} items-center`}>
                   <label className="block text-sm font-medium text-gray-700">
                     เงินสนับสนุนจากภายนอก
@@ -1086,7 +1209,7 @@ export default function PublicationRewardDetail({ submissionId, onNavigate }) {
                     <span className="text-xs font-normal text-gray-600">External Funding Sources</span>
                   </label>
                   <span className="text-right text-red-600">
-                    {formatCurrency(-pubDetail.external_funding_amount)}
+                    {formatCurrency(-requestedExternal)}
                   </span>
                   {showApprovedColumn && <span></span>}
                 </div>
@@ -1102,7 +1225,7 @@ export default function PublicationRewardDetail({ submissionId, onNavigate }) {
                   <span className="text-xs font-normal text-gray-600">Total Reimbursement from CP-KKU</span>
                 </label>
                 <span className="text-right font-bold text-blue-600">
-                  {formatCurrency(pubDetail.total_amount || pubDetail.reward_amount || 0)}
+                  {formatCurrency(requestedTotal || 0)}
                 </span>
                 {showApprovedColumn && (
                   <span className="text-right font-bold text-green-600">
