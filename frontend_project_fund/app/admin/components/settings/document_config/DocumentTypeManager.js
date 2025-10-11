@@ -1,7 +1,15 @@
 "use client";
 
-import React, { useCallback, useEffect, useState } from "react";
-import { PlusCircle, Pencil, Trash2, RefreshCcw, FileStack } from "lucide-react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  PlusCircle,
+  Pencil,
+  Trash2,
+  RefreshCcw,
+  FileStack,
+  Save,
+  GripVertical,
+} from "lucide-react";
 import Swal from "sweetalert2";
 
 import { documentTypesAPI } from "@/app/lib/api";
@@ -26,46 +34,68 @@ const normalizeApiList = (value, fallbackKey) => {
 };
 
 const dedupeStringList = (items) => {
-  let list;
+  const flat = [];
+
+  const appendValue = (value) => {
+    if (Array.isArray(value)) {
+      value.forEach(appendValue);
+      return;
+    }
+
+    if (typeof value !== "string") return;
+
+    const trimmed = value.trim();
+    if (!trimmed) return;
+
+    if (trimmed.startsWith("[") && trimmed.endsWith("]")) {
+      try {
+        const parsed = JSON.parse(trimmed);
+        if (Array.isArray(parsed)) {
+          parsed.forEach(appendValue);
+          return;
+        }
+      } catch (error) {
+        console.warn("Failed to parse fund type list string:", trimmed, error);
+      }
+    }
+
+    const cleaned = trimmed.replace(/^['"]+|['"]+$/g, "");
+    if (!cleaned) return;
+
+    if (cleaned.includes(",")) {
+      cleaned.split(",").forEach((segment) => appendValue(segment));
+      return;
+    }
+
+    flat.push(cleaned);
+  };
 
   if (Array.isArray(items)) {
-    list = items;
+    items.forEach(appendValue);
   } else if (typeof items === "string") {
-    const raw = items.trim();
-    if (!raw) {
-      list = [];
-    } else if (raw.startsWith("[") && raw.endsWith("]")) {
-      try {
-        const parsed = JSON.parse(raw);
-        list = Array.isArray(parsed) ? parsed : [raw];
-      } catch (error) {
-        console.warn("Failed to parse fund type list string:", raw, error);
-        list = raw.split(",");
-      }
-    } else {
-      list = raw.split(",");
-    }
+    appendValue(items);
   } else if (items && typeof items === "object") {
-    list = Array.isArray(items.data)
-      ? items.data
-      : Array.isArray(items.items)
-      ? items.items
-      : [];
-  } else {
-    list = [];
+    if (Array.isArray(items.data)) {
+      items.data.forEach(appendValue);
+    } else if (Array.isArray(items.items)) {
+      items.items.forEach(appendValue);
+    } else {
+      Object.values(items).forEach((value) => {
+        if (Array.isArray(value)) {
+          value.forEach(appendValue);
+        }
+      });
+    }
   }
 
   const seen = new Set();
   const result = [];
 
-  list.forEach((value) => {
-    if (typeof value !== "string") return;
-    const trimmed = value.trim();
-    if (!trimmed) return;
-    const lower = trimmed.toLowerCase();
+  flat.forEach((value) => {
+    const lower = value.toLowerCase();
     if (seen.has(lower)) return;
     seen.add(lower);
-    result.push(trimmed);
+    result.push(value);
   });
 
   return result;
@@ -102,13 +132,6 @@ const formatDocumentType = (item) => {
   const fundTypeMode = determineFundTypeMode(item);
   const fundTypes = dedupeStringList(item.fund_types);
 
-  console.log("[DocumentTypeManager] normalize fund types", {
-    documentTypeId: item.document_type_id ?? item.id,
-    rawFundTypes: item.fund_types,
-    normalizedFundTypes: fundTypes,
-    fundTypeMode,
-  });
-
   return {
     document_type_id: item.document_type_id ?? item.id,
     document_type_name: item.document_type_name ?? item.name ?? "",
@@ -131,6 +154,17 @@ const DocumentTypeManager = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [modalOpen, setModalOpen] = useState(false);
   const [editingDocumentType, setEditingDocumentType] = useState(null);
+  const [draggingId, setDraggingId] = useState(null);
+  const [orderDirty, setOrderDirty] = useState(false);
+  const baselineOrderRef = useRef([]);
+
+  const isFiltering = useMemo(() => searchTerm.trim().length > 0, [searchTerm]);
+
+  const syncBaseline = useCallback((list) => {
+    const order = list.map((item) => item.document_type_id);
+    baselineOrderRef.current = order;
+    setOrderDirty(false);
+  }, []);
 
   const showSuccess = (message) => Toast.fire({ icon: "success", title: message });
   const showError = (message) => Toast.fire({ icon: "error", title: message });
@@ -142,14 +176,27 @@ const DocumentTypeManager = () => {
       const list = normalizeApiList(response, "document_types")
         .map(formatDocumentType)
         .filter(Boolean);
-      setDocumentTypes(list);
+      const sorted = list
+        .slice()
+        .sort((a, b) => {
+          const orderDiff = (a.document_order ?? 0) - (b.document_order ?? 0);
+          if (orderDiff !== 0) return orderDiff;
+          return (a.document_type_id ?? 0) - (b.document_type_id ?? 0);
+        });
+      const normalized = sorted.map((item, index) => ({
+        ...item,
+        document_order: index + 1,
+      }));
+      setDocumentTypes(normalized);
+      setFilteredTypes(normalized);
+      syncBaseline(normalized);
     } catch (error) {
       console.error("Failed to load document types:", error);
       showError("ไม่สามารถโหลดประเภทเอกสารได้");
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [syncBaseline]);
 
   useEffect(() => {
     loadDocumentTypes();
@@ -215,16 +262,24 @@ const DocumentTypeManager = () => {
   };
 
   const handleModalSubmit = async (formData) => {
+    const fundTypes = dedupeStringList(formData.fund_types);
     const payload = {
       document_type_name: formData.document_type_name,
       code: formData.code,
-      document_order: Number(formData.document_order) || 0,
       required: Boolean(formData.required),
       multiple: Boolean(formData.multiple),
-      fund_types: dedupeStringList(formData.fund_types),
+      fund_types: fundTypes,
     };
 
     const mode = editingDocumentType?.document_type_id ? "update" : "create";
+
+    if (mode === "create") {
+      const maxOrder = documentTypes.reduce((max, item) => {
+        const current = Number(item.document_order) || 0;
+        return current > max ? current : max;
+      }, 0);
+      payload.document_order = maxOrder + 1;
+    }
 
     try {
       setSaving(true);
@@ -259,6 +314,107 @@ const DocumentTypeManager = () => {
     setEditingDocumentType(null);
   };
 
+  const handleDragStart = (event, id) => {
+    setDraggingId(id);
+    if (event?.dataTransfer) {
+      event.dataTransfer.effectAllowed = "move";
+    }
+  };
+
+  const handleDragOver = (event, overId) => {
+    event.preventDefault();
+    if (draggingId == null || draggingId === overId) return;
+
+    setDocumentTypes((prev) => {
+      const fromIndex = prev.findIndex(
+        (item) => item.document_type_id === draggingId,
+      );
+      const toIndex = prev.findIndex(
+        (item) => item.document_type_id === overId,
+      );
+      if (fromIndex === -1 || toIndex === -1) return prev;
+
+      const next = [...prev];
+      const [moved] = next.splice(fromIndex, 1);
+      next.splice(toIndex, 0, moved);
+
+      const recalculated = next.map((entry, idx) => ({
+        ...entry,
+        document_order: idx + 1,
+      }));
+
+      const term = searchTerm.trim().toLowerCase();
+      if (!term) {
+        setFilteredTypes(recalculated);
+      } else {
+        setFilteredTypes(
+          recalculated.filter((item) => {
+            const candidates = [
+              item.document_type_name,
+              item.code,
+              ...(item.fund_types || []),
+            ];
+            return candidates.some(
+              (entry) => typeof entry === "string" && entry.toLowerCase().includes(term),
+            );
+          }),
+        );
+      }
+
+      const currentOrder = recalculated.map((item) => item.document_type_id);
+      const baseline = baselineOrderRef.current;
+      const matchesBaseline =
+        currentOrder.length === baseline.length &&
+        currentOrder.every((value, index) => value === baseline[index]);
+      setOrderDirty(!matchesBaseline);
+
+      return recalculated;
+    });
+  };
+
+  const handleDragEnd = () => {
+    setDraggingId(null);
+  };
+
+  const persistDocumentOrder = async () => {
+    if (!orderDirty) return;
+
+    try {
+      setSaving(true);
+      const payloads = documentTypes
+        .map((item, index) => ({
+          id: item.document_type_id,
+          document_order: index + 1,
+        }))
+        .filter((entry) => entry.id != null);
+
+      if (payloads.length === 0) {
+        showError("ไม่มีรายการสำหรับบันทึกลำดับ");
+        return;
+      }
+
+      await Promise.all(
+        payloads.map((entry) =>
+          documentTypesAPI.updateDocumentType(entry.id, {
+            document_order: entry.document_order,
+          }),
+        ),
+      );
+
+      showSuccess("บันทึกลำดับประเภทเอกสารแล้ว");
+      await loadDocumentTypes();
+    } catch (error) {
+      console.error("Failed to persist document order:", error);
+      const message =
+        error?.response?.data?.error ||
+        error?.message ||
+        "ไม่สามารถบันทึกลำดับได้";
+      showError(message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
 
   return (
     <div className="space-y-6">
@@ -287,6 +443,15 @@ const DocumentTypeManager = () => {
             </button>
             <button
               type="button"
+              onClick={persistDocumentOrder}
+              disabled={loading || saving || !orderDirty}
+              className="inline-flex items-center gap-2 rounded-lg border border-blue-200 px-4 py-2 text-sm font-medium text-blue-600 transition hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <Save size={16} />
+              บันทึกลำดับ
+            </button>
+            <button
+              type="button"
               onClick={handleAddDocumentType}
               className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-blue-700"
             >
@@ -312,15 +477,16 @@ const DocumentTypeManager = () => {
             </div>
           </div>
 
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto rounded-lg border border-gray-200">
             <table className="min-w-full divide-y divide-gray-200 text-sm">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-4 py-3 text-left font-medium text-gray-600">ชื่อเอกสาร</th>
-                  <th className="px-4 py-3 text-left font-medium text-gray-600">รหัส</th>
-                  <th className="px-4 py-3 text-left font-medium text-gray-600">ประเภททุน</th>
-                  <th className="px-4 py-3 text-left font-medium text-gray-600">ตัวเลือก</th>
-                  <th className="px-4 py-3 text-right font-medium text-gray-600">การจัดการ</th>
+                  <th className="w-16 px-3 py-3 text-center font-medium text-gray-600">ลำดับ</th>
+                  <th className="px-3 py-3 text-left font-medium text-gray-600">ชื่อเอกสาร</th>
+                  <th className="px-3 py-3 text-left font-medium text-gray-600">รหัส</th>
+                  <th className="px-3 py-3 text-left font-medium text-gray-600">ประเภททุน</th>
+                  <th className="px-3 py-3 text-left font-medium text-gray-600">ตัวเลือก</th>
+                  <th className="px-3 py-3 text-right font-medium text-gray-600">การจัดการ</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
@@ -337,18 +503,30 @@ const DocumentTypeManager = () => {
                     </td>
                   </tr>
                 ) : (
-                  filteredTypes.map((item) => (
-                    <tr key={item.document_type_id} className="hover:bg-gray-50">
-                      <td className="px-4 py-3">
+                  filteredTypes.map((item, index) => (
+                    <tr
+                      key={item.document_type_id}
+                      draggable={!isFiltering}
+                      onDragStart={(event) => handleDragStart(event, item.document_type_id)}
+                      onDragOver={(event) => handleDragOver(event, item.document_type_id)}
+                      onDragEnd={handleDragEnd}
+                      className={`${draggingId === item.document_type_id ? "bg-blue-50" : "hover:bg-gray-50"}`}
+                    >
+                      <td className="px-3 py-3 text-gray-400">
+                        <div
+                          className={`inline-flex items-center gap-1 ${isFiltering ? "cursor-not-allowed" : "cursor-grab"}`}
+                        >
+                          <GripVertical size={16} />
+                          {item.document_order ?? index + 1}
+                        </div>
+                      </td>
+                      <td className="px-3 py-3">
                         <div className="font-medium text-gray-900">
                           {item.document_type_name || "(ไม่ระบุชื่อ)"}
                         </div>
-                        <div className="text-xs text-gray-500">
-                          ลำดับ: {item.document_order ?? 0}
-                        </div>
                       </td>
-                      <td className="px-4 py-3 text-gray-700">{item.code}</td>
-                      <td className="px-4 py-3">
+                      <td className="px-3 py-3 text-gray-700">{item.code || "-"}</td>
+                      <td className="px-3 py-3">
                         <div className="space-y-1">
                           {(() => {
                             const fundTypes = Array.isArray(item.fund_types)
@@ -359,7 +537,7 @@ const DocumentTypeManager = () => {
 
                             if (inactive) {
                               return (
-                                <span className="block rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-500">
+                                <span className="block rounded-full bg-gray-100 px-3 py-1 text-xs text-gray-500">
                                   ไม่ได้ใช้งาน
                                 </span>
                               );
@@ -367,7 +545,7 @@ const DocumentTypeManager = () => {
 
                             if (mode === "all" || fundTypes.length === 0) {
                               return (
-                                <span className="block rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-500">
+                                <span className="block rounded-full bg-gray-100 px-3 py-1 text-xs text-gray-500">
                                   ทุกประเภททุน
                                 </span>
                               );
@@ -386,7 +564,7 @@ const DocumentTypeManager = () => {
                           })()}
                         </div>
                       </td>
-                      <td className="px-4 py-3 text-gray-700">
+                      <td className="px-3 py-3 text-gray-700">
                         <div className="space-y-1 text-xs">
                           <div>
                             <span className="font-medium text-gray-600">ต้องแนบ:</span>{" "}
@@ -398,7 +576,7 @@ const DocumentTypeManager = () => {
                           </div>
                         </div>
                       </td>
-                      <td className="px-4 py-3 text-right">
+                      <td className="px-3 py-3 text-right">
                         <div className="flex justify-end gap-2">
                           <button
                             type="button"

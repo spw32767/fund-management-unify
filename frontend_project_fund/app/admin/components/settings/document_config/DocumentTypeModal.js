@@ -11,7 +11,6 @@ export const FUND_TYPE_OPTIONS = [
 const initialFormState = {
   document_type_name: "",
   code: "",
-  document_order: 0,
   required: false,
   multiple: false,
   fund_types: [],
@@ -40,7 +39,6 @@ const DocumentTypeModal = ({
     setFormState({
       document_type_name: base.document_type_name || "",
       code: base.code || "",
-      document_order: Number(base.document_order || 0),
       required: Boolean(base.required),
       multiple: Boolean(base.multiple),
       fund_types: Array.isArray(base.fund_types) ? base.fund_types : [],
@@ -67,7 +65,6 @@ const DocumentTypeModal = ({
     const payload = {
       document_type_name: formState.document_type_name.trim(),
       code: formState.code.trim(),
-      document_order: Number(formState.document_order) || 0,
       required: Boolean(formState.required),
       multiple: Boolean(formState.multiple),
       fund_types: Array.isArray(formState.fund_types)
@@ -144,23 +141,6 @@ const DocumentTypeModal = ({
                   }
                   className="w-full rounded-lg border border-gray-300 px-3 py-2 text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
                   placeholder="เช่น publication_reward_form"
-                />
-              </div>
-
-              <div>
-                <label className="mb-2 block text-sm font-medium text-gray-700">
-                  ลำดับการแสดงผล
-                </label>
-                <input
-                  type="number"
-                  value={formState.document_order}
-                  onChange={(e) =>
-                    setFormState((prev) => ({
-                      ...prev,
-                      document_order: e.target.value,
-                    }))
-                  }
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
                 />
               </div>
 
