@@ -281,6 +281,34 @@ export default function ProfileContent() {
             100
           : 0;
 
+      const englishPrefix =
+        profile.prefix_position_en ||
+        profile.prefix_en ||
+        profile.title_en ||
+        "";
+      const englishFullName = (
+        profile.name_en ||
+        profile.full_name_en ||
+        [
+          profile.user_fname_en ||
+            profile.first_name_en ||
+            profile.given_name_en ||
+            profile.en_first_name ||
+            "",
+          profile.user_lname_en ||
+            profile.last_name_en ||
+            profile.family_name_en ||
+            profile.en_last_name ||
+            "",
+        ]
+          .filter(Boolean)
+          .join(" ")
+      ).trim();
+      const englishName = [englishPrefix, englishFullName]
+        .filter(Boolean)
+        .join(" ")
+        .trim();
+
       setTeacherData({
         user_id: profile.user_id,
         prefix:
@@ -292,23 +320,7 @@ export default function ProfileContent() {
         suffix: profile.suffix || profile.suffix_name || "",
         user_fname: profile.user_fname,
         user_lname: profile.user_lname,
-        english_name:
-          profile.name_en ||
-          profile.full_name_en ||
-          [
-            profile.user_fname_en ||
-              profile.first_name_en ||
-              profile.given_name_en ||
-              profile.en_first_name ||
-              "",
-            profile.user_lname_en ||
-              profile.last_name_en ||
-              profile.family_name_en ||
-              profile.en_last_name ||
-              "",
-          ]
-            .filter(Boolean)
-            .join(" "),
+        english_name: englishName,
         position: profile.position_name,
         department: profile.department || "",
         faculty: profile.faculty || "",
