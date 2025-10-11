@@ -285,6 +285,147 @@ export default function PublicationRewardDetail({ submissionId, onNavigate }) {
       .sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
   };
 
+  const rawDocuments = useMemo(() => {
+    if (!submission) return [];
+    if (Array.isArray(submission.documents) && submission.documents.length > 0) {
+      return submission.documents;
+    }
+    if (Array.isArray(submission.submission_documents)) {
+      return submission.submission_documents;
+    }
+    return [];
+  }, [submission]);
+
+  const documentFileMap = useMemo(() => {
+    const map = {};
+    if (!submission) return map;
+
+    const addFile = (file) => {
+      if (!file) return;
+      const candidate = file.file || file.File || file;
+      if (!candidate) return;
+      const fidRaw =
+        candidate.file_id ??
+        candidate.FileID ??
+        candidate.id ??
+        candidate.fileId ??
+        candidate.managed_file_id;
+      if (fidRaw == null) return;
+      const fidNum = Number(fidRaw);
+      if (Number.isNaN(fidNum)) return;
+      const key = String(fidNum);
+      if (!map[key]) {
+        map[key] = { ...candidate, file_id: fidNum };
+      }
+    };
+
+    const potentialCollections = [
+      submission.files,
+      submission.file_uploads,
+      submission.fileUploads,
+      submission.Files,
+      submission.managed_files,
+      submission.managedFiles,
+      submission.document_files,
+      submission.documentFiles,
+      submission.files_list,
+      submission.filesList,
+    ];
+
+    potentialCollections.forEach((collection) => {
+      toArray(collection).forEach(addFile);
+    });
+
+    [submission.documents, submission.submission_documents].forEach((docs) => {
+      toArray(docs).forEach((doc) => {
+        addFile(doc?.File);
+        addFile(doc?.file);
+      });
+    });
+
+    return map;
+  }, [submission]);
+
+  const documents = useMemo(() => {
+    return rawDocuments.map((doc, index) => {
+      const rawFileId =
+        doc.file_id ??
+        doc.File?.file_id ??
+        doc.file?.file_id ??
+        doc.fileId ??
+        doc.managed_file_id ??
+        null;
+
+      let normalizedFileId =
+        rawFileId != null && rawFileId !== ""
+          ? Number(rawFileId)
+          : null;
+      if (Number.isNaN(normalizedFileId)) {
+        normalizedFileId = null;
+      }
+
+      let resolvedFile =
+        (normalizedFileId != null
+          ? documentFileMap[String(normalizedFileId)] || null
+          : null) ||
+        doc.File ||
+        doc.file ||
+        null;
+
+      if (!resolvedFile && rawFileId != null) {
+        const fallback = documentFileMap[String(rawFileId)];
+        if (fallback) {
+          resolvedFile = fallback;
+          if (normalizedFileId == null && !Number.isNaN(Number(rawFileId))) {
+            normalizedFileId = Number(rawFileId);
+          }
+        }
+      }
+
+      if (
+        normalizedFileId == null &&
+        resolvedFile &&
+        resolvedFile.file_id != null &&
+        !Number.isNaN(Number(resolvedFile.file_id))
+      ) {
+        normalizedFileId = Number(resolvedFile.file_id);
+      }
+
+      const docName =
+        firstNonEmpty(
+          doc.File?.original_name,
+          doc.file?.original_name,
+          resolvedFile?.original_name,
+          resolvedFile?.file_name,
+          resolvedFile?.name,
+          doc.document_name,
+          doc.document_title,
+          doc.document_type_name,
+          doc.name,
+          doc.title,
+        ) ||
+        (doc.document_type
+          ? doc.document_type.document_type_name || doc.document_type.name
+          : null) ||
+        `เอกสารแนบที่ ${index + 1}`;
+
+      const docTypeName =
+        doc.document_type_name ||
+        doc.document_type?.document_type_name ||
+        doc.document_type?.name ||
+        null;
+
+      return {
+        ...doc,
+        file_id: normalizedFileId ?? rawFileId ?? null,
+        document_type_name: docTypeName,
+        resolved_file: resolvedFile || null,
+        display_name: docName,
+      };
+    });
+  }, [rawDocuments, documentFileMap]);
+
+
   useEffect(() => {
     if (submissionId) {
       loadSubmissionDetail();
@@ -547,140 +688,6 @@ export default function PublicationRewardDetail({ submissionId, onNavigate }) {
     !Number.isNaN(approvedTotal);
 
   // documents may come from different property names depending on the API response
-  const rawDocuments = useMemo(() => {
-    if (!submission) return [];
-    if (Array.isArray(submission.documents) && submission.documents.length > 0) {
-      return submission.documents;
-    }
-    if (Array.isArray(submission.submission_documents)) {
-      return submission.submission_documents;
-    }
-    return [];
-  }, [submission]);
-
-  const documentFileMap = useMemo(() => {
-    const map = {};
-    if (!submission) return map;
-
-    const addFile = (file) => {
-      if (!file) return;
-      const candidate = file.file || file.File || file;
-      if (!candidate) return;
-      const fidRaw =
-        candidate.file_id ??
-        candidate.FileID ??
-        candidate.id ??
-        candidate.fileId ??
-        candidate.managed_file_id;
-      if (fidRaw == null) return;
-      const fidNum = Number(fidRaw);
-      if (Number.isNaN(fidNum)) return;
-      const key = String(fidNum);
-      if (!map[key]) {
-        map[key] = { ...candidate, file_id: fidNum };
-      }
-    };
-
-    const potentialCollections = [
-      submission.files,
-      submission.file_uploads,
-      submission.fileUploads,
-      submission.Files,
-      submission.managed_files,
-      submission.managedFiles,
-      submission.document_files,
-      submission.documentFiles,
-      submission.files_list,
-      submission.filesList,
-    ];
-
-    potentialCollections.forEach((collection) => {
-      toArray(collection).forEach(addFile);
-    });
-
-    [submission.documents, submission.submission_documents].forEach((docs) => {
-      toArray(docs).forEach((doc) => {
-        addFile(doc?.File);
-        addFile(doc?.file);
-      });
-    });
-
-    return map;
-  }, [submission]);
-
-  const documents = useMemo(() => {
-    return rawDocuments.map((doc, index) => {
-      const rawFileId =
-        doc.file_id ??
-        doc.File?.file_id ??
-        doc.file?.file_id ??
-        doc.fileId ??
-        doc.managed_file_id ??
-        null;
-
-      let normalizedFileId =
-        rawFileId != null && rawFileId !== ""
-          ? Number(rawFileId)
-          : null;
-      if (Number.isNaN(normalizedFileId)) {
-        normalizedFileId = null;
-      }
-
-      let resolvedFile =
-        (normalizedFileId != null
-          ? documentFileMap[String(normalizedFileId)] || null
-          : null) ||
-        doc.File ||
-        doc.file ||
-        null;
-
-      if (!resolvedFile && rawFileId != null) {
-        const fallback = documentFileMap[String(rawFileId)];
-        if (fallback) {
-          resolvedFile = fallback;
-          if (normalizedFileId == null && !Number.isNaN(Number(rawFileId))) {
-            normalizedFileId = Number(rawFileId);
-          }
-        }
-      }
-
-      if (
-        normalizedFileId == null &&
-        resolvedFile &&
-        resolvedFile.file_id != null &&
-        !Number.isNaN(Number(resolvedFile.file_id))
-      ) {
-        normalizedFileId = Number(resolvedFile.file_id);
-      }
-
-      const docName =
-        firstNonEmpty(
-          doc.File?.original_name,
-          doc.file?.original_name,
-          resolvedFile?.original_name,
-          resolvedFile?.file_name,
-          doc.original_filename,
-          doc.file_name,
-          doc.name,
-          doc.description,
-        ) || `เอกสารที่ ${index + 1}`;
-
-      const docTypeName =
-        firstNonEmpty(
-          doc.document_type_name,
-          doc.DocumentType?.document_type_name,
-          doc.document_type?.document_type_name,
-        ) || "-";
-
-      return {
-        ...doc,
-        file_id: normalizedFileId ?? rawFileId ?? null,
-        document_type_name: docTypeName,
-        resolved_file: resolvedFile || null,
-        display_name: docName,
-      };
-    });
-  }, [rawDocuments, documentFileMap]);
   const applicant = getApplicant();
 
   const statusCode =
