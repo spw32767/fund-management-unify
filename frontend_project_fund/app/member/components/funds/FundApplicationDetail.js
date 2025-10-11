@@ -314,6 +314,9 @@ export default function FundApplicationDetail({ submissionId, onNavigate }) {
     }
   };
 
+  const documents =
+    submission?.documents || submission?.submission_documents || [];
+
   useEffect(() => {
     const hasAnnouncementIds =
       mainAnnouncementId != null || activityAnnouncementId != null;
@@ -373,6 +376,22 @@ export default function FundApplicationDetail({ submissionId, onNavigate }) {
     };
   }, [mainAnnouncementId, activityAnnouncementId]);
 
+  useEffect(() => {
+    return () => {
+      if (mergedUrlRef.current) {
+        URL.revokeObjectURL(mergedUrlRef.current);
+        mergedUrlRef.current = null;
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (mergedUrlRef.current) {
+      URL.revokeObjectURL(mergedUrlRef.current);
+      mergedUrlRef.current = null;
+    }
+  }, [documents]);
+
   if (loading) {
     return (
       <PageLayout
@@ -410,24 +429,6 @@ export default function FundApplicationDetail({ submissionId, onNavigate }) {
     );
   }
 
-  const documents =
-    submission.documents || submission.submission_documents || [];
-
-  useEffect(() => {
-    return () => {
-      if (mergedUrlRef.current) {
-        URL.revokeObjectURL(mergedUrlRef.current);
-        mergedUrlRef.current = null;
-      }
-    };
-  }, []);
-
-  useEffect(() => {
-    if (mergedUrlRef.current) {
-      URL.revokeObjectURL(mergedUrlRef.current);
-      mergedUrlRef.current = null;
-    }
-  }, [documents]);
   const applicant = getApplicant();
 
   const statusCode =
