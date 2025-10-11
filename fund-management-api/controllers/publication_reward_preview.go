@@ -26,6 +26,8 @@ import (
 	"sync"
 	"time"
 
+	pdfcpuapi "github.com/pdfcpu/pdfcpu/pkg/api"
+
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
@@ -490,14 +492,27 @@ func mergePDFs(inputs []string, outputPath string) error {
 		absInputs = append(absInputs, absInput)
 	}
 
+	if err := os.MkdirAll(filepath.Dir(absOutput), 0o755); err != nil {
+		return fmt.Errorf("failed to prepare output directory: %w", err)
+	}
+
+	if len(absInputs) == 1 {
+		return copyPDF(absInputs[0], absOutput)
+	}
+
 	var attempts []string
+
+	if err := mergePDFsWithPDFCPU(absInputs, absOutput); err == nil {
+		return nil
+	} else {
+		attempts = append(attempts, fmt.Sprintf("pdfcpu (%v)", err))
+	}
 
 	if nodeBinary, err := resolveNodeBinary(); err == nil {
 		if err := mergePDFsWithNode(nodeBinary, absInputs, absOutput); err == nil {
 			return nil
-		} else {
-			attempts = append(attempts, fmt.Sprintf("node (%v)", err))
 		}
+		attempts = append(attempts, fmt.Sprintf("node (%v)", err))
 	} else {
 		attempts = append(attempts, fmt.Sprintf("node (%v)", err))
 	}
@@ -505,9 +520,8 @@ func mergePDFs(inputs []string, outputPath string) error {
 	if gsBinary, err := exec.LookPath("gs"); err == nil {
 		if err := mergePDFsWithGhostscript(gsBinary, absInputs, absOutput); err == nil {
 			return nil
-		} else {
-			attempts = append(attempts, fmt.Sprintf("gs (%v)", err))
 		}
+		attempts = append(attempts, fmt.Sprintf("gs (%v)", err))
 	} else {
 		attempts = append(attempts, fmt.Sprintf("gs (%v)", err))
 	}
@@ -515,9 +529,8 @@ func mergePDFs(inputs []string, outputPath string) error {
 	if uniteBinary, err := exec.LookPath("pdfunite"); err == nil {
 		if err := mergePDFsWithPdfunite(uniteBinary, absInputs, absOutput); err == nil {
 			return nil
-		} else {
-			attempts = append(attempts, fmt.Sprintf("pdfunite (%v)", err))
 		}
+		attempts = append(attempts, fmt.Sprintf("pdfunite (%v)", err))
 	} else {
 		attempts = append(attempts, fmt.Sprintf("pdfunite (%v)", err))
 	}
@@ -527,6 +540,50 @@ func mergePDFs(inputs []string, outputPath string) error {
 	}
 
 	return fmt.Errorf("failed to merge pdf files: %s", strings.Join(attempts, "; "))
+}
+
+func copyPDF(src, dst string) error {
+	if src == dst {
+		return nil
+	}
+
+	in, err := os.Open(src)
+	if err != nil {
+		return fmt.Errorf("failed to open source pdf: %w", err)
+	}
+	defer in.Close()
+
+	out, err := os.Create(dst)
+	if err != nil {
+		return fmt.Errorf("failed to create destination pdf: %w", err)
+	}
+
+	success := false
+	defer func() {
+		if !success {
+			out.Close()
+			os.Remove(dst)
+		}
+	}()
+
+	if _, err := io.Copy(out, in); err != nil {
+		return fmt.Errorf("failed to copy pdf: %w", err)
+	}
+
+	if err := out.Sync(); err != nil {
+		return fmt.Errorf("failed to flush pdf: %w", err)
+	}
+
+	if err := out.Close(); err != nil {
+		return fmt.Errorf("failed to close destination pdf: %w", err)
+	}
+
+	success = true
+	return nil
+}
+
+func mergePDFsWithPDFCPU(inputs []string, outputPath string) error {
+	return pdfcpuapi.MergeCreateFile(inputs, outputPath, nil)
 }
 
 func mergePDFsWithNode(nodeBinary string, inputs []string, outputPath string) error {

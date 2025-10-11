@@ -12,6 +12,7 @@ This document explains how merged submission PDFs are generated after a member s
    ```
 
 3. The backend collects every PDF file associated with that submission (including generated PDFs such as the publication reward form) and merges them into a single document.
+   * When only a single PDF exists, it is copied into the archive directory so the storage layout stays consistent without relying on external merge tools.
 
 ## Storage location
 
@@ -45,12 +46,15 @@ A successful merge returns JSON that includes the stored file metadata:
 
 The `relative_path` field mirrors the example path shown above and can be stored or logged for later retrieval.
 
+> **Note:** The API prepares the `merge_submissions/{year}` directory automatically. You do not need to pre-create the folder on the server.
+
 ## Error handling
 
 * If the submission has not been formally submitted yet, the merge endpoint returns `400 Bad Request`.
 * When no PDF documents are attached, the endpoint still returns `200 OK` with `merged_file: null` and a `message` that explains no PDFs were available. This keeps the submission flow smooth even when only non-PDF documents were uploaded.
 * File paths are normalised before merging, so uploads that store Windows-style (`\\`) separators can still be located on Linux hosts.
-* Any unexpected error (e.g., merge tool unavailable) results in `500 Internal Server Error`. The frontend logs these errors but does not block the overall submission flow.
+* PDF merging is handled by a pure Go fallback (via [pdfcpu](https://github.com/pdfcpu/pdfcpu)), so the feature no longer depends on Node.js, Ghostscript, or Poppler binaries being present on the server.
+* Any unexpected error still results in `500 Internal Server Error`. The frontend logs these errors but does not block the overall submission flow.
 
 ## Local testing tips
 
