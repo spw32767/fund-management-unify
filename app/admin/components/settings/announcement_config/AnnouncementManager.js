@@ -9,6 +9,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import AnnouncementModal from "@/app/admin/components/settings/announcement_config/AnnouncementModal";
 import FundFormModal from "@/app/admin/components/settings/announcement_config/FundFormModal";
 import { adminAPI } from "@/app/lib/admin_api";
+import SettingsSectionCard from "@/app/admin/components/settings/common/SettingsSectionCard";
 
 /** ========= Helpers ========= */
 function toast(icon, title) {
@@ -138,6 +139,12 @@ function isAllowedUploadFile(file) {
     promotion_fund: "ทุนกิจกรรม",
     both: "ทั้งสองประเภท",
   };
+
+const pageMotionProps = {
+  initial: { opacity: 0, y: 8 },
+  animate: { opacity: 1, y: 0 },
+  transition: { duration: 0.3, ease: "easeOut" },
+};
 
 export default function AnnouncementManager() {
   /** ===== State: Announcements ===== */
@@ -766,37 +773,39 @@ export default function AnnouncementManager() {
   };
 
   return (
-    <div className="animate-in fade-in duration-300 space-y-8">
-      {/* Announcements Section (Admin Controls included) */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200">
-        <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-blue-100 rounded-lg">
-              <Bell size={20} className="text-blue-600" />
-            </div>
-            <div>
-              <h2 className="text-lg font-semibold text-gray-800">ประกาศ</h2>
-              <p className="text-sm text-gray-600">จัดการประกาศ</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <button onClick={loadAnnouncements} className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border text-sm hover:bg-gray-50">
-              <RefreshCw size={16} /> รีเฟรช
-            </button>
-            <button
-              onClick={aPersistOrder}
-              disabled={!aOrderDirty}
-              className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border text-sm bg-white hover:bg-gray-50 disabled:opacity-50"
-            >
-              <Save size={16} /> บันทึกลำดับ
-            </button>
-            <button onClick={openACreate} className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700">
-              <Plus size={16} /> เพิ่มประกาศ
-            </button>
-          </div>
-        </div>
-
-        <div className="p-6">
+    <>
+      <motion.div className="space-y-8" {...pageMotionProps}>
+        <SettingsSectionCard
+          icon={Bell}
+          iconBgClass="bg-blue-100"
+          iconColorClass="text-blue-600"
+          title="ประกาศ"
+          description="จัดการประกาศ"
+          actions={
+            <>
+              <button
+                onClick={loadAnnouncements}
+                className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border text-sm hover:bg-gray-50"
+              >
+                <RefreshCw size={16} /> รีเฟรช
+              </button>
+              <button
+                onClick={aPersistOrder}
+                disabled={!aOrderDirty}
+                className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border text-sm bg-white hover:bg-gray-50 disabled:opacity-50"
+              >
+                <Save size={16} /> บันทึกลำดับ
+              </button>
+              <button
+                onClick={openACreate}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700"
+              >
+                <Plus size={16} /> เพิ่มประกาศ
+              </button>
+            </>
+          }
+          contentClassName="space-y-6"
+        >
           {loadingAnnouncements ? (
             <div className="flex items-center justify-center py-8">
               <div className="w-8 h-8 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin"></div>
@@ -809,75 +818,67 @@ export default function AnnouncementManager() {
               <table className="min-w-full divide-y divide-gray-200 text-sm">
                 <thead className="bg-gray-50">
                   <tr>
-                    <th className="w-10 px-3 py-2 text-center text-gray-600">ลำดับ</th>
-                    <th className="px-3 py-2 text-center text-gray-600">ชื่อไฟล์ / หัวข้อ</th>
-                    <th className="px-3 py-2 text-center text-gray-600">หมวดหมู่กองทุน</th>
-                    <th className="px-3 py-2 text-center text-gray-600">ปี</th>
-                    <th className="px-3 py-2 text-center text-gray-600">เผยแพร่</th>
-                    <th className="px-3 py-2 text-center text-gray-600">รายละเอียด</th>
-                    <th className="px-3 py-2 text-center text-gray-600">การจัดการ</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {A.map((row, idx) => {
-                    const id = row.announcement_id || row.id;
-                    return (
-                      <tr
-                        key={id}
-                        draggable
-                        onDragStart={(e) => aDragStart(e, id)}
-                        onDragOver={(e) => aDragOver(e, id)}
-                        onDragEnd={aDragEnd}
-                        className={`${aDraggingId === id ? "bg-blue-50" : ""}`}
-                      >
-                        <td className="px-3 py-2 text-gray-400">
-                          <div className="inline-flex items-center gap-1 cursor-grab" title="ลากเพื่อจัดลำดับ">
-                            <GripVertical size={16} /> {idx + 1}
-                          </div>
-                        </td>
-                        <td className="px-3 py-2">
-                          <div className="text-gray-500 line-clamp-1 max-w-[30ch] break-words">
-                            {row.file_path ? (
-                              <a
-                                href={getFileURL(row.file_path)}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-blue-600 hover:underline"
-                                title="เปิดดูไฟล์"
-                              >
-                                {row.file_name || "เปิดไฟล์"}
-                              </a>
-                            ) : (
-                              <span className="text-gray-400">-</span>
-                            )}
-                          </div>                          
-                        <div className="text-sm text-gray-500 line-clamp-1 max-w-[30ch] break-words ">
-                          {row.title || "-"}
+                  <th className="w-10 px-3 py-2 text-center text-gray-600">ลำดับ</th>
+                  <th className="px-3 py-2 text-center text-gray-600">ชื่อไฟล์ / หัวข้อ</th>
+                  <th className="px-3 py-2 text-center text-gray-600">หมวดหมู่กองทุน</th>
+                  <th className="px-3 py-2 text-center text-gray-600">ปี</th>
+                  <th className="px-3 py-2 text-center text-gray-600">เผยแพร่</th>
+                  <th className="px-3 py-2 text-center text-gray-600">รายละเอียด</th>
+                  <th className="px-3 py-2 text-center text-gray-600">การจัดการ</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {A.map((row, idx) => {
+                  const id = row.announcement_id || row.id;
+                  return (
+                    <tr
+                      key={id}
+                      draggable
+                      onDragStart={(e) => aDragStart(e, id)}
+                      onDragOver={(e) => aDragOver(e, id)}
+                      onDragEnd={aDragEnd}
+                      className={`${aDraggingId === id ? "bg-blue-50" : ""}`}
+                    >
+                      <td className="px-3 py-2 text-gray-400">
+                        <div className="inline-flex items-center gap-1 cursor-grab" title="ลากเพื่อจัดลำดับ">
+                          <GripVertical size={16} /> {idx + 1}
                         </div>
-                        </td>
-                        <td className="px-3 py-2">{TYPE_LABEL[row.announcement_type] || "-"}</td>
-                        <td className="px-3 py-2">{resolveYearLabel(row)}</td>
-                        <td className="px-3 py-2">{formatThaiDateTime(row.published_at)}</td>
-                        <td className="px-3 py-2">
-                          <span
-                            className="text-gray-500 line-clamp-2 max-w-[48ch] break-words"
-                            title={row.description || "-"}
-                          >
-                            {row.description || "-"}
-                          </span>
-                        </td>
-                        <td className="px-3 py-2">
+                      </td>
+                      <td className="px-3 py-2">
+                        <div className="text-gray-500 line-clamp-1 max-w-[30ch] break-words">
+                          {row.file_path ? (
+                            <button
+                              onClick={() => handleViewFile(row.file_path)}
+                              className="text-blue-600 hover:underline"
+                            >
+                              {row.file_name || "เปิดไฟล์"}
+                            </button>
+                          ) : (
+                            <span className="text-gray-400">-</span>
+                          )}
+                        </div>
+                        <div className="text-sm text-gray-500">{row.title || "-"}</div>
+                      </td>
+                      <td className="px-3 py-2">{TYPE_LABEL[row.announcement_type] || row.announcement_type || "-"}</td>
+                      <td className="px-3 py-2">{resolveYearLabel(row)}</td>
+                      <td className="px-3 py-2">{formatThaiDateTime(row.published_at)}</td>
+                      <td className="px-3 py-2">
+                        <div
+                          className="text-gray-500 line-clamp-2 max-w-[48ch] break-words"
+                          title={row.description || "-"}
+                        >
+                          {row.description || "-"}
+                        </div>
+                      </td>
+                      <td className="px-3 py-2">
                         <div className="flex flex-row flex-wrap justify-end gap-2 [&>button]:whitespace-nowrap">
-                          {/* ดาวน์โหลด */}
                           <button
-                            onClick={() => handleDownloadFile(getFileURL(row.file_path))}
+                            onClick={() => handleDownloadFile(row.file_path)}
                             className="text-green-600 hover:bg-green-50 p-2 rounded-lg mr-1 inline-flex items-center gap-1"
                             title="ดาวน์โหลดไฟล์"
                           >
                             <Download size={16} /> ดาวน์โหลด
                           </button>
-
-                          {/* แก้ไข (ใช้ธีมเดียวกับ 'ดู') */}
                           <button
                             onClick={() => openAEdit(row)}
                             className="text-blue-600 hover:bg-blue-50 p-2 rounded-lg mr-1 inline-flex items-center gap-1"
@@ -885,8 +886,6 @@ export default function AnnouncementManager() {
                           >
                             <Edit size={16} /> แก้ไข
                           </button>
-
-                          {/* ลบ (โทนเดียวกัน: สีอ่อน + hover) */}
                           <button
                             onClick={() => handleADelete(row)}
                             className="text-red-600 hover:bg-red-50 p-2 rounded-lg mr-1 inline-flex items-center gap-1"
@@ -895,34 +894,33 @@ export default function AnnouncementManager() {
                             <Trash2 size={16} /> ลบ
                           </button>
                         </div>
-
-                        {/* ขนาดไฟล์ (ถ้ามี) */}
-                        {row.file_size ? <div className="text-xs text-gray-500 mt-1 text-right">ขนาดไฟล์: {fmtBytes(row.file_size)}</div> : null}
+                        {row.file_size ? (
+                          <div className="text-xs text-gray-500 mt-1 text-right">
+                            ขนาดไฟล์: {fmtBytes(row.file_size)}
+                          </div>
+                        ) : null}
                       </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Fund Forms Section (Admin Controls included) */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200">
-        <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-green-100 rounded-lg">
-              <BookOpen size={20} className="text-green-600" />
-            </div>
-            <div>
-              <h2 className="text-lg font-semibold text-gray-800">แบบฟอร์มการขอทุน</h2>
-              <p className="text-sm text-gray-600">จัดการแบบฟอร์ม</p>
-            </div>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
-          <div className="flex items-center gap-2">
-            <button onClick={loadFundForms} className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border text-sm hover:bg-gray-50">
+        )}
+      </SettingsSectionCard>
+
+      <SettingsSectionCard
+        icon={BookOpen}
+        iconBgClass="bg-green-100"
+        iconColorClass="text-green-600"
+        title="แบบฟอร์มการขอทุน"
+        description="จัดการแบบฟอร์ม"
+        actions={
+          <>
+            <button
+              onClick={loadFundForms}
+              className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border text-sm hover:bg-gray-50"
+            >
               <RefreshCw size={16} /> รีเฟรช
             </button>
             <button
@@ -932,52 +930,55 @@ export default function AnnouncementManager() {
             >
               <Save size={16} /> บันทึกลำดับ
             </button>
-            <button onClick={openFCreate} className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-green-600 text-white hover:bg-green-700">
+            <button
+              onClick={openFCreate}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-green-600 text-white hover:bg-green-700"
+            >
               <Plus size={16} /> เพิ่มแบบฟอร์ม
             </button>
+          </>
+        }
+        contentClassName="space-y-6"
+      >
+        {loadingForms ? (
+          <div className="flex items-center justify-center py-8">
+            <div className="w-8 h-8 border-4 border-green-200 border-t-green-600 rounded-full animate-spin"></div>
+            <span className="ml-2 text-gray-600">กำลังโหลด...</span>
           </div>
-        </div>
-
-        <div className="p-6">
-          {loadingForms ? (
-            <div className="flex items-center justify-center py-8">
-              <div className="w-8 h-8 border-4 border-green-200 border-t-green-600 rounded-full animate-spin"></div>
-              <span className="ml-2 text-gray-600">กำลังโหลด...</span>
-            </div>
-          ) : F.length === 0 ? (
-            <div className="text-center text-gray-500 py-10">ยังไม่มีแบบฟอร์ม</div>
-          ) : (
-            <div className="overflow-x-auto border border-gray-300 rounded-lg">
-              <table className="min-w-full divide-y divide-gray-200 text-sm">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="w-10 px-3 py-2 text-center text-gray-600">ลำดับ</th>
-                    <th className="px-3 py-2 text-center text-gray-600">ชื่อไฟล์ / หัวข้อ</th>
-                    <th className="px-3 py-2 text-center text-gray-600">ประเภทฟอร์ม</th>
-                    <th className="px-3 py-2 text-center text-gray-600">หมวดหมู่กองทุน</th>
-                    <th className="px-3 py-2 text-center text-gray-600">ปี</th>
-                    <th className="px-3 py-2 text-center text-gray-600">รายละเอียด</th>
-                    <th className="px-3 py-2 text-center text-gray-600">การจัดการ</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {F.map((row, idx) => {
-                    const id = getFormId(row);
-                    return (
+        ) : F.length === 0 ? (
+          <div className="text-center text-gray-500 py-10">ยังไม่มีแบบฟอร์ม</div>
+        ) : (
+          <div className="overflow-x-auto border border-gray-300 rounded-lg">
+            <table className="min-w-full divide-y divide-gray-200 text-sm">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="w-10 px-3 py-2 text-center text-gray-600">ลำดับ</th>
+                  <th className="px-3 py-2 text-center text-gray-600">ชื่อไฟล์ / หัวข้อ</th>
+                  <th className="px-3 py-2 text-center text-gray-600">ประเภทฟอร์ม</th>
+                  <th className="px-3 py-2 text-center text-gray-600">หมวดหมู่กองทุน</th>
+                  <th className="px-3 py-2 text-center text-gray-600">ปี</th>
+                  <th className="px-3 py-2 text-center text-gray-600">รายละเอียด</th>
+                  <th className="px-3 py-2 text-center text-gray-600">การจดการ</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {F.map((row, idx) => {
+                  const id = getFormId(row);
+                  return (
                     <tr
-                      key={getFormId(row)}
+                      key={id}
                       draggable
                       onDragStart={(e) => fDragStart(e, row)}
                       onDragOver={(e) => fDragOver(e, row)}
                       onDragEnd={fDragEnd}
                       className={getFRowClass(row, fDraggingId, fOverId)}
                     >
-                        <td className="px-3 py-2 text-gray-500">
-                          <div className="inline-flex items-center gap-1 cursor-grab" title="ลากเพื่อจัดลำดับ">
-                            <GripVertical size={16} /> {idx + 1}
-                          </div>
-                        </td>
-                        <td className="px-3 py-2">
+                      <td className="px-3 py-2 text-gray-500">
+                        <div className="inline-flex items-center gap-1 cursor-grab" title="ลากเพื่อจัดลำดับ">
+                          <GripVertical size={16} /> {idx + 1}
+                        </div>
+                      </td>
+                      <td className="px-3 py-2">
                         <div className="font-medium">
                           {row.file_path ? (
                             <a
@@ -993,62 +994,58 @@ export default function AnnouncementManager() {
                             <span className="text-gray-500">-</span>
                           )}
                         </div>
-                          <div className="text-sm text-gray-500">{row.title || "-"}</div>
-                        </td>
-                        <td className="px-3 py-2">{FORM_TYPE_LABEL[row.form_type] || row.form_type || "-"}</td>
-                        <td className="px-3 py-2">{FUND_CATEGORY_LABEL[row.fund_category] || row.fund_category || "-"}</td>
-                        <td className="px-3 py-2">{resolveYearLabel(row)}</td>
-                        <td className="px-3 py-2 align-center">
-                          <div
-                            className="text-gray-500 line-clamp-2 max-w-[48ch] break-words"
-                            title={row.description || "-"}
+                        <div className="text-sm text-gray-500">{row.title || "-"}</div>
+                      </td>
+                      <td className="px-3 py-2">{FORM_TYPE_LABEL[row.form_type] || row.form_type || "-"}</td>
+                      <td className="px-3 py-2">{FUND_CATEGORY_LABEL[row.fund_category] || row.fund_category || "-"}</td>
+                      <td className="px-3 py-2">{resolveYearLabel(row)}</td>
+                      <td className="px-3 py-2 align-center">
+                        <div
+                          className="text-gray-500 line-clamp-2 max-w-[48ch] break-words"
+                          title={row.description || "-"}
+                        >
+                          {row.description || "-"}
+                        </div>
+                      </td>
+                      <td className="px-3 py-2">
+                        <div className="flex flex-row flex-wrap justify-end gap-2 [&>button]:whitespace-nowrap">
+                          <button
+                            onClick={() => handleDownloadFile(getFileURL(row.file_path))}
+                            className="text-green-600 hover:bg-green-50 p-2 rounded-lg mr-1 inline-flex items-center gap-1"
+                            title="ดาวน์โหลดไฟล์"
                           >
-                            {row.description || "-"}
+                            <Download size={16} /> ดาวน์โหลด
+                          </button>
+                          <button
+                            onClick={() => openFEdit(row)}
+                            className="text-blue-600 hover:bg-blue-50 p-2 rounded-lg mr-1 inline-flex items-center gap-1"
+                            title="แก้ไข"
+                          >
+                            <Edit size={16} /> แก้ไข
+                          </button>
+                          <button
+                            onClick={() => handleFDelete(row)}
+                            className="text-red-600 hover:bg-red-50 p-2 rounded-lg mr-1 inline-flex items-center gap-1"
+                            title="ลบ"
+                          >
+                            <Trash2 size={16} /> ลบ
+                          </button>
+                        </div>
+                        {row.file_size ? (
+                          <div className="text-xs text-gray-500 mt-1 text-right">
+                            ขนาดไฟล์: {fmtBytes(row.file_size)}
                           </div>
-                        </td>
-                        <td className="px-3 py-2">
-                          <div className="flex flex-row flex-wrap justify-end gap-2 [&>button]:whitespace-nowrap">
-                            {/* ดาวน์โหลด */}
-                            <button
-                              onClick={() => handleDownloadFile(getFileURL(row.file_path))}
-                              className="text-green-600 hover:bg-green-50 p-2 rounded-lg mr-1 inline-flex items-center gap-1"
-                              title="ดาวน์โหลดไฟล์"
-                            >
-                              <Download size={16} /> ดาวน์โหลด
-                            </button>
-
-                            {/* แก้ไข (ธีมเดียวกับ 'ดู') */}
-                            <button
-                              onClick={() => openFEdit(row)}
-                              className="text-blue-600 hover:bg-blue-50 p-2 rounded-lg mr-1 inline-flex items-center gap-1"
-                              title="แก้ไข"
-                            >
-                              <Edit size={16} /> แก้ไข
-                            </button>
-
-                            {/* ลบ (โทนอ่อน) */}
-                            <button
-                              onClick={() => handleFDelete(row)}
-                              className="text-red-600 hover:bg-red-50 p-2 rounded-lg mr-1 inline-flex items-center gap-1"
-                              title="ลบ"
-                            >
-                              <Trash2 size={16} /> ลบ
-                            </button>
-                          </div>
-
-                          {/* ขนาดไฟล์ (ถ้ามี) */}
-                          {row.file_size ? <div className="text-xs text-gray-500 mt-1 text-right">ขนาดไฟล์: {fmtBytes(row.file_size)}</div> : null}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+                        ) : null}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
           )}
-        </div>
-      </div>
-
+        </SettingsSectionCard>
+      </motion.div>
       {/* ประกาศ */}
       <AnnouncementModal
         open={aEditOpen}
@@ -1194,6 +1191,6 @@ export default function AnnouncementManager() {
           await loadFundForms();
         }}
       />
-    </div>
+    </>
   );
 }
