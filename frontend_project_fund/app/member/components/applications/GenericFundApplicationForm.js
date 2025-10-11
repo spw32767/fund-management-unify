@@ -261,36 +261,83 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
   };
 
   const loadDocumentRequirements = async (subcategoryInfo) => {
-    try {
-      const filters = { fund_type: 'fund_application' };
-      const subcategoryName = extractSubcategoryName(subcategoryInfo);
-      const subcategoryId = extractSubcategoryId(subcategoryInfo);
+    const subcategoryName = extractSubcategoryName(subcategoryInfo);
+    const subcategoryId = extractSubcategoryId(subcategoryInfo);
 
-      if (subcategoryName) {
-        filters.subcategory_name = subcategoryName;
-      } else if (subcategoryId) {
-        filters.subcategory_id = subcategoryId;
+    const buildFilters = (overrides = {}) => ({
+      fund_type: 'fund_application',
+      ...overrides,
+    });
+
+    const normalizeResponse = (payload) => {
+      if (!payload) {
+        return { success: false, document_types: [], error: 'ไม่พบข้อมูลเอกสารที่ต้องส่ง' };
       }
 
-      // ดึงประเภทเอกสารที่ผูกกับทุนย่อยและประเภทฟอร์ม "fund_application"
-      const response = await documentTypesAPI.getDocumentTypes(filters);
-
-      if (!response?.success) {
-        throw new Error(response?.error || 'ไม่พบข้อมูลเอกสารที่ต้องส่ง');
+      if (Array.isArray(payload)) {
+        return { success: true, document_types: payload };
       }
 
-      // Sort by document_order
-      const sortedDocs = (response.document_types || [])
-        .slice()
-        .sort((a, b) => (a.document_order || 0) - (b.document_order || 0));
+      if (Array.isArray(payload.document_types)) {
+        return {
+          success: payload.success !== undefined ? payload.success : true,
+          document_types: payload.document_types,
+          error: payload.error,
+        };
+      }
 
-      setDocumentRequirements(sortedDocs);
-      return sortedDocs;
+      return {
+        success: payload.success ?? false,
+        document_types: [],
+        error: payload.error || 'ไม่พบข้อมูลเอกสารที่ต้องส่ง',
+      };
+    };
 
-    } catch (error) {
-      console.error('Error loading document requirements:', error);
-      throw error;
+    const fetchWithFilters = async (filters) => {
+      try {
+        const response = await documentTypesAPI.getDocumentTypes(filters);
+        return normalizeResponse(response);
+      } catch (error) {
+        console.error('documentTypesAPI.getDocumentTypes failed with filters:', filters, error);
+        return { success: false, document_types: [], error: error.message };
+      }
+    };
+
+    const attempts = [];
+
+    if (subcategoryName) {
+      attempts.push(buildFilters({ subcategory_name: subcategoryName }));
     }
+
+    if (subcategoryId) {
+      attempts.push(buildFilters({ subcategory_id: subcategoryId }));
+    }
+
+    if (attempts.length === 0) {
+      attempts.push(buildFilters());
+    }
+
+    for (let index = 0; index < attempts.length; index += 1) {
+      const filters = attempts[index];
+      const result = await fetchWithFilters(filters);
+
+      if (result.document_types.length > 0) {
+        const sortedDocs = result.document_types
+          .slice()
+          .sort((a, b) => (a.document_order || 0) - (b.document_order || 0));
+
+        setDocumentRequirements(sortedDocs);
+        return sortedDocs;
+      }
+
+      if (result.success === false && result.error && index === attempts.length - 1) {
+        throw new Error(result.error);
+      }
+    }
+
+    // No documents configured for this fund/subcategory combination
+    setDocumentRequirements([]);
+    return [];
   };
 
   function extractSubcategoryName(data) {
