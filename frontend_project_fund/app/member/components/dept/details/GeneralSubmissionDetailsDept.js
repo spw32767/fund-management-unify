@@ -515,8 +515,28 @@ export default function GeneralSubmissionDetailsDept({ submissionId, onBack }) {
         const docsFallback = submission.documents || submission.submission_documents || [];
         const rawDocs = (Array.isArray(docsApi) && docsApi.length > 0) ? docsApi : docsFallback;
 
-        const merged = (rawDocs || []).map((d, i) => {
-          const fileId = d.file_id ?? d.File?.file_id ?? d.file?.file_id ?? d.id;
+        const merged = [];
+        const skippedWithoutFile = [];
+
+        const sourceDocs = Array.isArray(rawDocs) ? rawDocs : [];
+
+        sourceDocs.forEach((d, i) => {
+          if (!d || typeof d !== 'object') return;
+
+          const fileId = d.file_id ?? d.File?.file_id ?? d.file?.file_id ?? null;
+          const filePath =
+            d.file_path ??
+            d.File?.file_path ??
+            d.File?.stored_path ??
+            d.file?.file_path ??
+            d.file?.stored_path ??
+            null;
+
+          if (fileId == null && !filePath) {
+            skippedWithoutFile.push(d);
+            return;
+          }
+
           const name =
             d.file_name ??
             d.original_name ??
@@ -527,14 +547,23 @@ export default function GeneralSubmissionDetailsDept({ submissionId, onBack }) {
             `เอกสารที่ ${i + 1}`;
           const docTypeId = d.document_type_id ?? d.DocumentTypeID ?? d.doc_type_id ?? null;
           const docTypeName = d.document_type_name || typeMap[String(docTypeId)] || 'ไม่ระบุหมวด';
-          return {
+
+          merged.push({
             ...d,
             file_id: fileId,
+            file_path: filePath,
             original_name: name,
             document_type_id: docTypeId,
             document_type_name: docTypeName,
-          };
+          });
         });
+
+        if (skippedWithoutFile.length > 0) {
+          console.warn(
+            '[GeneralSubmissionDetailsDept] Skip documents without file metadata',
+            skippedWithoutFile.map((doc) => doc.document_id || doc.id || null)
+          );
+        }
 
         setAttachments(merged);
       } catch (e) {
@@ -854,6 +883,9 @@ export default function GeneralSubmissionDetailsDept({ submissionId, onBack }) {
   };
 
   const fetchManagedFileBlob = async (fileId) => {
+    if (!fileId) {
+      throw new Error('missing file identifier');
+    }
     const token = apiClient.getToken();
     const url = `${apiClient.baseURL}/files/managed/${fileId}/download`;
     const resp = await fetch(url, { headers: token ? { Authorization: `Bearer ${token}` } : {} });

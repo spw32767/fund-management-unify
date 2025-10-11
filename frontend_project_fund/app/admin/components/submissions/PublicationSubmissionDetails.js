@@ -1246,20 +1246,48 @@ export default function PublicationSubmissionDetails({ submissionId, onBack }) {
         const docsFallback = submission.documents || submission.submission_documents || [];
         const rawDocs = docsApi.length ? docsApi : docsFallback;
 
-        const merged = rawDocs.map((d, i) => {
-          const fileId = d.file_id ?? d.File?.file_id ?? d.file?.file_id ?? d.id;
+        const merged = [];
+        const skippedWithoutFile = [];
+
+        const sourceDocs = Array.isArray(rawDocs) ? rawDocs : [];
+
+        sourceDocs.forEach((d, i) => {
+          if (!d || typeof d !== 'object') return;
+
+          const fileId = d.file_id ?? d.File?.file_id ?? d.file?.file_id ?? null;
+          const filePath =
+            d.file_path ??
+            d.File?.file_path ??
+            d.File?.stored_path ??
+            d.file?.file_path ??
+            d.file?.stored_path ??
+            null;
+
+          if (fileId == null && !filePath) {
+            skippedWithoutFile.push(d);
+            return;
+          }
+
           const name = d.file_name ?? d.original_name ?? d.original_filename ?? d.File?.original_name ?? d.file?.original_name ?? d.name ?? `เอกสารที่ ${i + 1}`;
           const docTypeId = d.document_type_id ?? d.DocumentTypeID ?? d.doc_type_id ?? null;
           const docTypeName = d.document_type_name || typeMap[docTypeId] || 'ไม่ระบุหมวด';
 
-          return {
+          merged.push({
             ...d,
             file_id: fileId,
+            file_path: filePath,
             original_name: name,
             document_type_id: docTypeId,
             document_type_name: docTypeName,
-          };
+          });
         });
+
+        if (skippedWithoutFile.length > 0) {
+          console.warn(
+            '[PublicationSubmissionDetails] Skip documents without file metadata',
+            skippedWithoutFile.map((doc) => doc.document_id || doc.id || null)
+          );
+        }
 
         // Add console.log for attachments
         console.log('Publication Submission Attachments (merged):', merged);
@@ -1533,6 +1561,10 @@ export default function PublicationSubmissionDetails({ submissionId, onBack }) {
 
   // File actions
   const handleView = async (fileId) => {
+    if (!fileId) {
+      toast.error('ไม่พบไฟล์สำหรับเปิดดู');
+      return;
+    }
     try {
       const token = apiClient.getToken();
       const url = `${apiClient.baseURL}/files/managed/${fileId}/download`;
@@ -1549,6 +1581,10 @@ export default function PublicationSubmissionDetails({ submissionId, onBack }) {
   };
 
   const handleDownload = async (fileId, fileName = 'document') => {
+    if (!fileId) {
+      toast.error('ไม่พบไฟล์สำหรับดาวน์โหลด');
+      return;
+    }
     try {
       await apiClient.downloadFile(`/files/managed/${fileId}/download`, fileName);
     } catch (e) {
@@ -1569,6 +1605,9 @@ export default function PublicationSubmissionDetails({ submissionId, onBack }) {
   };
 
   const fetchFileAsBlob = async (fileId) => {
+    if (!fileId) {
+      throw new Error('missing file identifier');
+    }
     const token = apiClient.getToken();
     const url = `${apiClient.baseURL}/files/managed/${fileId}/download`;
     const resp = await fetch(url, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
@@ -1582,14 +1621,23 @@ export default function PublicationSubmissionDetails({ submissionId, onBack }) {
     const skipped = [];
 
     for (const doc of list) {
+      const fileId = doc?.file_id ?? doc?.File?.file_id ?? doc?.file?.file_id ?? null;
+      if (!fileId) {
+        skipped.push(doc?.original_name || doc?.file_name || 'unknown-file');
+        continue;
+      }
       try {
-        const blob = await fetchFileAsBlob(doc.file_id);
+        const blob = await fetchFileAsBlob(fileId);
         const src = await PDFDocument.load(await blob.arrayBuffer(), { ignoreEncryption: true });
         const pages = await merged.copyPages(src, src.getPageIndices());
         pages.forEach(p => merged.addPage(p));
       } catch (e) {
-        console.warn('merge: skip', doc?.original_name || doc?.file_name || doc?.file_id, e);
-        skipped.push(doc?.original_name || doc?.file_name || `file-${doc.file_id}.pdf`);
+        console.warn('merge: skip', doc?.original_name || doc?.file_name || fileId, e);
+        skipped.push(
+          doc?.original_name ||
+            doc?.file_name ||
+            (fileId ? `file-${fileId}.pdf` : 'unknown-file')
+        );
         continue;
       }
     }
