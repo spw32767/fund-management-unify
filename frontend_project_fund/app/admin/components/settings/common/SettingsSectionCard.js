@@ -1,6 +1,13 @@
 "use client";
 
 import React from "react";
+import { motion } from "framer-motion";
+
+const cardMotionProps = {
+  initial: { opacity: 0, y: 8 },
+  animate: { opacity: 1, y: 0 },
+  transition: { duration: 0.25, ease: "easeOut" },
+};
 
 export default function SettingsSectionCard({
   icon: Icon,
@@ -16,15 +23,16 @@ export default function SettingsSectionCard({
   contentClassName = "",
 }) {
   return (
-    <div
+    <motion.div
+      {...cardMotionProps}
       className={`bg-white rounded-lg shadow-sm border border-gray-200 ${className}`.trim()}
     >
       <div
         className={`px-6 py-4 border-b border-gray-200 flex flex-col gap-4 md:flex-row md:items-center md:justify-between ${headerClassName}`.trim()}
       >
-        <div className="flex items-start gap-3">
+        <div className="flex items-center gap-3">
           {Icon ? (
-            <div className={`p-2 rounded-lg ${iconBgClass}`}>
+            <div className={`inline-flex items-center justify-center p-2 rounded-lg ${iconBgClass}`}>
               <Icon size={iconSize} className={iconColorClass} />
             </div>
           ) : null}
@@ -40,6 +48,6 @@ export default function SettingsSectionCard({
         ) : null}
       </div>
       <div className={`p-6 ${contentClassName}`.trim()}>{children}</div>
-    </div>
+    </motion.div>
   );
 }
