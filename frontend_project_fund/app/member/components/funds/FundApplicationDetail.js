@@ -155,10 +155,13 @@ const resolveAnnouncementInfo = (value, fallbackLabel) => {
       firstNonEmpty(
         value.title,
         value.file_name,
+        value.announcement_file_name,
         value.file_name_th,
         value.file_name_en,
         value.name,
         value.announcement_title,
+        value.announcement_title_th,
+        value.announcement_title_en,
         value.original_name,
         value.label,
         value.title_th,
@@ -169,6 +172,8 @@ const resolveAnnouncementInfo = (value, fallbackLabel) => {
         value.reference_number,
         value.reference,
         value.code,
+        value.id != null ? `#${value.id}` : null,
+        value.announcement_id != null ? `#${value.announcement_id}` : null,
         fallback,
       ) || "-";
 
