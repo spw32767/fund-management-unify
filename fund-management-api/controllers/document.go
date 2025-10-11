@@ -177,6 +177,39 @@ func parseStoredSubcategories(raw *string, idToName map[int]string, nameToID map
 	return names, ids
 }
 
+func mergeSubcategoryNames(dt models.DocumentType, idToName map[int]string, nameToID map[string]int) ([]string, []int) {
+	legacyNames, legacyIDs := parseStoredSubcategories(dt.SubcategoryIds, idToName, nameToID)
+
+	combined := legacyNames
+	if dt.SubcategoryName != nil {
+		combined = append(combined, *dt.SubcategoryName)
+	}
+
+	normalizedNames := normalizeSubcategoryNames(combined)
+
+	seenIDs := make(map[int]bool)
+	uniqueIDs := make([]int, 0, len(legacyIDs))
+	for _, id := range legacyIDs {
+		if !seenIDs[id] {
+			uniqueIDs = append(uniqueIDs, id)
+			seenIDs[id] = true
+		}
+	}
+
+	for _, name := range normalizedNames {
+		lower := strings.ToLower(strings.TrimSpace(name))
+		if lower == "" {
+			continue
+		}
+		if id, ok := nameToID[lower]; ok && !seenIDs[id] {
+			uniqueIDs = append(uniqueIDs, id)
+			seenIDs[id] = true
+		}
+	}
+
+	return normalizedNames, uniqueIDs
+}
+
 // UploadDocument handles document upload for application (User-Based Folders)
 func UploadDocument(c *gin.Context) {
 	applicationID := c.Param("id")
@@ -507,12 +540,7 @@ func GetDocumentTypes(c *gin.Context) {
 	var filteredTypes []docWithMetadata
 	for _, dt := range documentTypes {
 		shouldInclude := true
-		var parsedNames []string
-		var parsedIDs []int
-
-		if dt.SubcategoryIds != nil {
-			parsedNames, parsedIDs = parseStoredSubcategories(dt.SubcategoryIds, idToName, nameToID)
-		}
+		parsedNames, parsedIDs := mergeSubcategoryNames(dt, idToName, nameToID)
 
 		// Filter by fund_type
 		if fundType != "" && dt.FundTypes != nil {
@@ -593,8 +621,10 @@ func GetDocumentTypes(c *gin.Context) {
 
 		if len(item.Names) > 0 {
 			documentTypeMap["subcategory_names"] = item.Names
+			documentTypeMap["subcategory_name"] = item.Names[0]
 		} else {
 			documentTypeMap["subcategory_names"] = []string{}
+			documentTypeMap["subcategory_name"] = nil
 		}
 
 		if len(item.IDs) > 0 {
@@ -666,12 +696,14 @@ func GetDocumentTypesAdmin(c *gin.Context) {
 			documentTypeMap["fund_types"] = nil
 		}
 
-		// Parse and add subcategory_ids
-		names, ids := parseStoredSubcategories(dt.SubcategoryIds, idToName, nameToID)
+		// Parse and add subcategory metadata
+		names, ids := mergeSubcategoryNames(dt, idToName, nameToID)
 		if len(names) > 0 {
 			documentTypeMap["subcategory_names"] = names
+			documentTypeMap["subcategory_name"] = names[0]
 		} else {
 			documentTypeMap["subcategory_names"] = []string{}
+			documentTypeMap["subcategory_name"] = nil
 		}
 
 		if len(ids) > 0 {
@@ -709,6 +741,7 @@ func UpdateDocumentType(c *gin.Context) {
 		DocumentOrder    *int      `json:"document_order"`
 		IsRequired       *string   `json:"is_required"` // enum('yes','no')
 		FundTypes        *[]string `json:"fund_types"`  // Array of fund types
+		SubcategoryName  *string   `json:"subcategory_name"`
 		SubcategoryNames *[]string `json:"subcategory_names"`
 		SubcategoryIds   *[]int    `json:"subcategory_ids"` // Array of subcategory IDs (deprecated)
 	}
@@ -778,21 +811,28 @@ func UpdateDocumentType(c *gin.Context) {
 		}
 	}
 
-	// Handle subcategory_ids JSON field
-	if req.SubcategoryNames != nil {
-		normalized := normalizeSubcategoryNames(*req.SubcategoryNames)
-		if len(normalized) == 0 {
+	// Handle subcategory snapshot
+	if req.SubcategoryName != nil {
+		trimmed := strings.TrimSpace(*req.SubcategoryName)
+		if trimmed == "" {
+			updates["subcategory_name"] = nil
 			updates["subcategory_ids"] = nil
 		} else {
-			namesJSON, err := json.Marshal(normalized)
-			if err != nil {
-				c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid subcategory_names format"})
-				return
-			}
-			updates["subcategory_ids"] = string(namesJSON)
+			updates["subcategory_name"] = trimmed
+			updates["subcategory_ids"] = nil
+		}
+	} else if req.SubcategoryNames != nil {
+		normalized := normalizeSubcategoryNames(*req.SubcategoryNames)
+		if len(normalized) == 0 {
+			updates["subcategory_name"] = nil
+			updates["subcategory_ids"] = nil
+		} else {
+			updates["subcategory_name"] = normalized[0]
+			updates["subcategory_ids"] = nil
 		}
 	} else if req.SubcategoryIds != nil {
 		if len(*req.SubcategoryIds) == 0 {
+			updates["subcategory_name"] = nil
 			updates["subcategory_ids"] = nil
 		} else {
 			names, err := resolveSubcategoryNamesFromIDs(*req.SubcategoryIds)
@@ -800,12 +840,12 @@ func UpdateDocumentType(c *gin.Context) {
 				c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 				return
 			}
-			namesJSON, err := json.Marshal(names)
-			if err != nil {
-				c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid subcategory_ids format"})
-				return
+			if len(names) > 0 {
+				updates["subcategory_name"] = names[0]
+			} else {
+				updates["subcategory_name"] = nil
 			}
-			updates["subcategory_ids"] = string(namesJSON)
+			updates["subcategory_ids"] = nil
 		}
 	}
 
@@ -843,6 +883,7 @@ func CreateDocumentType(c *gin.Context) {
 		DocumentOrder    int      `json:"document_order"`
 		IsRequired       string   `json:"is_required"` // enum('yes','no')
 		FundTypes        []string `json:"fund_types"`
+		SubcategoryName  string   `json:"subcategory_name"`
 		SubcategoryNames []string `json:"subcategory_names"`
 		SubcategoryIds   []int    `json:"subcategory_ids"`
 	}
@@ -888,21 +929,21 @@ func CreateDocumentType(c *gin.Context) {
 		documentType.FundTypes = &fundTypesStr
 	}
 
-	// Handle subcategory assignments (store as names)
+	// Handle subcategory snapshot (store as name)
 	subcategoryNames, err := resolveSubcategoryNamesFromRequest(req.SubcategoryNames, req.SubcategoryIds)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	if len(subcategoryNames) > 0 {
-		namesJSON, err := json.Marshal(subcategoryNames)
-		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid subcategory_names format"})
-			return
-		}
-		namesStr := string(namesJSON)
-		documentType.SubcategoryIds = &namesStr
+	selectedName := strings.TrimSpace(req.SubcategoryName)
+	if selectedName == "" && len(subcategoryNames) > 0 {
+		selectedName = subcategoryNames[0]
+	}
+
+	if trimmed := strings.TrimSpace(selectedName); trimmed != "" {
+		nameCopy := trimmed
+		documentType.SubcategoryName = &nameCopy
 	}
 
 	if err := config.DB.Create(&documentType).Error; err != nil {

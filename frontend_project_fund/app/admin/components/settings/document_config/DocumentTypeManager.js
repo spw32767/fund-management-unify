@@ -39,7 +39,9 @@ const pickCategoryName = (category) => {
 };
 
 const buildSubcategoryOptions = (rawSubcategories) => {
-  return rawSubcategories.map((item) => {
+  const unique = new Map();
+
+  rawSubcategories.forEach((item) => {
     const candidates = [
       item.subcategory_name,
       item.name,
@@ -49,22 +51,69 @@ const buildSubcategoryOptions = (rawSubcategories) => {
       item.label,
       item.label_th,
     ];
-    const name =
-      candidates.find((entry) => typeof entry === "string" && entry.trim() !== "") ||
-      String(item.subcategory_id ?? item.id ?? "");
+    const nameCandidate = candidates.find(
+      (entry) => typeof entry === "string" && entry.trim() !== ""
+    );
 
+    if (!nameCandidate) {
+      return;
+    }
+
+    const name = nameCandidate.trim();
+    const lower = name.toLowerCase();
     const categoryName = pickCategoryName(item.category);
 
-    return {
-      id: item.subcategory_id ?? item.id,
-      name,
-      category: categoryName,
-    };
+    if (!unique.has(lower)) {
+      unique.set(lower, {
+        id: item.subcategory_id ?? item.id,
+        name,
+        categories: categoryName ? [categoryName] : [],
+      });
+      return;
+    }
+
+    if (categoryName) {
+      const entry = unique.get(lower);
+      if (!entry.categories.includes(categoryName)) {
+        entry.categories.push(categoryName);
+      }
+    }
   });
+
+  return Array.from(unique.values()).map((entry) => ({
+    id: entry.id,
+    name: entry.name,
+    category: entry.categories.join(", "),
+  }));
 };
 
 const formatDocumentType = (item) => {
   if (!item || typeof item !== "object") return null;
+  const rawNames = Array.isArray(item.subcategory_names)
+    ? item.subcategory_names
+    : Array.isArray(item.subcategories)
+    ? item.subcategories
+    : [];
+
+  const normalizedNames = Array.from(
+    new Set(
+      rawNames
+        .map((name) => (typeof name === "string" ? name.trim() : ""))
+        .filter((name) => name !== "")
+    )
+  );
+
+  let primaryName = "";
+  if (typeof item.subcategory_name === "string" && item.subcategory_name.trim() !== "") {
+    primaryName = item.subcategory_name.trim();
+  } else if (normalizedNames.length > 0) {
+    primaryName = normalizedNames[0];
+  }
+
+  if (primaryName && !normalizedNames.includes(primaryName)) {
+    normalizedNames.unshift(primaryName);
+  }
+
   return {
     document_type_id: item.document_type_id ?? item.id,
     document_type_name: item.document_type_name ?? item.name ?? "",
@@ -75,11 +124,8 @@ const formatDocumentType = (item) => {
     document_order: item.document_order ?? 0,
     is_required: item.is_required ?? "",
     fund_types: Array.isArray(item.fund_types) ? item.fund_types : [],
-    subcategory_names: Array.isArray(item.subcategory_names)
-      ? item.subcategory_names
-      : Array.isArray(item.subcategories)
-      ? item.subcategories
-      : [],
+    subcategory_name: primaryName,
+    subcategory_names: normalizedNames,
     subcategory_ids: Array.isArray(item.subcategory_ids) ? item.subcategory_ids : [],
     update_at: item.update_at || item.updated_at || null,
   };
@@ -142,6 +188,7 @@ const DocumentTypeManager = () => {
           item.document_type_name,
           item.code,
           item.category,
+          item.subcategory_name,
           ...(item.subcategory_names || []),
           ...(item.fund_types || []),
         ];
@@ -193,11 +240,22 @@ const DocumentTypeManager = () => {
 
   const handleModalSubmit = async (formData) => {
     const payload = {
-      ...formData,
+      document_type_name: formData.document_type_name,
+      code: formData.code,
+      category: formData.category,
       document_order: Number(formData.document_order) || 0,
-      fund_types: formData.fund_types || [],
-      subcategory_names: formData.subcategory_names || [],
+      required: Boolean(formData.required),
+      multiple: Boolean(formData.multiple),
+      fund_types: Array.isArray(formData.fund_types) ? formData.fund_types : [],
     };
+
+    const selectedName = (formData.subcategory_name || "").trim();
+    payload.subcategory_name = selectedName ? selectedName : null;
+
+    const isRequired = (formData.is_required || "").trim();
+    if (isRequired) {
+      payload.is_required = isRequired;
+    }
 
     try {
       setSaving(true);

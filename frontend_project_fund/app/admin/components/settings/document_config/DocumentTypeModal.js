@@ -17,7 +17,7 @@ const initialFormState = {
   multiple: false,
   is_required: "",
   fund_types: [],
-  subcategory_names: [],
+  subcategory_name: "",
 };
 
 const DocumentTypeModal = ({
@@ -49,9 +49,12 @@ const DocumentTypeModal = ({
         multiple: Boolean(base.multiple),
         is_required: base.is_required || "",
         fund_types: Array.isArray(base.fund_types) ? base.fund_types : [],
-        subcategory_names: Array.isArray(base.subcategory_names)
-          ? base.subcategory_names
-          : [],
+        subcategory_name:
+          typeof base.subcategory_name === "string" && base.subcategory_name.trim() !== ""
+            ? base.subcategory_name.trim()
+            : Array.isArray(base.subcategory_names) && base.subcategory_names.length > 0
+            ? base.subcategory_names[0]
+            : "",
       });
       setSubcategorySearch("");
     } else {
@@ -71,19 +74,18 @@ const DocumentTypeModal = ({
     });
   }, [subcategoryOptions, subcategorySearch]);
 
-  const handleCheckboxChange = (name) => {
-    setFormState((prev) => {
-      const current = new Set(prev.subcategory_names || []);
-      if (current.has(name)) {
-        current.delete(name);
-      } else {
-        current.add(name);
-      }
-      return {
-        ...prev,
-        subcategory_names: Array.from(current),
-      };
-    });
+  const handleSelectSubcategory = (name) => {
+    setFormState((prev) => ({
+      ...prev,
+      subcategory_name: prev.subcategory_name === name ? "" : name,
+    }));
+  };
+
+  const handleClearSubcategory = () => {
+    setFormState((prev) => ({
+      ...prev,
+      subcategory_name: "",
+    }));
   };
 
   const handleFundTypeToggle = (value) => {
@@ -113,10 +115,10 @@ const DocumentTypeModal = ({
       fund_types: Array.isArray(formState.fund_types)
         ? formState.fund_types
         : [],
-      subcategory_names: Array.isArray(formState.subcategory_names)
-        ? formState.subcategory_names
-        : [],
     };
+
+    const subcategoryName = (formState.subcategory_name || "").trim();
+    payload.subcategory_name = subcategoryName;
 
     const isRequired = (formState.is_required || "").trim();
     if (isRequired) {
@@ -309,13 +311,31 @@ const DocumentTypeModal = ({
 
             <div className="space-y-4">
               <div>
-                <div className="mb-2 flex items-center justify-between">
-                  <label className="block text-sm font-medium text-gray-700">
-                    ใช้กับประเภทย่อยของทุน (เลือกได้หลายรายการ)
-                  </label>
-                  <span className="text-xs text-gray-500">
-                    เลือก {formState.subcategory_names.length} รายการ
-                  </span>
+                <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">
+                      ใช้กับประเภทย่อยของทุน
+                    </label>
+                    <p className="text-xs text-gray-500">
+                      เลือกได้ 1 รายการ หรือปล่อยว่างเพื่อใช้กับทุกประเภทย่อย
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2 text-xs text-gray-500">
+                    <span>
+                      {formState.subcategory_name
+                        ? `เลือกแล้ว: ${formState.subcategory_name}`
+                        : "ทุกประเภทย่อย"}
+                    </span>
+                    {formState.subcategory_name && (
+                      <button
+                        type="button"
+                        onClick={handleClearSubcategory}
+                        className="rounded border border-gray-200 px-2 py-1 text-xs font-medium text-gray-600 transition hover:bg-gray-50"
+                      >
+                        ล้างการเลือก
+                      </button>
+                    )}
+                  </div>
                 </div>
                 <input
                   type="text"
@@ -331,17 +351,37 @@ const DocumentTypeModal = ({
                     </div>
                   ) : (
                     <ul className="divide-y">
+                      <li className="p-3 hover:bg-gray-50">
+                        <label className="flex items-start gap-3">
+                          <input
+                            type="radio"
+                            name="subcategory-option"
+                            checked={!formState.subcategory_name}
+                            onChange={() => handleSelectSubcategory("")}
+                            className="mt-1 h-4 w-4 border-gray-300 text-blue-600 focus:ring-blue-500"
+                          />
+                          <span>
+                            <span className="block text-sm font-medium text-gray-800">
+                              ทุกประเภทย่อยของทุน
+                            </span>
+                            <span className="mt-1 block text-xs text-gray-500">
+                              เลือกตัวเลือกนี้หากต้องการให้ใช้กับทุกประเภทย่อย
+                            </span>
+                          </span>
+                        </label>
+                      </li>
                       {filteredSubcategoryOptions.map((option) => {
                         const name = option?.name || "";
-                        const checked = formState.subcategory_names.includes(name);
+                        const checked = formState.subcategory_name === name;
                         return (
                           <li key={`${name}-${option.category || ""}`} className="p-3 hover:bg-gray-50">
                             <label className="flex items-start gap-3">
                               <input
-                                type="checkbox"
+                                type="radio"
+                                name="subcategory-option"
                                 checked={checked}
-                                onChange={() => handleCheckboxChange(name)}
-                                className="mt-1 h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                onChange={() => handleSelectSubcategory(name)}
+                                className="mt-1 h-4 w-4 border-gray-300 text-blue-600 focus:ring-blue-500"
                               />
                               <span>
                                 <span className="block text-sm font-medium text-gray-800">

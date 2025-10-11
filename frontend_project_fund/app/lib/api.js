@@ -883,7 +883,11 @@ export const documentTypesAPI = {
     if (filters.subcategory_id) {
       params.append('subcategory_id', filters.subcategory_id);
     }
-    
+
+    if (filters.subcategory_name) {
+      params.append('subcategory_name', filters.subcategory_name);
+    }
+
     if (filters.category) {
       params.append('category', filters.category);
     }
