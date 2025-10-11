@@ -77,27 +77,67 @@ function isAllowedUploadFile(file) {
   return ALLOWED_FILE_EXTENSIONS.some((ext) => name.endsWith(ext));
 }
 
- function getAnnouncementId(row) {
-   return row.announcement_id ?? row.id;
- }
-
- // ==== Helpers ฝั่งฟอร์ม ====
-  function getFormId(row) {
-    return row.fund_form_id ?? row.form_id ?? row.id;
+function safeDecodeURIComponent(value) {
+  if (typeof value !== "string") return "";
+  try {
+    return decodeURIComponent(value);
+  } catch (error) {
+    console.warn("[AnnouncementManager] Failed to decode file name", {
+      value,
+      error,
+    });
+    return value;
   }
+}
 
-  /** ทำแถวให้มีไฮไลต์เฉพาะตอน "ลากอยู่" และ "เมาส์อยู่เหนือ" */
-  function getFRowClass(row, fDraggingId, fOverId) {
-    const id = getFormId(row);
-    const isDragging = fDraggingId === id;
-    const isOver = fOverId === id && !isDragging;
-    return [
-      isDragging ? "bg-green-50 ring-2 ring-green-300" : "",
-      isOver ? "ring-2 ring-green-200" : "",
-    ].join(" ").trim();
-  }
+function extractFileNameFromPath(path) {
+  if (!path) return "";
+  const segments = String(path).split(/[\\/]/);
+  return segments.pop() || "";
+}
 
-  function sameOrder(a, b) {
+function normalizeFileName(rawName, fallbackPath = "") {
+  const primary = typeof rawName === "string" ? rawName.trim() : "";
+  const candidate = primary || extractFileNameFromPath(fallbackPath) || "";
+  const decoded = safeDecodeURIComponent(candidate);
+  return decoded || candidate || "";
+}
+
+function getFileExtension(fileName) {
+  if (typeof fileName !== "string") return "";
+  const trimmed = fileName.trim();
+  if (!trimmed) return "";
+  const match = /\.([^.]+)$/.exec(trimmed);
+  return match ? match[1].toLowerCase() : "";
+}
+
+function sanitizeDownloadFileName(fileName) {
+  const normalized = typeof fileName === "string" ? fileName.trim() : "";
+  const safeName = normalized.replace(/[\\/:*?"<>|]/g, "_");
+  return safeName || "file";
+}
+
+function getAnnouncementId(row) {
+  return row.announcement_id ?? row.id;
+}
+
+// ==== Helpers ฝั่งฟอร์ม ====
+function getFormId(row) {
+  return row.fund_form_id ?? row.form_id ?? row.id;
+}
+
+/** ทำแถวให้มีไฮไลต์เฉพาะตอน "ลากอยู่" และ "เมาส์อยู่เหนือ" */
+function getFRowClass(row, fDraggingId, fOverId) {
+  const id = getFormId(row);
+  const isDragging = fDraggingId === id;
+  const isOver = fOverId === id && !isDragging;
+  return [
+    isDragging ? "bg-green-50 ring-2 ring-green-300" : "",
+    isOver ? "ring-2 ring-green-200" : "",
+  ].join(" ").trim();
+}
+
+function sameOrder(a, b) {
     if (a.length !== b.length) return false;
     for (let i = 0; i < a.length; i++) {
       if (a[i] !== b[i]) return false;
@@ -355,9 +395,8 @@ export default function AnnouncementManager() {
       base && encodedId ? `${base}/${apiSegment}/${encodedId}/view` : "";
     const downloadEndpoint =
       base && encodedId ? `${base}/${apiSegment}/${encodedId}/download` : "";
-    const fallbackFileName =
-      row?.file_name ||
-      (filePath ? filePath.toString().split(/[\\/]/).pop() : "");
+    const fallbackFileName = normalizeFileName(row?.file_name, filePath);
+    const fileExtension = getFileExtension(fallbackFileName);
 
     return {
       filePath,
@@ -365,6 +404,7 @@ export default function AnnouncementManager() {
       viewEndpoint,
       downloadEndpoint,
       fallbackFileName,
+      fileExtension,
       id,
       entity,
     };
@@ -429,26 +469,26 @@ export default function AnnouncementManager() {
       rowSnapshot: row,
     });
 
-    const { viewEndpoint, directURL } = meta;
-    if (!viewEndpoint && !directURL) {
-      toast("error", "ไม่พบไฟล์สำหรับเปิดดู");
+    const { viewEndpoint, fileExtension } = meta;
+    const isPDF = fileExtension === "pdf";
+
+    if (!isPDF) {
+      console.info(
+        "[AnnouncementManager] Non-PDF file requested for viewing, switching to download",
+        {
+          meta,
+        }
+      );
+      await handleDownloadFile(row, entity);
       return;
     }
 
-    const tryDirect = (reason = "") => {
-      if (!directURL) return false;
-      if (reason) {
-        console.warn("[AnnouncementManager] Falling back to direct URL", {
-          reason,
-          directURL,
-        });
-      }
-      openURLInNewTab(directURL);
-      return true;
-    };
-
-    if (!viewEndpoint && directURL) {
-      tryDirect();
+    if (!viewEndpoint) {
+      console.warn(
+        "[AnnouncementManager] Missing view endpoint for PDF file, switching to download",
+        { meta }
+      );
+      await handleDownloadFile(row, entity);
       return;
     }
 
@@ -467,11 +507,8 @@ export default function AnnouncementManager() {
         errorStack: error?.stack,
       });
 
-      if (tryDirect(error?.message || "fetch failed")) {
-        return;
-      }
-
-      toast("error", "ไม่สามารถเปิดไฟล์ได้");
+      toast("error", "ไม่สามารถเปิดไฟล์ PDF ได้ กำลังดาวน์โหลดไฟล์แทน");
+      await handleDownloadFile(row, entity);
     }
   }
 
@@ -482,7 +519,9 @@ export default function AnnouncementManager() {
       rowSnapshot: row,
     });
 
-    const { downloadEndpoint, directURL } = meta;
+    const { downloadEndpoint, directURL, fallbackFileName } = meta;
+    const downloadFileName = sanitizeDownloadFileName(fallbackFileName);
+
     if (!downloadEndpoint && !directURL) {
       toast("error", "ไม่พบไฟล์สำหรับดาวน์โหลด");
       return;
@@ -494,9 +533,7 @@ export default function AnnouncementManager() {
         tempLink.href = directURL;
         tempLink.target = "_blank";
         tempLink.rel = "noopener";
-        if (meta.fallbackFileName) {
-          tempLink.download = meta.fallbackFileName;
-        }
+        tempLink.download = downloadFileName;
         document.body.appendChild(tempLink);
         tempLink.click();
         document.body.removeChild(tempLink);
@@ -508,7 +545,7 @@ export default function AnnouncementManager() {
       });
       const link = document.createElement("a");
       link.href = URL.createObjectURL(blob);
-      link.download = meta.fallbackFileName || "file";
+      link.download = downloadFileName;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -529,9 +566,7 @@ export default function AnnouncementManager() {
         tempLink.href = directURL;
         tempLink.target = "_blank";
         tempLink.rel = "noopener";
-        if (meta.fallbackFileName) {
-          tempLink.download = meta.fallbackFileName;
-        }
+        tempLink.download = downloadFileName;
         document.body.appendChild(tempLink);
         tempLink.click();
         document.body.removeChild(tempLink);
