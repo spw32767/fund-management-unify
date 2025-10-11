@@ -577,18 +577,26 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
   const loadSystemAnnouncements = async () => {
     try {
       const rawWindow = await systemConfigAPI.getWindow();
-      const root = rawWindow?.data ?? rawWindow ?? {};
+      const normalizedWindow =
+        typeof systemConfigAPI.normalizeWindow === 'function'
+          ? systemConfigAPI.normalizeWindow(rawWindow)
+          : rawWindow?.data ?? rawWindow ?? {};
 
       const normalized = {
-        main_annoucement: root?.main_annoucement ?? root?.config_id ?? null,
-        activity_support_announcement: root?.activity_support_announcement ?? null,
+        main_annoucement: normalizedWindow?.main_annoucement ?? null,
+        activity_support_announcement: normalizedWindow?.activity_support_announcement ?? null,
       };
 
       setAnnouncementLock(normalized);
       return normalized;
     } catch (error) {
       console.warn('Cannot fetch system-config window for announcements', error);
-      const fallback = { main_annoucement: null, activity_support_announcement: null };
+
+      const fallback = {
+        main_annoucement: announcementLock?.main_annoucement ?? null,
+        activity_support_announcement: announcementLock?.activity_support_announcement ?? null,
+      };
+
       setAnnouncementLock(fallback);
       return fallback;
     }
