@@ -325,7 +325,13 @@ export default function ProfileContent() {
         department: profile.department || "",
         faculty: profile.faculty || "",
         email: profile.email,
-        phone: profile.phone || "",
+        phone:
+          profile.phone ||
+          profile.tel ||
+          profile.TEL ||
+          profile.users?.TEL ||
+          profile.users?.tel ||
+          "",
         office: profile.office || "",
         employeeId: profile.employee_id || "",
         joinDate: profile.join_date || "",
@@ -657,14 +663,6 @@ export default function ProfileContent() {
   const positionLine = teacherData.position || "";
 
   const contactDetails = [
-    !teacherData.email && teacherData.phone
-      ? {
-          key: "phone",
-          icon: Phone,
-          label: "เบอร์โทรศัพท์",
-          value: teacherData.phone,
-        }
-      : null,
     teacherData.office
       ? {
           key: "office",
@@ -750,11 +748,20 @@ export default function ProfileContent() {
                   </span>
                   <div className="text-left">
                     <p>อีเมล (Email): {teacherData.email}</p>
-                    {teacherData.phone && (
-                      <p className="mt-1 text-xs text-gray-400 sm:text-sm sm:text-gray-500">
-                        โทรศัพท์ (Tel): {teacherData.phone}
-                      </p>
-                    )}
+                  </div>
+                </div>
+              )}
+              {teacherData.phone && (
+                <div
+                  className={`${
+                    teacherData.email ? "mt-2" : "mt-3"
+                  } flex items-center justify-center gap-3 text-sm text-gray-500 sm:justify-start`}
+                >
+                  <span className="flex h-8 w-8 items-center justify-center rounded-full bg-green-50 text-green-600">
+                    <Phone size={16} />
+                  </span>
+                  <div className="text-left">
+                    <p>โทรศัพท์ (Tel): {teacherData.phone}</p>
                   </div>
                 </div>
               )}
