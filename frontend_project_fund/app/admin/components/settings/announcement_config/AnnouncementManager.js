@@ -396,6 +396,19 @@ export default function AnnouncementManager() {
     return response.blob();
   }
 
+  function openURLInNewTab(url) {
+    if (!url) return;
+
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.target = "_blank";
+    anchor.rel = "noopener noreferrer";
+    anchor.style.display = "none";
+    document.body.appendChild(anchor);
+    anchor.click();
+    document.body.removeChild(anchor);
+  }
+
   async function handleViewFile(row, entity) {
     const meta = getFileAccessMeta(row, entity);
     console.log("[AnnouncementManager] handleViewFile", {
@@ -403,26 +416,15 @@ export default function AnnouncementManager() {
       rowSnapshot: row,
     });
 
-    const viewer = window.open("", "_blank", "noopener");
-    if (!viewer) {
-      toast("error", "กรุณาอนุญาตป๊อปอัพเพื่อดูไฟล์");
-      return;
-    }
-
-    viewer.document.write(
-      '<p style="font-family: sans-serif; padding: 16px;">กำลังโหลดไฟล์...</p>'
-    );
-
     const urlToUse = meta.viewEndpoint || meta.directURL;
     if (!urlToUse) {
-      viewer.close();
       toast("error", "ไม่พบไฟล์สำหรับเปิดดู");
       return;
     }
 
     try {
       if (!meta.viewEndpoint && meta.directURL) {
-        viewer.location.href = meta.directURL;
+        openURLInNewTab(meta.directURL);
         return;
       }
 
@@ -430,14 +432,13 @@ export default function AnnouncementManager() {
         requiresAuth: Boolean(meta.viewEndpoint),
       });
       const objectURL = URL.createObjectURL(blob);
-      viewer.location.href = objectURL;
+      openURLInNewTab(objectURL);
       setTimeout(() => URL.revokeObjectURL(objectURL), 60_000);
     } catch (error) {
       console.error("[AnnouncementManager] Failed to open file", {
         meta,
         error,
       });
-      viewer.close();
       toast("error", "ไม่สามารถเปิดไฟล์ได้");
     }
   }
