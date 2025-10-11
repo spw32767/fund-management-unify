@@ -773,50 +773,51 @@ export default function AnnouncementManager() {
   };
 
   return (
-    <motion.div className="space-y-8" {...pageMotionProps}>
-      <SettingsSectionCard
-        icon={Bell}
-        iconBgClass="bg-blue-100"
-        iconColorClass="text-blue-600"
-        title="ประกาศ"
-        description="จัดการประกาศ"
-        actions={
-          <>
-            <button
-              onClick={loadAnnouncements}
-              className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border text-sm hover:bg-gray-50"
-            >
-              <RefreshCw size={16} /> รีเฟรช
-            </button>
-            <button
-              onClick={aPersistOrder}
-              disabled={!aOrderDirty}
-              className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border text-sm bg-white hover:bg-gray-50 disabled:opacity-50"
-            >
-              <Save size={16} /> บันทึกลำดับ
-            </button>
-            <button
-              onClick={openACreate}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700"
-            >
-              <Plus size={16} /> เพิ่มประกาศ
-            </button>
-          </>
-        }
-        contentClassName="space-y-6"
-      >
-        {loadingAnnouncements ? (
-          <div className="flex items-center justify-center py-8">
-            <div className="w-8 h-8 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin"></div>
-            <span className="ml-2 text-gray-600">กำลังโหลด...</span>
-          </div>
-        ) : A.length === 0 ? (
-          <div className="text-center text-gray-500 py-10">ยังไม่มีประกาศ</div>
-        ) : (
-          <div className="overflow-x-auto border border-gray-300 rounded-lg">
-            <table className="min-w-full divide-y divide-gray-200 text-sm">
-              <thead className="bg-gray-50">
-                <tr>
+    <>
+      <motion.div className="space-y-8" {...pageMotionProps}>
+        <SettingsSectionCard
+          icon={Bell}
+          iconBgClass="bg-blue-100"
+          iconColorClass="text-blue-600"
+          title="ประกาศ"
+          description="จัดการประกาศ"
+          actions={
+            <>
+              <button
+                onClick={loadAnnouncements}
+                className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border text-sm hover:bg-gray-50"
+              >
+                <RefreshCw size={16} /> รีเฟรช
+              </button>
+              <button
+                onClick={aPersistOrder}
+                disabled={!aOrderDirty}
+                className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border text-sm bg-white hover:bg-gray-50 disabled:opacity-50"
+              >
+                <Save size={16} /> บันทึกลำดับ
+              </button>
+              <button
+                onClick={openACreate}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700"
+              >
+                <Plus size={16} /> เพิ่มประกาศ
+              </button>
+            </>
+          }
+          contentClassName="space-y-6"
+        >
+          {loadingAnnouncements ? (
+            <div className="flex items-center justify-center py-8">
+              <div className="w-8 h-8 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin"></div>
+              <span className="ml-2 text-gray-600">กำลังโหลด...</span>
+            </div>
+          ) : A.length === 0 ? (
+            <div className="text-center text-gray-500 py-10">ยังไม่มีประกาศ</div>
+          ) : (
+            <div className="overflow-x-auto border border-gray-300 rounded-lg">
+              <table className="min-w-full divide-y divide-gray-200 text-sm">
+                <thead className="bg-gray-50">
+                  <tr>
                   <th className="w-10 px-3 py-2 text-center text-gray-600">ลำดับ</th>
                   <th className="px-3 py-2 text-center text-gray-600">ชื่อไฟล์ / หัวข้อ</th>
                   <th className="px-3 py-2 text-center text-gray-600">หมวดหมู่กองทุน</th>
@@ -1056,9 +1057,9 @@ export default function AnnouncementManager() {
               </tbody>
             </table>
           </div>
-        )}
-      </SettingsSectionCard>
-    </motion.div>
+          )}
+        </SettingsSectionCard>
+      </motion.div>
       {/* ประกาศ */}
       <AnnouncementModal
         open={aEditOpen}
@@ -1204,6 +1205,6 @@ export default function AnnouncementManager() {
           await loadFundForms();
         }}
       />
-    </div>
+    </>
   );
 }
