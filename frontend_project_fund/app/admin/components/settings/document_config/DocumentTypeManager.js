@@ -248,9 +248,16 @@ const DocumentTypeManager = () => {
     const selectedName = (formData.subcategory_name || "").trim();
     payload.subcategory_name = selectedName ? selectedName : null;
 
+    const mode = editingDocumentType?.document_type_id ? "update" : "create";
+    console.log("[DocumentTypeManager] submitting payload", {
+      mode,
+      payload,
+      rawFormData: formData,
+    });
+
     try {
       setSaving(true);
-      if (editingDocumentType?.document_type_id) {
+      if (mode === "update") {
         await documentTypesAPI.updateDocumentType(
           editingDocumentType.document_type_id,
           payload,
