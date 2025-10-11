@@ -1339,6 +1339,12 @@ func GetSubmissionDocuments(c *gin.Context) {
 	})
 }
 
+// AdminResequenceSubmissionDocuments allows privileged tooling to manually
+// trigger resequencing for a submission. Regular submission flows already call
+// resequenceSubmissionDocumentsByDocumentType immediately after documents are
+// attached, deleted, or a submission is finalized. As a result, this handler is
+// typically exercised only through ad-hoc admin tooling or future UI work when
+// a manual refresh is desired.
 func AdminResequenceSubmissionDocuments(c *gin.Context) {
 	submissionIDStr := c.Param("id")
 	submissionID, err := strconv.Atoi(submissionIDStr)
