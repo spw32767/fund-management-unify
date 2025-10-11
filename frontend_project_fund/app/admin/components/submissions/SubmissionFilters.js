@@ -2,22 +2,45 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { commonAPI } from '../../../lib/admin_submission_api';
 import { adminAPI } from '../../../lib/admin_api';
 import { useStatusMap } from '@/app/hooks/useStatusMap';
 
-export default function SubmissionFilters({ filters, onFilterChange, onSearch }) {
-  const [years, setYears] = useState([]);
+export default function SubmissionFilters({ filters, onFilterChange, onSearch, selectedYear = '' }) {
   const [categories, setCategories] = useState([]);
   const [subcategories, setSubcategories] = useState([]);
   const [searchTerm, setSearchTerm] = useState(filters.search || '');
   const { statuses, isLoading: statusLoading, getLabelById } = useStatusMap();
-  
-  // Fetch initial data
+
+  // Fetch categories whenever year changes
   useEffect(() => {
-    fetchYears();
-    fetchCategories();
-  }, []);
+    let cancelled = false;
+
+    const loadCategories = async () => {
+      if (!selectedYear) {
+        setCategories([]);
+        setSubcategories([]);
+        return;
+      }
+
+      try {
+        const list = await fetchCategories(selectedYear);
+        if (!cancelled) {
+          setCategories(list);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          console.error('Error loading categories for year:', selectedYear, error);
+          setCategories([]);
+        }
+      }
+    };
+
+    loadCategories();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedYear]);
 
   // ✅ Keep local input in sync when parent filters.search changes
   useEffect(() => {
@@ -26,46 +49,123 @@ export default function SubmissionFilters({ filters, onFilterChange, onSearch })
 
   // Fetch subcategories when category changes
   useEffect(() => {
+    if (!selectedYear) {
+      setSubcategories([]);
+      return;
+    }
+
     if (filters.category) {
       fetchSubcategories(filters.category);
     } else {
       setSubcategories([]);
     }
-  }, [filters.category]);
+  }, [filters.category, selectedYear]);
 
-  const fetchYears = async () => {
-    try {
-      const response = await adminAPI.getYears();
-      console.log('Years response:', response);
-      
-      if (response && Array.isArray(response)) {
-        setYears(response);
-      } else if (response && response.years) {
-        setYears(response.years);
-      }
-    } catch (error) {
-      console.error('Error fetching years:', error);
-    }
+  const toStringId = (value) => {
+    if (value === undefined || value === null) return '';
+    if (typeof value === 'string') return value.trim();
+    if (typeof value === 'number' && Number.isFinite(value)) return String(value);
+    return '';
   };
 
-  const fetchCategories = async () => {
+  const normalizeCategoryOption = (raw) => {
+    if (!raw || typeof raw !== 'object') return null;
+
+    const id =
+      raw.category_id ??
+      raw.id ??
+      raw.CategoryID ??
+      raw.CategoryId ??
+      raw.categoryId ??
+      raw.categoryID;
+
+    const normalizedId = toStringId(id);
+    if (!normalizedId) return null;
+
+    const name =
+      raw.category_name ??
+      raw.name ??
+      raw.CategoryName ??
+      raw.label ??
+      raw.Category ??
+      '';
+
+    return {
+      ...raw,
+      category_id: normalizedId,
+      category_name: name || `หมวดทุน ${normalizedId}`,
+    };
+  };
+
+  const normalizeSubcategoryOption = (raw) => {
+    if (!raw || typeof raw !== 'object') return null;
+
+    const id =
+      raw.subcategory_id ??
+      raw.id ??
+      raw.SubcategoryID ??
+      raw.SubcategoryId ??
+      raw.subcategoryId ??
+      raw.subcategoryID;
+
+    const normalizedId = toStringId(id);
+    if (!normalizedId) return null;
+
+    const name =
+      raw.subcategory_name ??
+      raw.name ??
+      raw.SubcategoryName ??
+      raw.label ??
+      raw.Subcategory ??
+      '';
+
+    return {
+      ...raw,
+      subcategory_id: normalizedId,
+      subcategory_name: name || `ประเภททุน ${normalizedId}`,
+    };
+  };
+
+  const dedupeOptions = (items, normalize, idKey) => {
+    if (!Array.isArray(items)) return [];
+    const seen = new Set();
+    const result = [];
+
+    items.forEach((raw) => {
+      const normalized = normalize(raw);
+      if (!normalized) return;
+
+      const key = normalized[idKey];
+      if (!key || seen.has(key)) return;
+
+      seen.add(key);
+      result.push(normalized);
+    });
+
+    return result;
+  };
+
+  const fetchCategories = async (yearId) => {
     try {
       // ใช้ adminAPI สำหรับ categories (admin endpoint)
-      const response = await adminAPI.getCategories();
+      const response = await adminAPI.getCategories(yearId);
       console.log('Categories response:', response);
-      
+
       if (response && Array.isArray(response)) {
-        setCategories(response);
-      } else if (response && response.categories) {
-        setCategories(response.categories);
+        return dedupeOptions(response, normalizeCategoryOption, 'category_id');
+      }
+
+      if (response && response.categories) {
+        return dedupeOptions(response.categories, normalizeCategoryOption, 'category_id');
       } else {
         // เรียกข้อมูลจากตาราง fund_categories
         console.log('Using categories from database structure');
       }
     } catch (error) {
       console.error('Error fetching categories:', error);
-
     }
+
+    return [];
   };
 
   const fetchSubcategories = async (categoryId) => {
@@ -75,9 +175,9 @@ export default function SubmissionFilters({ filters, onFilterChange, onSearch })
       console.log('Subcategories response:', response);
       
       if (response && Array.isArray(response)) {
-        setSubcategories(response);
+        setSubcategories(dedupeOptions(response, normalizeSubcategoryOption, 'subcategory_id'));
       } else if (response && response.subcategories) {
-        setSubcategories(response.subcategories);
+        setSubcategories(dedupeOptions(response.subcategories, normalizeSubcategoryOption, 'subcategory_id'));
       } else {
 
       }
@@ -116,7 +216,8 @@ export default function SubmissionFilters({ filters, onFilterChange, onSearch })
             name="category"
             value={filters.category || ''}
             onChange={(e) => handleChange('category', e.target.value)}
-            className="block w-full pl-3 pr-10 py-2 text-base border border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md bg-white"
+            disabled={!selectedYear}
+            className="block w-full pl-3 pr-10 py-2 text-base border border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md bg-white disabled:bg-gray-100 disabled:text-gray-500 disabled:cursor-not-allowed"
           >
             <option value="">ทั้งหมด</option>
             {categories.map((category) => (

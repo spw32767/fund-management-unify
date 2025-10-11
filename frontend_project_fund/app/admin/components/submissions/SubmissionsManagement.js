@@ -490,6 +490,11 @@ export default function SubmissionsManagement() {
     setSelectedYear(yearId);
     setCurrentPage(1);
     setCursor(0);
+    setFilters(prev => ({
+      ...prev,
+      category: '',
+      subcategory: ''
+    }));
   };
 
   const handleFilterChange = (newFilters) => {
@@ -658,6 +663,7 @@ export default function SubmissionsManagement() {
           filters={filters}
           onFilterChange={handleFilterChange}
           onSearch={handleSearch}
+          selectedYear={selectedYear}
         />
 
         {/* Table */}
