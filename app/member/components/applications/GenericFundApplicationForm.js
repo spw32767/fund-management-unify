@@ -12,40 +12,133 @@ import { PDFDocument } from "pdf-lib";
 // เพิ่ม apiClient สำหรับเรียก API โดยตรง
 import apiClient from '../../../lib/api';
 import { submissionAPI, documentAPI, fileAPI} from '../../../lib/member_api';
-import { getStatusIdByCode, statusService } from '../../../lib/status_service';
+import { statusService } from '../../../lib/status_service';
+import { systemConfigAPI } from '../../../lib/system_config_api';
 
 // Match backend utils.StatusCodeDeptHeadPending for initial submission status
 const DEPT_HEAD_PENDING_STATUS_CODE = '5';
+const DEPT_HEAD_PENDING_STATUS_NAME_HINT = 'อยู่ระหว่างการพิจารณาจากหัวหน้าสาขา';
 
-const resolveDeptHeadPendingStatusId = async () => {
-  try {
-    const statusId = await getStatusIdByCode(DEPT_HEAD_PENDING_STATUS_CODE);
-    if (statusId) {
-      return Number(statusId);
-    }
-  } catch (error) {
-    console.warn('Unable to resolve status via code lookup', error);
+const DRAFT_KEY = 'generic_fund_application_draft';
+const DRAFT_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
+
+const buildResolvedStatus = (status) => {
+  if (!status || typeof status !== 'object') {
+    return null;
   }
 
-  try {
-    const statuses = await statusService.fetchAll({ force: true });
-    const targetStatus = statuses.find((status) => {
-      if (!status) return false;
+  const rawId =
+    status.application_status_id ?? status.status_id ?? status.id ?? status.raw?.application_status_id;
+  if (rawId == null) {
+    return null;
+  }
 
-      const codeMatches = String(status.status_code) === DEPT_HEAD_PENDING_STATUS_CODE;
-      const nameMatches = status.status_name?.toLowerCase?.().includes('หัวหน้าสาขา');
+  const numericId = Number(rawId);
+  if (Number.isNaN(numericId)) {
+    return null;
+  }
 
-      return codeMatches || nameMatches;
-    });
+  const resolvedCode =
+    status.status_code != null
+      ? String(status.status_code)
+      : status.code != null
+      ? String(status.code)
+      : DEPT_HEAD_PENDING_STATUS_CODE;
 
-    if (targetStatus?.application_status_id != null) {
-      return Number(targetStatus.application_status_id);
+  const resolvedName =
+    String(status.status_name ?? status.name ?? '').trim() || DEPT_HEAD_PENDING_STATUS_NAME_HINT;
+
+  return {
+    id: numericId,
+    code: resolvedCode,
+    name: resolvedName,
+    raw: status,
+  };
+};
+
+const attemptResolveDeptHeadPendingStatus = (statuses) => {
+  if (!Array.isArray(statuses)) {
+    return null;
+  }
+
+  const normalizedStatuses = statuses.filter((status) => status && typeof status === 'object');
+  if (normalizedStatuses.length === 0) {
+    return null;
+  }
+
+  const normalizedCode = String(DEPT_HEAD_PENDING_STATUS_CODE);
+  const normalizedNameHint = DEPT_HEAD_PENDING_STATUS_NAME_HINT.trim().toLowerCase();
+
+  const byCode = normalizedStatuses.find((status) => {
+    const statusCode = status.status_code ?? status.code;
+    return statusCode != null && String(statusCode) === normalizedCode;
+  });
+  if (byCode) {
+    const resolved = buildResolvedStatus(byCode);
+    if (resolved) {
+      return resolved;
     }
-  } catch (error) {
-    console.warn('Unable to resolve status via status service cache', error);
+  }
+
+  const byExactName = normalizedStatuses.find((status) => {
+    const statusName = String(status.status_name ?? status.name ?? '').trim().toLowerCase();
+    return statusName && statusName === normalizedNameHint;
+  });
+  if (byExactName) {
+    const resolved = buildResolvedStatus(byExactName);
+    if (resolved) {
+      return resolved;
+    }
+  }
+
+  const byPartialName = normalizedStatuses.find((status) => {
+    const statusName = String(status.status_name ?? status.name ?? '').toLowerCase();
+    return statusName.includes('หัวหน้าสาขา');
+  });
+  if (byPartialName) {
+    const resolved = buildResolvedStatus(byPartialName);
+    if (resolved) {
+      return resolved;
+    }
   }
 
   return null;
+};
+
+const resolveDeptHeadPendingStatus = async ({ force = false } = {}) => {
+  if (!force) {
+    try {
+      const cachedStatuses = statusService.getCached();
+      const cachedResult = attemptResolveDeptHeadPendingStatus(cachedStatuses);
+      if (cachedResult) {
+        return cachedResult;
+      }
+    } catch (error) {
+      console.warn('Unable to resolve status from cache', error);
+    }
+  }
+
+  const fetchAttempts = force ? [{ force: true }] : [{}, { force: true }];
+  let lastError = null;
+
+  for (const options of fetchAttempts) {
+    try {
+      const statuses = await statusService.fetchAll(options);
+      const resolved = attemptResolveDeptHeadPendingStatus(statuses);
+      if (resolved) {
+        return resolved;
+      }
+    } catch (error) {
+      lastError = error;
+      console.warn('Unable to fetch application statuses', error);
+    }
+  }
+
+  const resolutionError = new Error('ไม่พบสถานะสำหรับการพิจารณาของหัวหน้าสาขา');
+  if (lastError) {
+    resolutionError.cause = lastError;
+  }
+  throw resolutionError;
 };
 
 const resolveFundTypeMode = (doc) => {
@@ -89,6 +182,89 @@ const dedupeStringList = (items) => {
   return result;
 };
 
+const buildApplicantDisplayName = (user) => {
+  if (!user || typeof user !== 'object') {
+    return '';
+  }
+
+  const prefix =
+    user.prefix ||
+    user.prefix_name ||
+    user.title ||
+    user.user_title ||
+    '';
+
+  const firstName = user.user_fname || user.first_name || '';
+  const lastName = user.user_lname || user.last_name || '';
+
+  return [prefix, firstName, lastName]
+    .map((part) => String(part || '').trim())
+    .filter(Boolean)
+    .join(' ')
+    .trim();
+};
+
+const saveDraftToLocal = (formData) => {
+  if (typeof window === 'undefined') {
+    return false;
+  }
+
+  try {
+    const payload = {
+      formData: {
+        project_title: formData?.project_title || '',
+        project_description: formData?.project_description || '',
+        requested_amount: formData?.requested_amount || '',
+        phone: formData?.phone || '',
+      },
+      savedAt: new Date().toISOString(),
+      expiresAt: new Date(Date.now() + DRAFT_TTL_MS).toISOString(),
+    };
+
+    window.localStorage.setItem(DRAFT_KEY, JSON.stringify(payload));
+    return true;
+  } catch (error) {
+    console.error('Error saving generic fund draft to localStorage:', error);
+    return false;
+  }
+};
+
+const loadDraftFromLocal = () => {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+
+  try {
+    const draftString = window.localStorage.getItem(DRAFT_KEY);
+    if (!draftString) {
+      return null;
+    }
+
+    const draft = JSON.parse(draftString);
+    if (draft?.expiresAt && new Date(draft.expiresAt) < new Date()) {
+      window.localStorage.removeItem(DRAFT_KEY);
+      return null;
+    }
+
+    return draft;
+  } catch (error) {
+    console.error('Error loading generic fund draft from localStorage:', error);
+    return null;
+  }
+};
+
+const deleteDraftFromLocal = () => {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  try {
+    window.localStorage.removeItem(DRAFT_KEY);
+  } catch (error) {
+    console.error('Error deleting generic fund draft from localStorage:', error);
+  }
+};
+
 // =================================================================
 // FILE UPLOAD COMPONENT
 // =================================================================
@@ -113,11 +289,16 @@ function FileUpload({ onFileSelect, accept, multiple = false, error, compact = f
       if (accept === ".pdf") return file.type === "application/pdf";
       return true;
     });
-    
+
     if (acceptedFiles.length !== files.length) {
-      alert("กรุณาอัปโหลดเฉพาะไฟล์ PDF");
+      Swal.fire({
+        icon: 'warning',
+        title: 'ไฟล์ไม่ถูกต้อง',
+        text: 'กรุณาอัปโหลดเฉพาะไฟล์ PDF',
+        confirmButtonColor: '#3085d6'
+      });
     }
-    
+
     if (acceptedFiles.length > 0) {
       onFileSelect(acceptedFiles);
     }
@@ -125,7 +306,27 @@ function FileUpload({ onFileSelect, accept, multiple = false, error, compact = f
 
   const handleFileInput = (e) => {
     const files = Array.from(e.target.files);
-    onFileSelect(files);
+    if (files.length === 0) {
+      return;
+    }
+
+    const acceptedFiles = files.filter(file => {
+      if (accept === ".pdf") return file.type === "application/pdf";
+      return true;
+    });
+
+    if (acceptedFiles.length !== files.length) {
+      Swal.fire({
+        icon: 'warning',
+        title: 'ไฟล์ไม่ถูกต้อง',
+        text: 'กรุณาอัปโหลดเฉพาะไฟล์ PDF',
+        confirmButtonColor: '#3085d6'
+      });
+    }
+
+    if (acceptedFiles.length > 0) {
+      onFileSelect(acceptedFiles);
+    }
   };
 
   return (
@@ -214,6 +415,8 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
   const [formData, setFormData] = useState({
     name: "",
     phone: "",
+    project_title: "",
+    project_description: "",
     requested_amount: "",
   });
   
@@ -226,9 +429,15 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
     hasPreviewed: false
   });
   const attachmentsPreviewUrlRef = useRef(null);
-  
+
   // Current user data
   const [currentUser, setCurrentUser] = useState(null);
+  const [pendingStatus, setPendingStatus] = useState(null);
+  const [announcementLock, setAnnouncementLock] = useState({
+    main_annoucement: null,
+    activity_support_announcement: null,
+  });
+  const [hasDraft, setHasDraft] = useState(false);
 
   // =================================================================
   // INITIAL DATA LOADING
@@ -241,19 +450,40 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
     try {
       setLoading(true);
       setErrors({});
+      setPendingStatus(null);
 
       // Load user data and document requirements in parallel
-      const [userData, docRequirements] = await Promise.all([
+      const [userData, docRequirements, statusInfo] = await Promise.all([
         loadUserData(),
         loadDocumentRequirements(),
+        resolveDeptHeadPendingStatus(),
       ]);
+
+      await loadSystemAnnouncements();
+
+      if (typeof window !== 'undefined') {
+        const draft = loadDraftFromLocal();
+        if (draft?.formData) {
+          setFormData(prev => ({
+            ...prev,
+            ...draft.formData,
+          }));
+          setHasDraft(true);
+        } else {
+          setHasDraft(false);
+        }
+      }
 
       console.log('Loaded user data:', userData);
       console.log('Loaded document requirements:', docRequirements);
+      console.log('Resolved pending status:', statusInfo);
+
+      setPendingStatus(statusInfo);
 
     } catch (error) {
       console.error('Error loading initial data:', error);
       setErrors({ general: error.message || 'เกิดข้อผิดพลาดในการโหลดข้อมูล' });
+      setPendingStatus(null);
     } finally {
       setLoading(false);
     }
@@ -267,7 +497,7 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
         setCurrentUser(profileResponse.user);
         setFormData(prev => ({
           ...prev,
-          name: `${profileResponse.user.user_fname || ''} ${profileResponse.user.user_lname || ''}`.trim()
+          name: buildApplicantDisplayName(profileResponse.user)
         }));
         return profileResponse.user;
       }
@@ -281,7 +511,7 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
       setCurrentUser(storedUser);
       setFormData(prev => ({
         ...prev,
-        name: `${storedUser.user_fname || ''} ${storedUser.user_lname || ''}`.trim()
+        name: buildApplicantDisplayName(storedUser)
       }));
       return storedUser;
     }
@@ -327,6 +557,26 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
 
     setDocumentRequirements(finalDocs);
     return finalDocs;
+  };
+
+  const loadSystemAnnouncements = async () => {
+    try {
+      const rawWindow = await systemConfigAPI.getWindow();
+      const root = rawWindow?.data ?? rawWindow ?? {};
+
+      const normalized = {
+        main_annoucement: root?.main_annoucement ?? root?.config_id ?? null,
+        activity_support_announcement: root?.activity_support_announcement ?? null,
+      };
+
+      setAnnouncementLock(normalized);
+      return normalized;
+    } catch (error) {
+      console.warn('Cannot fetch system-config window for announcements', error);
+      const fallback = { main_annoucement: null, activity_support_announcement: null };
+      setAnnouncementLock(fallback);
+      return fallback;
+    }
   };
 
   // =================================================================
@@ -544,6 +794,14 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
       </div>
     `;
 
+    const projectInfoHTML = `
+      <div class="bg-blue-50 p-4 rounded-lg space-y-2">
+        <h4 class="font-semibold text-blue-700">ข้อมูลโครงการ</h4>
+        <p class="text-sm"><span class="font-medium">ชื่อโครงการ:</span> ${formData.project_title || '-'}</p>
+        <p class="text-sm leading-relaxed"><span class="font-medium">รายละเอียดโดยย่อ:</span> ${formData.project_description || '-'}</p>
+      </div>
+    `;
+
     const amountHTML = `
       <div class="bg-green-50 p-4 rounded-lg space-y-2">
         <h4 class="font-semibold text-green-700">จำนวนเงินที่ขอ</h4>
@@ -606,6 +864,7 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
     const summaryHTML = `
       <div class="space-y-4 text-left">
         ${applicantInfoHTML}
+        ${projectInfoHTML}
         ${amountHTML}
         ${attachmentsHTML}
       </div>
@@ -688,15 +947,8 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
   const validateForm = () => {
     const newErrors = {};
 
-    // Validate basic info
-    if (!formData.name.trim()) {
-      newErrors.name = 'กรุณากรอกชื่อ';
-    }
-
-    if (!formData.phone.trim()) {
-      newErrors.phone = 'กรุณากรอกเบอร์โทรศัพท์';
-    } else {
-      // Validate phone format (XXX-XXX-XXXX)
+    // Validate phone format when provided (XXX-XXX-XXXX)
+    if (formData.phone.trim()) {
       const phoneRegex = /^\d{3}-\d{3}-\d{4}$/;
       if (!phoneRegex.test(formData.phone)) {
         newErrors.phone = 'รูปแบบเบอร์โทรศัพท์ไม่ถูกต้อง (XXX-XXX-XXXX)';
@@ -724,33 +976,78 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
   const saveDraft = async () => {
     try {
       setSaving(true);
-      
-      // Validate basic required fields only
-      const basicErrors = {};
-      if (!formData.name.trim()) basicErrors.name = 'กรุณากรอกชื่อ';
-      if (!formData.phone.trim()) basicErrors.phone = 'กรุณากรอกเบอร์โทรศัพท์';
-      
-      if (Object.keys(basicErrors).length > 0) {
-        setErrors(basicErrors);
-        return;
-      }
-
-      // TODO: Implement save draft API call
-      console.log('Save draft:', {
-        subcategory_id: subcategoryData.subcategory_id,
-        formData,
-        uploadedFiles,
-        isDraft: true
+      Swal.fire({
+        title: 'กำลังบันทึกร่าง...',
+        allowOutsideClick: false,
+        showConfirmButton: false,
+        didOpen: () => {
+          Swal.showLoading();
+        }
       });
 
-      alert('บันทึกร่างสำเร็จ');
+      await new Promise(resolve => setTimeout(resolve, 300));
 
+      const saved = saveDraftToLocal(formData);
+
+      Swal.close();
+
+      if (saved) {
+        setHasDraft(true);
+        Swal.fire({
+          icon: 'success',
+          title: 'บันทึกร่างเรียบร้อยแล้ว',
+          text: 'ข้อมูลข้อความจะถูกเก็บไว้ชั่วคราว 7 วัน',
+          confirmButtonColor: '#3085d6'
+        });
+      } else {
+        throw new Error('ไม่สามารถบันทึกร่างได้');
+      }
     } catch (error) {
       console.error('Error saving draft:', error);
-      setErrors({ general: 'เกิดข้อผิดพลาดในการบันทึกร่าง' });
+      Swal.close();
+      Swal.fire({
+        icon: 'error',
+        title: 'เกิดข้อผิดพลาด',
+        text: error?.message || 'ไม่สามารถบันทึกร่างได้ โปรดลองอีกครั้ง',
+        confirmButtonColor: '#d33'
+      });
     } finally {
       setSaving(false);
     }
+  };
+
+  const deleteDraft = async () => {
+    const result = await Swal.fire({
+      title: 'ยืนยันการลบร่าง?',
+      text: 'ข้อมูลร่างทั้งหมดจะถูกลบและไม่สามารถกู้คืนได้',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#d33',
+      cancelButtonColor: '#3085d6',
+      confirmButtonText: 'ลบร่าง',
+      cancelButtonText: 'ยกเลิก'
+    });
+
+    if (!result.isConfirmed) {
+      return;
+    }
+
+    deleteDraftFromLocal();
+    setFormData(prev => ({
+      ...prev,
+      phone: '',
+      project_title: '',
+      project_description: '',
+      requested_amount: '',
+    }));
+    setErrors(prev => ({ ...prev, phone: '', project_title: '', project_description: '', requested_amount: '' }));
+    setHasDraft(false);
+
+    Swal.fire({
+      icon: 'success',
+      title: 'ลบร่างเรียบร้อยแล้ว',
+      confirmButtonColor: '#3085d6'
+    });
   };
 
   const submitApplication = async () => {
@@ -771,8 +1068,13 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
     try {
       setSubmitting(true);
 
-      const deptPendingStatusId = await resolveDeptHeadPendingStatusId();
-      if (!deptPendingStatusId) {
+      let statusForSubmission = pendingStatus;
+      if (!statusForSubmission?.id) {
+        statusForSubmission = await resolveDeptHeadPendingStatus({ force: true });
+        setPendingStatus(statusForSubmission);
+      }
+
+      if (!statusForSubmission?.id) {
         throw new Error('ไม่พบสถานะสำหรับการพิจารณาของหัวหน้าสาขา');
       }
 
@@ -780,17 +1082,19 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
       const submissionRes = await submissionAPI.createSubmission({
         submission_type: 'fund_application',
         year_id: subcategoryData?.year_id,
-        status_id: deptPendingStatusId
+        status_id: statusForSubmission.id
       });
       const submissionId = submissionRes?.submission?.submission_id;
 
       // Step 2: Save basic fund details (ใช้ข้อมูลที่มีอยู่)
       if (submissionId) {
         await apiClient.post(`/submissions/${submissionId}/fund-details`, {
-          project_title: formData.name,
-          project_description: formData.phone,
+          project_title: formData.project_title || '',
+          project_description: formData.project_description || '',
           requested_amount: parseFloat(formData.requested_amount) || 0,
-          subcategory_id: subcategoryData.subcategory_id
+          subcategory_id: subcategoryData.subcategory_id,
+          main_annoucement: announcementLock.main_annoucement,
+          activity_support_announcement: announcementLock.activity_support_announcement,
         });
       }
 
@@ -815,7 +1119,15 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
 
 
 
-      alert('ส่งคำร้องสำเร็จ');
+      deleteDraftFromLocal();
+      setHasDraft(false);
+
+      await Swal.fire({
+        icon: 'success',
+        title: 'ส่งคำร้องสำเร็จ',
+        text: 'ระบบได้บันทึกคำร้องของคุณเรียบร้อยแล้ว',
+        confirmButtonColor: '#3085d6'
+      });
 
       // Navigate back to research fund page
       if (onNavigate) {
@@ -825,6 +1137,12 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
     } catch (error) {
       console.error('Error submitting application:', error);
       setErrors({ general: error?.message || 'เกิดข้อผิดพลาดในการส่งคำร้อง' });
+      Swal.fire({
+        icon: 'error',
+        title: 'ส่งคำร้องไม่สำเร็จ',
+        text: error?.message || 'เกิดข้อผิดพลาดในการส่งคำร้อง กรุณาลองใหม่อีกครั้ง',
+        confirmButtonColor: '#d33'
+      });
     } finally {
       setSubmitting(false);
     }
@@ -879,216 +1197,334 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
   }
 
   const pageTitle = `ยื่นขอ${subcategoryData?.subcategory_name || 'ทุน'}`;
+  const pageSubtitle = 'กรุณากรอกข้อมูลให้ครบถ้วนก่อนส่งคำร้องเพื่อเข้าสู่การพิจารณา';
+  const breadcrumbs = [
+    { label: 'หน้าแรก', href: '/member' },
+    { label: 'ทุนวิจัย', href: '/member?tab=research-fund' },
+    { label: subcategoryData?.subcategory_name || 'ยื่นคำร้อง' }
+  ];
+  const pendingStatusName = pendingStatus?.name || 'กำลังโหลดสถานะ...';
+  const pendingStatusCode = pendingStatus?.code ?? '—';
+  const formattedRequestedAmount = formatCurrency(formData.requested_amount || 0);
+  const requiredDocumentCount = documentRequirements.filter((doc) => doc.required).length;
 
   return (
-    <PageLayout title={pageTitle} icon={FileText}>
-      {/* Back Button */}
-      <div className="mb-6">
+    <PageLayout
+      title={pageTitle}
+      subtitle={pageSubtitle}
+      icon={FileText}
+      actions={(
         <button
+          type="button"
           onClick={handleBack}
-          className="flex items-center gap-2 text-gray-600 hover:text-gray-800 transition-colors"
+          className="inline-flex items-center gap-2 rounded-lg border border-gray-300 px-4 py-2 text-gray-600 transition-colors hover:bg-gray-50"
         >
-          <ArrowLeft size={20} />
-          <span>กลับไปหน้าทุนวิจัย</span>
+          <ArrowLeft className="h-4 w-4" />
+          <span>ย้อนกลับ</span>
         </button>
-      </div>
-
-      <form className="space-y-6" onSubmit={(e) => e.preventDefault()}>
-        {/* Basic Applicant Info */}
-        <SimpleCard title="ข้อมูลพื้นฐาน" icon={FileText}>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                ชื่อผู้ยื่นขอ <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="text"
-                value={formData.name}
-                onChange={(e) => handleInputChange("name", e.target.value)}
-                className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                  errors.name ? 'border-red-500' : 'border-gray-300'
-                }`}
-                placeholder="ชื่อ-นามสกุล"
-              />
-              {errors.name && (
-                <p className="text-red-500 text-sm mt-1 flex items-center gap-1">
-                  <AlertCircle className="h-4 w-4" />
-                  {errors.name}
-                </p>
-              )}
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                เบอร์โทรศัพท์ <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="tel"
-                value={formData.phone}
-                onChange={(e) => handleInputChange("phone", formatPhoneNumber(e.target.value))}
-                placeholder="081-234-5678"
-                maxLength={12}
-                className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                  errors.phone ? 'border-red-500' : 'border-gray-300'
-                }`}
-              />
-              {errors.phone && (
-                <p className="text-red-500 text-sm mt-1 flex items-center gap-1">
-                  <AlertCircle className="h-4 w-4" />
-                  {errors.phone}
-                </p>
-              )}
-              <p className="text-xs text-gray-500 mt-1">รูปแบบ: XXX-XXX-XXXX</p>
+      )}
+      breadcrumbs={breadcrumbs}
+    >
+      <form className="space-y-8" onSubmit={(e) => e.preventDefault()}>
+        {errors.general && (
+          <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700 shadow-sm">
+            <div className="flex items-start gap-3">
+              <AlertCircle className="h-5 w-5 flex-shrink-0" />
+              <div>
+                <p className="font-semibold">ไม่สามารถดำเนินการได้</p>
+                <p className="mt-1 leading-relaxed">{errors.general}</p>
+              </div>
             </div>
           </div>
-        </SimpleCard>
+        )}
 
-        {/* Request Amount */}
-        <SimpleCard title="รวมจำนวนทุนที่ขอ (Total Request Amount)" icon={DollarSign}>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              จำนวนเงินที่ขอ
-              <br />
-              <span className="text-xs font-normal text-gray-500">Request Amount (THB)</span>
-            </label>
-            <input
-              type="number"
-              min="0"
-              value={formData.requested_amount}
-              onChange={(e) => handleInputChange('requested_amount', e.target.value)}
-              placeholder="0.00"
-              className={`w-full bg-gray-50 rounded-lg p-3 text-2xl font-semibold text-gray-800 border ${errors.requested_amount ? 'border-red-500' : 'border-gray-200'}`}
-            />
-            {errors.requested_amount && (
-              <p className="text-red-500 text-sm mt-1 flex items-center gap-1">
-                <AlertCircle className="h-4 w-4" />
-                {errors.requested_amount}
+        <div className="grid gap-6 lg:grid-cols-1">
+          <div className="space-y-6">
+            <SimpleCard
+              title="ข้อมูลพื้นฐาน"
+              icon={FileText}
+              bodyClassName="space-y-6"
+            >
+              <p className="text-sm text-gray-600">
+                กรุณาตรวจสอบข้อมูลผู้ยื่นคำร้องให้ถูกต้องก่อนดำเนินการต่อ ข้อมูลเหล่านี้จะถูกใช้ในขั้นตอนการพิจารณาและติดต่อกลับ
               </p>
-            )}
-          </div>
-        </SimpleCard>
 
-        {/* File Attachments */}
-        <SimpleCard title="เอกสารแนบ" icon={Upload}>
-          {documentRequirements.length === 0 ? (
-            <div className="text-center py-8 text-gray-500">
-              <Upload className="h-12 w-12 mx-auto mb-4 text-gray-400" />
-              <p>ไม่มีเอกสารที่ต้องส่งสำหรับทุนนี้</p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-gray-700" htmlFor="applicant-name">
+                    ชื่อผู้ยื่นขอ
+                  </label>
+                  <input
+                    id="applicant-name"
+                    type="text"
+                    value={formData.name}
+                    readOnly
+                    className="w-full rounded-lg border border-gray-200 bg-gray-100 px-4 py-2.5 text-gray-700 shadow-sm"
+                    placeholder="ชื่อ-นามสกุล"
+                  />
+                  <p className="text-xs text-gray-500">ระบบจะแสดงคำนำหน้าและชื่อ-นามสกุลจากข้อมูลผู้ใช้โดยอัตโนมัติ</p>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-gray-700" htmlFor="applicant-phone">
+                    เบอร์โทรศัพท์
+                  </label>
+                  <input
+                    id="applicant-phone"
+                    type="tel"
+                    value={formData.phone}
+                    onChange={(e) => handleInputChange('phone', formatPhoneNumber(e.target.value))}
+                    placeholder="081-234-5678"
+                    maxLength={12}
+                    className={`w-full rounded-lg border px-4 py-2.5 text-gray-700 shadow-sm transition focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200 ${
+                      errors.phone ? 'border-red-400 focus:border-red-500 focus:ring-red-100' : 'border-gray-300'
+                    }`}
+                  />
+                  {errors.phone ? (
+                    <p className="flex items-center gap-1 text-sm text-red-500">
+                      <AlertCircle className="h-4 w-4" />
+                      {errors.phone}
+                    </p>
+                  ) : (
+                    <p className="text-xs text-gray-500">รูปแบบที่แนะนำ: XXX-XXX-XXXX (ข้อมูลนี้ใช้สำหรับติดต่อกลับเท่านั้น)</p>
+                  )}
+                </div>
+
+                <div className="space-y-2 md:col-span-2">
+                  <label className="text-sm font-medium text-gray-700" htmlFor="project-title">
+                    ชื่อโครงการ/กิจกรรม
+                  </label>
+                  <input
+                    id="project-title"
+                    type="text"
+                    value={formData.project_title}
+                    onChange={(e) => handleInputChange('project_title', e.target.value)}
+                    placeholder="ระบุชื่อโครงการหรือกิจกรรมที่ต้องการขอรับการสนับสนุน"
+                    className={`w-full rounded-lg border px-4 py-2.5 text-gray-700 shadow-sm transition focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200 ${
+                      errors.project_title ? 'border-red-400 focus:border-red-500 focus:ring-red-100' : 'border-gray-300'
+                    }`}
+                  />
+                  {errors.project_title ? (
+                    <p className="flex items-center gap-1 text-sm text-red-500">
+                      <AlertCircle className="h-4 w-4" />
+                      {errors.project_title}
+                    </p>
+                  ) : (
+                    <p className="text-xs text-gray-500">ข้อมูลนี้จะถูกส่งไปยังระบบในช่อง Project Title</p>
+                  )}
+                </div>
+
+                <div className="space-y-2 md:col-span-2">
+                  <label className="text-sm font-medium text-gray-700" htmlFor="project-description">
+                    รายละเอียดโครงการโดยย่อ
+                  </label>
+                  <textarea
+                    id="project-description"
+                    value={formData.project_description}
+                    onChange={(e) => handleInputChange('project_description', e.target.value)}
+                    placeholder="อธิบายวัตถุประสงค์หรือรายละเอียดสำคัญของโครงการ"
+                    rows={4}
+                    className={`w-full rounded-lg border px-4 py-3 text-gray-700 shadow-sm transition focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200 ${
+                      errors.project_description ? 'border-red-400 focus:border-red-500 focus:ring-red-100' : 'border-gray-300'
+                    }`}
+                  />
+                  {errors.project_description ? (
+                    <p className="flex items-center gap-1 text-sm text-red-500">
+                      <AlertCircle className="h-4 w-4" />
+                      {errors.project_description}
+                    </p>
+                  ) : (
+                    <p className="text-xs text-gray-500">ใช้สำหรับบันทึกข้อมูลลงในช่อง Project Description</p>
+                  )}
+                </div>
+              </div>
+            </SimpleCard>
+
+            <SimpleCard
+              title="รวมจำนวนทุนที่ขอ (Total Request Amount)"
+              icon={DollarSign}
+              bodyClassName="space-y-4"
+            >
+              <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_200px] md:items-end">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-gray-700" htmlFor="requested-amount">
+                    จำนวนเงินที่ขอ (บาท)
+                  </label>
+                  <input
+                    id="requested-amount"
+                    type="number"
+                    min="0"
+                    value={formData.requested_amount}
+                    onChange={(e) => handleInputChange('requested_amount', e.target.value)}
+                    placeholder="0.00"
+                    className={`w-full rounded-lg border bg-gray-50 px-4 py-3 text-2xl font-semibold text-gray-800 shadow-sm transition focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200 ${
+                      errors.requested_amount ? 'border-red-400 focus:border-red-500 focus:ring-red-100' : 'border-gray-200'
+                    }`}
+                  />
+                  {errors.requested_amount ? (
+                    <p className="flex items-center gap-1 text-sm text-red-500">
+                      <AlertCircle className="h-4 w-4" />
+                      {errors.requested_amount}
+                    </p>
+                  ) : (
+                    <p className="text-xs text-gray-500">กรอกตัวเลขจำนวนเต็มหรือทศนิยมได้ เช่น 50000 หรือ 50000.00</p>
+                  )}
+                </div>
+
+                <div className="rounded-lg border border-blue-100 bg-blue-50 p-4 text-center shadow-sm">
+                  <p className="text-xs font-medium text-blue-600 uppercase tracking-wide">ยอดคำขอปัจจุบัน</p>
+                  <p className="mt-2 text-2xl font-bold text-blue-700">{formattedRequestedAmount} บาท</p>
+                </div>
+              </div>
+            </SimpleCard>
+
+            <SimpleCard
+              title="เอกสารแนบ"
+              icon={Upload}
+              bodyClassName="space-y-4"
+            >
+              {documentRequirements.length === 0 ? (
+                <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-gray-200 bg-gray-50 py-10 text-center text-gray-500">
+                  <Upload className="mb-3 h-10 w-10 text-gray-400" />
+                  <p className="text-sm font-medium">ไม่มีเอกสารที่ต้องส่งสำหรับทุนนี้</p>
+                  <p className="mt-1 text-xs text-gray-400">คุณสามารถส่งคำร้องได้ทันทีเมื่อกรอกข้อมูลครบถ้วน</p>
+                </div>
+              ) : (
+                <>
+                  <div className="rounded-md border border-blue-100 bg-blue-50 p-4 text-sm text-blue-700">
+                    กรุณาอัปโหลดเอกสารให้ครบถ้วน โดยเฉพาะเอกสารที่มีเครื่องหมาย <span className="font-semibold text-red-500">*</span> ซึ่งเป็นรายการบังคับ
+                  </div>
+                  <div className="overflow-hidden rounded-lg border border-gray-200 shadow-sm">
+                    <table className="min-w-full divide-y divide-gray-200 text-sm">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          <th scope="col" className="w-16 px-3 py-2 text-center font-medium text-gray-600">ลำดับ</th>
+                          <th scope="col" className="px-3 py-2 text-left font-medium text-gray-600">ชื่อเอกสาร</th>
+                          <th scope="col" className="px-3 py-2 text-left font-medium text-gray-600">จัดการไฟล์</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-200 bg-white">
+                        {documentRequirements.map((docType, index) => (
+                          <tr key={docType.document_type_id} className="hover:bg-gray-50">
+                            <td className="px-3 py-2 text-center text-gray-700">{index + 1}</td>
+                            <td className="px-3 py-2 text-gray-700">
+                              <div className="flex flex-col">
+                                <span className="font-medium text-gray-800">
+                                  {docType.document_type_name}
+                                  {docType.required && <span className="ml-1 inline-flex items-center text-xs font-semibold text-red-500">*</span>}
+                                </span>
+                                <span className="text-xs text-gray-500">รองรับเฉพาะไฟล์ PDF ขนาดไม่เกิน 10MB</span>
+                              </div>
+                            </td>
+                            <td className="px-3 py-2">
+                              {uploadedFiles[docType.document_type_id] ? (
+                                <div className="flex items-center justify-between gap-3 rounded-md border border-green-200 bg-green-50 p-3">
+                                  <div className="flex min-w-0 items-center gap-3">
+                                    <FileText className="h-5 w-5 flex-shrink-0 text-green-600" />
+                                    <div className="min-w-0">
+                                      <p className="truncate text-sm font-medium text-green-800" title={uploadedFiles[docType.document_type_id].name}>
+                                        {uploadedFiles[docType.document_type_id].name}
+                                      </p>
+                                      <p className="text-xs text-green-700">{formatFileSize(uploadedFiles[docType.document_type_id].size)}</p>
+                                    </div>
+                                  </div>
+                                  <div className="flex flex-shrink-0 items-center gap-2">
+                                    <button
+                                      type="button"
+                                      onClick={() => viewFile(docType.document_type_id)}
+                                      className="inline-flex items-center justify-center rounded-md border border-transparent bg-white px-2 py-1 text-xs font-medium text-blue-600 shadow-sm transition hover:border-blue-100 hover:bg-blue-50"
+                                    >
+                                      <Eye className="h-4 w-4" />
+                                      <span className="ml-1 hidden sm:inline">ดูไฟล์</span>
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleRemoveFile(docType.document_type_id)}
+                                      className="inline-flex items-center justify-center rounded-md border border-transparent bg-white px-2 py-1 text-xs font-medium text-red-600 shadow-sm transition hover:border-red-100 hover:bg-red-50"
+                                    >
+                                      <X className="h-4 w-4" />
+                                      <span className="ml-1 hidden sm:inline">ลบ</span>
+                                    </button>
+                                  </div>
+                                </div>
+                              ) : (
+                                <FileUpload
+                                  onFileSelect={(files) => handleFileUpload(docType.document_type_id, files)}
+                                  accept=".pdf"
+                                  error={errors[`file_${docType.document_type_id}`]}
+                                  compact
+                                />
+                              )}
+                              {errors[`file_${docType.document_type_id}`] && (
+                                <p className="mt-2 text-xs text-red-500">{errors[`file_${docType.document_type_id}`]}</p>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </>
+              )}
+            </SimpleCard>
+
+            <div className="flex flex-col gap-4 rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+              <div className="space-y-1">
+                <p className="text-sm font-medium text-gray-800">ดำเนินการกับแบบคำร้อง</p>
+                <p className="text-xs text-gray-500">คุณสามารถบันทึกเป็นร่างเพื่อแก้ไขภายหลัง หรือส่งคำร้องเพื่อเข้าสู่การพิจารณา</p>
+              </div>
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-end">
+                <button
+                  type="button"
+                  onClick={deleteDraft}
+                  disabled={!hasDraft || saving || submitting}
+                  className="w-full sm:w-auto flex items-center justify-center gap-2 rounded-lg border border-red-300 px-6 py-3 text-sm font-medium text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <X className="h-4 w-4" />
+                  ลบร่าง
+                </button>
+                <button
+                  type="button"
+                  onClick={saveDraft}
+                  disabled={saving || submitting}
+                  className="w-full sm:flex-1 flex items-center justify-center gap-2 rounded-lg bg-gray-600 px-6 py-3 text-sm font-medium text-white shadow-sm transition hover:bg-gray-700 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {saving ? (
+                    <div className="h-4 w-4 animate-spin rounded-full border-b-2 border-white"></div>
+                  ) : (
+                    <Save className="h-4 w-4" />
+                  )}
+                  {saving ? 'กำลังบันทึก...' : 'บันทึกร่าง'}
+                </button>
+                <button
+                  type="button"
+                  onClick={submitApplication}
+                  disabled={saving || submitting}
+                  className="w-full sm:flex-1 flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-6 py-3 text-sm font-medium text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {submitting ? (
+                    <div className="h-4 w-4 animate-spin rounded-full border-b-2 border-white"></div>
+                  ) : (
+                    <Send className="h-4 w-4" />
+                  )}
+                  {submitting ? 'กำลังส่ง...' : 'ส่งคำร้อง'}
+                </button>
+              </div>
             </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm table-fixed">
-                <colgroup>
-                  <col className="w-12" />
-                  <col />
-                  <col />
-                </colgroup>
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-2 py-2 text-center font-medium text-gray-700">ลำดับ</th>
-                    <th className="px-2 py-2 text-left font-medium text-gray-700">ชื่อเอกสาร</th>
-                    <th className="px-2 py-2 text-left font-medium text-gray-700">แนบไฟล์</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-200">
-                  {documentRequirements.map((docType, index) => (
-                    <tr key={docType.document_type_id}>
-                      <td className="px-2 py-1 text-center text-gray-700">{index + 1}</td>
-                      <td className="px-2 py-1 text-gray-700">
-                        {docType.document_type_name}
-                        {docType.required && <span className="text-red-500 ml-1">*</span>}
-                      </td>
-                      <td className="px-2 py-1">
-                        {uploadedFiles[docType.document_type_id] ? (
-                          <div className="flex items-center justify-between bg-green-50 p-2 rounded w-full">
-                            <div className="flex items-center gap-2 min-w-0">
-                              <FileText className="h-5 w-5 text-green-600 flex-shrink-0" />
-                              <span className="text-sm font-medium text-green-800 truncate">
-                                {uploadedFiles[docType.document_type_id].name}
-                              </span>
-                              <span className="text-xs text-green-600 whitespace-nowrap">
-                                ({Math.round(uploadedFiles[docType.document_type_id].size / 1024)} KB)
-                              </span>
-                            </div>
-                            <div className="flex items-center gap-2 flex-shrink-0">
-                              <button
-                                type="button"
-                                onClick={() => viewFile(docType.document_type_id)}
-                                className="text-blue-600 hover:text-blue-800 p-1"
-                                title="ดูไฟล์"
-                              >
-                                <Eye className="h-4 w-4" />
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleRemoveFile(docType.document_type_id)}
-                                className="text-red-600 hover:text-red-800 p-1"
-                                title="ลบไฟล์"
-                              >
-                                <X className="h-4 w-4" />
-                              </button>
-                            </div>
-                          </div>
-                        ) : (
-                          <FileUpload
-                            onFileSelect={(files) => handleFileUpload(docType.document_type_id, files)}
-                            accept=".pdf"
-                            error={errors[`file_${docType.document_type_id}`]}
-                            compact
-                          />
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </SimpleCard>
 
-        {/* Action Buttons */}
-        <div className="flex flex-col sm:flex-row gap-4 pt-6 border-t">
-          <button
-            type="button"
-            onClick={saveDraft}
-            disabled={saving || submitting}
-            className="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-gray-600 text-white rounded-lg hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-          >
-            {saving ? (
-              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-            ) : (
-              <Save className="h-4 w-4" />
-            )}
-            {saving ? 'กำลังบันทึก...' : 'บันทึกร่าง'}
-          </button>
-          
-          <button
-            type="button"
-            onClick={submitApplication}
-            disabled={saving || submitting}
-            className="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-          >
-            {submitting ? (
-              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-            ) : (
-              <Send className="h-4 w-4" />
-            )}
-            {submitting ? 'กำลังส่ง...' : 'ส่งคำร้อง'}
-          </button>
-        </div>
-
-        {/* Warning Notice */}
-        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-          <div className="flex items-start gap-3">
-            <AlertCircle className="h-5 w-5 text-yellow-600 mt-0.5 flex-shrink-0" />
-            <div className="text-sm text-yellow-800">
-              <p className="font-medium mb-1">ข้อควรระวัง:</p>
-              <ul className="list-disc list-inside space-y-1 text-xs">
-                <li>กรุณาตรวจสอบข้อมูลให้ครบถ้วนและถูกต้องก่อนส่งคำร้อง</li>
-                <li>เอกสารแนบต้องเป็นไฟล์ PDF เท่านั้น ขนาดไม่เกิน 10MB</li>
-                <li>หลังจากส่งคำร้องแล้ว จะไม่สามารถแก้ไขข้อมูลได้</li>
-                <li>สามารถบันทึกร่างและกลับมาแก้ไขภายหลังได้</li>
-              </ul>
+            <div className="rounded-lg border border-yellow-200 bg-yellow-50 p-5 text-sm text-yellow-800 shadow-sm">
+              <div className="flex items-start gap-3">
+                <AlertCircle className="mt-0.5 h-5 w-5 flex-shrink-0" />
+                <div className="space-y-1">
+                  <p className="font-semibold">ข้อควรระวังก่อนส่งคำร้อง</p>
+                  <ul className="list-inside space-y-1 text-xs leading-relaxed md:list-disc">
+                    <li>ตรวจสอบข้อมูลให้ครบถ้วนและถูกต้องก่อนกดส่งคำร้อง</li>
+                    <li>ไฟล์แนบต้องเป็นรูปแบบ PDF เท่านั้น และมีขนาดไม่เกิน 10MB ต่อไฟล์</li>
+                    <li>หลังจากส่งคำร้องแล้วจะไม่สามารถแก้ไขข้อมูลได้</li>
+                    <li>คุณสามารถบันทึกร่างและกลับมาแก้ไขภายหลังได้</li>
+                  </ul>
+                </div>
+              </div>
             </div>
           </div>
         </div>
