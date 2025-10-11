@@ -10,12 +10,14 @@ import {
   ArrowUp,
   ArrowDown,
   Save,
-  X
+  X,
+  Trophy,
 } from "lucide-react";
 import Swal from 'sweetalert2';
 import adminAPI from "@/app/lib/admin_api";
 import StatusBadge from "@/app/admin/components/settings/StatusBadge";
 import { systemConfigAPI } from "@/app/lib/system_config_api";
+import SettingsSectionCard from "@/app/admin/components/settings/common/SettingsSectionCard";
 
 const RewardConfigManager = () => {
   const [activeSubTab, setActiveSubTab] = useState('rates');
@@ -352,13 +354,14 @@ const RewardConfigManager = () => {
   };
 
   return (
-    <div className="bg-white rounded-lg shadow-sm p-8">
-      <div className="mb-6 flex items-start justify-between">
-        <div>
-          <h2 className="text-xl font-semibold text-gray-900">จัดการเงินรางวัลการตีพิมพ์</h2>
-          <p className="text-gray-600 mt-1">กำหนดอัตราเงินรางวัลและวงเงินสนับสนุนค่าธรรมเนียม</p>
-        </div>
-        {years.length > 0 && (
+    <SettingsSectionCard
+      icon={Trophy}
+      iconBgClass="bg-amber-100"
+      iconColorClass="text-amber-600"
+      title="จัดการเงินรางวัลการตีพิมพ์"
+      description="กำหนดอัตราเงินรางวัลและวงเงินสนับสนุนค่าธรรมเนียม"
+      actions={
+        years.length > 0 ? (
           <button
             onClick={copyToNewYear}
             className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
@@ -366,11 +369,11 @@ const RewardConfigManager = () => {
             <Copy size={16} />
             คัดลอกไปปีใหม่
           </button>
-        )}
-      </div>
-
-      {/* Year Selector */}
-      <div className="mb-5 flex items-center gap-3">
+        ) : null
+      }
+      contentClassName="space-y-5"
+    >
+      <div className="flex items-center gap-3">
         <label className="text-sm font-medium text-gray-700">ปีงบประมาณ:</label>
         {years.length ? (
           <select
@@ -796,7 +799,7 @@ const RewardConfigManager = () => {
           </div>
         </div>
       )}
-    </div>
+    </SettingsSectionCard>
   );
 };
 

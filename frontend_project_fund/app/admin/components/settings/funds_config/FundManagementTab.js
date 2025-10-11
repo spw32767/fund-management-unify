@@ -13,6 +13,7 @@ import {
 import Swal from "sweetalert2";
 import { targetRolesUtils } from "@/app/lib/target_roles_utils";
 import StatusBadge from "@/app/admin/components/settings/StatusBadge";
+import SettingsSectionCard from "@/app/admin/components/settings/common/SettingsSectionCard";
 
 const formatCurrency = (value) => {
   if (value === null || value === undefined || value === "") return "ไม่จำกัด";
@@ -467,15 +468,14 @@ const FundManagementTab = ({
   };
 
   return (
-    <div className="bg-white rounded-lg shadow-sm p-8">
-      <div className="mb-6 flex flex-wrap gap-4 items-center justify-between">
-        <div>
-          <h2 className="text-xl font-semibold text-gray-900">จัดการทุน</h2>
-          <p className="text-sm text-gray-600 mt-1">
-            เพิ่ม/แก้ไข หมวดหมู่ ทุนย่อย และนโยบายงบประมาณตามโครงสร้างใหม่
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
+    <SettingsSectionCard
+      icon={Layers}
+      iconBgClass="bg-indigo-100"
+      iconColorClass="text-indigo-600"
+      title="จัดการทุน"
+      description="เพิ่ม/แก้ไข หมวดหมู่ ทุนย่อย และนโยบายงบประมาณตามโครงสร้างใหม่"
+      actions={
+        <>
           <button
             type="button"
             onClick={() => onRefresh?.()}
@@ -502,10 +502,11 @@ const FundManagementTab = ({
             <Copy size={16} />
             คัดลอกไปปีถัดไป
           </button>
-        </div>
-      </div>
-
-      <div className="mb-6 flex flex-wrap gap-3 items-center">
+        </>
+      }
+      contentClassName="space-y-6"
+    >
+      <div className="flex flex-wrap gap-3 items-center">
         <div className="flex items-center gap-2">
           <label className="text-sm font-medium text-gray-700">ปีงบประมาณ</label>
           <select
@@ -831,7 +832,7 @@ const FundManagementTab = ({
           })}
         </div>
       )}
-    </div>
+    </SettingsSectionCard>
   );
 };
 
