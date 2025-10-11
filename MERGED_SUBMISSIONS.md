@@ -53,7 +53,8 @@ The `relative_path` field mirrors the example path shown above and can be stored
 * If the submission has not been formally submitted yet, the merge endpoint returns `400 Bad Request`.
 * When no PDF documents are attached, the endpoint still returns `200 OK` with `merged_file: null` and a `message` that explains no PDFs were available. This keeps the submission flow smooth even when only non-PDF documents were uploaded.
 * File paths are normalised before merging, so uploads that store Windows-style (`\\`) separators can still be located on Linux hosts.
-* PDF merging is handled by a pure Go fallback (via [pdfcpu](https://github.com/pdfcpu/pdfcpu)), so the feature no longer depends on Node.js, Ghostscript, or Poppler binaries being present on the server.
+* PDF merging attempts to use the repository's existing toolchain (Node.js via `merge_pdf.js`, Ghostscript, then `pdfunite`). Detailed log lines prefixed with `[mergePDFs]` record which tools were available and whether they succeeded.
+* Additional `[MergeSubmissionDocuments]` log lines capture which submission documents were considered and why any were skipped. These logs surface missing files, unresolvable paths, or format mismatches that would otherwise fail silently.
 * Any unexpected error still results in `500 Internal Server Error`. The frontend logs these errors but does not block the overall submission flow.
 
 ## Local testing tips
