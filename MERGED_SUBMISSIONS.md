@@ -57,6 +57,20 @@ The `relative_path` field mirrors the example path shown above and can be stored
 * Additional `[MergeSubmissionDocuments]` log lines capture which submission documents were considered and why any were skipped. These logs surface missing files, unresolvable paths, or format mismatches that would otherwise fail silently.
 * Any unexpected error still results in `500 Internal Server Error`. The frontend logs these errors but does not block the overall submission flow.
 
+## Viewing the logs
+
+The merge diagnostics use Go's standard logger, so they appear alongside the rest of the API service logs:
+
+* **Local development:** run the API with `go run ./cmd/api` (or `./fund-api`) and watch the terminal output. Merge activity is prefixed with `[MergeSubmissionDocuments]` and helper messages with `[mergePDFs]`.
+* **Systemd deployments:** inspect the service journal, for example `journalctl -u fund-api.service -f` to tail live activity on the server.
+* **Containerised deployments:** check the container output, e.g. `docker logs -f fund-management-api`.
+
+All log entries include the submission ID so you can filter the stream when investigating a specific request:
+
+```bash
+journalctl -u fund-api.service | grep "MergeSubmissionDocuments" | grep "submission 1234"
+```
+
 ## Local testing tips
 
 1. Submit an application through either form in the member portal.
