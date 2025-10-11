@@ -7,7 +7,6 @@ import {
   Building,
   FileText,
   Clock,
-  Camera,
   ArrowUp,
   ArrowDown,
   ArrowUpDown,
@@ -721,12 +720,6 @@ export default function ProfileContent() {
                   </div>
                 )}
               </div>
-              <button
-                type="button"
-                className="absolute -bottom-1 -right-1 rounded-full bg-blue-600 p-2 text-white shadow-md transition-colors hover:bg-blue-700"
-              >
-                <Camera size={16} />
-              </button>
             </div>
             <div className="flex-1 text-center sm:text-left">
               <h1 className="text-2xl font-semibold text-gray-900 sm:text-3xl">
