@@ -644,10 +644,8 @@ export default function ProfileContent() {
     .filter(Boolean)
     .join(" ");
   const englishNameLine = teacherData.english_name?.trim();
-  const prefixSuffixLine = [teacherData.prefix, teacherData.suffix]
-    .filter(Boolean)
-    .join(" ");
-  const secondaryNameLine = [prefixSuffixLine, englishNameLine]
+  const suffixLine = teacherData.suffix?.trim() || "";
+  const secondaryNameLine = [suffixLine, englishNameLine]
     .filter(Boolean)
     .join(" · ");
   const affiliationLine = [
