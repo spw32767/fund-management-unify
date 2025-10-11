@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { 
   ArrowLeft,
   FileText,
@@ -25,10 +25,15 @@ import {
 } from "lucide-react";
 import { submissionAPI, submissionUsersAPI } from "@/app/lib/member_api";
 import apiClient, { announcementAPI } from "@/app/lib/api";
+import { toast } from "react-hot-toast";
 import PageLayout from "../common/PageLayout";
 import Card from "../common/Card";
 import StatusBadge from "../common/StatusBadge";
 import { formatCurrency } from "@/app/utils/format";
+import {
+  resolveDocumentFile,
+  enrichDocumentsWithFileMetadata,
+} from "@/app/utils/documentFiles";
 import { useStatusMap } from "@/app/hooks/useStatusMap";
 
 const getStatusIcon = (statusCode) => {
@@ -207,6 +212,19 @@ export default function PublicationRewardDetail({ submissionId, onNavigate }) {
   const [mainAnnouncementDetail, setMainAnnouncementDetail] = useState(null);
   const [rewardAnnouncementDetail, setRewardAnnouncementDetail] = useState(null);
   const { getLabelById, getCodeById } = useStatusMap();
+  const fileMetaCacheRef = useRef(new Map());
+
+  const fetchManagedFileMetadata = useCallback(async (fileId) => {
+    if (fileId == null) return null;
+    const response = await apiClient.get(`/files/managed/${fileId}`);
+    return (
+      response?.file ||
+      response?.data?.file ||
+      response?.data ||
+      response ||
+      null
+    );
+  }, []);
 
   const getUserFullName = (user) => {
     if (!user) return "-";
@@ -416,7 +434,17 @@ export default function PublicationRewardDetail({ submissionId, onNavigate }) {
           console.log('Could not load submission users separately');
         }
       }
-      
+
+      if (Array.isArray(submissionData.documents) && submissionData.documents.length) {
+        submissionData.documents = await enrichDocumentsWithFileMetadata(
+          submissionData.documents,
+          {
+            fetchFileById: fetchManagedFileMetadata,
+            cache: fileMetaCacheRef.current,
+          }
+        );
+      }
+
       setSubmission(submissionData);
     } catch (error) {
       console.error('Error loading submission detail:', error);
@@ -439,6 +467,10 @@ export default function PublicationRewardDetail({ submissionId, onNavigate }) {
   };
 
   const handleView = async (fileId) => {
+    if (fileId == null) {
+      toast.error('ไม่พบไฟล์');
+      return;
+    }
     try {
       const token = apiClient.getToken();
       const url = `${apiClient.baseURL}/files/managed/${fileId}/download`;
@@ -456,6 +488,10 @@ export default function PublicationRewardDetail({ submissionId, onNavigate }) {
   };
 
   const handleDownload = async (fileId, fileName = 'document') => {
+    if (fileId == null) {
+      toast.error('ไม่พบไฟล์');
+      return;
+    }
     try {
       await apiClient.downloadFile(`/files/managed/${fileId}/download`, fileName);
     } catch (error) {
@@ -1097,8 +1133,11 @@ export default function PublicationRewardDetail({ submissionId, onNavigate }) {
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
                     {documents.map((doc, index) => {
-                      const fileId = doc.file_id || doc.File?.file_id || doc.file?.file_id;
-                      const docName = doc.File?.original_name || doc.file?.original_name || doc.original_filename || doc.file_name || doc.name || `เอกสารที่ ${index + 1}`;
+                      const meta = doc.resolvedFile ?? resolveDocumentFile(doc, index);
+                      const fileId = meta?.fileId ?? null;
+                      const hasFile = Boolean(meta?.hasFile);
+                      const docName = meta?.displayName || `เอกสารที่ ${index + 1}`;
+                      const downloadName = meta?.downloadName || docName;
                       const docType =
                         doc.document_type_name && doc.document_type_name.trim() !== ""
                           ? doc.document_type_name
@@ -1108,23 +1147,30 @@ export default function PublicationRewardDetail({ submissionId, onNavigate }) {
                           <td className="px-4 py-2 text-sm text-gray-500">{index + 1}</td>
                           <td className="px-4 py-2 text-sm text-gray-700">{docType}</td>
                           <td className="px-4 py-2">
-                            <div className="flex items-center">
-                              <FileText className="h-5 w-5 text-gray-400 mr-2" />
+                            <div className="flex flex-wrap items-center gap-2">
+                              <FileText className="h-5 w-5 text-gray-400" />
                               <span className="text-sm text-gray-700">{docName}</span>
+                              {!hasFile && (
+                                <span className="inline-flex items-center rounded-full bg-gray-200 px-2 py-0.5 text-[11px] font-medium text-gray-600">
+                                  ไม่มีไฟล์แนบ
+                                </span>
+                              )}
                             </div>
                           </td>
                           <td className="px-4 py-2">
                             <div className="flex items-center gap-2">
                               <button
                                 onClick={() => handleView(fileId)}
-                                className="inline-flex items-center gap-1 px-3 py-1 text-sm text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-md"
+                                className="inline-flex items-center gap-1 px-3 py-1 text-sm text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-md disabled:opacity-50 disabled:cursor-not-allowed"
+                                disabled={!hasFile}
                               >
                                 <Eye className="h-4 w-4" />
                                 ดู
                               </button>
                               <button
-                                onClick={() => handleDownload(fileId, docName)}
-                                className="inline-flex items-center gap-1 px-3 py-1 text-sm text-green-600 bg-green-50 hover:bg-green-100 rounded-md"
+                                onClick={() => handleDownload(fileId, downloadName)}
+                                className="inline-flex items-center gap-1 px-3 py-1 text-sm text-green-600 bg-green-50 hover:bg-green-100 rounded-md disabled:opacity-50 disabled:cursor-not-allowed"
+                                disabled={!hasFile}
                               >
                                 <Download className="h-4 w-4" />
                                 ดาวน์โหลด

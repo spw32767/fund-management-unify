@@ -36,6 +36,7 @@ import { adminSubmissionAPI } from '@/app/lib/admin_submission_api';
 import { rewardConfigAPI } from '@/app/lib/publication_api';
 import adminAPI from '@/app/lib/admin_api';
 import { notificationsAPI } from '@/app/lib/notifications_api';
+import { resolveDocumentFile } from '@/app/utils/documentFiles';
 
 import Swal from 'sweetalert2';
 import 'sweetalert2/dist/sweetalert2.min.css';
@@ -1247,17 +1248,18 @@ export default function PublicationSubmissionDetails({ submissionId, onBack }) {
         const rawDocs = docsApi.length ? docsApi : docsFallback;
 
         const merged = rawDocs.map((d, i) => {
-          const fileId = d.file_id ?? d.File?.file_id ?? d.file?.file_id ?? d.id;
-          const name = d.file_name ?? d.original_name ?? d.original_filename ?? d.File?.original_name ?? d.file?.original_name ?? d.name ?? `เอกสารที่ ${i + 1}`;
+          const resolvedFile = resolveDocumentFile(d, i);
           const docTypeId = d.document_type_id ?? d.DocumentTypeID ?? d.doc_type_id ?? null;
           const docTypeName = d.document_type_name || typeMap[docTypeId] || 'ไม่ระบุหมวด';
 
           return {
             ...d,
-            file_id: fileId,
-            original_name: name,
+            file_id: resolvedFile.fileId,
+            original_name: resolvedFile.originalName ?? null,
+            file_name: resolvedFile.originalName ?? resolvedFile.displayName ?? null,
             document_type_id: docTypeId,
             document_type_name: docTypeName,
+            resolvedFile,
           };
         });
 
@@ -1533,6 +1535,10 @@ export default function PublicationSubmissionDetails({ submissionId, onBack }) {
 
   // File actions
   const handleView = async (fileId) => {
+    if (fileId == null) {
+      toast.error('ไม่พบไฟล์');
+      return;
+    }
     try {
       const token = apiClient.getToken();
       const url = `${apiClient.baseURL}/files/managed/${fileId}/download`;
@@ -1549,6 +1555,10 @@ export default function PublicationSubmissionDetails({ submissionId, onBack }) {
   };
 
   const handleDownload = async (fileId, fileName = 'document') => {
+    if (fileId == null) {
+      toast.error('ไม่พบไฟล์');
+      return;
+    }
     try {
       await apiClient.downloadFile(`/files/managed/${fileId}/download`, fileName);
     } catch (e) {
@@ -1569,6 +1579,9 @@ export default function PublicationSubmissionDetails({ submissionId, onBack }) {
   };
 
   const fetchFileAsBlob = async (fileId) => {
+    if (fileId == null) {
+      throw new Error('Missing file_id');
+    }
     const token = apiClient.getToken();
     const url = `${apiClient.baseURL}/files/managed/${fileId}/download`;
     const resp = await fetch(url, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
@@ -1582,14 +1595,25 @@ export default function PublicationSubmissionDetails({ submissionId, onBack }) {
     const skipped = [];
 
     for (const doc of list) {
+      const resolved = doc?.resolvedFile ?? resolveDocumentFile(doc);
+      if (resolved?.fileId == null) {
+        const skippedName = resolved?.displayName || resolved?.originalName || 'unknown.pdf';
+        console.warn('merge: skip (missing file_id)', skippedName);
+        skipped.push(skippedName);
+        continue;
+      }
       try {
-        const blob = await fetchFileAsBlob(doc.file_id);
+        const blob = await fetchFileAsBlob(resolved.fileId);
         const src = await PDFDocument.load(await blob.arrayBuffer(), { ignoreEncryption: true });
         const pages = await merged.copyPages(src, src.getPageIndices());
-        pages.forEach(p => merged.addPage(p));
+        pages.forEach((p) => merged.addPage(p));
       } catch (e) {
-        console.warn('merge: skip', doc?.original_name || doc?.file_name || doc?.file_id, e);
-        skipped.push(doc?.original_name || doc?.file_name || `file-${doc.file_id}.pdf`);
+        console.warn('merge: skip', resolved?.displayName || resolved?.fileId, e);
+        const fallbackName =
+          resolved?.displayName ||
+          resolved?.originalName ||
+          (resolved?.fileId != null ? `file-${resolved.fileId}.pdf` : 'unknown.pdf');
+        skipped.push(fallbackName);
         continue;
       }
     }
@@ -1609,9 +1633,11 @@ export default function PublicationSubmissionDetails({ submissionId, onBack }) {
     setMerging(true);
     try {
       // เลือกไฟล์ .pdf ก่อน ถ้าไม่มีเลยค่อยลองทุกไฟล์ (ให้ merge functionเป็นคนคัดทิ้งเอง)
-      const pdfLike = attachments.filter(d => {
-        const name = (d.original_name || d.file_name || '').toLowerCase();
-        return name.endsWith('.pdf');
+      const pdfLike = attachments.filter((d, idx) => {
+        const resolved = d?.resolvedFile ?? resolveDocumentFile(d, idx);
+        return String(resolved?.originalName || resolved?.displayName || '')
+          .toLowerCase()
+          .endsWith('.pdf');
       });
       const list = pdfLike.length ? pdfLike : attachments;
 
@@ -2319,15 +2345,11 @@ export default function PublicationSubmissionDetails({ submissionId, onBack }) {
             ) : attachments.length > 0 ? (
               <div className="space-y-4">
                 {attachments.map((doc, index) => {
-                  const fileId = doc.file_id || doc.File?.file_id || doc.file?.file_id;
-                  const fileName =
-                    doc.original_name ||
-                    doc.File?.original_name ||
-                    doc.file?.original_name ||
-                    doc.original_filename ||
-                    doc.file_name ||
-                    doc.name ||
-                    `เอกสารที่ ${index + 1}`;
+                  const resolved = doc.resolvedFile ?? resolveDocumentFile(doc, index);
+                  const fileId = resolved.fileId;
+                  const hasFile = resolved.hasFile;
+                  const fileName = resolved.displayName || `เอกสารที่ ${index + 1}`;
+                  const downloadName = resolved.downloadName || fileName;
                   const docType = (doc.document_type_name || '').trim() || 'ไม่ระบุประเภท';
 
                   return (
@@ -2353,7 +2375,7 @@ export default function PublicationSubmissionDetails({ submissionId, onBack }) {
                             </p>
                             </div>
                               {/* ชื่อไฟล์: ทำเป็นลิงก์สีน้ำเงิน กดแล้วเรียก handleView(fileId) */}
-                              {fileId ? (
+                              {hasFile ? (
                                 <a
                                   href="#"
                                   onClick={(e) => { e.preventDefault(); handleView(fileId); }}
@@ -2363,12 +2385,17 @@ export default function PublicationSubmissionDetails({ submissionId, onBack }) {
                                   {fileName}
                                 </a>
                               ) : (
-                                <span
-                                  className="font-medium text-gray-400 truncate"
-                                  title={fileName}
-                                >
-                                  {fileName}
-                                </span>
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <span
+                                    className="font-medium text-gray-400 truncate"
+                                    title={fileName}
+                                  >
+                                    {fileName}
+                                  </span>
+                                  <span className="inline-flex items-center rounded-full bg-gray-200 px-2 py-0.5 text-[11px] font-medium text-gray-600">
+                                    ไม่มีไฟล์แนบ
+                                  </span>
+                                </div>
                               )}
                           </div>
                         </div>
@@ -2378,7 +2405,7 @@ export default function PublicationSubmissionDetails({ submissionId, onBack }) {
                           <button
                             className="inline-flex items-center gap-1 border border-blue-200 px-3 py-2 text-sm text-blue-600 hover:bg-blue-100 rounded-md transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
                             onClick={() => handleView(fileId)}
-                            disabled={!fileId}
+                            disabled={!hasFile}
                             title="เปิดดูไฟล์"
                           >
                             <Eye size={14} />
@@ -2386,8 +2413,8 @@ export default function PublicationSubmissionDetails({ submissionId, onBack }) {
                           </button>
                           <button
                             className="inline-flex items-center gap-1 border border-green-200 px-3 py-2 text-sm text-green-600 hover:bg-green-100 rounded-md transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-                            onClick={() => handleDownload(fileId, fileName)}
-                            disabled={!fileId}
+                              onClick={() => handleDownload(fileId, downloadName)}
+                            disabled={!hasFile}
                             title="ดาวน์โหลดไฟล์"
                           >
                             <Download size={14} />

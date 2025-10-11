@@ -414,7 +414,7 @@ class APIClient {
     }
 
     const url = `${this.baseURL}${endpoint}`;
-    
+
     try {
       const response = await fetch(url, {
         method: 'GET',
@@ -427,19 +427,48 @@ class APIClient {
       }
 
       const blob = await response.blob();
-      
+
+      const parseContentDisposition = (value) => {
+        if (!value || typeof value !== 'string') {
+          return null;
+        }
+
+        // RFC 5987 encoded filename*=UTF-8''...
+        const utf8Match = value.match(/filename\*=([^']*)''([^;]+)/i);
+        if (utf8Match && utf8Match[2]) {
+          try {
+            return decodeURIComponent(utf8Match[2]);
+          } catch (_) {
+            return utf8Match[2];
+          }
+        }
+
+        const asciiMatch = value.match(/filename="?([^";]+)"?/i);
+        if (asciiMatch && asciiMatch[1]) {
+          return asciiMatch[1];
+        }
+
+        return null;
+      };
+
+      const headerFilename = parseContentDisposition(response.headers.get('content-disposition'));
+      const resolvedFilename = headerFilename || filename || 'download';
+
       // Create download link
       if (typeof window !== 'undefined') {
         const downloadUrl = window.URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.href = downloadUrl;
-        link.download = filename;
+        link.download = resolvedFilename;
         document.body.appendChild(link);
         link.click();
         link.remove();
         window.URL.revokeObjectURL(downloadUrl);
       }
-      
+
+      // Attach filename information for callers that need it
+      blob.downloadFilename = resolvedFilename;
+
       return blob;
     } catch (error) {
       if (error instanceof APIError) {
