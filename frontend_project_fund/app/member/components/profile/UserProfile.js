@@ -21,8 +21,11 @@ import { useStatusMap } from "@/app/hooks/useStatusMap";
 // Default data structure for the profile
 const defaultTeacherData = {
   user_id: null,
+  prefix: "",
+  suffix: "",
   user_fname: "",
   user_lname: "",
+  english_name: "",
   position: "",
   department: "",
   faculty: "",
@@ -280,8 +283,32 @@ export default function ProfileContent() {
 
       setTeacherData({
         user_id: profile.user_id,
+        prefix:
+          profile.prefix ||
+          profile.prefix_name ||
+          profile.title ||
+          profile.position ||
+          "",
+        suffix: profile.suffix || profile.suffix_name || "",
         user_fname: profile.user_fname,
         user_lname: profile.user_lname,
+        english_name:
+          profile.name_en ||
+          profile.full_name_en ||
+          [
+            profile.user_fname_en ||
+              profile.first_name_en ||
+              profile.given_name_en ||
+              profile.en_first_name ||
+              "",
+            profile.user_lname_en ||
+              profile.last_name_en ||
+              profile.family_name_en ||
+              profile.en_last_name ||
+              "",
+          ]
+            .filter(Boolean)
+            .join(" "),
         position: profile.position_name,
         department: profile.department || "",
         faculty: profile.faculty || "",
@@ -597,22 +624,20 @@ export default function ProfileContent() {
   const innovTotalPages =
     Math.ceil(sortedInnovations.length / innovRowsPerPage) || 1;
 
-  const {
-    totalApplications,
-    approvedApplications,
-    pendingApplications,
-    totalBudgetReceived,
-    usedBudget,
-    remainingBudget,
-    successRate,
-  } = teacherData.stats;
-
   const displayName = [
+    teacherData.prefix,
     teacherData.user_fname,
     teacherData.user_lname,
   ]
     .filter(Boolean)
     .join(" ");
+  const englishNameLine = teacherData.english_name?.trim();
+  const prefixSuffixLine = [teacherData.prefix, teacherData.suffix]
+    .filter(Boolean)
+    .join(" ");
+  const secondaryNameLine = [prefixSuffixLine, englishNameLine]
+    .filter(Boolean)
+    .join(" · ");
   const affiliationLine = [
     teacherData.department,
     teacherData.faculty,
@@ -622,7 +647,7 @@ export default function ProfileContent() {
   const positionLine = teacherData.position || "";
 
   const contactDetails = [
-    teacherData.phone
+    !teacherData.email && teacherData.phone
       ? {
           key: "phone",
           icon: Phone,
@@ -655,46 +680,6 @@ export default function ProfileContent() {
         }
       : null,
   ].filter(Boolean);
-
-  const highlightChips = useMemo(() => {
-    const chips = [];
-    const total = formatNumber(totalApplications);
-    if (total && Number(totalApplications) > 0) {
-      chips.push(`คำร้องทั้งหมด ${total}`);
-    }
-    const approved = formatNumber(approvedApplications);
-    if (approved && Number(approvedApplications) > 0) {
-      chips.push(`อนุมัติ ${approved}`);
-    }
-    const pending = formatNumber(pendingApplications);
-    if (pending && Number(pendingApplications) > 0) {
-      chips.push(`รอดำเนินการ ${pending}`);
-    }
-    if (successRate && Number(successRate) > 0) {
-      chips.push(`อัตราสำเร็จ ${successRate}%`);
-    }
-    const totalBudget = formatNumber(totalBudgetReceived);
-    if (totalBudget && Number(totalBudgetReceived) > 0) {
-      chips.push(`งบที่ขอ ${totalBudget} บาท`);
-    }
-    const used = formatNumber(usedBudget);
-    if (used && Number(usedBudget) > 0) {
-      chips.push(`ใช้ไปแล้ว ${used} บาท`);
-    }
-    const remaining = formatNumber(remainingBudget);
-    if (remaining && Number(remainingBudget) > 0) {
-      chips.push(`คงเหลือ ${remaining} บาท`);
-    }
-    return chips.slice(0, 6);
-  }, [
-    totalApplications,
-    approvedApplications,
-    pendingApplications,
-    successRate,
-    totalBudgetReceived,
-    usedBudget,
-    remainingBudget,
-  ]);
 
   if (loading) {
     return (
@@ -739,6 +724,9 @@ export default function ProfileContent() {
               <h1 className="text-2xl font-semibold text-gray-900 sm:text-3xl">
                 {displayName || "ไม่ระบุชื่อ"}
               </h1>
+              {secondaryNameLine && (
+                <p className="mt-1 text-sm text-gray-500">{secondaryNameLine}</p>
+              )}
               {affiliationLine && (
                 <p className="mt-2 text-base text-gray-700">{affiliationLine}</p>
               )}
@@ -750,19 +738,14 @@ export default function ProfileContent() {
                   <span className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-50 text-blue-600">
                     <Mail size={16} />
                   </span>
-                  <span>อีเมล (Email): {teacherData.email}</span>
-                </div>
-              )}
-              {highlightChips.length > 0 && (
-                <div className="mt-5 flex flex-wrap justify-center gap-2 sm:justify-start">
-                  {highlightChips.map((chip) => (
-                    <span
-                      key={chip}
-                      className="rounded-full border border-blue-100 bg-blue-50 px-3 py-1 text-xs font-medium text-blue-700"
-                    >
-                      {chip}
-                    </span>
-                  ))}
+                  <div className="text-left">
+                    <p>อีเมล (Email): {teacherData.email}</p>
+                    {teacherData.phone && (
+                      <p className="mt-1 text-xs text-gray-400 sm:text-sm sm:text-gray-500">
+                        โทรศัพท์ (Tel): {teacherData.phone}
+                      </p>
+                    )}
+                  </div>
                 </div>
               )}
             </div>
