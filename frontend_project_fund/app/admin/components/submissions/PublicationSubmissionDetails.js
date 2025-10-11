@@ -1248,14 +1248,16 @@ export default function PublicationSubmissionDetails({ submissionId, onBack }) {
 
         const merged = rawDocs.map((d, i) => {
           const fileId = d.file_id ?? d.File?.file_id ?? d.file?.file_id ?? d.id;
-          const name = d.file_name ?? d.original_name ?? d.original_filename ?? d.File?.original_name ?? d.file?.original_name ?? d.name ?? `เอกสารที่ ${i + 1}`;
+          const trimmedOriginal =
+            typeof d.original_name === 'string' ? d.original_name.trim() : '';
+          const originalName = trimmedOriginal || null;
           const docTypeId = d.document_type_id ?? d.DocumentTypeID ?? d.doc_type_id ?? null;
           const docTypeName = d.document_type_name || typeMap[docTypeId] || 'ไม่ระบุหมวด';
 
           return {
             ...d,
             file_id: fileId,
-            original_name: name,
+            original_name: originalName,
             document_type_id: docTypeId,
             document_type_name: docTypeName,
           };
@@ -1588,8 +1590,8 @@ export default function PublicationSubmissionDetails({ submissionId, onBack }) {
         const pages = await merged.copyPages(src, src.getPageIndices());
         pages.forEach(p => merged.addPage(p));
       } catch (e) {
-        console.warn('merge: skip', doc?.original_name || doc?.file_name || doc?.file_id, e);
-        skipped.push(doc?.original_name || doc?.file_name || `file-${doc.file_id}.pdf`);
+        console.warn('merge: skip', doc?.original_name || doc?.file_id, e);
+        skipped.push(doc?.original_name || `file-${doc.file_id}.pdf`);
         continue;
       }
     }
@@ -1610,7 +1612,7 @@ export default function PublicationSubmissionDetails({ submissionId, onBack }) {
     try {
       // เลือกไฟล์ .pdf ก่อน ถ้าไม่มีเลยค่อยลองทุกไฟล์ (ให้ merge functionเป็นคนคัดทิ้งเอง)
       const pdfLike = attachments.filter(d => {
-        const name = (d.original_name || d.file_name || '').toLowerCase();
+        const name = (d.original_name || '').toLowerCase();
         return name.endsWith('.pdf');
       });
       const list = pdfLike.length ? pdfLike : attachments;
@@ -2320,14 +2322,11 @@ export default function PublicationSubmissionDetails({ submissionId, onBack }) {
               <div className="space-y-4">
                 {attachments.map((doc, index) => {
                   const fileId = doc.file_id || doc.File?.file_id || doc.file?.file_id;
-                  const fileName =
-                    doc.original_name ||
-                    doc.File?.original_name ||
-                    doc.file?.original_name ||
-                    doc.original_filename ||
-                    doc.file_name ||
-                    doc.name ||
-                    `เอกสารที่ ${index + 1}`;
+                  const trimmedOriginal =
+                    typeof doc.original_name === 'string' ? doc.original_name.trim() : '';
+                  const fileName = trimmedOriginal || '-';
+                  const downloadName =
+                    trimmedOriginal || `document-${fileId ?? index + 1}`;
                   const docType = (doc.document_type_name || '').trim() || 'ไม่ระบุประเภท';
 
                   return (
@@ -2386,7 +2385,7 @@ export default function PublicationSubmissionDetails({ submissionId, onBack }) {
                           </button>
                           <button
                             className="inline-flex items-center gap-1 border border-green-200 px-3 py-2 text-sm text-green-600 hover:bg-green-100 rounded-md transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-                            onClick={() => handleDownload(fileId, fileName)}
+                            onClick={() => handleDownload(fileId, downloadName)}
                             disabled={!fileId}
                             title="ดาวน์โหลดไฟล์"
                           >
