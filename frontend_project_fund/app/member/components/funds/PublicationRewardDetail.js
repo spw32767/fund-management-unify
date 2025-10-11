@@ -1075,76 +1075,86 @@ export default function PublicationRewardDetail({ submissionId, onNavigate }) {
 
       {activeTab === 'documents' && (
         <Card title="เอกสารแนบ (Attachments)" icon={FileText} collapsible={false}>
-          <div className="space-y-4">
+          <div className="space-y-6">
             {documents.length > 0 ? (
-              <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        No.
-                      </th>
-                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        File Type
-                      </th>
-                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Attached File
-                      </th>
-                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Actions
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
-                    {documents.map((doc, index) => {
-                      const fileId = doc.file_id || doc.File?.file_id || doc.file?.file_id;
-                      const originalName =
-                        typeof doc.original_name === "string"
-                          ? doc.original_name.trim()
-                          : "";
-                      const displayName = originalName || "-";
-                      const downloadName =
-                        originalName || `document-${fileId ?? index + 1}`;
-                      const docType =
-                        doc.document_type_name && doc.document_type_name.trim() !== ""
-                          ? doc.document_type_name
-                          : "-";
-                      return (
-                        <tr key={doc.document_id || fileId || index}>
-                          <td className="px-4 py-2 text-sm text-gray-500">{index + 1}</td>
-                          <td className="px-4 py-2 text-sm text-gray-700">{docType}</td>
-                          <td className="px-4 py-2">
-                          <div className="flex items-center">
-                            <FileText className="h-5 w-5 text-gray-400 mr-2" />
-                            <span className="text-sm text-gray-700">{displayName}</span>
+              <div className="space-y-4">
+                {documents.map((doc, index) => {
+                  const fileId = doc.file_id || doc.File?.file_id || doc.file?.file_id;
+                  const trimmedOriginal =
+                    typeof doc.original_name === "string" ? doc.original_name.trim() : "";
+                  const fileName = trimmedOriginal || "-";
+                  const downloadName = trimmedOriginal || `document-${fileId ?? index + 1}`;
+                  const docType = (doc.document_type_name || "").trim() || "ไม่ระบุประเภท";
+
+                  return (
+                    <div
+                      key={doc.document_id || fileId || index}
+                      className="bg-gray-50/50 rounded-lg p-4 hover:bg-gray-50 transition-colors duration-200"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-4 flex-1 min-w-0">
+                          <div className="flex-shrink-0 w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center">
+                            <span className="text-gray-600 font-semibold text-sm">{index + 1}</span>
                           </div>
-                        </td>
-                        <td className="px-4 py-2">
-                          <div className="flex items-center gap-2">
-                              <button
-                                onClick={() => handleView(fileId)}
-                                className="inline-flex items-center gap-1 px-3 py-1 text-sm text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-md"
-                              >
-                                <Eye className="h-4 w-4" />
-                                ดู
-                              </button>
-                            <button
-                                onClick={() => handleDownload(fileId, downloadName)}
-                                className="inline-flex items-center gap-1 px-3 py-1 text-sm text-green-600 bg-green-50 hover:bg-green-100 rounded-md"
-                              >
-                                <Download className="h-4 w-4" />
-                                ดาวน์โหลด
-                              </button>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1">
+                              <FileText size={16} className="text-gray-600 flex-shrink-0" />
+                              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-green-100 text-green-700">
+                                {docType}
+                              </span>
                             </div>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
+                            {fileId ? (
+                              <a
+                                href="#"
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  handleView(fileId);
+                                }}
+                                className="font-medium text-blue-600 hover:underline truncate cursor-pointer"
+                                title={`เปิดดู: ${fileName}`}
+                              >
+                                {fileName}
+                              </a>
+                            ) : (
+                              <span className="font-medium text-gray-400 truncate" title={fileName}>
+                                {fileName}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 ml-4">
+                          <button
+                            className="inline-flex items-center gap-1 border border-blue-200 px-3 py-2 text-sm text-blue-600 hover:bg-blue-100 rounded-md transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                            onClick={() => handleView(fileId)}
+                            disabled={!fileId}
+                            title="เปิดดูไฟล์"
+                          >
+                            <Eye size={14} />
+                            <span>ดู</span>
+                          </button>
+                          <button
+                            className="inline-flex items-center gap-1 border border-green-200 px-3 py-2 text-sm text-green-600 hover:bg-green-100 rounded-md transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                            onClick={() => handleDownload(fileId, downloadName)}
+                            disabled={!fileId}
+                            title="ดาวน์โหลดไฟล์"
+                          >
+                            <Download size={14} />
+                            <span>ดาวน์โหลด</span>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             ) : (
-              <p className="text-center text-gray-500 py-8">ไม่มีเอกสารแนบ</p>
+              <div className="text-center py-12">
+                <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <FileText className="w-8 h-8 text-gray-400" />
+                </div>
+                <p className="text-gray-500 text-lg font-medium mb-2">ไม่มีเอกสารแนบ</p>
+                <p className="text-gray-400 text-sm">ยังไม่มีการอัปโหลดเอกสารสำหรับคำร้องนี้</p>
+              </div>
             )}
           </div>
         </Card>
