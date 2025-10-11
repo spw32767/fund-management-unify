@@ -13,10 +13,14 @@ import { PDFDocument } from "pdf-lib";
 import apiClient from '../../../lib/api';
 import { submissionAPI, documentAPI, fileAPI} from '../../../lib/member_api';
 import { statusService } from '../../../lib/status_service';
+import { systemConfigAPI } from '../../../lib/system_config_api';
 
 // Match backend utils.StatusCodeDeptHeadPending for initial submission status
 const DEPT_HEAD_PENDING_STATUS_CODE = '5';
 const DEPT_HEAD_PENDING_STATUS_NAME_HINT = 'อยู่ระหว่างการพิจารณาจากหัวหน้าสาขา';
+
+const DRAFT_KEY = 'generic_fund_application_draft';
+const DRAFT_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 
 const buildResolvedStatus = (status) => {
   if (!status || typeof status !== 'object') {
@@ -178,6 +182,89 @@ const dedupeStringList = (items) => {
   return result;
 };
 
+const buildApplicantDisplayName = (user) => {
+  if (!user || typeof user !== 'object') {
+    return '';
+  }
+
+  const prefix =
+    user.prefix ||
+    user.prefix_name ||
+    user.title ||
+    user.user_title ||
+    '';
+
+  const firstName = user.user_fname || user.first_name || '';
+  const lastName = user.user_lname || user.last_name || '';
+
+  return [prefix, firstName, lastName]
+    .map((part) => String(part || '').trim())
+    .filter(Boolean)
+    .join(' ')
+    .trim();
+};
+
+const saveDraftToLocal = (formData) => {
+  if (typeof window === 'undefined') {
+    return false;
+  }
+
+  try {
+    const payload = {
+      formData: {
+        project_title: formData?.project_title || '',
+        project_description: formData?.project_description || '',
+        requested_amount: formData?.requested_amount || '',
+        phone: formData?.phone || '',
+      },
+      savedAt: new Date().toISOString(),
+      expiresAt: new Date(Date.now() + DRAFT_TTL_MS).toISOString(),
+    };
+
+    window.localStorage.setItem(DRAFT_KEY, JSON.stringify(payload));
+    return true;
+  } catch (error) {
+    console.error('Error saving generic fund draft to localStorage:', error);
+    return false;
+  }
+};
+
+const loadDraftFromLocal = () => {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+
+  try {
+    const draftString = window.localStorage.getItem(DRAFT_KEY);
+    if (!draftString) {
+      return null;
+    }
+
+    const draft = JSON.parse(draftString);
+    if (draft?.expiresAt && new Date(draft.expiresAt) < new Date()) {
+      window.localStorage.removeItem(DRAFT_KEY);
+      return null;
+    }
+
+    return draft;
+  } catch (error) {
+    console.error('Error loading generic fund draft from localStorage:', error);
+    return null;
+  }
+};
+
+const deleteDraftFromLocal = () => {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  try {
+    window.localStorage.removeItem(DRAFT_KEY);
+  } catch (error) {
+    console.error('Error deleting generic fund draft from localStorage:', error);
+  }
+};
+
 // =================================================================
 // FILE UPLOAD COMPONENT
 // =================================================================
@@ -202,11 +289,16 @@ function FileUpload({ onFileSelect, accept, multiple = false, error, compact = f
       if (accept === ".pdf") return file.type === "application/pdf";
       return true;
     });
-    
+
     if (acceptedFiles.length !== files.length) {
-      alert("กรุณาอัปโหลดเฉพาะไฟล์ PDF");
+      Swal.fire({
+        icon: 'warning',
+        title: 'ไฟล์ไม่ถูกต้อง',
+        text: 'กรุณาอัปโหลดเฉพาะไฟล์ PDF',
+        confirmButtonColor: '#3085d6'
+      });
     }
-    
+
     if (acceptedFiles.length > 0) {
       onFileSelect(acceptedFiles);
     }
@@ -214,7 +306,27 @@ function FileUpload({ onFileSelect, accept, multiple = false, error, compact = f
 
   const handleFileInput = (e) => {
     const files = Array.from(e.target.files);
-    onFileSelect(files);
+    if (files.length === 0) {
+      return;
+    }
+
+    const acceptedFiles = files.filter(file => {
+      if (accept === ".pdf") return file.type === "application/pdf";
+      return true;
+    });
+
+    if (acceptedFiles.length !== files.length) {
+      Swal.fire({
+        icon: 'warning',
+        title: 'ไฟล์ไม่ถูกต้อง',
+        text: 'กรุณาอัปโหลดเฉพาะไฟล์ PDF',
+        confirmButtonColor: '#3085d6'
+      });
+    }
+
+    if (acceptedFiles.length > 0) {
+      onFileSelect(acceptedFiles);
+    }
   };
 
   return (
@@ -303,6 +415,8 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
   const [formData, setFormData] = useState({
     name: "",
     phone: "",
+    project_title: "",
+    project_description: "",
     requested_amount: "",
   });
   
@@ -319,6 +433,11 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
   // Current user data
   const [currentUser, setCurrentUser] = useState(null);
   const [pendingStatus, setPendingStatus] = useState(null);
+  const [announcementLock, setAnnouncementLock] = useState({
+    main_annoucement: null,
+    activity_support_announcement: null,
+  });
+  const [hasDraft, setHasDraft] = useState(false);
 
   // =================================================================
   // INITIAL DATA LOADING
@@ -339,6 +458,21 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
         loadDocumentRequirements(),
         resolveDeptHeadPendingStatus(),
       ]);
+
+      await loadSystemAnnouncements();
+
+      if (typeof window !== 'undefined') {
+        const draft = loadDraftFromLocal();
+        if (draft?.formData) {
+          setFormData(prev => ({
+            ...prev,
+            ...draft.formData,
+          }));
+          setHasDraft(true);
+        } else {
+          setHasDraft(false);
+        }
+      }
 
       console.log('Loaded user data:', userData);
       console.log('Loaded document requirements:', docRequirements);
@@ -363,7 +497,7 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
         setCurrentUser(profileResponse.user);
         setFormData(prev => ({
           ...prev,
-          name: `${profileResponse.user.user_fname || ''} ${profileResponse.user.user_lname || ''}`.trim()
+          name: buildApplicantDisplayName(profileResponse.user)
         }));
         return profileResponse.user;
       }
@@ -377,7 +511,7 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
       setCurrentUser(storedUser);
       setFormData(prev => ({
         ...prev,
-        name: `${storedUser.user_fname || ''} ${storedUser.user_lname || ''}`.trim()
+        name: buildApplicantDisplayName(storedUser)
       }));
       return storedUser;
     }
@@ -423,6 +557,26 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
 
     setDocumentRequirements(finalDocs);
     return finalDocs;
+  };
+
+  const loadSystemAnnouncements = async () => {
+    try {
+      const rawWindow = await systemConfigAPI.getWindow();
+      const root = rawWindow?.data ?? rawWindow ?? {};
+
+      const normalized = {
+        main_annoucement: root?.main_annoucement ?? root?.config_id ?? null,
+        activity_support_announcement: root?.activity_support_announcement ?? null,
+      };
+
+      setAnnouncementLock(normalized);
+      return normalized;
+    } catch (error) {
+      console.warn('Cannot fetch system-config window for announcements', error);
+      const fallback = { main_annoucement: null, activity_support_announcement: null };
+      setAnnouncementLock(fallback);
+      return fallback;
+    }
   };
 
   // =================================================================
@@ -640,6 +794,14 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
       </div>
     `;
 
+    const projectInfoHTML = `
+      <div class="bg-blue-50 p-4 rounded-lg space-y-2">
+        <h4 class="font-semibold text-blue-700">ข้อมูลโครงการ</h4>
+        <p class="text-sm"><span class="font-medium">ชื่อโครงการ:</span> ${formData.project_title || '-'}</p>
+        <p class="text-sm leading-relaxed"><span class="font-medium">รายละเอียดโดยย่อ:</span> ${formData.project_description || '-'}</p>
+      </div>
+    `;
+
     const amountHTML = `
       <div class="bg-green-50 p-4 rounded-lg space-y-2">
         <h4 class="font-semibold text-green-700">จำนวนเงินที่ขอ</h4>
@@ -702,6 +864,7 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
     const summaryHTML = `
       <div class="space-y-4 text-left">
         ${applicantInfoHTML}
+        ${projectInfoHTML}
         ${amountHTML}
         ${attachmentsHTML}
       </div>
@@ -784,15 +947,8 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
   const validateForm = () => {
     const newErrors = {};
 
-    // Validate basic info
-    if (!formData.name.trim()) {
-      newErrors.name = 'กรุณากรอกชื่อ';
-    }
-
-    if (!formData.phone.trim()) {
-      newErrors.phone = 'กรุณากรอกเบอร์โทรศัพท์';
-    } else {
-      // Validate phone format (XXX-XXX-XXXX)
+    // Validate phone format when provided (XXX-XXX-XXXX)
+    if (formData.phone.trim()) {
       const phoneRegex = /^\d{3}-\d{3}-\d{4}$/;
       if (!phoneRegex.test(formData.phone)) {
         newErrors.phone = 'รูปแบบเบอร์โทรศัพท์ไม่ถูกต้อง (XXX-XXX-XXXX)';
@@ -820,33 +976,78 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
   const saveDraft = async () => {
     try {
       setSaving(true);
-      
-      // Validate basic required fields only
-      const basicErrors = {};
-      if (!formData.name.trim()) basicErrors.name = 'กรุณากรอกชื่อ';
-      if (!formData.phone.trim()) basicErrors.phone = 'กรุณากรอกเบอร์โทรศัพท์';
-      
-      if (Object.keys(basicErrors).length > 0) {
-        setErrors(basicErrors);
-        return;
-      }
-
-      // TODO: Implement save draft API call
-      console.log('Save draft:', {
-        subcategory_id: subcategoryData.subcategory_id,
-        formData,
-        uploadedFiles,
-        isDraft: true
+      Swal.fire({
+        title: 'กำลังบันทึกร่าง...',
+        allowOutsideClick: false,
+        showConfirmButton: false,
+        didOpen: () => {
+          Swal.showLoading();
+        }
       });
 
-      alert('บันทึกร่างสำเร็จ');
+      await new Promise(resolve => setTimeout(resolve, 300));
 
+      const saved = saveDraftToLocal(formData);
+
+      Swal.close();
+
+      if (saved) {
+        setHasDraft(true);
+        Swal.fire({
+          icon: 'success',
+          title: 'บันทึกร่างเรียบร้อยแล้ว',
+          text: 'ข้อมูลข้อความจะถูกเก็บไว้ชั่วคราว 7 วัน',
+          confirmButtonColor: '#3085d6'
+        });
+      } else {
+        throw new Error('ไม่สามารถบันทึกร่างได้');
+      }
     } catch (error) {
       console.error('Error saving draft:', error);
-      setErrors({ general: 'เกิดข้อผิดพลาดในการบันทึกร่าง' });
+      Swal.close();
+      Swal.fire({
+        icon: 'error',
+        title: 'เกิดข้อผิดพลาด',
+        text: error?.message || 'ไม่สามารถบันทึกร่างได้ โปรดลองอีกครั้ง',
+        confirmButtonColor: '#d33'
+      });
     } finally {
       setSaving(false);
     }
+  };
+
+  const deleteDraft = async () => {
+    const result = await Swal.fire({
+      title: 'ยืนยันการลบร่าง?',
+      text: 'ข้อมูลร่างทั้งหมดจะถูกลบและไม่สามารถกู้คืนได้',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#d33',
+      cancelButtonColor: '#3085d6',
+      confirmButtonText: 'ลบร่าง',
+      cancelButtonText: 'ยกเลิก'
+    });
+
+    if (!result.isConfirmed) {
+      return;
+    }
+
+    deleteDraftFromLocal();
+    setFormData(prev => ({
+      ...prev,
+      phone: '',
+      project_title: '',
+      project_description: '',
+      requested_amount: '',
+    }));
+    setErrors(prev => ({ ...prev, phone: '', project_title: '', project_description: '', requested_amount: '' }));
+    setHasDraft(false);
+
+    Swal.fire({
+      icon: 'success',
+      title: 'ลบร่างเรียบร้อยแล้ว',
+      confirmButtonColor: '#3085d6'
+    });
   };
 
   const submitApplication = async () => {
@@ -888,10 +1089,12 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
       // Step 2: Save basic fund details (ใช้ข้อมูลที่มีอยู่)
       if (submissionId) {
         await apiClient.post(`/submissions/${submissionId}/fund-details`, {
-          project_title: formData.name,
-          project_description: formData.phone,
+          project_title: formData.project_title || '',
+          project_description: formData.project_description || '',
           requested_amount: parseFloat(formData.requested_amount) || 0,
-          subcategory_id: subcategoryData.subcategory_id
+          subcategory_id: subcategoryData.subcategory_id,
+          main_annoucement: announcementLock.main_annoucement,
+          activity_support_announcement: announcementLock.activity_support_announcement,
         });
       }
 
@@ -916,7 +1119,15 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
 
 
 
-      alert('ส่งคำร้องสำเร็จ');
+      deleteDraftFromLocal();
+      setHasDraft(false);
+
+      await Swal.fire({
+        icon: 'success',
+        title: 'ส่งคำร้องสำเร็จ',
+        text: 'ระบบได้บันทึกคำร้องของคุณเรียบร้อยแล้ว',
+        confirmButtonColor: '#3085d6'
+      });
 
       // Navigate back to research fund page
       if (onNavigate) {
@@ -926,6 +1137,12 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
     } catch (error) {
       console.error('Error submitting application:', error);
       setErrors({ general: error?.message || 'เกิดข้อผิดพลาดในการส่งคำร้อง' });
+      Swal.fire({
+        icon: 'error',
+        title: 'ส่งคำร้องไม่สำเร็จ',
+        text: error?.message || 'เกิดข้อผิดพลาดในการส่งคำร้อง กรุณาลองใหม่อีกครั้ง',
+        confirmButtonColor: '#d33'
+      });
     } finally {
       setSubmitting(false);
     }
@@ -1035,31 +1252,22 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-gray-700" htmlFor="applicant-name">
-                    ชื่อผู้ยื่นขอ <span className="text-red-500">*</span>
+                    ชื่อผู้ยื่นขอ
                   </label>
                   <input
                     id="applicant-name"
                     type="text"
                     value={formData.name}
-                    onChange={(e) => handleInputChange('name', e.target.value)}
-                    className={`w-full rounded-lg border px-4 py-2.5 text-gray-700 shadow-sm transition focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200 ${
-                      errors.name ? 'border-red-400 focus:border-red-500 focus:ring-red-100' : 'border-gray-300'
-                    }`}
+                    readOnly
+                    className="w-full rounded-lg border border-gray-200 bg-gray-100 px-4 py-2.5 text-gray-700 shadow-sm"
                     placeholder="ชื่อ-นามสกุล"
                   />
-                  {errors.name ? (
-                    <p className="flex items-center gap-1 text-sm text-red-500">
-                      <AlertCircle className="h-4 w-4" />
-                      {errors.name}
-                    </p>
-                  ) : (
-                    <p className="text-xs text-gray-500">ระบุชื่อ-นามสกุลตามที่ต้องการให้ปรากฏในระบบ</p>
-                  )}
+                  <p className="text-xs text-gray-500">ระบบจะแสดงคำนำหน้าและชื่อ-นามสกุลจากข้อมูลผู้ใช้โดยอัตโนมัติ</p>
                 </div>
 
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-gray-700" htmlFor="applicant-phone">
-                    เบอร์โทรศัพท์ <span className="text-red-500">*</span>
+                    เบอร์โทรศัพท์
                   </label>
                   <input
                     id="applicant-phone"
@@ -1078,7 +1286,55 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
                       {errors.phone}
                     </p>
                   ) : (
-                    <p className="text-xs text-gray-500">รูปแบบที่แนะนำ: XXX-XXX-XXXX</p>
+                    <p className="text-xs text-gray-500">รูปแบบที่แนะนำ: XXX-XXX-XXXX (ข้อมูลนี้ใช้สำหรับติดต่อกลับเท่านั้น)</p>
+                  )}
+                </div>
+
+                <div className="space-y-2 md:col-span-2">
+                  <label className="text-sm font-medium text-gray-700" htmlFor="project-title">
+                    ชื่อโครงการ/กิจกรรม
+                  </label>
+                  <input
+                    id="project-title"
+                    type="text"
+                    value={formData.project_title}
+                    onChange={(e) => handleInputChange('project_title', e.target.value)}
+                    placeholder="ระบุชื่อโครงการหรือกิจกรรมที่ต้องการขอรับการสนับสนุน"
+                    className={`w-full rounded-lg border px-4 py-2.5 text-gray-700 shadow-sm transition focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200 ${
+                      errors.project_title ? 'border-red-400 focus:border-red-500 focus:ring-red-100' : 'border-gray-300'
+                    }`}
+                  />
+                  {errors.project_title ? (
+                    <p className="flex items-center gap-1 text-sm text-red-500">
+                      <AlertCircle className="h-4 w-4" />
+                      {errors.project_title}
+                    </p>
+                  ) : (
+                    <p className="text-xs text-gray-500">ข้อมูลนี้จะถูกส่งไปยังระบบในช่อง Project Title</p>
+                  )}
+                </div>
+
+                <div className="space-y-2 md:col-span-2">
+                  <label className="text-sm font-medium text-gray-700" htmlFor="project-description">
+                    รายละเอียดโครงการโดยย่อ
+                  </label>
+                  <textarea
+                    id="project-description"
+                    value={formData.project_description}
+                    onChange={(e) => handleInputChange('project_description', e.target.value)}
+                    placeholder="อธิบายวัตถุประสงค์หรือรายละเอียดสำคัญของโครงการ"
+                    rows={4}
+                    className={`w-full rounded-lg border px-4 py-3 text-gray-700 shadow-sm transition focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200 ${
+                      errors.project_description ? 'border-red-400 focus:border-red-500 focus:ring-red-100' : 'border-gray-300'
+                    }`}
+                  />
+                  {errors.project_description ? (
+                    <p className="flex items-center gap-1 text-sm text-red-500">
+                      <AlertCircle className="h-4 w-4" />
+                      {errors.project_description}
+                    </p>
+                  ) : (
+                    <p className="text-xs text-gray-500">ใช้สำหรับบันทึกข้อมูลลงในช่อง Project Description</p>
                   )}
                 </div>
               </div>
@@ -1212,20 +1468,29 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
               )}
             </SimpleCard>
 
-            <div className="flex flex-col gap-4 rounded-lg border border-gray-200 bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex flex-col gap-4 rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
               <div className="space-y-1">
                 <p className="text-sm font-medium text-gray-800">ดำเนินการกับแบบคำร้อง</p>
                 <p className="text-xs text-gray-500">คุณสามารถบันทึกเป็นร่างเพื่อแก้ไขภายหลัง หรือส่งคำร้องเพื่อเข้าสู่การพิจารณา</p>
               </div>
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-end">
+                <button
+                  type="button"
+                  onClick={deleteDraft}
+                  disabled={!hasDraft || saving || submitting}
+                  className="w-full sm:w-auto flex items-center justify-center gap-2 rounded-lg border border-red-300 px-6 py-3 text-sm font-medium text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <X className="h-4 w-4" />
+                  ลบร่าง
+                </button>
                 <button
                   type="button"
                   onClick={saveDraft}
                   disabled={saving || submitting}
-                  className="inline-flex items-center justify-center gap-2 rounded-lg border border-gray-300 px-5 py-2.5 text-sm font-medium text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="w-full sm:flex-1 flex items-center justify-center gap-2 rounded-lg bg-gray-600 px-6 py-3 text-sm font-medium text-white shadow-sm transition hover:bg-gray-700 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {saving ? (
-                    <div className="h-4 w-4 animate-spin rounded-full border-b-2 border-gray-500"></div>
+                    <div className="h-4 w-4 animate-spin rounded-full border-b-2 border-white"></div>
                   ) : (
                     <Save className="h-4 w-4" />
                   )}
@@ -1235,7 +1500,7 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
                   type="button"
                   onClick={submitApplication}
                   disabled={saving || submitting}
-                  className="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="w-full sm:flex-1 flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-6 py-3 text-sm font-medium text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {submitting ? (
                     <div className="h-4 w-4 animate-spin rounded-full border-b-2 border-white"></div>
