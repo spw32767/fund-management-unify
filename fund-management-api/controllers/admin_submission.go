@@ -156,22 +156,30 @@ func GetSubmissionDetails(c *gin.Context) {
 
 	// 7) map documents
 	docOut := make([]gin.H, 0, len(docs))
-	for _, d := range docs {
-		item := gin.H{
-			"document_id":      d.DocumentID,
-			"submission_id":    d.SubmissionID,
-			"file_id":          d.FileID,
-			"document_type_id": d.DocumentTypeID,
-			"description":      d.Description,
-			"display_order":    d.DisplayOrder,
-			"is_required":      d.IsRequired,
-			"created_at":       d.CreatedAt,
-		}
-		if d.DocumentType.DocumentTypeID != 0 {
-			item["document_type"] = gin.H{
-				"document_type_id":   d.DocumentType.DocumentTypeID,
-				"document_type_name": d.DocumentType.DocumentTypeName,
-				"required":           d.DocumentType.Required,
+        for _, d := range docs {
+                trimmedOriginal := strings.TrimSpace(d.OriginalName)
+                var originalName any
+                if trimmedOriginal != "" {
+                        originalName = trimmedOriginal
+                } else {
+                        originalName = nil
+                }
+                item := gin.H{
+                        "document_id":      d.DocumentID,
+                        "submission_id":    d.SubmissionID,
+                        "file_id":          d.FileID,
+                        "document_type_id": d.DocumentTypeID,
+                        "description":      d.Description,
+                        "display_order":    d.DisplayOrder,
+                        "is_required":      d.IsRequired,
+                        "created_at":       d.CreatedAt,
+                }
+                item["original_name"] = originalName
+                if d.DocumentType.DocumentTypeID != 0 {
+                        item["document_type"] = gin.H{
+                                "document_type_id":   d.DocumentType.DocumentTypeID,
+                                "document_type_name": d.DocumentType.DocumentTypeName,
+                                "required":           d.DocumentType.Required,
 			}
 		}
 		if d.File.FileID != 0 {

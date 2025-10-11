@@ -492,13 +492,13 @@ export default function FundApplicationDetail({ submissionId, onNavigate }) {
                 <tbody className="bg-white divide-y divide-gray-200">
                   {documents.map((doc, index) => {
                     const fileId = doc.file_id || doc.File?.file_id || doc.file?.file_id;
-                    const docName =
-                      doc.File?.original_name ||
-                      doc.file?.original_name ||
-                      doc.original_filename ||
-                      doc.file_name ||
-                      doc.name ||
-                      `เอกสารที่ ${index + 1}`;
+                    const originalName =
+                      typeof doc.original_name === "string"
+                        ? doc.original_name.trim()
+                        : "";
+                    const displayName = originalName || "-";
+                    const downloadName =
+                      originalName || `document-${fileId ?? index + 1}`;
                     const docType =
                       doc.document_type_name && doc.document_type_name.trim() !== ""
                         ? doc.document_type_name
@@ -510,7 +510,7 @@ export default function FundApplicationDetail({ submissionId, onNavigate }) {
                         <td className="px-4 py-2">
                           <div className="flex items-center">
                             <FileText className="h-5 w-5 text-gray-400 mr-2" />
-                            <span className="text-sm text-gray-700">{docName}</span>
+                            <span className="text-sm text-gray-700">{displayName}</span>
                           </div>
                         </td>
                         <td className="px-4 py-2">
@@ -523,7 +523,7 @@ export default function FundApplicationDetail({ submissionId, onNavigate }) {
                               ดู
                             </button>
                             <button
-                              onClick={() => handleDownload(fileId, docName)}
+                              onClick={() => handleDownload(fileId, downloadName)}
                               className="inline-flex items-center gap-1 px-3 py-1 text-sm text-green-600 bg-green-50 hover:bg-green-100 rounded-md"
                             >
                               <Download className="h-4 w-4" />
