@@ -390,7 +390,20 @@ export default function AnnouncementManager() {
     });
 
     if (!response.ok) {
-      throw new Error(`Failed to fetch file: ${response.status}`);
+      let errorBody = "";
+      try {
+        errorBody = await response.text();
+      } catch (readError) {
+        console.warn("[AnnouncementManager] Failed to read error response", readError);
+      }
+      const message = [`Failed to fetch file: ${response.status}`, response.statusText]
+        .filter(Boolean)
+        .join(" ");
+      const error = new Error(message);
+      error.status = response.status;
+      error.statusText = response.statusText;
+      error.responseBody = errorBody;
+      throw error;
     }
 
     return response.blob();
@@ -416,20 +429,32 @@ export default function AnnouncementManager() {
       rowSnapshot: row,
     });
 
-    const urlToUse = meta.viewEndpoint || meta.directURL;
-    if (!urlToUse) {
+    const { viewEndpoint, directURL } = meta;
+    if (!viewEndpoint && !directURL) {
       toast("error", "ไม่พบไฟล์สำหรับเปิดดู");
       return;
     }
 
-    try {
-      if (!meta.viewEndpoint && meta.directURL) {
-        openURLInNewTab(meta.directURL);
-        return;
+    const tryDirect = (reason = "") => {
+      if (!directURL) return false;
+      if (reason) {
+        console.warn("[AnnouncementManager] Falling back to direct URL", {
+          reason,
+          directURL,
+        });
       }
+      openURLInNewTab(directURL);
+      return true;
+    };
 
-      const blob = await fetchFileBlob(urlToUse, {
-        requiresAuth: Boolean(meta.viewEndpoint),
+    if (!viewEndpoint && directURL) {
+      tryDirect();
+      return;
+    }
+
+    try {
+      const blob = await fetchFileBlob(viewEndpoint, {
+        requiresAuth: true,
       });
       const objectURL = URL.createObjectURL(blob);
       openURLInNewTab(objectURL);
@@ -438,7 +463,14 @@ export default function AnnouncementManager() {
       console.error("[AnnouncementManager] Failed to open file", {
         meta,
         error,
+        errorMessage: error?.message,
+        errorStack: error?.stack,
       });
+
+      if (tryDirect(error?.message || "fetch failed")) {
+        return;
+      }
+
       toast("error", "ไม่สามารถเปิดไฟล์ได้");
     }
   }
@@ -450,16 +482,16 @@ export default function AnnouncementManager() {
       rowSnapshot: row,
     });
 
-    const urlToUse = meta.downloadEndpoint || meta.directURL;
-    if (!urlToUse) {
+    const { downloadEndpoint, directURL } = meta;
+    if (!downloadEndpoint && !directURL) {
       toast("error", "ไม่พบไฟล์สำหรับดาวน์โหลด");
       return;
     }
 
     try {
-      if (!meta.downloadEndpoint && meta.directURL) {
+      if (!downloadEndpoint && directURL) {
         const tempLink = document.createElement("a");
-        tempLink.href = meta.directURL;
+        tempLink.href = directURL;
         tempLink.target = "_blank";
         tempLink.rel = "noopener";
         if (meta.fallbackFileName) {
@@ -471,8 +503,8 @@ export default function AnnouncementManager() {
         return;
       }
 
-      const blob = await fetchFileBlob(urlToUse, {
-        requiresAuth: Boolean(meta.downloadEndpoint),
+      const blob = await fetchFileBlob(downloadEndpoint, {
+        requiresAuth: true,
       });
       const link = document.createElement("a");
       link.href = URL.createObjectURL(blob);
@@ -485,7 +517,27 @@ export default function AnnouncementManager() {
       console.error("[AnnouncementManager] Failed to download file", {
         meta,
         error,
+        errorMessage: error?.message,
+        errorStack: error?.stack,
       });
+
+      if (directURL) {
+        console.warn("[AnnouncementManager] Falling back to direct download", {
+          directURL,
+        });
+        const tempLink = document.createElement("a");
+        tempLink.href = directURL;
+        tempLink.target = "_blank";
+        tempLink.rel = "noopener";
+        if (meta.fallbackFileName) {
+          tempLink.download = meta.fallbackFileName;
+        }
+        document.body.appendChild(tempLink);
+        tempLink.click();
+        document.body.removeChild(tempLink);
+        return;
+      }
+
       toast("error", "ดาวน์โหลดไม่สำเร็จ");
     }
   }
