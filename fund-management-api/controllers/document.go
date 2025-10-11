@@ -16,6 +16,167 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+func fetchSubcategoryMaps() (map[int]string, map[string]int, error) {
+	var subcategories []models.FundSubcategory
+	if err := config.DB.Where("delete_at IS NULL").Find(&subcategories).Error; err != nil {
+		return nil, nil, err
+	}
+
+	idToName := make(map[int]string, len(subcategories))
+	nameToID := make(map[string]int, len(subcategories))
+
+	for _, sub := range subcategories {
+		trimmed := strings.TrimSpace(sub.SubcategoryName)
+		idToName[sub.SubcategoryID] = trimmed
+		if trimmed == "" {
+			continue
+		}
+		lower := strings.ToLower(trimmed)
+		if _, exists := nameToID[lower]; !exists {
+			nameToID[lower] = sub.SubcategoryID
+		}
+	}
+
+	return idToName, nameToID, nil
+}
+
+func normalizeSubcategoryNames(names []string) []string {
+	seen := make(map[string]bool)
+	normalized := make([]string, 0, len(names))
+
+	for _, name := range names {
+		trimmed := strings.TrimSpace(name)
+		if trimmed == "" {
+			continue
+		}
+		lower := strings.ToLower(trimmed)
+		if seen[lower] {
+			continue
+		}
+		seen[lower] = true
+		normalized = append(normalized, trimmed)
+	}
+
+	return normalized
+}
+
+func resolveSubcategoryNamesFromIDs(ids []int) ([]string, error) {
+	if len(ids) == 0 {
+		return []string{}, nil
+	}
+
+	var subcategories []models.FundSubcategory
+	if err := config.DB.Where("subcategory_id IN ?", ids).Where("delete_at IS NULL").Find(&subcategories).Error; err != nil {
+		return nil, err
+	}
+
+	idToName := make(map[int]string, len(subcategories))
+	for _, sub := range subcategories {
+		idToName[sub.SubcategoryID] = strings.TrimSpace(sub.SubcategoryName)
+	}
+
+	names := make([]string, 0, len(ids))
+	for _, id := range ids {
+		name, ok := idToName[id]
+		if !ok || strings.TrimSpace(name) == "" {
+			return nil, fmt.Errorf("invalid subcategory id %d", id)
+		}
+		names = append(names, name)
+	}
+
+	return normalizeSubcategoryNames(names), nil
+}
+
+func resolveSubcategoryNamesFromRequest(names []string, ids []int) ([]string, error) {
+	normalized := normalizeSubcategoryNames(names)
+	if len(normalized) > 0 {
+		return normalized, nil
+	}
+
+	if len(ids) == 0 {
+		return []string{}, nil
+	}
+
+	return resolveSubcategoryNamesFromIDs(ids)
+}
+
+func lookupSubcategoryIDsByNames(names []string, nameToID map[string]int) []int {
+	ids := make([]int, 0, len(names))
+	seen := make(map[int]bool)
+
+	for _, name := range names {
+		lower := strings.ToLower(strings.TrimSpace(name))
+		if lower == "" {
+			continue
+		}
+		if id, ok := nameToID[lower]; ok {
+			if !seen[id] {
+				ids = append(ids, id)
+				seen[id] = true
+			}
+		}
+	}
+
+	return ids
+}
+
+func parseStoredSubcategories(raw *string, idToName map[int]string, nameToID map[string]int) ([]string, []int) {
+	if raw == nil || *raw == "" {
+		return nil, nil
+	}
+
+	var rawItems []interface{}
+	if err := json.Unmarshal([]byte(*raw), &rawItems); err != nil {
+		return nil, nil
+	}
+
+	names := make([]string, 0, len(rawItems))
+	ids := make([]int, 0, len(rawItems))
+	seenNames := make(map[string]bool)
+	seenIDs := make(map[int]bool)
+
+	for _, item := range rawItems {
+		switch value := item.(type) {
+		case string:
+			trimmed := strings.TrimSpace(value)
+			if trimmed == "" {
+				continue
+			}
+			lower := strings.ToLower(trimmed)
+			if !seenNames[lower] {
+				names = append(names, trimmed)
+				seenNames[lower] = true
+			}
+			if id, ok := nameToID[lower]; ok {
+				if !seenIDs[id] {
+					ids = append(ids, id)
+					seenIDs[id] = true
+				}
+			}
+		case float64:
+			id := int(value)
+			if !seenIDs[id] {
+				ids = append(ids, id)
+				seenIDs[id] = true
+			}
+			if name, ok := idToName[id]; ok {
+				trimmed := strings.TrimSpace(name)
+				if trimmed != "" {
+					lower := strings.ToLower(trimmed)
+					if !seenNames[lower] {
+						names = append(names, trimmed)
+						seenNames[lower] = true
+					}
+				}
+			}
+		default:
+			continue
+		}
+	}
+
+	return names, ids
+}
+
 // UploadDocument handles document upload for application (User-Based Folders)
 func UploadDocument(c *gin.Context) {
 	applicationID := c.Param("id")
@@ -99,7 +260,7 @@ func UploadDocument(c *gin.Context) {
 
 	// Create submission folder for this application
 	submissionFolderPath, err := utils.CreateSubmissionFolder(
-		userFolderPath, "fund", appID, time.Now())
+		userFolderPath, "fund", appID, "", time.Now())
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create submission directory"})
 		return
@@ -293,83 +454,110 @@ func GetDocumentTypes(c *gin.Context) {
 	var documentTypes []models.DocumentType
 
 	// Get query parameters
-	category := c.Query("category")
 	fundType := c.Query("fund_type")              // "publication_reward" หรือ "fund_application"
 	subcategoryIdStr := c.Query("subcategory_id") // "1", "2", etc.
+	subcategoryNameQuery := strings.TrimSpace(c.Query("subcategory_name"))
 
 	// Build query
 	query := config.DB.Where("delete_at IS NULL")
-
-	// Filter by category if provided
-	if category != "" {
-		query = query.Where("category = ?", category)
-	}
 
 	if err := query.Order("document_order").Find(&documentTypes).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch document types"})
 		return
 	}
 
+	idToName, nameToID, err := fetchSubcategoryMaps()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch subcategories"})
+		return
+	}
+
+	subcategoryNameFilter := strings.ToLower(subcategoryNameQuery)
+	if subcategoryNameFilter == "" && subcategoryIdStr != "" {
+		subcategoryId, err := strconv.Atoi(subcategoryIdStr)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid subcategory_id format"})
+			return
+		}
+
+		if name, ok := idToName[subcategoryId]; ok && strings.TrimSpace(name) != "" {
+			subcategoryNameFilter = strings.ToLower(strings.TrimSpace(name))
+		} else {
+			c.JSON(http.StatusOK, gin.H{
+				"success":        true,
+				"document_types": []map[string]interface{}{},
+			})
+			return
+		}
+	}
+
+	type docWithMetadata struct {
+		Document models.DocumentType
+		Names    []string
+		IDs      []int
+	}
+
 	// Apply fund_type and subcategory filtering
-	var filteredTypes []models.DocumentType
+	var filteredTypes []docWithMetadata
 	for _, dt := range documentTypes {
 		shouldInclude := true
+		var parsedNames []string
+		var parsedIDs []int
+
+		if dt.SubcategoryIds != nil {
+			parsedNames, parsedIDs = parseStoredSubcategories(dt.SubcategoryIds, idToName, nameToID)
+		}
 
 		// Filter by fund_type
-		if fundType != "" && dt.FundTypes != nil {
-			var fundTypes []string
-			if err := json.Unmarshal([]byte(*dt.FundTypes), &fundTypes); err != nil {
-				// ถ้า parse JSON ไม่ได้ ให้รวมไว้ด้วย
-				continue
-			}
-
-			// ตรวจสอบว่า fund_type ที่ต้องการอยู่ใน array หรือไม่
-			found := false
-			for _, ft := range fundTypes {
-				if ft == fundType {
-					found = true
-					break
+		if fundType != "" {
+			matched := false
+			if dt.FundTypes != nil {
+				var fundTypes []string
+				if err := json.Unmarshal([]byte(*dt.FundTypes), &fundTypes); err == nil {
+					for _, ft := range fundTypes {
+						if ft == fundType {
+							matched = true
+							break
+						}
+					}
 				}
 			}
-			if !found {
+			if !matched {
 				shouldInclude = false
 			}
 		}
 
-		// Filter by subcategory_id
-		if subcategoryIdStr != "" && shouldInclude && dt.SubcategoryIds != nil {
-			subcategoryId, err := strconv.Atoi(subcategoryIdStr)
-			if err != nil {
-				c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid subcategory_id format"})
-				return
-			}
-
-			var subcategoryIds []int
-			if err := json.Unmarshal([]byte(*dt.SubcategoryIds), &subcategoryIds); err != nil {
-				// ถ้า parse JSON ไม่ได้ ให้รวมไว้ด้วย
+		// Filter by subcategory name (converted from id if necessary)
+		if subcategoryNameFilter != "" && shouldInclude {
+			if len(parsedNames) == 0 {
+				shouldInclude = false
 			} else {
-				// ตรวจสอบว่า subcategory_id ที่ต้องการอยู่ใน array หรือไม่
-				found := false
-				for _, scId := range subcategoryIds {
-					if scId == subcategoryId {
-						found = true
+				match := false
+				for _, name := range parsedNames {
+					if strings.ToLower(name) == subcategoryNameFilter {
+						match = true
 						break
 					}
 				}
-				if !found {
+				if !match {
 					shouldInclude = false
 				}
 			}
 		}
 
 		if shouldInclude {
-			filteredTypes = append(filteredTypes, dt)
+			filteredTypes = append(filteredTypes, docWithMetadata{
+				Document: dt,
+				Names:    parsedNames,
+				IDs:      parsedIDs,
+			})
 		}
 	}
 
 	// Transform for frontend - maintain backward compatibility
 	var result []map[string]interface{}
-	for _, dt := range filteredTypes {
+	for _, item := range filteredTypes {
+		dt := item.Document
 		documentTypeMap := map[string]interface{}{
 			// Original fields for backward compatibility
 			"id":       dt.DocumentTypeID,
@@ -377,7 +565,6 @@ func GetDocumentTypes(c *gin.Context) {
 			"name":     dt.DocumentTypeName,
 			"required": dt.Required,
 			"multiple": dt.Multiple,
-			"category": dt.Category,
 
 			// Additional fields
 			"document_order": dt.DocumentOrder,
@@ -395,11 +582,14 @@ func GetDocumentTypes(c *gin.Context) {
 			}
 		}
 
-		if dt.SubcategoryIds != nil {
-			var subcategoryIds []int
-			if err := json.Unmarshal([]byte(*dt.SubcategoryIds), &subcategoryIds); err == nil {
-				documentTypeMap["subcategory_ids"] = subcategoryIds
-			}
+		if len(item.Names) > 0 {
+			documentTypeMap["subcategory_names"] = item.Names
+		} else {
+			documentTypeMap["subcategory_names"] = []string{}
+		}
+
+		if len(item.IDs) > 0 {
+			documentTypeMap["subcategory_ids"] = item.IDs
 		}
 
 		result = append(result, documentTypeMap)
@@ -427,6 +617,12 @@ func GetDocumentTypesAdmin(c *gin.Context) {
 		return
 	}
 
+	idToName, nameToID, err := fetchSubcategoryMaps()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch subcategories"})
+		return
+	}
+
 	// Transform for admin frontend with all fields
 	var result []map[string]interface{}
 	for _, dt := range documentTypes {
@@ -434,19 +630,11 @@ func GetDocumentTypesAdmin(c *gin.Context) {
 			"document_type_id":   dt.DocumentTypeID,
 			"document_type_name": dt.DocumentTypeName,
 			"code":               dt.Code,
-			"category":           dt.Category,
 			"required":           dt.Required,
 			"multiple":           dt.Multiple,
 			"document_order":     dt.DocumentOrder,
 			"create_at":          dt.CreateAt,
 			"update_at":          dt.UpdateAt,
-		}
-
-		// Handle IsRequired (pointer to string for enum)
-		if dt.IsRequired != nil {
-			documentTypeMap["is_required"] = *dt.IsRequired
-		} else {
-			documentTypeMap["is_required"] = nil
 		}
 
 		// Parse and add fund_types
@@ -462,13 +650,15 @@ func GetDocumentTypesAdmin(c *gin.Context) {
 		}
 
 		// Parse and add subcategory_ids
-		if dt.SubcategoryIds != nil {
-			var subcategoryIds []int
-			if err := json.Unmarshal([]byte(*dt.SubcategoryIds), &subcategoryIds); err == nil {
-				documentTypeMap["subcategory_ids"] = subcategoryIds
-			} else {
-				documentTypeMap["subcategory_ids"] = nil
-			}
+		names, ids := parseStoredSubcategories(dt.SubcategoryIds, idToName, nameToID)
+		if len(names) > 0 {
+			documentTypeMap["subcategory_names"] = names
+		} else {
+			documentTypeMap["subcategory_names"] = []string{}
+		}
+
+		if len(ids) > 0 {
+			documentTypeMap["subcategory_ids"] = ids
 		} else {
 			documentTypeMap["subcategory_ids"] = nil
 		}
@@ -496,26 +686,17 @@ func UpdateDocumentType(c *gin.Context) {
 	var req struct {
 		DocumentTypeName *string   `json:"document_type_name"`
 		Code             *string   `json:"code"`
-		Category         *string   `json:"category"`
 		Required         *bool     `json:"required"`
 		Multiple         *bool     `json:"multiple"`
 		DocumentOrder    *int      `json:"document_order"`
-		IsRequired       *string   `json:"is_required"`     // enum('yes','no')
-		FundTypes        *[]string `json:"fund_types"`      // Array of fund types
-		SubcategoryIds   *[]int    `json:"subcategory_ids"` // Array of subcategory IDs
+		FundTypes        *[]string `json:"fund_types"` // Array of fund types
+		SubcategoryNames *[]string `json:"subcategory_names"`
+		SubcategoryIds   *[]int    `json:"subcategory_ids"` // Array of subcategory IDs (deprecated)
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
-	}
-
-	// Validate is_required enum
-	if req.IsRequired != nil {
-		if *req.IsRequired != "yes" && *req.IsRequired != "no" {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "is_required must be 'yes' or 'no'"})
-			return
-		}
 	}
 
 	// Check if document type exists
@@ -536,10 +717,6 @@ func UpdateDocumentType(c *gin.Context) {
 		updates["code"] = *req.Code
 	}
 
-	if req.Category != nil {
-		updates["category"] = *req.Category
-	}
-
 	if req.Required != nil {
 		updates["required"] = *req.Required
 	}
@@ -550,10 +727,6 @@ func UpdateDocumentType(c *gin.Context) {
 
 	if req.DocumentOrder != nil {
 		updates["document_order"] = *req.DocumentOrder
-	}
-
-	if req.IsRequired != nil {
-		updates["is_required"] = *req.IsRequired
 	}
 
 	// Handle fund_types JSON field
@@ -571,16 +744,33 @@ func UpdateDocumentType(c *gin.Context) {
 	}
 
 	// Handle subcategory_ids JSON field
-	if req.SubcategoryIds != nil {
+	if req.SubcategoryNames != nil {
+		normalized := normalizeSubcategoryNames(*req.SubcategoryNames)
+		if len(normalized) == 0 {
+			updates["subcategory_ids"] = nil
+		} else {
+			namesJSON, err := json.Marshal(normalized)
+			if err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid subcategory_names format"})
+				return
+			}
+			updates["subcategory_ids"] = string(namesJSON)
+		}
+	} else if req.SubcategoryIds != nil {
 		if len(*req.SubcategoryIds) == 0 {
 			updates["subcategory_ids"] = nil
 		} else {
-			subcategoryIdsJSON, err := json.Marshal(*req.SubcategoryIds)
+			names, err := resolveSubcategoryNamesFromIDs(*req.SubcategoryIds)
+			if err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+				return
+			}
+			namesJSON, err := json.Marshal(names)
 			if err != nil {
 				c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid subcategory_ids format"})
 				return
 			}
-			updates["subcategory_ids"] = string(subcategoryIdsJSON)
+			updates["subcategory_ids"] = string(namesJSON)
 		}
 	}
 
@@ -612,12 +802,11 @@ func CreateDocumentType(c *gin.Context) {
 	var req struct {
 		DocumentTypeName string   `json:"document_type_name" binding:"required"`
 		Code             string   `json:"code" binding:"required"`
-		Category         string   `json:"category"`
 		Required         bool     `json:"required"`
 		Multiple         bool     `json:"multiple"`
 		DocumentOrder    int      `json:"document_order"`
-		IsRequired       string   `json:"is_required"` // enum('yes','no')
 		FundTypes        []string `json:"fund_types"`
+		SubcategoryNames []string `json:"subcategory_names"`
 		SubcategoryIds   []int    `json:"subcategory_ids"`
 	}
 
@@ -626,29 +815,15 @@ func CreateDocumentType(c *gin.Context) {
 		return
 	}
 
-	// Validate is_required enum
-	if req.IsRequired != "" {
-		if req.IsRequired != "yes" && req.IsRequired != "no" {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "is_required must be 'yes' or 'no'"})
-			return
-		}
-	}
-
 	// Create document type
 	documentType := models.DocumentType{
 		DocumentTypeName: req.DocumentTypeName,
 		Code:             req.Code,
-		Category:         req.Category,
 		Required:         req.Required,
 		Multiple:         req.Multiple,
 		DocumentOrder:    req.DocumentOrder,
 		CreateAt:         time.Now(),
 		UpdateAt:         time.Now(),
-	}
-
-	// Set IsRequired if provided
-	if req.IsRequired != "" {
-		documentType.IsRequired = &req.IsRequired
 	}
 
 	// Handle fund_types JSON
@@ -662,15 +837,21 @@ func CreateDocumentType(c *gin.Context) {
 		documentType.FundTypes = &fundTypesStr
 	}
 
-	// Handle subcategory_ids JSON
-	if len(req.SubcategoryIds) > 0 {
-		subcategoryIdsJSON, err := json.Marshal(req.SubcategoryIds)
+	// Handle subcategory assignments (store as names)
+	subcategoryNames, err := resolveSubcategoryNamesFromRequest(req.SubcategoryNames, req.SubcategoryIds)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if len(subcategoryNames) > 0 {
+		namesJSON, err := json.Marshal(subcategoryNames)
 		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid subcategory_ids format"})
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid subcategory_names format"})
 			return
 		}
-		subcategoryIdsStr := string(subcategoryIdsJSON)
-		documentType.SubcategoryIds = &subcategoryIdsStr
+		namesStr := string(namesJSON)
+		documentType.SubcategoryIds = &namesStr
 	}
 
 	if err := config.DB.Create(&documentType).Error; err != nil {
