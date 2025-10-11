@@ -48,7 +48,7 @@ The `relative_path` field mirrors the example path shown above and can be stored
 ## Error handling
 
 * If the submission has not been formally submitted yet, the merge endpoint returns `400 Bad Request`.
-* When no PDF documents are attached, the endpoint also returns `400 Bad Request` with a descriptive message.
+* When no PDF documents are attached, the endpoint still returns `200 OK` with `merged_file: null` and a `message` that explains no PDFs were available. This keeps the submission flow smooth even when only non-PDF documents were uploaded.
 * Any unexpected error (e.g., merge tool unavailable) results in `500 Internal Server Error`. The frontend logs these errors but does not block the overall submission flow.
 
 ## Local testing tips
