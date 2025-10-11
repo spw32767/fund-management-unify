@@ -6,7 +6,7 @@ import { FileText, Upload, Save, Send, X, Eye, ArrowLeft, AlertCircle, DollarSig
 import Swal from "sweetalert2";
 import PageLayout from "../common/PageLayout";
 import SimpleCard from "../common/SimpleCard";
-import { authAPI, systemAPI } from '../../../lib/api';
+import { authAPI, systemAPI, documentTypesAPI } from '../../../lib/api';
 import { PDFDocument } from "pdf-lib";
 
 // เพิ่ม apiClient สำหรับเรียก API โดยตรง
@@ -201,15 +201,22 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
       setLoading(true);
       setErrors({});
 
+      const hasSubcategoryId = Boolean(
+        extractSubcategoryId(subcategoryData)
+      );
+      const hasSubcategoryName = Boolean(
+        extractSubcategoryName(subcategoryData)
+      );
+
       // Validate subcategoryData
-      if (!subcategoryData?.subcategory_id) {
+      if (!hasSubcategoryId && !hasSubcategoryName) {
         throw new Error('ไม่พบข้อมูลทุนที่เลือก');
       }
 
       // Load user data and document requirements in parallel
       const [userData, docRequirements] = await Promise.all([
         loadUserData(),
-        loadDocumentRequirements(subcategoryData.subcategory_id)
+        loadDocumentRequirements(subcategoryData)
       ]);
 
       console.log('Loaded user data:', userData);
@@ -253,23 +260,29 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
     throw new Error('ไม่สามารถดึงข้อมูลผู้ใช้ได้');
   };
 
-  const loadDocumentRequirements = async (subcategoryId) => {
+  const loadDocumentRequirements = async (subcategoryInfo) => {
     try {
+      const filters = { fund_type: 'fund_application' };
+      const subcategoryName = extractSubcategoryName(subcategoryInfo);
+      const subcategoryId = extractSubcategoryId(subcategoryInfo);
+
+      if (subcategoryName) {
+        filters.subcategory_name = subcategoryName;
+      } else if (subcategoryId) {
+        filters.subcategory_id = subcategoryId;
+      }
+
       // ดึงประเภทเอกสารที่ผูกกับทุนย่อยและประเภทฟอร์ม "fund_application"
-      const response = await apiClient.get('/document-types', {
-        fund_type: 'fund_application',
-        subcategory_id: subcategoryId
-      });
+      const response = await documentTypesAPI.getDocumentTypes(filters);
 
-
-      if (!response.success || !response.document_types) {
-        throw new Error('ไม่พบข้อมูลเอกสารที่ต้องส่ง');
+      if (!response?.success) {
+        throw new Error(response?.error || 'ไม่พบข้อมูลเอกสารที่ต้องส่ง');
       }
 
       // Sort by document_order
-      const sortedDocs = response.document_types.sort((a, b) => 
-        (a.document_order || 0) - (b.document_order || 0)
-      );
+      const sortedDocs = (response.document_types || [])
+        .slice()
+        .sort((a, b) => (a.document_order || 0) - (b.document_order || 0));
 
       setDocumentRequirements(sortedDocs);
       return sortedDocs;
@@ -279,6 +292,43 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
       throw error;
     }
   };
+
+  function extractSubcategoryName(data) {
+    const candidates = [
+      data?.subcategory_name,
+      data?.subcategorie_name,
+      data?.subcategoryName,
+      data?.subcategory?.subcategory_name,
+      data?.subcategory?.subcategorie_name,
+      data?.subcategory?.subcategoryName,
+    ];
+
+    for (const candidate of candidates) {
+      if (typeof candidate === 'string' && candidate.trim()) {
+        return candidate.trim();
+      }
+    }
+
+    return null;
+  }
+
+  function extractSubcategoryId(data) {
+    const candidates = [
+      data?.subcategory_id,
+      data?.subcategoryId,
+      data?.subcategory?.subcategory_id,
+      data?.subcategory?.subcategoryId,
+    ];
+
+    for (const candidate of candidates) {
+      const parsed = Number(candidate);
+      if (!Number.isNaN(parsed) && parsed > 0) {
+        return parsed;
+      }
+    }
+
+    return null;
+  }
 
   // =================================================================
   // FORM HANDLING
