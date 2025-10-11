@@ -246,7 +246,21 @@ const DocumentTypeManager = () => {
     };
 
     const selectedName = (formData.subcategory_name || "").trim();
-    payload.subcategory_name = selectedName ? selectedName : null;
+    const rawNameList = Array.isArray(formData.subcategory_names)
+      ? dedupeStringList(formData.subcategory_names)
+      : [];
+    const normalizedNames = selectedName
+      ? dedupeStringList([selectedName, ...rawNameList])
+      : rawNameList;
+
+    payload.subcategory_names = normalizedNames;
+    if (selectedName) {
+      payload.subcategory_name = selectedName;
+    } else if (normalizedNames.length > 0) {
+      payload.subcategory_name = normalizedNames[0];
+    } else {
+      payload.subcategory_name = null;
+    }
 
     const mode = editingDocumentType?.document_type_id ? "update" : "create";
     console.log("[DocumentTypeManager] submitting payload", {

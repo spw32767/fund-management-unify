@@ -16,6 +16,7 @@ const initialFormState = {
   multiple: false,
   fund_types: [],
   subcategory_name: "",
+  subcategory_names: [],
 };
 
 const DocumentTypeModal = ({
@@ -78,6 +79,9 @@ const DocumentTypeModal = ({
             : Array.isArray(base.subcategory_names) && base.subcategory_names.length > 0
             ? base.subcategory_names[0]
             : "",
+        subcategory_names: Array.isArray(base.subcategory_names)
+          ? base.subcategory_names
+          : [],
       });
       setSubcategorySearch("");
     } else {
@@ -140,6 +144,7 @@ const DocumentTypeModal = ({
 
     const subcategoryName = (formState.subcategory_name || "").trim();
     payload.subcategory_name = subcategoryName ? subcategoryName : null;
+    payload.subcategory_names = subcategoryName ? [subcategoryName] : [];
 
     onSubmit(payload);
   };
