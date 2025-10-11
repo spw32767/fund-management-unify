@@ -174,6 +174,17 @@ const DocumentTypeModal = ({
     });
   };
 
+  const selectedSubcategories = useMemo(
+    () => (isOpen ? dedupeNames(formState.subcategory_names) : []),
+    [isOpen, formState.subcategory_names],
+  );
+
+  const selectedSubcategorySet = useMemo(() => {
+    const set = new Set();
+    selectedSubcategories.forEach((name) => set.add(name.toLowerCase()));
+    return set;
+  }, [selectedSubcategories]);
+
   const handleSubmit = (e) => {
     e.preventDefault();
     const payload = {
@@ -195,17 +206,6 @@ const DocumentTypeModal = ({
   };
 
   if (!isOpen) return null;
-
-  const selectedSubcategories = useMemo(
-    () => dedupeNames(formState.subcategory_names),
-    [formState.subcategory_names],
-  );
-
-  const selectedSubcategorySet = useMemo(() => {
-    const set = new Set();
-    selectedSubcategories.forEach((name) => set.add(name.toLowerCase()));
-    return set;
-  }, [selectedSubcategories]);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
