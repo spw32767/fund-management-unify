@@ -376,7 +376,14 @@ const saveDraftToLocal = (data) => {
     const timestampBase = Date.now();
     const sanitizedExternalFundings = Array.isArray(data.externalFundings)
       ? data.externalFundings.map((funding, index) => ({
-          id: funding.id ?? `draft-${index}-${timestampBase}`,
+          clientId:
+            funding.clientId ||
+            funding.client_id ||
+            funding.externalFundId ||
+            funding.external_fund_id ||
+            funding.id ||
+            `draft-${index}-${timestampBase}`,
+          externalFundId: funding.externalFundId ?? funding.external_fund_id ?? null,
           fundName: funding.fundName || '',
           amount: funding.amount || '',
         }))
@@ -926,7 +933,7 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
     (externalFundingFiles || []).forEach((doc) => {
       if (doc?.file) {
         const file = doc.file;
-        parts.push(`external:${doc.funding_id}:${file.name || ''}:${file.size || ''}:${file.lastModified ?? ''}:${doc.timestamp ?? ''}`);
+        parts.push(`external:${doc.funding_client_id || ''}:${doc.external_fund_id || ''}:${file.name || ''}:${file.size || ''}:${file.lastModified ?? ''}:${doc.timestamp ?? ''}`);
       }
     });
 
@@ -941,7 +948,7 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
 
   const externalFundingSignature = useMemo(() => {
     return (externalFundings || [])
-      .map((funding) => `${funding.id || ''}:${funding.fundName || ''}:${funding.amount || ''}`)
+      .map((funding) => `${funding.clientId || ''}:${funding.externalFundId ?? ''}:${funding.fundName || ''}:${funding.amount || ''}`)
       .join('|');
   }, [externalFundings]);
 
@@ -1681,7 +1688,14 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
         setExternalFundings(
           Array.isArray(draft.externalFundings)
             ? draft.externalFundings.map((funding, index) => ({
-                id: funding.id ?? `loaded-${index}-${Date.now()}`,
+                clientId:
+                  funding.clientId ||
+                  funding.client_id ||
+                  funding.externalFundId ||
+                  funding.external_fund_id ||
+                  funding.id ||
+                  `loaded-${index}-${Date.now()}`,
+                externalFundId: funding.externalFundId ?? funding.external_fund_id ?? null,
                 fundName: funding.fundName || '',
                 amount: funding.amount || '',
                 file: null,
@@ -1836,28 +1850,30 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
 
   // Handle external funding addition
   const handleAddExternalFunding = () => {
+    const clientId = `ext-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`;
     const newFunding = {
-      id: Date.now(),
+      clientId,
+      externalFundId: null,
       fundName: '',
       amount: '',
       file: null
     };
-    setExternalFundings([...externalFundings, newFunding]);
+    setExternalFundings(prev => [...prev, newFunding]);
   };
 
   // Handle external funding removal
-  const handleRemoveExternalFunding = (id) => {
+  const handleRemoveExternalFunding = (clientId) => {
     // Remove file from externalFundingFiles
-    setExternalFundingFiles(prev => prev.filter(doc => doc.funding_id !== id));
-    
+    setExternalFundingFiles(prev => prev.filter(doc => doc.funding_client_id !== clientId));
+
     // Remove funding
-    setExternalFundings(externalFundings.filter(f => f.id !== id));
+    setExternalFundings(externalFundings.filter(f => f.clientId !== clientId));
   };
 
   // Handle external funding field changes
-  const handleExternalFundingChange = (id, field, value) => {
-    setExternalFundings(externalFundings.map(funding => 
-      funding.id === id ? { ...funding, [field]: value } : funding
+  const handleExternalFundingChange = (clientId, field, value) => {
+    setExternalFundings(externalFundings.map(funding =>
+      funding.clientId === clientId ? { ...funding, [field]: value } : funding
     ));
   };
 
@@ -1887,23 +1903,25 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
   };
 
   // Handle external funding file changes
-  const handleExternalFundingFileChange = (id, file) => {
-    console.log('handleExternalFundingFileChange called with:', { id, file });
-    
+  const handleExternalFundingFileChange = (clientId, file) => {
+    console.log('handleExternalFundingFileChange called with:', { id: clientId, file });
+
     if (file && file.type === 'application/pdf') {
       // Update file in funding table
-      setExternalFundings(prev => prev.map(funding => 
-        funding.id === id ? { ...funding, file: file } : funding
+      setExternalFundings(prev => prev.map(funding =>
+        funding.clientId === clientId ? { ...funding, file: file } : funding
       ));
-      
+
       // Update external funding files separately
       setExternalFundingFiles(prev => {
         // Remove old file for this funding id if exists
-        const filtered = prev.filter(doc => doc.funding_id !== id);
+        const filtered = prev.filter(doc => doc.funding_client_id !== clientId);
+        const targetFunding = externalFundings.find(f => f.clientId === clientId);
         // Add new file
         return [...filtered, {
           file: file,
-          funding_id: id,
+          funding_client_id: clientId,
+          external_fund_id: targetFunding?.externalFundId ?? null,
           description: `เอกสารเบิกจ่ายภายนอก - ${file.name}`,
           timestamp: Date.now()
         }];
@@ -1996,10 +2014,11 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
 
     (externalFundingFiles || []).forEach((doc) => {
       if (!doc?.file) return;
-      const funding = externalFundings.find(f => f.id === doc.funding_id);
+      const funding = externalFundings.find(f => f.clientId === doc.funding_client_id);
       const typeName = resolveDocumentTypeName(12) || 'เอกสารเบิกจ่ายภายนอก';
+      const resolvedExternalId = doc.external_fund_id ?? funding?.externalFundId ?? null;
       allFiles.push({
-        id: `external-${doc.funding_id}`,
+        id: `external-${doc.funding_client_id}`,
         name: doc.file.name,
         type: `${typeName}${funding?.fundName ? ` - ${funding.fundName}` : ''}`,
         size: doc.file.size,
@@ -2008,6 +2027,8 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
         canDelete: false,
         document_type_id: 12,
         document_type_name: typeName,
+        external_funding_client_id: doc.funding_client_id,
+        external_funding_id: resolvedExternalId,
       });
     });
 
@@ -3030,13 +3051,14 @@ const showSubmissionConfirmation = async () => {
       // 3. Add external funding documents from externalFundingFiles (ใช้ externalFundingFiles)
       if (externalFundingFiles && externalFundingFiles.length > 0) {
         externalFundingFiles.forEach(doc => {
-          const funding = externalFundings.find(f => f.id === doc.funding_id);
+          const funding = externalFundings.find(f => f.clientId === doc.funding_client_id);
           if (doc.file) {
             allFiles.push({
               file: doc.file,
               document_type_id: 12,
               description: `เอกสารเบิกจ่ายภายนอก: ${funding?.fundName || 'ไม่ระบุ'}`,
-              external_funding_id: doc.funding_id
+              external_funding_client_id: doc.funding_client_id,
+              external_funding_id: doc.external_fund_id ?? funding?.externalFundId ?? null
             });
           }
         });
@@ -3214,6 +3236,8 @@ const showSubmissionConfirmation = async () => {
 
       // สร้าง external funding array สำหรับส่งไป backend (ถ้ามี)
       const externalFundingData = externalFundings.map(funding => ({
+        client_id: funding.clientId || '',
+        external_fund_id: funding.externalFundId ?? null,
         fund_name: funding.fundName || '',
         amount: parseFloat(funding.amount) || 0
       }));
@@ -3250,8 +3274,8 @@ const showSubmissionConfirmation = async () => {
         external_funding_amount: parseFloat(formData.external_funding_amount) || 0,
         total_amount: parseFloat(formData.total_amount) || 0,
         
-        // External fundings (ถ้า backend รองรับ)
-        // external_fundings: externalFundingData.length > 0 ? externalFundingData : [],
+        // External fundings breakdown
+        external_fundings: externalFundingData,
         
         // Author info
         author_count: (coauthors?.length || 0) + 1,
@@ -3285,6 +3309,68 @@ const showSubmissionConfirmation = async () => {
         // ส่ง publicationData โดยตรง
         const response = await publicationDetailsAPI.add(submissionId, publicationData);
         console.log('Publication details saved successfully:', response);
+
+        const savedExternalFunds = Array.isArray(response.external_fundings)
+          ? response.external_fundings
+          : [];
+
+        const serverIdMap = new Map();
+        savedExternalFunds.forEach((item) => {
+          const clientKey = item?.client_id ?? (item?.external_fund_id != null ? String(item.external_fund_id) : null);
+          if (clientKey) {
+            serverIdMap.set(String(clientKey), item.external_fund_id);
+          }
+        });
+
+        if (serverIdMap.size > 0) {
+          setExternalFundings((prev) =>
+            prev.map((funding) => {
+              const serverId = serverIdMap.get(String(funding.clientId)) ?? serverIdMap.get(String(funding.externalFundId));
+              if (serverId && serverId !== funding.externalFundId) {
+                return { ...funding, externalFundId: serverId };
+              }
+              return funding;
+            })
+          );
+
+          setExternalFundingFiles((prev) =>
+            prev.map((doc) => {
+              const serverId = serverIdMap.get(String(doc.funding_client_id));
+              if (serverId && serverId !== doc.external_fund_id) {
+                return { ...doc, external_fund_id: serverId };
+              }
+              return doc;
+            })
+          );
+
+          allFiles.forEach((fileData) => {
+            if (fileData.document_type_id === 12) {
+              const clientKey = String(fileData.external_funding_client_id || '');
+              const serverId = serverIdMap.get(clientKey);
+              if (!serverId) {
+                throw new Error('ไม่สามารถจับคู่ไฟล์ทุนภายนอกกับข้อมูลที่บันทึกได้');
+              }
+              fileData.external_funding_id = serverId;
+            }
+          });
+        } else {
+          // เคลียร์ mapping ถ้าไม่มีข้อมูลจาก backend
+          setExternalFundings((prev) => prev.map((funding) => ({ ...funding, externalFundId: null })));
+          setExternalFundingFiles((prev) => prev.map((doc) => ({ ...doc, external_fund_id: null })));
+          allFiles.forEach((fileData) => {
+            if (fileData.document_type_id === 12) {
+              fileData.external_funding_id = null;
+            }
+          });
+        }
+
+        const unresolvedExternalFile = allFiles.some(
+          (fileData) => fileData.document_type_id === 12 && !fileData.external_funding_id
+        );
+
+        if (unresolvedExternalFile) {
+          throw new Error('กรุณาบันทึกข้อมูลทุนภายนอกก่อนแนบไฟล์หลักฐาน');
+        }
       } catch (error) {
         console.error('Failed to save publication details:', error);
         
@@ -4264,7 +4350,7 @@ const showSubmissionConfirmation = async () => {
                       </tr>
                     ) : (
                       externalFundings.map((funding, index) => (
-                        <tr key={funding.id} className={index < externalFundings.length - 1 ? 'border-b border-blue-200' : ''}>
+                        <tr key={funding.clientId || index} className={index < externalFundings.length - 1 ? 'border-b border-blue-200' : ''}>
                           <td className="border-r border-blue-200 px-3 py-2 text-center text-sm">
                             {index + 1}
                           </td>
@@ -4275,7 +4361,7 @@ const showSubmissionConfirmation = async () => {
                                 <input
                                   type="file"
                                   accept=".pdf"
-                                  onChange={(e) => handleExternalFundingFileChange(funding.id, e.target.files[0])}
+                                  onChange={(e) => handleExternalFundingFileChange(funding.clientId, e.target.files[0])}
                                   className="hidden"
                                 />
                                 <Upload className="h-4 w-4" />
@@ -4295,7 +4381,7 @@ const showSubmissionConfirmation = async () => {
                               )}
                               <button
                                 type="button"
-                                onClick={() => handleRemoveExternalFunding(funding.id)}
+                                onClick={() => handleRemoveExternalFunding(funding.clientId)}
                                 className="text-red-500 hover:text-red-700 ml-auto"
                                 title="ลบ (Delete)"
                               >
@@ -4307,7 +4393,7 @@ const showSubmissionConfirmation = async () => {
                             <input
                               type="number"
                               value={funding.amount}
-                              onChange={(e) => handleExternalFundingChange(funding.id, 'amount', e.target.value)}
+                              onChange={(e) => handleExternalFundingChange(funding.clientId, 'amount', e.target.value)}
                               placeholder="0"
                               className="w-full px-2 py-1 border border-gray-300 rounded text-right text-sm focus:outline-none focus:border-blue-500"
                             />
@@ -4456,9 +4542,9 @@ const showSubmissionConfirmation = async () => {
                               ไฟล์จากตารางทุนภายนอก ({externalFundingFiles.length} ไฟล์):
                             </p>
                             {externalFundingFiles.map((doc, index) => {
-                              const funding = externalFundings.find(f => f.id === doc.funding_id);
+                              const funding = externalFundings.find(f => f.clientId === doc.funding_client_id);
                               return (
-                                <div key={`ext-${doc.funding_id}`} className="flex items-center justify-between bg-blue-50 rounded-lg p-2">
+                                <div key={`ext-${doc.funding_client_id}`} className="flex items-center justify-between bg-blue-50 rounded-lg p-2">
                                   <div className="flex items-center gap-2">
                                     <FileText className="h-4 w-4 text-blue-600" />
                                     <div className="flex-1">

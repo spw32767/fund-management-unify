@@ -928,7 +928,24 @@ CREATE TABLE `publication_reward_details` (
   `reward_announcement` int(11) DEFAULT NULL,
   `author_name_list` text DEFAULT NULL,
   `signature` varchar(255) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='ตารางเก็บรายละเอียดการขอรับเงินรางวัลผลงานวิชาการ พร้อมข้อมูลเพิ่มเติม';
+ ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='ตารางเก็บรายละเอียดการขอรับเงินรางวัลผลงานวิชาการ พร้อมข้อมูลเพิ่มเติม';
+
+--
+-- Table structure for table `publication_reward_external_funds`
+--
+
+CREATE TABLE `publication_reward_external_funds` (
+  `external_fund_id` int(11) NOT NULL,
+  `detail_id` int(11) NOT NULL,
+  `submission_id` int(11) NOT NULL,
+  `fund_name` varchar(255) DEFAULT NULL,
+  `amount` decimal(15,2) DEFAULT 0.00,
+  `document_id` int(11) DEFAULT NULL,
+  `file_id` int(11) DEFAULT NULL,
+  `created_at` datetime NOT NULL DEFAULT current_timestamp(),
+  `updated_at` datetime NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `deleted_at` datetime DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='รายละเอียดทุนภายนอกและไฟล์ประกอบของคำร้องขอรางวัลตีพิมพ์';
 
 --
 -- Dumping data for table `publication_reward_details`
@@ -2738,6 +2755,16 @@ ALTER TABLE `publication_reward_details`
   ADD KEY `idx_prd_reward_announcement` (`reward_announcement`);
 
 --
+-- Indexes for table `publication_reward_external_funds`
+--
+ALTER TABLE `publication_reward_external_funds`
+  ADD PRIMARY KEY (`external_fund_id`),
+  ADD KEY `idx_pref_detail_id` (`detail_id`),
+  ADD KEY `idx_pref_submission_id` (`submission_id`),
+  ADD KEY `idx_pref_document_id` (`document_id`),
+  ADD KEY `idx_pref_file_id` (`file_id`);
+
+--
 -- Indexes for table `publication_reward_rates`
 --
 ALTER TABLE `publication_reward_rates`
@@ -3008,6 +3035,12 @@ ALTER TABLE `publication_reward_details`
   MODIFY `detail_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=131;
 
 --
+-- AUTO_INCREMENT for table `publication_reward_external_funds`
+--
+ALTER TABLE `publication_reward_external_funds`
+  MODIFY `external_fund_id` int(11) NOT NULL AUTO_INCREMENT;
+
+--
 -- AUTO_INCREMENT for table `publication_reward_rates`
 --
 ALTER TABLE `publication_reward_rates`
@@ -3199,6 +3232,15 @@ ALTER TABLE `publication_reward_details`
   ADD CONSTRAINT `fk_pub_detail_submission` FOREIGN KEY (`submission_id`) REFERENCES `submissions` (`submission_id`),
   ADD CONSTRAINT `fk_rejected_by_user` FOREIGN KEY (`rejected_by`) REFERENCES `users` (`user_id`) ON DELETE SET NULL,
   ADD CONSTRAINT `fk_revision_requested_by_user` FOREIGN KEY (`revision_requested_by`) REFERENCES `users` (`user_id`) ON DELETE SET NULL;
+
+--
+-- Constraints for table `publication_reward_external_funds`
+--
+ALTER TABLE `publication_reward_external_funds`
+  ADD CONSTRAINT `fk_pref_detail` FOREIGN KEY (`detail_id`) REFERENCES `publication_reward_details` (`detail_id`) ON DELETE CASCADE ON UPDATE CASCADE,
+  ADD CONSTRAINT `fk_pref_submission` FOREIGN KEY (`submission_id`) REFERENCES `submissions` (`submission_id`) ON DELETE CASCADE ON UPDATE CASCADE,
+  ADD CONSTRAINT `fk_pref_document` FOREIGN KEY (`document_id`) REFERENCES `submission_documents` (`document_id`) ON DELETE SET NULL ON UPDATE CASCADE,
+  ADD CONSTRAINT `fk_pref_file` FOREIGN KEY (`file_id`) REFERENCES `file_uploads` (`file_id`) ON DELETE SET NULL ON UPDATE CASCADE;
 
 --
 -- Constraints for table `research_fund_admin_events`

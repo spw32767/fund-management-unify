@@ -218,6 +218,7 @@ export const publicationDetailsAPI = {
         has_university_funding: details.has_university_funding,
         funding_references: details.funding_references,
         university_rankings: details.university_rankings,
+        external_fundings: details.external_fundings || [],
       });
       return response;
     } catch (error) {
