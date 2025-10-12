@@ -565,9 +565,11 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
       const root = rawWindow?.data ?? rawWindow ?? {};
 
       const normalized = {
-        main_annoucement: root?.main_annoucement ?? root?.config_id ?? null,
+        main_annoucement: root?.main_annoucement ?? null,
         activity_support_announcement: root?.activity_support_announcement ?? null,
       };
+
+      console.log('System announcement snapshot resolved:', normalized);
 
       setAnnouncementLock(normalized);
       return normalized;
@@ -1079,23 +1081,33 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
       }
 
       // Step 1: Create submission record
-      const submissionRes = await submissionAPI.createSubmission({
+      const submissionPayload = {
         submission_type: 'fund_application',
         year_id: subcategoryData?.year_id,
-        status_id: statusForSubmission.id
-      });
+        status_id: statusForSubmission.id,
+      };
+
+      console.log('Creating submission with payload:', submissionPayload, 'resolved status:', statusForSubmission);
+
+      const submissionRes = await submissionAPI.createSubmission(submissionPayload);
       const submissionId = submissionRes?.submission?.submission_id;
+
+      console.log('Submission creation response:', submissionRes);
 
       // Step 2: Save basic fund details (ใช้ข้อมูลที่มีอยู่)
       if (submissionId) {
-        await apiClient.post(`/submissions/${submissionId}/fund-details`, {
+        const fundDetailsPayload = {
           project_title: formData.project_title || '',
           project_description: formData.project_description || '',
           requested_amount: parseFloat(formData.requested_amount) || 0,
           subcategory_id: subcategoryData.subcategory_id,
           main_annoucement: announcementLock.main_annoucement,
           activity_support_announcement: announcementLock.activity_support_announcement,
-        });
+        };
+
+        console.log('Saving fund details payload:', fundDetailsPayload);
+
+        await apiClient.post(`/submissions/${submissionId}/fund-details`, fundDetailsPayload);
       }
 
       // Step 3: Upload files and attach to submission
@@ -1114,6 +1126,7 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
 
       // Step 4: Submit the submission
       if (submissionId) {
+        console.log('Submitting submission ID:', submissionId);
         await submissionAPI.submitSubmission(submissionId);
       }
 
@@ -1245,9 +1258,7 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
               icon={FileText}
               bodyClassName="space-y-6"
             >
-              <p className="text-sm text-gray-600">
-                กรุณาตรวจสอบข้อมูลผู้ยื่นคำร้องให้ถูกต้องก่อนดำเนินการต่อ ข้อมูลเหล่านี้จะถูกใช้ในขั้นตอนการพิจารณาและติดต่อกลับ
-              </p>
+
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                 <div className="space-y-2">
@@ -1379,7 +1390,7 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
             </SimpleCard>
 
             <SimpleCard
-              title="เอกสารแนบ"
+              title="เอกสารแนบ (Attachments)"
               icon={Upload}
               bodyClassName="space-y-4"
             >
@@ -1391,9 +1402,6 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
                 </div>
               ) : (
                 <>
-                  <div className="rounded-md border border-blue-100 bg-blue-50 p-4 text-sm text-blue-700">
-                    กรุณาอัปโหลดเอกสารให้ครบถ้วน โดยเฉพาะเอกสารที่มีเครื่องหมาย <span className="font-semibold text-red-500">*</span> ซึ่งเป็นรายการบังคับ
-                  </div>
                   <div className="overflow-hidden rounded-lg border border-gray-200 shadow-sm">
                     <table className="min-w-full divide-y divide-gray-200 text-sm">
                       <thead className="bg-gray-50">
