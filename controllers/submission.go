@@ -11,6 +11,7 @@ import (
 	"fund-management-api/models"
 	"fund-management-api/utils"
 	"io"
+	"log"
 	"mime/multipart"
 	"net/http"
 	"os"
@@ -302,6 +303,8 @@ func determineInitialStatusID(submissionType string, requestedStatusID *int, rol
 	}
 
 	switch submissionType {
+	case "fund_application":
+		return utils.GetStatusIDByCode(utils.StatusCodeDeptHeadPending)
 	case "publication_reward":
 		return utils.GetStatusIDByCode(utils.StatusCodeDeptHeadPending)
 	default:
@@ -650,6 +653,8 @@ func MergeSubmissionDocuments(c *gin.Context) {
 		return
 	}
 
+	log.Printf("[MergeSubmissionDocuments] user %d requested merge for submission %d", userID, submissionID)
+
 	roleIDValue, _ := c.Get("roleID")
 	roleID, _ := roleIDValue.(int)
 
@@ -664,52 +669,70 @@ func MergeSubmissionDocuments(c *gin.Context) {
 	var submission models.Submission
 	if err := query.First(&submission).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
+			log.Printf("[MergeSubmissionDocuments] submission %d not found", submissionID)
 			c.JSON(http.StatusNotFound, gin.H{"error": "Submission not found"})
 			return
 		}
+		log.Printf("[MergeSubmissionDocuments] failed to load submission %d: %v", submissionID, err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to load submission"})
 		return
 	}
 
 	if submission.SubmittedAt == nil {
+		log.Printf("[MergeSubmissionDocuments] submission %d has not been submitted yet", submission.SubmissionID)
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Submission must be submitted before merging documents"})
 		return
 	}
 
 	documents, err := fetchSubmissionDocuments(config.DB, submission.SubmissionID)
 	if err != nil {
+		log.Printf("[MergeSubmissionDocuments] failed to load documents for submission %d: %v", submission.SubmissionID, err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to load submission documents"})
 		return
+	}
+
+	uploadRoot := os.Getenv("UPLOAD_PATH")
+	if uploadRoot == "" {
+		uploadRoot = "./uploads"
 	}
 
 	pdfPaths := make([]string, 0, len(documents))
 	for _, doc := range documents {
 		file := doc.File
+		log.Printf("[MergeSubmissionDocuments] inspecting document %d (file_id=%d) for submission %d", doc.DocumentID, file.FileID, submission.SubmissionID)
 		if file.FileID == 0 {
+			log.Printf("[MergeSubmissionDocuments] skipping document %d: missing file record", doc.DocumentID)
 			continue
 		}
 
 		storedPath := strings.TrimSpace(file.StoredPath)
 		if storedPath == "" {
+			log.Printf("[MergeSubmissionDocuments] skipping document %d: empty stored path", doc.DocumentID)
 			continue
 		}
 
 		mimeType := strings.ToLower(strings.TrimSpace(file.MimeType))
 		ext := strings.ToLower(filepath.Ext(storedPath))
 		originalExt := strings.ToLower(filepath.Ext(file.OriginalName))
+		log.Printf("[MergeSubmissionDocuments] document %d mime=%q stored_ext=%q original_ext=%q", doc.DocumentID, mimeType, ext, originalExt)
 
 		if mimeType != "application/pdf" && ext != ".pdf" && originalExt != ".pdf" {
+			log.Printf("[MergeSubmissionDocuments] skipping document %d: not a pdf", doc.DocumentID)
 			continue
 		}
 
-		if _, err := os.Stat(storedPath); err != nil {
+		resolvedPath := resolveStoredFilePath(storedPath, uploadRoot)
+		if resolvedPath == "" {
+			log.Printf("[MergeSubmissionDocuments] skipping document %d: could not resolve stored path %q", doc.DocumentID, storedPath)
 			continue
 		}
 
-		pdfPaths = append(pdfPaths, storedPath)
+		log.Printf("[MergeSubmissionDocuments] submission %d resolved pdf path %s", submission.SubmissionID, resolvedPath)
+		pdfPaths = append(pdfPaths, resolvedPath)
 	}
 
 	if len(pdfPaths) == 0 {
+		log.Printf("[MergeSubmissionDocuments] submission %d has no PDF documents", submission.SubmissionID)
 		c.JSON(http.StatusOK, gin.H{
 			"success":       true,
 			"merged_file":   nil,
@@ -719,14 +742,11 @@ func MergeSubmissionDocuments(c *gin.Context) {
 		return
 	}
 
-	uploadRoot := os.Getenv("UPLOAD_PATH")
-	if uploadRoot == "" {
-		uploadRoot = "./uploads"
-	}
-
 	currentYear := getCurrentBEYearStr()
 	mergeDir := filepath.Join(uploadRoot, "merge_submissions", currentYear)
+	log.Printf("[MergeSubmissionDocuments] preparing merge output directory %s", mergeDir)
 	if err := os.MkdirAll(mergeDir, 0o755); err != nil {
+		log.Printf("[MergeSubmissionDocuments] failed to create merge directory %s: %v", mergeDir, err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to prepare merge directory"})
 		return
 	}
@@ -744,7 +764,9 @@ func MergeSubmissionDocuments(c *gin.Context) {
 	safeFilename := utils.GenerateUniqueFilename(mergeDir, desiredFilename)
 	outputPath := filepath.Join(mergeDir, safeFilename)
 
+	log.Printf("[MergeSubmissionDocuments] merging %d pdf(s) into %s", len(pdfPaths), outputPath)
 	if err := mergePDFs(pdfPaths, outputPath); err != nil {
+		log.Printf("[MergeSubmissionDocuments] merge failed for submission %d: %v", submission.SubmissionID, err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to merge PDF documents: %v", err)})
 		return
 	}
@@ -752,6 +774,7 @@ func MergeSubmissionDocuments(c *gin.Context) {
 	info, err := os.Stat(outputPath)
 	if err != nil {
 		os.Remove(outputPath)
+		log.Printf("[MergeSubmissionDocuments] failed to stat merged file %s: %v", outputPath, err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to access merged file"})
 		return
 	}
@@ -760,7 +783,7 @@ func MergeSubmissionDocuments(c *gin.Context) {
 	fileRecord := models.FileUpload{
 		OriginalName: safeFilename,
 		StoredPath:   outputPath,
-		FolderType:   "merge_submissions",
+		FolderType:   "submission",
 		FileSize:     info.Size(),
 		MimeType:     "application/pdf",
 		UploadedBy:   submission.UserID,
@@ -771,6 +794,7 @@ func MergeSubmissionDocuments(c *gin.Context) {
 
 	if err := createFileUploadRecord(config.DB, &fileRecord); err != nil {
 		os.Remove(outputPath)
+		log.Printf("[MergeSubmissionDocuments] failed to persist file record for submission %d: %v", submission.SubmissionID, err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to persist merged document"})
 		return
 	}
@@ -780,6 +804,8 @@ func MergeSubmissionDocuments(c *gin.Context) {
 	if trimmed := strings.TrimPrefix(relativePath, cleanedRoot+"/"); trimmed != relativePath {
 		relativePath = filepath.ToSlash(filepath.Join(filepath.Base(cleanedRoot), trimmed))
 	}
+
+	log.Printf("[MergeSubmissionDocuments] submission %d merged file stored as %s (file_id=%d)", submission.SubmissionID, relativePath, fileRecord.FileID)
 
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
@@ -791,6 +817,57 @@ func MergeSubmissionDocuments(c *gin.Context) {
 			"size":          fileRecord.FileSize,
 		},
 	})
+}
+
+func resolveStoredFilePath(storedPath, uploadRoot string) string {
+	trimmed := strings.TrimSpace(storedPath)
+	if trimmed == "" {
+		return ""
+	}
+
+	normalized := strings.ReplaceAll(trimmed, "\\", "/")
+	fromSlash := filepath.FromSlash(normalized)
+
+	candidates := make([]string, 0, 6)
+	seen := make(map[string]struct{})
+	addCandidate := func(path string) {
+		cleaned := strings.TrimSpace(path)
+		if cleaned == "" {
+			return
+		}
+		cleaned = filepath.Clean(filepath.FromSlash(strings.ReplaceAll(cleaned, "\\", "/")))
+		if cleaned == "." {
+			return
+		}
+		if _, exists := seen[cleaned]; exists {
+			return
+		}
+		seen[cleaned] = struct{}{}
+		candidates = append(candidates, cleaned)
+	}
+
+	addCandidate(trimmed)
+	addCandidate(normalized)
+	addCandidate(fromSlash)
+
+	rootCandidate := strings.TrimSpace(uploadRoot)
+	if rootCandidate != "" {
+		rootCandidate = filepath.Clean(filepath.FromSlash(strings.ReplaceAll(rootCandidate, "\\", "/")))
+		if rootCandidate != "" && rootCandidate != "." {
+			if !filepath.IsAbs(fromSlash) && filepath.VolumeName(fromSlash) == "" {
+				addCandidate(filepath.Join(rootCandidate, normalized))
+				addCandidate(filepath.Join(rootCandidate, fromSlash))
+			}
+		}
+	}
+
+	for _, candidate := range candidates {
+		if _, err := os.Stat(candidate); err == nil {
+			return candidate
+		}
+	}
+
+	return ""
 }
 
 func nextDocumentDisplayOrder(existing []models.SubmissionDocument) int {
@@ -1916,16 +1993,40 @@ func AddFundDetails(c *gin.Context) {
 	userID, _ := c.Get("userID")
 
 	type FundDetailsRequest struct {
-		ProjectTitle       string  `json:"project_title"`
-		ProjectDescription string  `json:"project_description"`
-		RequestedAmount    float64 `json:"requested_amount"`
-		SubcategoryID      int     `json:"subcategory_id"`
+		ProjectTitle                string  `json:"project_title"`
+		ProjectDescription          string  `json:"project_description"`
+		RequestedAmount             float64 `json:"requested_amount"`
+		SubcategoryID               int     `json:"subcategory_id"`
+		MainAnnoucement             *int    `json:"main_annoucement"`
+		ActivitySupportAnnouncement *int    `json:"activity_support_announcement"`
 	}
 
 	var req FundDetailsRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
+	}
+
+	// Resolve announcement snapshot at the time of submission.
+	var ann struct {
+		MainAnnoucement             *int
+		ActivitySupportAnnouncement *int
+	}
+	if err := config.DB.Raw(`
+                SELECT main_annoucement, activity_support_announcement
+                FROM system_config
+                ORDER BY config_id DESC
+                LIMIT 1
+        `).Scan(&ann).Error; err != nil {
+		ann.MainAnnoucement = req.MainAnnoucement
+		ann.ActivitySupportAnnouncement = req.ActivitySupportAnnouncement
+	}
+
+	if ann.MainAnnoucement == nil && req.MainAnnoucement != nil {
+		ann.MainAnnoucement = req.MainAnnoucement
+	}
+	if ann.ActivitySupportAnnouncement == nil && req.ActivitySupportAnnouncement != nil {
+		ann.ActivitySupportAnnouncement = req.ActivitySupportAnnouncement
 	}
 
 	// Validate submission exists and user has permission
@@ -1951,11 +2052,13 @@ func AddFundDetails(c *gin.Context) {
 
 	// Create fund application details
 	fundDetails := models.FundApplicationDetail{
-		SubmissionID:       submission.SubmissionID,
-		SubcategoryID:      req.SubcategoryID,
-		ProjectTitle:       req.ProjectTitle,
-		ProjectDescription: req.ProjectDescription,
-		RequestedAmount:    req.RequestedAmount,
+		SubmissionID:                submission.SubmissionID,
+		SubcategoryID:               req.SubcategoryID,
+		ProjectTitle:                req.ProjectTitle,
+		ProjectDescription:          req.ProjectDescription,
+		RequestedAmount:             req.RequestedAmount,
+		MainAnnoucement:             ann.MainAnnoucement,
+		ActivitySupportAnnouncement: ann.ActivitySupportAnnouncement,
 	}
 
 	if err := config.DB.Create(&fundDetails).Error; err != nil {
