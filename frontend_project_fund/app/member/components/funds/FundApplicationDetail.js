@@ -13,7 +13,7 @@ import {
   Download,
 } from "lucide-react";
 import { submissionAPI, submissionUsersAPI } from "@/app/lib/member_api";
-import apiClient, { announcementAPI } from "@/app/lib/api";
+import apiClient, { announcementAPI, APIError } from "@/app/lib/api";
 import { PDFDocument } from "pdf-lib";
 import PageLayout from "../common/PageLayout";
 import Card from "../common/Card";
@@ -138,6 +138,138 @@ const extractFirstFilePath = (value) => {
   return null;
 };
 
+const toCamelSuffix = (suffix) => {
+  if (!suffix) return "";
+  const trimmed = suffix.replace(/^_+/, "");
+  if (!trimmed) return "";
+  return trimmed
+    .split("_")
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join("");
+};
+
+const buildKeyVariants = (base, suffixes) => {
+  const variants = new Set();
+  const hasUnderscore = base.includes("_");
+  const hasCamel = /[A-Z]/.test(base);
+
+  for (const suffix of suffixes) {
+    if (hasUnderscore) {
+      variants.add(`${base}${suffix}`);
+    }
+
+    if (hasCamel || !hasUnderscore) {
+      const camelSuffix = toCamelSuffix(suffix);
+      variants.add(`${base}${camelSuffix}`);
+    }
+  }
+
+  return Array.from(variants);
+};
+
+const buildAnnouncementFromDetail = (detail, baseNames) => {
+  if (!detail || typeof detail !== "object") return null;
+
+  const objectSuffixes = [
+    "",
+    "_detail",
+    "_obj",
+    "_object",
+    "_document",
+    "_file",
+    "_info",
+    "_data",
+    "_record",
+  ];
+
+  const objectCandidates = [];
+  for (const base of baseNames) {
+    const keys = buildKeyVariants(base, objectSuffixes);
+    for (const key of keys) {
+      const value = detail?.[key];
+      if (!value || typeof value !== "object") continue;
+
+      const labelCandidate = firstNonEmpty(
+        value.title,
+        value.file_name,
+        value.announcement_file_name,
+        value.name,
+        value.label,
+        value.document_name,
+        value.display_name,
+      );
+      const filePath = extractFirstFilePath(value);
+
+      if (labelCandidate || filePath) {
+        if (filePath && !value.file_path) {
+          return { ...value, file_path: filePath };
+        }
+        return value;
+      }
+    }
+  }
+
+  const pathSuffixes = [
+    "_file_path",
+    "_document_path",
+    "_path",
+    "_url",
+    "_file_url",
+    "_download_url",
+    "_document_url",
+    "_attachment_path",
+    "_attachment_url",
+    "_link",
+  ];
+
+  const labelSuffixes = [
+    "_title",
+    "_name",
+    "_label",
+    "_file_name",
+    "_document_name",
+    "_file_label",
+    "_display_name",
+    "_original_name",
+    "_file_title",
+  ];
+
+  const pathCandidates = [];
+  const labelCandidates = [];
+
+  for (const base of baseNames) {
+    const pathKeys = buildKeyVariants(base, pathSuffixes);
+    for (const key of pathKeys) {
+      const value = detail?.[key];
+      if (typeof value === "string" && value.trim() !== "") {
+        pathCandidates.push(value.trim());
+      }
+    }
+
+    const labelKeys = buildKeyVariants(base, labelSuffixes);
+    for (const key of labelKeys) {
+      const value = detail?.[key];
+      if (typeof value === "string" && value.trim() !== "") {
+        labelCandidates.push(value.trim());
+      }
+    }
+  }
+
+  const filePath = firstNonEmpty(...pathCandidates);
+  const label = firstNonEmpty(...labelCandidates);
+
+  if (filePath || label) {
+    return {
+      title: label || undefined,
+      file_name: label || undefined,
+      file_path: filePath || undefined,
+    };
+  }
+
+  return null;
+};
+
 const resolveAnnouncementInfo = (value, fallbackLabel) => {
   const fallback =
     typeof fallbackLabel === "string"
@@ -155,10 +287,13 @@ const resolveAnnouncementInfo = (value, fallbackLabel) => {
       firstNonEmpty(
         value.title,
         value.file_name,
+        value.announcement_file_name,
         value.file_name_th,
         value.file_name_en,
         value.name,
         value.announcement_title,
+        value.announcement_title_th,
+        value.announcement_title_en,
         value.original_name,
         value.label,
         value.title_th,
@@ -169,6 +304,8 @@ const resolveAnnouncementInfo = (value, fallbackLabel) => {
         value.reference_number,
         value.reference,
         value.code,
+        value.id != null ? `#${value.id}` : null,
+        value.announcement_id != null ? `#${value.announcement_id}` : null,
         fallback,
       ) || "-";
 
@@ -475,6 +612,28 @@ export default function FundApplicationDetail({ submissionId, onNavigate }) {
   const documents =
     submission?.documents || submission?.submission_documents || [];
 
+  const mainAnnouncementFallback = useMemo(
+    () =>
+      buildAnnouncementFromDetail(detail, [
+        "main_annoucement",
+        "main_announcement",
+        "mainAnnoucement",
+        "mainAnnouncement",
+      ]),
+    [detail],
+  );
+
+  const activityAnnouncementFallback = useMemo(
+    () =>
+      buildAnnouncementFromDetail(detail, [
+        "activity_support_announcement",
+        "activity_announcement",
+        "activitySupportAnnouncement",
+        "activityAnnouncement",
+      ]),
+    [detail],
+  );
+
   useEffect(() => {
     const hasAnnouncementIds =
       Boolean(mainAnnouncementId) || Boolean(activityAnnouncementId);
@@ -485,49 +644,39 @@ export default function FundApplicationDetail({ submissionId, onNavigate }) {
     }
 
     let cancelled = false;
-    (async () => {
-      try {
-        if (mainAnnouncementId) {
-          const response = await announcementAPI.getAnnouncement(
-            mainAnnouncementId
-          );
-          const parsed =
-            response?.announcement ||
-            response?.data?.announcement ||
-            response?.data ||
-            response ||
-            null;
-          if (!cancelled) {
-            setMainAnnouncementDetail(parsed);
-          }
-        } else if (!cancelled) {
-          setMainAnnouncementDetail(null);
-        }
 
-        if (activityAnnouncementId) {
-          const response = await announcementAPI.getAnnouncement(
-            activityAnnouncementId
-          );
-          const parsed =
-            response?.announcement ||
-            response?.data?.announcement ||
-            response?.data ||
-            response ||
-            null;
-          if (!cancelled) {
-            setActivityAnnouncementDetail(parsed);
-          }
-        } else if (!cancelled) {
-          setActivityAnnouncementDetail(null);
+    const loadAnnouncement = async (id, setter) => {
+      if (!id) {
+        setter(null);
+        return;
+      }
+
+      try {
+        const response = await announcementAPI.getAnnouncement(id);
+        const parsed =
+          response?.announcement ||
+          response?.data?.announcement ||
+          response?.data ||
+          response ||
+          null;
+
+        if (!cancelled) {
+          setter(parsed);
         }
       } catch (error) {
-        console.warn("Unable to load announcement detail", error);
+        const isNotFound =
+          error instanceof APIError ? error.status === 404 : error?.status === 404;
+        if (!isNotFound) {
+          console.warn("Unable to load announcement detail", error);
+        }
         if (!cancelled) {
-          setMainAnnouncementDetail(null);
-          setActivityAnnouncementDetail(null);
+          setter(null);
         }
       }
-    })();
+    };
+
+    loadAnnouncement(mainAnnouncementId, setMainAnnouncementDetail);
+    loadAnnouncement(activityAnnouncementId, setActivityAnnouncementDetail);
 
     return () => {
       cancelled = true;
@@ -560,6 +709,7 @@ export default function FundApplicationDetail({ submissionId, onNavigate }) {
     mainAnnouncementDetail ||
     detail?.main_announcement_detail ||
     detail?.main_annoucement_detail ||
+    mainAnnouncementFallback ||
     detail?.main_announcement ||
     detail?.main_annoucement ||
     null;
@@ -568,6 +718,7 @@ export default function FundApplicationDetail({ submissionId, onNavigate }) {
     activityAnnouncementDetail ||
     detail?.activity_support_announcement_detail ||
     detail?.activity_announcement_detail ||
+    activityAnnouncementFallback ||
     detail?.activity_support_announcement_obj ||
     detail?.activity_support_announcement ||
     detail?.activity_announcement ||
