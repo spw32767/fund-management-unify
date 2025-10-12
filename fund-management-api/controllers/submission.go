@@ -2050,6 +2050,28 @@ func AddFundDetails(c *gin.Context) {
 		return
 	}
 
+	// Resolve announcement snapshot at the time of submission.
+	var ann struct {
+		MainAnnoucement             *int
+		ActivitySupportAnnouncement *int
+	}
+	if err := config.DB.Raw(`
+                SELECT main_annoucement, activity_support_announcement
+                FROM system_config
+                ORDER BY config_id DESC
+                LIMIT 1
+        `).Scan(&ann).Error; err != nil {
+		ann.MainAnnoucement = req.MainAnnoucement
+		ann.ActivitySupportAnnouncement = req.ActivitySupportAnnouncement
+	}
+
+	if ann.MainAnnoucement == nil && req.MainAnnoucement != nil {
+		ann.MainAnnoucement = req.MainAnnoucement
+	}
+	if ann.ActivitySupportAnnouncement == nil && req.ActivitySupportAnnouncement != nil {
+		ann.ActivitySupportAnnouncement = req.ActivitySupportAnnouncement
+	}
+
 	// Create fund application details
 	fundDetails := models.FundApplicationDetail{
 		SubmissionID:                submission.SubmissionID,
