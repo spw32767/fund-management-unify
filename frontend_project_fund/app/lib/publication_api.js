@@ -76,6 +76,17 @@ export const submissionAPI = {
     }
   },
 
+  async mergeSubmissionDocuments(id) {
+    try {
+      const response = await apiClient.post(`/submissions/${id}/merge-documents`);
+      return response;
+    } catch (error) {
+      console.error('Error merging submission documents:', error);
+      throw error;
+    }
+  },
+
+
   // Get documents for submission - เพิ่มใหม่
   async getDocuments(submissionId) {
     try {
