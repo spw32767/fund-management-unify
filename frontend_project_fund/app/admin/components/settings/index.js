@@ -6,5 +6,6 @@ export { default as AnnouncementManager } from "./announcement_config/Announceme
 export { default as DocumentTypeManager } from "./document_config/DocumentTypeManager";
 export { default as FundManagementTab } from "./funds_config/FundManagementTab";
 export { default as YearManagementTab } from "./years_config/YearManagementTab";
+export { default as InstallmentManagementTab } from "./installment_config/InstallmentManagementTab";
 export { default as RewardConfigManager } from "./reward_config/RewardConfigManager";
 export { default as SystemConfigSettings } from "./system_config/SystemConfigSettings";
