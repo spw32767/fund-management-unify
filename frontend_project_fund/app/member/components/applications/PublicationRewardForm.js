@@ -3432,7 +3432,7 @@ const showSubmissionConfirmation = async () => {
 
         if (installmentNumber != null) {
           try {
-            await submissionAPI.update(submissionId, {
+            await submissionAPI.updateSubmission(submissionId, {
               installment_number_at_submit: installmentNumber,
             });
           } catch (installmentUpdateError) {
