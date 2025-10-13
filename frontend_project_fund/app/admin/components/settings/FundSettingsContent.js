@@ -1,6 +1,6 @@
 // FundSettingsContent.js - Updated Main Component with SweetAlert2
 import React, { useState, useEffect } from "react";
-import { Settings, Calendar, DollarSign, PencilLine, FileText, FileStack } from "lucide-react";
+import { Settings, Calendar, CalendarClock, DollarSign, PencilLine, FileText, FileStack } from "lucide-react";
 import Swal from 'sweetalert2';
 
 // Import separated components
@@ -12,6 +12,7 @@ import RewardConfigManager from "@/app/admin/components/settings/reward_config/R
 import SystemConfigSettings from "@/app/admin/components/settings/system_config/SystemConfigSettings";
 import AnnouncementManager from "@/app/admin/components/settings/announcement_config/AnnouncementManager";
 import DocumentTypeManager from "@/app/admin/components/settings/document_config/DocumentTypeManager";
+import InstallmentPeriodsManager from "@/app/admin/components/settings/installment_config/InstallmentPeriodsManager";
 
 // Import modals
 import CategoryModal from "@/app/admin/components/settings/funds_config/CategoryModal";
@@ -26,6 +27,7 @@ import systemConfigAPI from "@/app/lib/system_config_api";
 const TAB_ITEMS = [
   { id: "funds", label: "จัดการทุน", icon: DollarSign },
   { id: "years", label: "จัดการปีงบประมาณ", icon: Calendar },
+  { id: "installments", label: "ตั้งค่างวดทุน", icon: CalendarClock },
   { id: "reward-config", label: "จัดการเงินรางวัล", icon: Settings },
   { id: "system", label: "ตั้งค่าระบบ", icon: PencilLine },
   { id: "announcements", label: "ประกาศ/ไฟล์", icon: FileText },
@@ -1271,6 +1273,15 @@ export default function FundSettingsContent({ onNavigate }) {
             years={years}
             onSaveYear={handleSaveYear}
             // onDeleteYear={handleDeleteYear}
+          />
+        );
+      case "installments":
+        return (
+          <InstallmentPeriodsManager
+            years={years}
+            selectedYear={selectedYear}
+            onYearChange={handleYearChange}
+            onRefreshYears={() => loadYears({ preserveSelection: true })}
           />
         );
       case "reward-config":

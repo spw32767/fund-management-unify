@@ -8,3 +8,4 @@ export { default as FundManagementTab } from "./funds_config/FundManagementTab";
 export { default as YearManagementTab } from "./years_config/YearManagementTab";
 export { default as RewardConfigManager } from "./reward_config/RewardConfigManager";
 export { default as SystemConfigSettings } from "./system_config/SystemConfigSettings";
+export { default as InstallmentPeriodsManager } from "./installment_config/InstallmentPeriodsManager";

@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"fund-management-api/config"
 	"fund-management-api/models"
@@ -59,12 +60,31 @@ type fundInstallmentPeriodResponse struct {
 	Name                *string `json:"name,omitempty"`
 	Status              *string `json:"status,omitempty"`
 	Remark              *string `json:"remark,omitempty"`
+	CreatedAt           string  `json:"created_at,omitempty"`
+	UpdatedAt           string  `json:"updated_at,omitempty"`
+	DeletedAt           *string `json:"deleted_at,omitempty"`
 }
 
 func newFundInstallmentPeriodResponse(period models.FundInstallmentPeriod) fundInstallmentPeriodResponse {
 	cutoff := ""
 	if !period.CutoffDate.IsZero() {
 		cutoff = period.CutoffDate.Format("2006-01-02")
+	}
+
+	createdAt := ""
+	if !period.CreatedAt.IsZero() {
+		createdAt = period.CreatedAt.UTC().Format(time.RFC3339)
+	}
+
+	updatedAt := ""
+	if !period.UpdatedAt.IsZero() {
+		updatedAt = period.UpdatedAt.UTC().Format(time.RFC3339)
+	}
+
+	var deletedAt *string
+	if period.DeletedAt != nil {
+		formatted := period.DeletedAt.UTC().Format(time.RFC3339)
+		deletedAt = &formatted
 	}
 
 	return fundInstallmentPeriodResponse{
@@ -75,5 +95,8 @@ func newFundInstallmentPeriodResponse(period models.FundInstallmentPeriod) fundI
 		Name:                period.Name,
 		Status:              period.Status,
 		Remark:              period.Remark,
+		CreatedAt:           createdAt,
+		UpdatedAt:           updatedAt,
+		DeletedAt:           deletedAt,
 	}
 }

@@ -4,6 +4,7 @@ package controllers
 import (
 	"crypto/rand"
 	"crypto/sha256"
+	"database/sql"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -325,10 +326,9 @@ func UpdateSubmission(c *gin.Context) {
 	roleID, _ := c.Get("roleID")
 
 	type UpdateSubmissionRequest struct {
-		CategoryID                *int `json:"category_id"`
-		SubcategoryID             *int `json:"subcategory_id"`
-		SubcategoryBudgetID       *int `json:"subcategory_budget_id"`
-		InstallmentNumberAtSubmit *int `json:"installment_number_at_submit"`
+		CategoryID          *int `json:"category_id"`
+		SubcategoryID       *int `json:"subcategory_id"`
+		SubcategoryBudgetID *int `json:"subcategory_budget_id"`
 		// อนาคตจะมีฟิลด์อื่นก็ใส่เพิ่มได้
 	}
 
@@ -358,9 +358,6 @@ func UpdateSubmission(c *gin.Context) {
 	}
 	if req.SubcategoryBudgetID != nil {
 		updates["subcategory_budget_id"] = *req.SubcategoryBudgetID
-	}
-	if req.InstallmentNumberAtSubmit != nil {
-		updates["installment_number_at_submit"] = *req.InstallmentNumberAtSubmit
 	}
 
 	if err := config.DB.Model(&submission).Updates(updates).Error; err != nil {
@@ -442,18 +439,36 @@ func SubmitSubmission(c *gin.Context) {
 
 	now := time.Now()
 
+	var computedInstallment *int
+
 	if err := config.DB.Transaction(func(tx *gorm.DB) error {
+		updates := map[string]interface{}{
+			"submitted_at": &now,
+			"updated_at":   now,
+		}
+
+		if submission.InstallmentNumberAtSubmit == nil {
+			number, err := determineCurrentInstallmentNumber(tx, submission.YearID, now)
+			if err != nil {
+				return fmt.Errorf("failed to determine installment number: %w", err)
+			}
+			if number != nil {
+				updates["installment_number_at_submit"] = *number
+				computedInstallment = number
+			}
+		}
+
 		if err := tx.Model(&models.Submission{}).
 			Where("submission_id = ?", submission.SubmissionID).
-			Updates(map[string]interface{}{
-				"submitted_at": &now,
-				"updated_at":   now,
-			}).Error; err != nil {
+			Updates(updates).Error; err != nil {
 			return err
 		}
 
 		submission.SubmittedAt = &now
 		submission.UpdatedAt = now
+		if computedInstallment != nil {
+			submission.InstallmentNumberAtSubmit = computedInstallment
+		}
 
 		if submission.SubmissionType != "publication_reward" {
 			return nil
@@ -644,6 +659,35 @@ func SubmitSubmission(c *gin.Context) {
 		"success": true,
 		"message": "Submission submitted successfully",
 	})
+}
+
+func determineCurrentInstallmentNumber(tx *gorm.DB, yearID int, requestDate time.Time) (*int, error) {
+	var period models.FundInstallmentPeriod
+	err := tx.Model(&models.FundInstallmentPeriod{}).
+		Where("year_id = ? AND status = 'active' AND deleted_at IS NULL AND cutoff_date >= ?", yearID, requestDate.Format("2006-01-02")).
+		Order("cutoff_date ASC, installment_number ASC").
+		First(&period).Error
+	if err == nil {
+		value := period.InstallmentNumber
+		return &value, nil
+	}
+	if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, err
+	}
+
+	var maxNumber sql.NullInt64
+	if err := tx.Model(&models.FundInstallmentPeriod{}).
+		Where("year_id = ? AND status = 'active' AND deleted_at IS NULL", yearID).
+		Select("MAX(installment_number)").
+		Scan(&maxNumber).Error; err != nil {
+		return nil, err
+	}
+	if maxNumber.Valid {
+		value := int(maxNumber.Int64)
+		return &value, nil
+	}
+
+	return nil, nil
 }
 
 // MergeSubmissionDocuments collects every PDF document attached to a submission, merges them
