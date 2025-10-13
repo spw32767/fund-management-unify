@@ -7,6 +7,7 @@ import Swal from "sweetalert2";
 import PageLayout from "../common/PageLayout";
 import SimpleCard from "../common/SimpleCard";
 import { authAPI, systemAPI, documentTypesAPI } from '../../../lib/api';
+import { fundInstallmentAPI } from '../../../lib/fund_installment_api';
 import { PDFDocument } from "pdf-lib";
 
 // เพิ่ม apiClient สำหรับเรียก API โดยตรง
@@ -1126,6 +1127,26 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
 
       // Step 4: Submit the submission
       if (submissionId) {
+        const submissionDate = new Date();
+        try {
+          const installmentNumber = await fundInstallmentAPI.resolveInstallmentNumber({
+            yearId: subcategoryData?.year_id ?? formData.year_id ?? null,
+            submissionDate,
+          });
+
+          if (installmentNumber != null) {
+            try {
+              await submissionAPI.update(submissionId, {
+                installment_number_at_submit: installmentNumber,
+              });
+            } catch (installmentUpdateError) {
+              console.warn('Failed to update installment_number_at_submit:', installmentUpdateError);
+            }
+          }
+        } catch (installmentError) {
+          console.warn('Failed to resolve installment period for submission:', installmentError);
+        }
+
         await submissionAPI.submitSubmission(submissionId);
         try {
           await submissionAPI.mergeSubmissionDocuments(submissionId);
