@@ -82,20 +82,19 @@ const extractItems = (payload) => {
 };
 
 export const adminInstallmentAPI = {
-  async list({ yearId, status = "active", limit = 50, offset = 0, includeDeleted = false } = {}) {
+  async list({ yearId, status = "all", limit = 50, offset = 0 } = {}) {
     if (!yearId) {
       throw new Error("yearId is required to list installment periods");
     }
 
     const params = {
       year_id: yearId,
-      status,
       limit,
       offset,
     };
 
-    if (includeDeleted) {
-      params.include_deleted = true;
+    if (status) {
+      params.status = status;
     }
 
     const response = await apiClient.get("/admin/installments", params);
