@@ -1,20 +1,30 @@
 // app/teacher/components/announcements/AnnouncementPage.js
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { FileText, Eye, Download, Bell, BookOpen } from "lucide-react";
-import apiClient, { announcementAPI, fundFormAPI } from "../../../lib/api";
+import apiClient, { announcementAPI, fundFormAPI, systemAPI } from "../../../lib/api";
+import { systemConfigAPI } from "../../../lib/system_config_api";
 import DataTable from "../../../admin/components/common/DataTable";
 
 export default function AnnouncementPage() {
   const [announcements, setAnnouncements] = useState([]);
+  const [filteredAnnouncements, setFilteredAnnouncements] = useState([]);
   const [fundForms, setFundForms] = useState([]);
   const [loadingAnnouncements, setLoadingAnnouncements] = useState(true);
   const [loadingForms, setLoadingForms] = useState(true);
+  const [systemConfigAnnouncementIds, setSystemConfigAnnouncementIds] = useState([]);
+  const [announcementVisibilityFilter, setAnnouncementVisibilityFilter] = useState("current");
+  const [selectedYearId, setSelectedYearId] = useState("all");
+  const [years, setYears] = useState([]);
+  const [yearsLoading, setYearsLoading] = useState(false);
+  const [currentYearLabel, setCurrentYearLabel] = useState(null);
 
   useEffect(() => {
     loadAnnouncements();
     loadFundForms();
+    loadSystemConfig();
+    loadYears();
   }, []);
 
   const loadAnnouncements = async () => {
@@ -22,7 +32,28 @@ export default function AnnouncementPage() {
       setLoadingAnnouncements(true);
       const response = await announcementAPI.getAnnouncements({ active_only: true });
       if (response.success) {
-        setAnnouncements(response.data || []);
+        const normalizedAnnouncements = (response.data || []).map((item) => {
+          const yearLabel =
+            item?.year?.year ??
+            item?.Year?.year ??
+            item?.year ??
+            item?.Year ??
+            null;
+
+          const yearId =
+            item?.year?.year_id ??
+            item?.Year?.year_id ??
+            item?.year_id ??
+            item?.YearId ??
+            null;
+
+          return {
+            ...item,
+            year: yearLabel ?? null,
+            year_id: yearId ?? null,
+          };
+        });
+        setAnnouncements(normalizedAnnouncements);
       } else {
         setAnnouncements([]);
       }
@@ -52,6 +83,154 @@ export default function AnnouncementPage() {
     }
   };
 
+  const loadSystemConfig = async () => {
+    try {
+      const rawConfig = await systemConfigAPI.getWindow();
+      const normalized = systemConfigAPI.normalizeWindow(rawConfig);
+
+      const candidateKeys = [
+        "main_annoucement",
+        "main_announcement",
+        "main_ann_id",
+        "reward_annoucement",
+        "reward_announcement",
+        "reward_ann_id",
+        "activity_support_annoucement",
+        "activity_support_announcement",
+        "activity_support_ann_id",
+        "conference_annoucement",
+        "conference_announcement",
+        "conference_ann_id",
+        "service_annoucement",
+        "service_announcement",
+        "service_ann_id",
+      ];
+
+      const configIds = new Set();
+
+      candidateKeys.forEach((key) => {
+        const value = normalized?.[key];
+        if (value != null && value !== "") {
+          configIds.add(String(value));
+        }
+      });
+
+      const slotWindows = ["main", "reward", "activity_support", "conference", "service"];
+      slotWindows.forEach((slot) => {
+        const slotId = normalized?.[`${slot}_window`]?.id ?? null;
+        if (slotId != null && slotId !== "") {
+          configIds.add(String(slotId));
+        }
+      });
+
+      setSystemConfigAnnouncementIds(Array.from(configIds));
+
+      const normalizedCurrentYear =
+        normalized?.current_year != null && normalized.current_year !== ""
+          ? String(normalized.current_year)
+          : null;
+
+      if (normalizedCurrentYear != null) {
+        setCurrentYearLabel((prev) => prev ?? normalizedCurrentYear);
+      }
+    } catch (error) {
+      console.error("Error loading system config:", error);
+      setSystemConfigAnnouncementIds([]);
+    }
+  };
+
+  const loadYears = async () => {
+    setYearsLoading(true);
+    try {
+      const [yearsResponse, currentYearResponse] = await Promise.all([
+        systemAPI.getYears().catch((error) => {
+          console.error("Error fetching years list:", error);
+          return null;
+        }),
+        systemConfigAPI.getCurrentYear().catch((error) => {
+          console.error("Error fetching current year:", error);
+          return null;
+        }),
+      ]);
+
+      const rawYears = Array.isArray(yearsResponse?.years)
+        ? yearsResponse.years
+        : Array.isArray(yearsResponse?.data)
+        ? yearsResponse.data
+        : Array.isArray(yearsResponse)
+        ? yearsResponse
+        : [];
+
+      const normalizedYears = rawYears
+        .map((year) => ({
+          year_id:
+            year?.year_id != null
+              ? String(year.year_id)
+              : year?.YearID != null
+              ? String(year.YearID)
+              : year?.id != null
+              ? String(year.id)
+              : null,
+          year:
+            year?.year != null
+              ? String(year.year)
+              : year?.Year != null
+              ? String(year.Year)
+              : null,
+        }))
+        .filter((year) => year.year_id && year.year);
+
+      setYears(normalizedYears);
+
+      const defaultYearCandidate =
+        currentYearResponse?.current_year ??
+        currentYearResponse?.data?.current_year ??
+        currentYearResponse?.year ??
+        null;
+
+      const normalizedDefaultYear =
+        defaultYearCandidate != null && defaultYearCandidate !== ""
+          ? String(defaultYearCandidate)
+          : null;
+
+      if (normalizedDefaultYear != null) {
+        setCurrentYearLabel((prev) => prev ?? normalizedDefaultYear);
+
+        const matchingYear = normalizedYears.find(
+          (year) => String(year.year) === normalizedDefaultYear
+        );
+
+        if (matchingYear?.year_id != null) {
+          const matchingYearId = String(matchingYear.year_id);
+          setSelectedYearId((prev) => (prev === "all" ? matchingYearId : prev));
+        }
+      }
+    } catch (error) {
+      console.error("Error loading years:", error);
+      setYears([]);
+    } finally {
+      setYearsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!currentYearLabel || selectedYearId !== "all") {
+      return;
+    }
+
+    if (!Array.isArray(years) || years.length === 0) {
+      return;
+    }
+
+    const normalizedLabel = String(currentYearLabel);
+    const matchedYear = years.find((year) => String(year.year) === normalizedLabel);
+
+    if (matchedYear?.year_id != null) {
+      const matchedYearId = String(matchedYear.year_id);
+      setSelectedYearId((prev) => (prev === "all" ? matchedYearId : prev));
+    }
+  }, [years, currentYearLabel, selectedYearId]);
+
   const handleViewFile = (filePath) => {
     if (!filePath) return;
     const baseUrl = apiClient.baseURL.replace(/\/?api\/v1$/, '');
@@ -77,6 +256,87 @@ export default function AnnouncementPage() {
       console.error('Download failed:', error);
     }
   };
+
+  const extractAnnouncementId = (item) => {
+    if (!item || typeof item !== "object") return null;
+
+    const candidates = [
+      item.announcement_id,
+      item.announcementId,
+      item.id,
+      item.AnnouncementID,
+      item.announcement?.id,
+      item.announcement?.announcement_id,
+    ];
+
+    for (const candidate of candidates) {
+      if (candidate != null && candidate !== "") {
+        return String(candidate);
+      }
+    }
+
+    return null;
+  };
+
+  useEffect(() => {
+    const configIdSet = new Set(systemConfigAnnouncementIds.map(String));
+
+    const shouldFilterByYear =
+      announcementVisibilityFilter === "all" && selectedYearId !== "all";
+
+    const filtered = announcements.filter((announcement) => {
+      const announcementId = extractAnnouncementId(announcement);
+
+      const matchesCurrent =
+        announcementVisibilityFilter === "current"
+          ? announcementId != null && configIdSet.has(String(announcementId))
+          : true;
+
+      if (!matchesCurrent) {
+        return false;
+      }
+
+      if (!shouldFilterByYear) {
+        return true;
+      }
+
+      const candidateYearIds = [
+        announcement?.year_id,
+        announcement?.YearId,
+        announcement?.year?.year_id,
+        announcement?.Year?.year_id,
+      ]
+        .map((value) => (value != null && value !== "" ? String(value) : null))
+        .filter(Boolean);
+
+      if (candidateYearIds.length === 0) {
+        return false;
+      }
+
+      return candidateYearIds.some((yearId) => yearId === selectedYearId);
+    });
+
+    setFilteredAnnouncements(filtered);
+  }, [
+    announcements,
+    announcementVisibilityFilter,
+    selectedYearId,
+    systemConfigAnnouncementIds,
+  ]);
+
+  const sortedYears = useMemo(() => {
+    const yearsCopy = Array.isArray(years) ? [...years] : [];
+    return yearsCopy.sort((a, b) => {
+      const aYear = Number(a.year);
+      const bYear = Number(b.year);
+
+      if (Number.isNaN(aYear) || Number.isNaN(bYear)) {
+        return String(b.year).localeCompare(String(a.year));
+      }
+
+      return bYear - aYear;
+    });
+  }, [years]);
 
   const getAnnouncementTypeColor = (type) => {
     switch (type) {
@@ -316,8 +576,47 @@ export default function AnnouncementPage() {
               </div>
             </div>
           </div>
-          
+
           <div className="p-6">
+            <div className="mb-4 flex flex-wrap items-center gap-4">
+              <div className="flex items-center gap-2">
+                <label htmlFor="announcement-visibility-filter" className="text-sm font-medium text-gray-700">
+                  แสดง
+                </label>
+                <select
+                  id="announcement-visibility-filter"
+                  value={announcementVisibilityFilter}
+                  onChange={(event) => setAnnouncementVisibilityFilter(event.target.value)}
+                  className="block rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="current">ประกาศปัจจุบัน</option>
+                  <option value="all">ทั้งหมด</option>
+                </select>
+              </div>
+
+              {announcementVisibilityFilter === "all" && (
+                <div className="flex items-center gap-2">
+                  <label htmlFor="announcement-year-filter" className="text-sm font-medium text-gray-700">
+                    ปี
+                  </label>
+                  <select
+                    id="announcement-year-filter"
+                    value={selectedYearId}
+                    onChange={(event) => setSelectedYearId(event.target.value)}
+                    disabled={yearsLoading}
+                    className="block rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:cursor-not-allowed disabled:bg-gray-100"
+                  >
+                    <option value="all">ทั้งหมด</option>
+                    {sortedYears.map((year) => (
+                      <option key={year.year_id} value={year.year_id}>
+                        {year.year}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+            </div>
+
             {loadingAnnouncements ? (
               <div className="flex items-center justify-center py-8">
                 <div className="w-8 h-8 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin"></div>
@@ -326,7 +625,7 @@ export default function AnnouncementPage() {
             ) : (
               <DataTable
                 columns={announcementColumns}
-                data={announcements}
+                data={filteredAnnouncements}
                 emptyMessage="ไม่มีประกาศในขณะนี้"
               />
             )}
