@@ -7,6 +7,7 @@ import { Award, Upload, Users, FileText, Plus, X, Save, Send, AlertCircle, Calcu
 import PageLayout from "../common/PageLayout";
 import SimpleCard from "../common/SimpleCard";
 import apiClient, { systemAPI, authAPI } from '../../../lib/api';
+import { fundInstallmentAPI } from '../../../lib/fund_installment_api';
 import {
   submissionAPI,
   publicationDetailsAPI,
@@ -3421,6 +3422,26 @@ const showSubmissionConfirmation = async () => {
       Swal.update({
         html: 'กำลังส่งคำร้อง...'
       });
+
+      const submissionDate = new Date();
+      try {
+        const installmentNumber = await fundInstallmentAPI.resolveInstallmentNumber({
+          yearId: formData.year_id ?? null,
+          submissionDate,
+        });
+
+        if (installmentNumber != null) {
+          try {
+            await submissionAPI.update(submissionId, {
+              installment_number_at_submit: installmentNumber,
+            });
+          } catch (installmentUpdateError) {
+            console.warn('Failed to update installment_number_at_submit:', installmentUpdateError);
+          }
+        }
+      } catch (installmentError) {
+        console.warn('Failed to resolve installment period for submission:', installmentError);
+      }
 
       await submissionAPI.submitSubmission(submissionId);
       try {
