@@ -281,6 +281,9 @@ export default function AnnouncementPage() {
   useEffect(() => {
     const configIdSet = new Set(systemConfigAnnouncementIds.map(String));
 
+    const shouldFilterByYear =
+      announcementVisibilityFilter === "all" && selectedYearId !== "all";
+
     const filtered = announcements.filter((announcement) => {
       const announcementId = extractAnnouncementId(announcement);
 
@@ -293,7 +296,7 @@ export default function AnnouncementPage() {
         return false;
       }
 
-      if (selectedYearId === "all") {
+      if (!shouldFilterByYear) {
         return true;
       }
 
@@ -586,30 +589,32 @@ export default function AnnouncementPage() {
                   onChange={(event) => setAnnouncementVisibilityFilter(event.target.value)}
                   className="block rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
-                  <option value="all">ทั้งหมด</option>
                   <option value="current">ประกาศปัจจุบัน</option>
+                  <option value="all">ทั้งหมด</option>
                 </select>
               </div>
 
-              <div className="flex items-center gap-2">
-                <label htmlFor="announcement-year-filter" className="text-sm font-medium text-gray-700">
-                  ปี
-                </label>
-                <select
-                  id="announcement-year-filter"
-                  value={selectedYearId}
-                  onChange={(event) => setSelectedYearId(event.target.value)}
-                  disabled={yearsLoading}
-                  className="block rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:cursor-not-allowed disabled:bg-gray-100"
-                >
-                  <option value="all">ทั้งหมด</option>
-                  {sortedYears.map((year) => (
-                    <option key={year.year_id} value={year.year_id}>
-                      {year.year}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              {announcementVisibilityFilter === "all" && (
+                <div className="flex items-center gap-2">
+                  <label htmlFor="announcement-year-filter" className="text-sm font-medium text-gray-700">
+                    ปี
+                  </label>
+                  <select
+                    id="announcement-year-filter"
+                    value={selectedYearId}
+                    onChange={(event) => setSelectedYearId(event.target.value)}
+                    disabled={yearsLoading}
+                    className="block rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:cursor-not-allowed disabled:bg-gray-100"
+                  >
+                    <option value="all">ทั้งหมด</option>
+                    {sortedYears.map((year) => (
+                      <option key={year.year_id} value={year.year_id}>
+                        {year.year}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
             </div>
 
             {loadingAnnouncements ? (
