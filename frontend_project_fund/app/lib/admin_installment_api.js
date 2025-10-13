@@ -133,6 +133,36 @@ export const adminInstallmentAPI = {
     return { raw: response, period };
   },
 
+  async copy({ sourceYearId, targetYearId, targetYear } = {}) {
+    if (!sourceYearId) {
+      throw new Error("sourceYearId is required to copy installment periods");
+    }
+
+    const payload = {
+      source_year_id: Number(sourceYearId),
+    };
+
+    if (
+      targetYearId !== undefined &&
+      targetYearId !== null &&
+      targetYearId !== ""
+    ) {
+      const numericTargetId = Number(targetYearId);
+      if (Number.isInteger(numericTargetId) && numericTargetId > 0) {
+        payload.target_year_id = numericTargetId;
+      }
+    }
+
+    if (targetYear !== undefined && targetYear !== null) {
+      const trimmed = String(targetYear).trim();
+      if (trimmed) {
+        payload.target_year = trimmed;
+      }
+    }
+
+    return apiClient.post("/admin/installments/copy", payload);
+  },
+
   async remove(id) {
     if (!id) throw new Error("installment period id is required");
     return apiClient.delete(`/admin/installments/${id}`);

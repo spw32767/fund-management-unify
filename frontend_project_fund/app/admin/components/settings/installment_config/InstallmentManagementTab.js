@@ -1,13 +1,14 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { CalendarRange, Edit, Plus, RefreshCcw, Trash2, X } from "lucide-react";
+import { CalendarRange, Copy, Edit, Plus, RefreshCcw, Trash2 } from "lucide-react";
 import Swal from "sweetalert2";
 
 import SettingsSectionCard from "@/app/admin/components/settings/common/SettingsSectionCard";
 import StatusBadge from "@/app/admin/components/settings/StatusBadge";
 import { adminInstallmentAPI } from "@/app/lib/admin_installment_api";
 import { systemConfigAPI } from "@/app/lib/system_config_api";
+import InstallmentFormModal from "@/app/admin/components/settings/installment_config/InstallmentFormModal";
 
 const DEFAULT_LIMIT = 20;
 const INSTALLMENT_OPTIONS = [1, 2, 3, 4, 5];
@@ -54,71 +55,49 @@ const getYearLabel = (year) => {
   return value ? `พ.ศ. ${value}` : "ไม่ระบุปี";
 };
 
+const extractYearNumeric = (year) => {
+  if (!year || typeof year !== "object") return null;
+
+  const candidates = [
+    year.year,
+    year.year_th,
+    year.year_en,
+    year.year_fiscal,
+    year.fiscal_year,
+    year.name,
+    year.label,
+  ];
+
+  for (const candidate of candidates) {
+    if (candidate === undefined || candidate === null || candidate === "") continue;
+    const numeric = Number(candidate);
+    if (Number.isFinite(numeric)) {
+      return numeric;
+    }
+  }
+
+  return null;
+};
+
+const getYearDisplayValue = (year) => {
+  if (!year || typeof year !== "object") return "";
+  return (
+    year.year ??
+    year.year_th ??
+    year.year_en ??
+    year.name ??
+    year.label ??
+    year.fiscal_year ??
+    ""
+  );
+};
+
 const initialFormState = {
   installment_number: "1",
   cutoff_date: "",
   name: "",
   status: "active",
   remark: "",
-};
-
-const AnimatedModal = ({ open, onClose, title, children, footer }) => {
-  const [shouldRender, setShouldRender] = useState(open);
-  const [isVisible, setIsVisible] = useState(open);
-
-  useEffect(() => {
-    let timeoutId;
-
-    if (open) {
-      setShouldRender(true);
-      if (typeof window !== "undefined") {
-        requestAnimationFrame(() => setIsVisible(true));
-      } else {
-        setIsVisible(true);
-      }
-    } else {
-      setIsVisible(false);
-      timeoutId = setTimeout(() => setShouldRender(false), 200);
-    }
-
-    return () => {
-      if (timeoutId) clearTimeout(timeoutId);
-    };
-  }, [open]);
-
-  if (!shouldRender) return null;
-
-  return (
-    <div
-      className={`fixed inset-0 z-50 flex items-center justify-center px-4 transition-opacity duration-200 ${
-        isVisible ? "opacity-100" : "opacity-0"
-      }`}
-    >
-      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
-      <div
-        className={`relative w-full max-w-2xl transform overflow-hidden rounded-2xl bg-white shadow-2xl transition-all duration-200 ${
-          isVisible ? "scale-100 opacity-100 translate-y-0" : "scale-95 opacity-0 translate-y-4"
-        }`}
-      >
-        <div className="flex items-center justify-between border-b border-gray-100 px-6 py-4">
-          <h3 className="text-lg font-semibold text-gray-900">{title}</h3>
-          <button
-            type="button"
-            onClick={onClose}
-            className="inline-flex h-9 w-9 items-center justify-center rounded-full text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700"
-          >
-            <X size={18} />
-          </button>
-        </div>
-        <div className="max-h-[75vh] overflow-y-auto px-6 py-5">{children}</div>
-        {footer ? (
-          <div className="flex items-center justify-end gap-3 border-t border-gray-100 bg-gray-50 px-6 py-4">
-            {footer}
-          </div>
-        ) : null}
-      </div>
-    </div>
-  );
 };
 
 const InstallmentManagementTab = ({ years = [] }) => {
@@ -137,6 +116,7 @@ const InstallmentManagementTab = ({ years = [] }) => {
   const [formData, setFormData] = useState(initialFormState);
   const [editingPeriod, setEditingPeriod] = useState(null);
   const [submitting, setSubmitting] = useState(false);
+  const [copying, setCopying] = useState(false);
 
   const yearOptions = useMemo(() => {
     if (!Array.isArray(years)) return [];
@@ -147,6 +127,21 @@ const InstallmentManagementTab = ({ years = [] }) => {
       status: (year.status ?? "").toLowerCase(),
     }));
   }, [years]);
+
+  const selectedYearOption = useMemo(() => {
+    if (!selectedYearId) return null;
+    return yearOptions.find((option) => option.id === selectedYearId) ?? null;
+  }, [yearOptions, selectedYearId]);
+
+  const existingYearValues = useMemo(() => {
+    return yearOptions
+      .map((option) => extractYearNumeric(option.raw))
+      .filter((value) => value !== null);
+  }, [yearOptions]);
+
+  const availableExistingYears = useMemo(() => {
+    return yearOptions.filter((option) => option.id && option.id !== selectedYearId);
+  }, [yearOptions, selectedYearId]);
 
   useEffect(() => {
     let ignore = false;
@@ -342,6 +337,28 @@ const InstallmentManagementTab = ({ years = [] }) => {
     return Array.from(new Set(base)).sort((a, b) => a - b);
   }, [editingPeriod?.installment_number, formData.installment_number]);
 
+  const selectedYearValue = useMemo(() => {
+    if (!selectedYearOption) return null;
+    return extractYearNumeric(selectedYearOption.raw);
+  }, [selectedYearOption]);
+
+  const selectedYearTitle = useMemo(() => {
+    if (!selectedYearOption) return "ปีที่เลือก";
+    const display = getYearDisplayValue(selectedYearOption.raw);
+    if (display) {
+      return `พ.ศ. ${display}`;
+    }
+    if (selectedYearOption.label) return selectedYearOption.label;
+    if (selectedYearOption.id) return `ID ${selectedYearOption.id}`;
+    return "ปีที่เลือก";
+  }, [selectedYearOption]);
+
+  const copyDisabledReason = useMemo(() => {
+    if (!selectedYearId) return "กรุณาเลือกปีงบประมาณก่อน";
+    if (!periods?.length) return "ปีที่เลือกยังไม่มีงวดให้คัดลอก";
+    return null;
+  }, [selectedYearId, periods]);
+
   const handleFormChange = (field, value) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
@@ -472,6 +489,216 @@ const InstallmentManagementTab = ({ years = [] }) => {
     }
   };
 
+  const handleCopyPeriods = useCallback(async () => {
+    if (copyDisabledReason) {
+      await Swal.fire({
+        icon: "warning",
+        title: "ไม่สามารถคัดลอกได้",
+        text: copyDisabledReason,
+      });
+      return;
+    }
+
+    const selectedYearNumeric = selectedYearValue;
+    const defaultYear =
+      selectedYearNumeric && Number.isFinite(selectedYearNumeric)
+        ? String(selectedYearNumeric + 1)
+        : "";
+
+    const hasExistingTargets = availableExistingYears.length > 0;
+    const existingOptionsMarkup = availableExistingYears
+      .map((option) => {
+        const display = getYearDisplayValue(option.raw) || option.label || option.id;
+        const label = option.label || (display ? `พ.ศ. ${display}` : `ID ${option.id}`);
+        return `<option value="${option.id}" data-year-display="${display}">${label}</option>`;
+      })
+      .join("");
+
+    const dialogHtml = `
+      <div class="text-left space-y-4">
+        <div class="border border-gray-200 rounded-lg p-3" data-copy-section="new">
+          <label class="flex items-start gap-2">
+            <input type="radio" name="copy-mode" value="new" class="mt-1" checked />
+            <div>
+              <p class="font-medium text-gray-800">คัดลอกไปปีใหม่</p>
+              <p class="text-sm text-gray-600 mt-1">ระบบจะสร้างปีงบประมาณใหม่ตามปีที่ระบุ</p>
+            </div>
+          </label>
+          <input id="copy-new-year-input" class="swal2-input mt-3" placeholder="เช่น 2569" value="${defaultYear}" />
+        </div>
+        <div class="border border-gray-200 rounded-lg p-3 ${
+          hasExistingTargets ? "" : "opacity-50"
+        }" data-copy-section="existing">
+          <label class="flex items-start gap-2">
+            <input type="radio" name="copy-mode" value="existing" class="mt-1" ${
+              hasExistingTargets ? "" : "disabled"
+            } />
+            <div>
+              <p class="font-medium text-gray-800">เพิ่มไปยังปีที่มีอยู่</p>
+              <p class="text-sm text-gray-600 mt-1">เพิ่มงวดไปยังปีที่เลือกโดยไม่สร้างปีใหม่</p>
+            </div>
+          </label>
+          <select id="copy-existing-year-select" class="swal2-select mt-3" ${
+            hasExistingTargets ? "" : "disabled"
+          }>
+            <option value="">เลือกปีปลายทาง</option>
+            ${existingOptionsMarkup}
+          </select>
+        </div>
+      </div>
+    `;
+
+    const { value, isConfirmed } = await Swal.fire({
+      title: `คัดลอกงวดจาก ${selectedYearTitle}`,
+      html: dialogHtml,
+      focusConfirm: false,
+      showCancelButton: true,
+      confirmButtonText: "คัดลอก",
+      cancelButtonText: "ยกเลิก",
+      didOpen: (popup) => {
+        const updateModeState = () => {
+          const selectedMode =
+            popup.querySelector('input[name="copy-mode"]:checked')?.value || "new";
+          const newSection = popup.querySelector('[data-copy-section="new"]');
+          const existingSection = popup.querySelector('[data-copy-section="existing"]');
+          const newInput = popup.querySelector('#copy-new-year-input');
+          const existingSelect = popup.querySelector('#copy-existing-year-select');
+
+          if (newSection) {
+            newSection.classList.toggle('opacity-50', selectedMode !== 'new');
+          }
+          if (newInput) {
+            newInput.disabled = selectedMode !== 'new';
+          }
+
+          if (existingSection) {
+            const disableExisting = selectedMode !== 'existing' || !hasExistingTargets;
+            existingSection.classList.toggle('opacity-50', disableExisting);
+            if (!hasExistingTargets) {
+              existingSection.classList.add('opacity-50');
+            }
+            if (existingSelect) {
+              existingSelect.disabled = disableExisting;
+              if (!disableExisting && existingSelect.value === '' && existingSelect.options.length > 1) {
+                existingSelect.selectedIndex = 1;
+              }
+            }
+          }
+        };
+
+        updateModeState();
+        popup
+          .querySelectorAll('input[name="copy-mode"]')
+          .forEach((radio) => radio.addEventListener('change', updateModeState));
+      },
+      preConfirm: () => {
+        const popup = Swal.getPopup();
+        const selectedMode =
+          popup.querySelector('input[name="copy-mode"]:checked')?.value || "new";
+
+        if (selectedMode === "existing") {
+          if (!hasExistingTargets) {
+            Swal.showValidationMessage("ยังไม่มีปีปลายทางให้เลือก");
+            return false;
+          }
+
+          const select = popup.querySelector('#copy-existing-year-select');
+          if (!select || !select.value) {
+            Swal.showValidationMessage("กรุณาเลือกปีที่ต้องการเพิ่มข้อมูล");
+            return false;
+          }
+
+          const option = select.options[select.selectedIndex];
+          const display = option?.dataset?.yearDisplay || option?.textContent?.trim() || select.value;
+
+          return {
+            mode: "existing",
+            yearId: select.value,
+            year: display,
+          };
+        }
+
+        const input = popup.querySelector('#copy-new-year-input');
+        const yearValue = input?.value?.trim();
+        if (!yearValue) {
+          Swal.showValidationMessage("กรุณาระบุปีปลายทาง");
+          return false;
+        }
+        if (!/^\d{4}$/.test(yearValue)) {
+          Swal.showValidationMessage("กรุณาระบุปี พ.ศ. 4 หลัก");
+          return false;
+        }
+        const numeric = Number(yearValue);
+        if (!Number.isFinite(numeric) || numeric <= 0) {
+          Swal.showValidationMessage("ปีปลายทางไม่ถูกต้อง");
+          return false;
+        }
+
+        const duplicateYear = existingYearValues.some((existing) => {
+          if (!Number.isFinite(existing)) return false;
+          return (
+            existing === numeric ||
+            existing === numeric + 543 ||
+            existing === numeric - 543
+          );
+        });
+
+        if (duplicateYear) {
+          Swal.showValidationMessage("ปีนี้มีอยู่แล้วในระบบ");
+          return false;
+        }
+
+        return {
+          mode: "new",
+          year: yearValue,
+        };
+      },
+    });
+
+    if (!isConfirmed || !value) return;
+
+    try {
+      setCopying(true);
+      const payload = {
+        sourceYearId: selectedYearId,
+        targetYearId:
+          value.mode === "existing" ? Number(value.yearId) || undefined : undefined,
+        targetYear: value.mode === "new" ? value.year : undefined,
+      };
+
+      const response = await adminInstallmentAPI.copy(payload);
+
+      const message =
+        response?.message ||
+        (value.mode === "existing"
+          ? `คัดลอกงวดไปยังปี ${value.year} เรียบร้อย`
+          : `สร้างปี ${value.year} และคัดลอกงวดเรียบร้อย`);
+
+      await Swal.fire("สำเร็จ", message, "success");
+
+      const targetYearId =
+        response?.target_year_id ??
+        (value.mode === "existing" ? Number(value.yearId) : undefined);
+
+      if (targetYearId && Number(targetYearId) === Number(selectedYearId)) {
+        loadPeriods();
+      }
+    } catch (err) {
+      console.error("Failed to copy installment periods", err);
+      Swal.fire("เกิดข้อผิดพลาด", err?.message || "ไม่สามารถคัดลอกงวดได้", "error");
+    } finally {
+      setCopying(false);
+    }
+  }, [
+    copyDisabledReason,
+    selectedYearValue,
+    availableExistingYears,
+    existingYearValues,
+    selectedYearTitle,
+    selectedYearId,
+    loadPeriods,
+  ]);
+
   const totalPages = useMemo(() => {
     if (!paging.limit) return 0;
     return Math.ceil((paging.total || 0) / paging.limit);
@@ -494,6 +721,16 @@ const InstallmentManagementTab = ({ years = [] }) => {
             >
               <RefreshCcw size={16} />
               โหลดข้อมูลใหม่
+            </button>
+            <button
+              type="button"
+              onClick={handleCopyPeriods}
+              className="inline-flex items-center gap-2 rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 transition-colors hover:bg-gray-100 disabled:opacity-60"
+              disabled={copying}
+              title={copyDisabledReason || undefined}
+            >
+              <Copy size={16} />
+              {copying ? "กำลังคัดลอก..." : "คัดลอกงวด"}
             </button>
             <button
               type="button"
@@ -626,7 +863,7 @@ const InstallmentManagementTab = ({ years = [] }) => {
         ) : null}
       </SettingsSectionCard>
 
-      <AnimatedModal
+      <InstallmentFormModal
         open={formOpen}
         onClose={handleCloseForm}
         title={
@@ -634,93 +871,12 @@ const InstallmentManagementTab = ({ years = [] }) => {
             ? `แก้ไขงวดที่ ${editingPeriod.installment_number ?? ""}`
             : "เพิ่มวันตัดงวดใหม่"
         }
-        footer={
-          <>
-            <button
-              type="button"
-              className="rounded-lg border border-gray-300 px-4 py-2 text-sm text-gray-700 transition-colors hover:bg-gray-100"
-              onClick={handleCloseForm}
-              disabled={submitting}
-            >
-              ยกเลิก
-            </button>
-            <button
-              type="button"
-              className="rounded-lg bg-blue-600 px-4 py-2 text-sm text-white transition-colors hover:bg-blue-700 disabled:opacity-70"
-              onClick={handleSubmit}
-              disabled={submitting}
-            >
-              {submitting ? "กำลังบันทึก..." : "บันทึก"}
-            </button>
-          </>
-        }
-      >
-        <div className="grid gap-4 md:grid-cols-2">
-          <label className="flex flex-col gap-1">
-            <span className="text-sm font-medium text-gray-700">เลขงวด *</span>
-            <select
-              value={formData.installment_number}
-              onChange={(e) => handleFormChange("installment_number", e.target.value)}
-              className="rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
-              disabled={submitting}
-            >
-              {installmentOptions.map((option) => (
-                <option key={option} value={option}>
-                  {option}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label className="flex flex-col gap-1">
-            <span className="text-sm font-medium text-gray-700">วันตัดงวด (MM/DD/YYYY) *</span>
-            <input
-              type="date"
-              value={formData.cutoff_date}
-              onChange={(e) => handleFormChange("cutoff_date", e.target.value)}
-              className="rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
-              disabled={submitting}
-            />
-          </label>
-
-          <label className="flex flex-col gap-1">
-            <span className="text-sm font-medium text-gray-700">ชื่อ/คำอธิบายงวด</span>
-            <input
-              type="text"
-              value={formData.name}
-              onChange={(e) => handleFormChange("name", e.target.value)}
-              className="rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
-              placeholder="เช่น งวดที่ 1"
-              disabled={submitting}
-            />
-          </label>
-
-          <label className="flex flex-col gap-1">
-            <span className="text-sm font-medium text-gray-700">สถานะ</span>
-            <select
-              value={formData.status}
-              onChange={(e) => handleFormChange("status", e.target.value)}
-              className="rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
-              disabled={submitting}
-            >
-              <option value="active">เปิดใช้งาน</option>
-              <option value="inactive">ปิดใช้งาน</option>
-            </select>
-          </label>
-
-          <label className="md:col-span-2 flex flex-col gap-1">
-            <span className="text-sm font-medium text-gray-700">หมายเหตุ</span>
-            <textarea
-              rows={3}
-              value={formData.remark}
-              onChange={(e) => handleFormChange("remark", e.target.value)}
-              className="rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
-              placeholder="ระบุรายละเอียดเพิ่มเติม (ถ้ามี)"
-              disabled={submitting}
-            />
-          </label>
-        </div>
-      </AnimatedModal>
+        formData={formData}
+        onChange={handleFormChange}
+        installmentOptions={installmentOptions}
+        submitting={submitting}
+        onSubmit={handleSubmit}
+      />
     </>
   );
 };
