@@ -152,6 +152,58 @@ const getFileURL = (filePath) => {
   }
 };
 
+const extractFirstFilePath = (value) => {
+  if (!value || typeof value !== "object") return null;
+
+  const candidates = [
+    value.file_path,
+    value.path,
+    value.url,
+    value.file_url,
+    value.download_url,
+    value.announcement_file_path,
+    value.announcement_document_path,
+    value.document_path,
+    value.document_url,
+    value.attachment_path,
+    value.attachment_url,
+    value.file?.file_path,
+    value.file?.path,
+    value.file?.url,
+    value.file?.download_url,
+    value.document?.file_path,
+    value.document?.path,
+    value.document?.url,
+    value.Document?.file_path,
+    value.Document?.path,
+    value.Document?.url,
+    value.announcement?.file_path,
+    value.announcement?.document_path,
+    value.Announcement?.file_path,
+    value.Announcement?.document_path,
+  ];
+
+  for (const candidate of candidates) {
+    if (typeof candidate === "string" && candidate.trim() !== "") {
+      return candidate.trim();
+    }
+  }
+
+  const fileCollections = [value.files, value.Files, value.documents, value.Documents];
+  for (const collection of fileCollections) {
+    if (!Array.isArray(collection)) continue;
+    for (const entry of collection) {
+      const nested = extractFirstFilePath(entry);
+      if (nested) return nested;
+      if (typeof entry === "string" && entry.trim() !== "") {
+        return entry.trim();
+      }
+    }
+  }
+
+  return null;
+};
+
 const resolveAnnouncementInfo = (value, fallbackLabel) => {
   const fallback =
     typeof fallbackLabel === "string"
@@ -169,6 +221,8 @@ const resolveAnnouncementInfo = (value, fallbackLabel) => {
       firstNonEmpty(
         value.title,
         value.file_name,
+        value.file_name_th,
+        value.file_name_en,
         value.name,
         value.announcement_title,
         value.original_name,
@@ -184,13 +238,7 @@ const resolveAnnouncementInfo = (value, fallbackLabel) => {
         fallback,
       ) || "-";
 
-    const filePath =
-      value.file_path ||
-      value.path ||
-      value.url ||
-      value.file?.file_path ||
-      value.announcement_file_path ||
-      null;
+    const filePath = extractFirstFilePath(value);
 
     return {
       label,
@@ -200,6 +248,34 @@ const resolveAnnouncementInfo = (value, fallbackLabel) => {
 
   const label = typeof value === "string" && value.trim() !== "" ? value.trim() : String(value);
   return { label, href: null };
+};
+
+const sanitizeAnnouncementId = (value) => {
+  if (value == null) return null;
+  if (typeof value === "object") {
+    return sanitizeAnnouncementId(
+      value.id ??
+        value.announcement_id ??
+        value.announcementId ??
+        value.announcementID ??
+        value.reference_id ??
+        value.referenceId ??
+        value.AnnouncementID ??
+        null,
+    );
+  }
+
+  const text = String(value).trim();
+  if (!text) return null;
+  return text.startsWith("#") ? text.slice(1) : text;
+};
+
+const deriveAnnouncementId = (...values) => {
+  for (const value of values) {
+    const id = sanitizeAnnouncementId(value);
+    if (id) return id;
+  }
+  return null;
 };
 
 export default function PublicationRewardDetail({ submissionId, onNavigate }) {
@@ -367,8 +443,24 @@ export default function PublicationRewardDetail({ submissionId, onNavigate }) {
       return;
     }
 
-    const mainId = detail?.main_annoucement ?? detail?.main_announcement ?? null;
-    const rewardId = detail?.reward_announcement ?? null;
+    const mainId = deriveAnnouncementId(
+      detail?.main_annoucement_id,
+      detail?.main_announcement_id,
+      detail?.main_annoucement,
+      detail?.main_announcement,
+      detail?.main_annoucement_detail?.id,
+      detail?.main_annoucement_detail?.announcement_id,
+      detail?.main_announcement_detail?.id,
+      detail?.main_announcement_detail?.announcement_id,
+    );
+    const rewardId = deriveAnnouncementId(
+      detail?.reward_announcement_id,
+      detail?.reward_announcement,
+      detail?.reward_announcement_detail?.id,
+      detail?.reward_announcement_detail?.announcement_id,
+      detail?.reward_announcement_obj?.id,
+      detail?.reward_announcement_obj?.announcement_id,
+    );
 
     if (!mainId && !rewardId) {
       setMainAnnouncementDetail(null);
@@ -699,10 +791,30 @@ export default function PublicationRewardDetail({ submissionId, onNavigate }) {
     submission.approval_date ??
     null;
 
+  const mainAnnouncementId = deriveAnnouncementId(
+    pubDetail?.main_annoucement_id,
+    pubDetail?.main_announcement_id,
+    pubDetail?.main_annoucement,
+    pubDetail?.main_announcement,
+    pubDetail?.main_annoucement_detail?.id,
+    pubDetail?.main_annoucement_detail?.announcement_id,
+    pubDetail?.main_announcement_detail?.id,
+    pubDetail?.main_announcement_detail?.announcement_id,
+  );
+
+  const rewardAnnouncementId = deriveAnnouncementId(
+    pubDetail?.reward_announcement_id,
+    pubDetail?.reward_announcement,
+    pubDetail?.reward_announcement_detail?.id,
+    pubDetail?.reward_announcement_detail?.announcement_id,
+    pubDetail?.reward_announcement_obj?.id,
+    pubDetail?.reward_announcement_obj?.announcement_id,
+  );
+
   const formatAnnouncementId = (value) => {
-    if (value == null || value === "") return null;
-    const text = String(value);
-    return text.startsWith("#") ? text : `#${text}`;
+    const sanitized = sanitizeAnnouncementId(value);
+    if (!sanitized) return null;
+    return `#${sanitized}`;
   };
 
   const mainAnnouncementRaw =
@@ -722,14 +834,12 @@ export default function PublicationRewardDetail({ submissionId, onNavigate }) {
 
   const mainAnnouncement = resolveAnnouncementInfo(
     mainAnnouncementRaw,
-    formatAnnouncementId(
-      pubDetail?.main_annoucement ?? pubDetail?.main_announcement ?? null,
-    ),
+    formatAnnouncementId(mainAnnouncementId),
   );
 
   const rewardAnnouncement = resolveAnnouncementInfo(
     rewardAnnouncementRaw,
-    formatAnnouncementId(pubDetail?.reward_announcement ?? null),
+    formatAnnouncementId(rewardAnnouncementId),
   );
 
   const announceReference =

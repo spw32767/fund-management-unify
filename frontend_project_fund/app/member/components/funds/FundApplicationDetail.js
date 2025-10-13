@@ -13,7 +13,7 @@ import {
   Download,
 } from "lucide-react";
 import { submissionAPI, submissionUsersAPI } from "@/app/lib/member_api";
-import apiClient, { announcementAPI } from "@/app/lib/api";
+import apiClient, { announcementAPI, APIError } from "@/app/lib/api";
 import { PDFDocument } from "pdf-lib";
 import PageLayout from "../common/PageLayout";
 import Card from "../common/Card";
@@ -60,6 +60,293 @@ const getColoredStatusIcon = (statusCode) => {
   return function ColoredStatusIcon(props) {
     return <Icon {...props} className={`${props.className || ""} ${color}`} />;
   };
+};
+
+const getFileURL = (filePath) => {
+  if (!filePath) return "#";
+  if (typeof filePath === "string" && /^https?:\/\//i.test(filePath)) {
+    return filePath;
+  }
+
+  const base = (apiClient?.baseURL || "").replace(/\/?api\/v1$/, "");
+
+  try {
+    return new URL(filePath, base || (typeof window !== "undefined" ? window.location.origin : undefined)).href;
+  } catch (error) {
+    return typeof filePath === "string" ? filePath : "#";
+  }
+};
+
+const firstNonEmpty = (...values) => {
+  for (const value of values) {
+    if (typeof value === "string" && value.trim() !== "") {
+      return value.trim();
+    }
+  }
+  return null;
+};
+
+const extractFirstFilePath = (value) => {
+  if (!value || typeof value !== "object") return null;
+
+  const candidates = [
+    value.file_path,
+    value.path,
+    value.url,
+    value.file_url,
+    value.download_url,
+    value.announcement_file_path,
+    value.announcement_document_path,
+    value.document_path,
+    value.document_url,
+    value.attachment_path,
+    value.attachment_url,
+    value.file?.file_path,
+    value.file?.path,
+    value.file?.url,
+    value.file?.download_url,
+    value.document?.file_path,
+    value.document?.path,
+    value.document?.url,
+    value.Document?.file_path,
+    value.Document?.path,
+    value.Document?.url,
+    value.announcement?.file_path,
+    value.announcement?.document_path,
+    value.Announcement?.file_path,
+    value.Announcement?.document_path,
+  ];
+
+  for (const candidate of candidates) {
+    if (typeof candidate === "string" && candidate.trim() !== "") {
+      return candidate.trim();
+    }
+  }
+
+  const fileCollections = [value.files, value.Files, value.documents, value.Documents];
+  for (const collection of fileCollections) {
+    if (!Array.isArray(collection)) continue;
+    for (const entry of collection) {
+      const nested = extractFirstFilePath(entry);
+      if (nested) return nested;
+      if (typeof entry === "string" && entry.trim() !== "") {
+        return entry.trim();
+      }
+    }
+  }
+
+  return null;
+};
+
+const toCamelSuffix = (suffix) => {
+  if (!suffix) return "";
+  const trimmed = suffix.replace(/^_+/, "");
+  if (!trimmed) return "";
+  return trimmed
+    .split("_")
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join("");
+};
+
+const buildKeyVariants = (base, suffixes) => {
+  const variants = new Set();
+  const hasUnderscore = base.includes("_");
+  const hasCamel = /[A-Z]/.test(base);
+
+  for (const suffix of suffixes) {
+    if (hasUnderscore) {
+      variants.add(`${base}${suffix}`);
+    }
+
+    if (hasCamel || !hasUnderscore) {
+      const camelSuffix = toCamelSuffix(suffix);
+      variants.add(`${base}${camelSuffix}`);
+    }
+  }
+
+  return Array.from(variants);
+};
+
+const buildAnnouncementFromDetail = (detail, baseNames) => {
+  if (!detail || typeof detail !== "object") return null;
+
+  const objectSuffixes = [
+    "",
+    "_detail",
+    "_obj",
+    "_object",
+    "_document",
+    "_file",
+    "_info",
+    "_data",
+    "_record",
+  ];
+
+  const objectCandidates = [];
+  for (const base of baseNames) {
+    const keys = buildKeyVariants(base, objectSuffixes);
+    for (const key of keys) {
+      const value = detail?.[key];
+      if (!value || typeof value !== "object") continue;
+
+      const labelCandidate = firstNonEmpty(
+        value.title,
+        value.file_name,
+        value.announcement_file_name,
+        value.name,
+        value.label,
+        value.document_name,
+        value.display_name,
+      );
+      const filePath = extractFirstFilePath(value);
+
+      if (labelCandidate || filePath) {
+        if (filePath && !value.file_path) {
+          return { ...value, file_path: filePath };
+        }
+        return value;
+      }
+    }
+  }
+
+  const pathSuffixes = [
+    "_file_path",
+    "_document_path",
+    "_path",
+    "_url",
+    "_file_url",
+    "_download_url",
+    "_document_url",
+    "_attachment_path",
+    "_attachment_url",
+    "_link",
+  ];
+
+  const labelSuffixes = [
+    "_title",
+    "_name",
+    "_label",
+    "_file_name",
+    "_document_name",
+    "_file_label",
+    "_display_name",
+    "_original_name",
+    "_file_title",
+  ];
+
+  const pathCandidates = [];
+  const labelCandidates = [];
+
+  for (const base of baseNames) {
+    const pathKeys = buildKeyVariants(base, pathSuffixes);
+    for (const key of pathKeys) {
+      const value = detail?.[key];
+      if (typeof value === "string" && value.trim() !== "") {
+        pathCandidates.push(value.trim());
+      }
+    }
+
+    const labelKeys = buildKeyVariants(base, labelSuffixes);
+    for (const key of labelKeys) {
+      const value = detail?.[key];
+      if (typeof value === "string" && value.trim() !== "") {
+        labelCandidates.push(value.trim());
+      }
+    }
+  }
+
+  const filePath = firstNonEmpty(...pathCandidates);
+  const label = firstNonEmpty(...labelCandidates);
+
+  if (filePath || label) {
+    return {
+      title: label || undefined,
+      file_name: label || undefined,
+      file_path: filePath || undefined,
+    };
+  }
+
+  return null;
+};
+
+const resolveAnnouncementInfo = (value, fallbackLabel) => {
+  const fallback =
+    typeof fallbackLabel === "string"
+      ? fallbackLabel
+      : fallbackLabel != null
+      ? String(fallbackLabel)
+      : null;
+
+  if (!value) {
+    return fallback ? { label: fallback, href: null } : null;
+  }
+
+  if (typeof value === "object") {
+    const label =
+      firstNonEmpty(
+        value.title,
+        value.file_name,
+        value.announcement_file_name,
+        value.file_name_th,
+        value.file_name_en,
+        value.name,
+        value.announcement_title,
+        value.announcement_title_th,
+        value.announcement_title_en,
+        value.original_name,
+        value.label,
+        value.title_th,
+        value.title_en,
+        value.name_th,
+        value.name_en,
+        value.reference_code,
+        value.reference_number,
+        value.reference,
+        value.code,
+        value.id != null ? `#${value.id}` : null,
+        value.announcement_id != null ? `#${value.announcement_id}` : null,
+        fallback,
+      ) || "-";
+
+    const filePath = extractFirstFilePath(value);
+
+    return {
+      label,
+      href: filePath ? getFileURL(filePath) : null,
+    };
+  }
+
+  const label = typeof value === "string" && value.trim() !== "" ? value.trim() : String(value);
+  return { label, href: null };
+};
+
+const sanitizeAnnouncementId = (value) => {
+  if (value == null) return null;
+  if (typeof value === "object") {
+    return sanitizeAnnouncementId(
+      value.id ??
+        value.announcement_id ??
+        value.announcementId ??
+        value.announcementID ??
+        value.reference_id ??
+        value.referenceId ??
+        value.AnnouncementID ??
+        null,
+    );
+  }
+
+  const text = String(value).trim();
+  if (!text) return null;
+  return text.startsWith("#") ? text.slice(1) : text;
+};
+
+const deriveAnnouncementId = (...values) => {
+  for (const value of values) {
+    const id = sanitizeAnnouncementId(value);
+    if (id) return id;
+  }
+  return null;
 };
 
 export default function FundApplicationDetail({ submissionId, onNavigate }) {
@@ -299,27 +586,57 @@ export default function FundApplicationDetail({ submissionId, onNavigate }) {
       {}
     );
   }, [submission]);
-  const mainAnnouncementId = detail.main_annoucement || detail.main_announcement;
-  const activityAnnouncementId =
-    detail.activity_support_announcement || detail.activity_announcement;
 
-  const getFileURL = (filePath) => {
-    if (!filePath) return "#";
-    if (/^https?:\/\//i.test(filePath)) return filePath;
-    const base = apiClient.baseURL.replace(/\/?api\/v1$/, "");
-    try {
-      return new URL(filePath, base).href;
-    } catch {
-      return filePath;
-    }
-  };
+  const mainAnnouncementId = deriveAnnouncementId(
+    detail?.main_annoucement_id,
+    detail?.main_announcement_id,
+    detail?.main_annoucement,
+    detail?.main_announcement,
+    detail?.main_annoucement_detail?.id,
+    detail?.main_annoucement_detail?.announcement_id,
+    detail?.main_announcement_detail?.id,
+    detail?.main_announcement_detail?.announcement_id,
+  );
+
+  const activityAnnouncementId = deriveAnnouncementId(
+    detail?.activity_support_announcement_id,
+    detail?.activity_announcement_id,
+    detail?.activity_support_announcement,
+    detail?.activity_announcement,
+    detail?.activity_support_announcement_detail?.id,
+    detail?.activity_support_announcement_detail?.announcement_id,
+    detail?.activity_announcement_detail?.id,
+    detail?.activity_announcement_detail?.announcement_id,
+  );
 
   const documents =
     submission?.documents || submission?.submission_documents || [];
 
+  const mainAnnouncementFallback = useMemo(
+    () =>
+      buildAnnouncementFromDetail(detail, [
+        "main_annoucement",
+        "main_announcement",
+        "mainAnnoucement",
+        "mainAnnouncement",
+      ]),
+    [detail],
+  );
+
+  const activityAnnouncementFallback = useMemo(
+    () =>
+      buildAnnouncementFromDetail(detail, [
+        "activity_support_announcement",
+        "activity_announcement",
+        "activitySupportAnnouncement",
+        "activityAnnouncement",
+      ]),
+    [detail],
+  );
+
   useEffect(() => {
     const hasAnnouncementIds =
-      mainAnnouncementId != null || activityAnnouncementId != null;
+      Boolean(mainAnnouncementId) || Boolean(activityAnnouncementId);
     if (!hasAnnouncementIds) {
       setMainAnnouncementDetail(null);
       setActivityAnnouncementDetail(null);
@@ -327,49 +644,39 @@ export default function FundApplicationDetail({ submissionId, onNavigate }) {
     }
 
     let cancelled = false;
-    (async () => {
-      try {
-        if (mainAnnouncementId) {
-          const response = await announcementAPI.getAnnouncement(
-            mainAnnouncementId
-          );
-          const parsed =
-            response?.announcement ||
-            response?.data?.announcement ||
-            response?.data ||
-            response ||
-            null;
-          if (!cancelled) {
-            setMainAnnouncementDetail(parsed);
-          }
-        } else if (!cancelled) {
-          setMainAnnouncementDetail(null);
-        }
 
-        if (activityAnnouncementId) {
-          const response = await announcementAPI.getAnnouncement(
-            activityAnnouncementId
-          );
-          const parsed =
-            response?.announcement ||
-            response?.data?.announcement ||
-            response?.data ||
-            response ||
-            null;
-          if (!cancelled) {
-            setActivityAnnouncementDetail(parsed);
-          }
-        } else if (!cancelled) {
-          setActivityAnnouncementDetail(null);
+    const loadAnnouncement = async (id, setter) => {
+      if (!id) {
+        setter(null);
+        return;
+      }
+
+      try {
+        const response = await announcementAPI.getAnnouncement(id);
+        const parsed =
+          response?.announcement ||
+          response?.data?.announcement ||
+          response?.data ||
+          response ||
+          null;
+
+        if (!cancelled) {
+          setter(parsed);
         }
       } catch (error) {
-        console.warn("Unable to load announcement detail", error);
+        const isNotFound =
+          error instanceof APIError ? error.status === 404 : error?.status === 404;
+        if (!isNotFound) {
+          console.warn("Unable to load announcement detail", error);
+        }
         if (!cancelled) {
-          setMainAnnouncementDetail(null);
-          setActivityAnnouncementDetail(null);
+          setter(null);
         }
       }
-    })();
+    };
+
+    loadAnnouncement(mainAnnouncementId, setMainAnnouncementDetail);
+    loadAnnouncement(activityAnnouncementId, setActivityAnnouncementDetail);
 
     return () => {
       cancelled = true;
@@ -391,6 +698,41 @@ export default function FundApplicationDetail({ submissionId, onNavigate }) {
       mergedUrlRef.current = null;
     }
   }, [documents]);
+
+  const formatAnnouncementId = (value) => {
+    const sanitized = sanitizeAnnouncementId(value);
+    if (!sanitized) return null;
+    return `#${sanitized}`;
+  };
+
+  const mainAnnouncementRaw =
+    mainAnnouncementDetail ||
+    detail?.main_announcement_detail ||
+    detail?.main_annoucement_detail ||
+    mainAnnouncementFallback ||
+    detail?.main_announcement ||
+    detail?.main_annoucement ||
+    null;
+
+  const activityAnnouncementRaw =
+    activityAnnouncementDetail ||
+    detail?.activity_support_announcement_detail ||
+    detail?.activity_announcement_detail ||
+    activityAnnouncementFallback ||
+    detail?.activity_support_announcement_obj ||
+    detail?.activity_support_announcement ||
+    detail?.activity_announcement ||
+    null;
+
+  const mainAnnouncement = resolveAnnouncementInfo(
+    mainAnnouncementRaw,
+    formatAnnouncementId(mainAnnouncementId),
+  );
+
+  const activityAnnouncement = resolveAnnouncementInfo(
+    activityAnnouncementRaw,
+    formatAnnouncementId(activityAnnouncementId),
+  );
 
   if (loading) {
     return (
@@ -534,55 +876,43 @@ export default function FundApplicationDetail({ submissionId, onNavigate }) {
                     </span>
                   </div>
                 )}
-                {(mainAnnouncementDetail || mainAnnouncementId) && (
+                {mainAnnouncement && (
                   <div className="flex items-start gap-2 lg:col-span-2 xl:col-span-3">
                     <span className="text-gray-500 shrink-0">ประกาศหลักเกณฑ์:</span>
-                    {mainAnnouncementDetail?.file_path ? (
+                    {mainAnnouncement.href ? (
                       <a
-                        href={getFileURL(mainAnnouncementDetail.file_path)}
+                        href={mainAnnouncement.href}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="text-blue-600 hover:underline break-all cursor-pointer pointer-events-auto relative z-10"
-                        title={
-                          mainAnnouncementDetail?.title ||
-                          mainAnnouncementDetail?.file_name ||
-                          `#${mainAnnouncementId}`
-                        }
+                        title={mainAnnouncement.label}
                       >
-                        {mainAnnouncementDetail?.title ||
-                          mainAnnouncementDetail?.file_name ||
-                          `#${mainAnnouncementId}`}
+                        {mainAnnouncement.label}
                       </a>
-                    ) : mainAnnouncementId ? (
-                      <span className="font-medium break-all">{`#${mainAnnouncementId}`}</span>
                     ) : (
-                      <span className="text-gray-400">-</span>
+                      <span className="text-gray-400">
+                        {mainAnnouncement.label || "-"}
+                      </span>
                     )}
                   </div>
                 )}
-                {(activityAnnouncementDetail || activityAnnouncementId) && (
+                {activityAnnouncement && (
                   <div className="flex items-start gap-2 lg:col-span-2 xl:col-span-3">
                     <span className="text-gray-500 shrink-0">ประกาศสนับสนุนกิจกรรม:</span>
-                    {activityAnnouncementDetail?.file_path ? (
+                    {activityAnnouncement.href ? (
                       <a
-                        href={getFileURL(activityAnnouncementDetail.file_path)}
+                        href={activityAnnouncement.href}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="text-blue-600 hover:underline break-all cursor-pointer pointer-events-auto relative z-10"
-                        title={
-                          activityAnnouncementDetail?.title ||
-                          activityAnnouncementDetail?.file_name ||
-                          `#${activityAnnouncementId}`
-                        }
+                        title={activityAnnouncement.label}
                       >
-                        {activityAnnouncementDetail?.title ||
-                          activityAnnouncementDetail?.file_name ||
-                          `#${activityAnnouncementId}`}
+                        {activityAnnouncement.label}
                       </a>
-                    ) : activityAnnouncementId ? (
-                      <span className="font-medium break-all">{`#${activityAnnouncementId}`}</span>
                     ) : (
-                      <span className="text-gray-400">-</span>
+                      <span className="text-gray-400">
+                        {activityAnnouncement.label || "-"}
+                      </span>
                     )}
                   </div>
                 )}
