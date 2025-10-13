@@ -14,10 +14,11 @@ export default function AnnouncementPage() {
   const [loadingAnnouncements, setLoadingAnnouncements] = useState(true);
   const [loadingForms, setLoadingForms] = useState(true);
   const [systemConfigAnnouncementIds, setSystemConfigAnnouncementIds] = useState([]);
-  const [announcementVisibilityFilter, setAnnouncementVisibilityFilter] = useState("all");
+  const [announcementVisibilityFilter, setAnnouncementVisibilityFilter] = useState("current");
   const [selectedYearId, setSelectedYearId] = useState("all");
   const [years, setYears] = useState([]);
   const [yearsLoading, setYearsLoading] = useState(false);
+  const [currentYearLabel, setCurrentYearLabel] = useState(null);
 
   useEffect(() => {
     loadAnnouncements();
@@ -123,6 +124,15 @@ export default function AnnouncementPage() {
       });
 
       setSystemConfigAnnouncementIds(Array.from(configIds));
+
+      const normalizedCurrentYear =
+        normalized?.current_year != null && normalized.current_year !== ""
+          ? String(normalized.current_year)
+          : null;
+
+      if (normalizedCurrentYear != null) {
+        setCurrentYearLabel((prev) => prev ?? normalizedCurrentYear);
+      }
     } catch (error) {
       console.error("Error loading system config:", error);
       setSystemConfigAnnouncementIds([]);
@@ -132,13 +142,23 @@ export default function AnnouncementPage() {
   const loadYears = async () => {
     setYearsLoading(true);
     try {
-      const response = await systemAPI.getYears();
-      const rawYears = Array.isArray(response?.years)
-        ? response.years
-        : Array.isArray(response?.data)
-        ? response.data
-        : Array.isArray(response)
-        ? response
+      const [yearsResponse, currentYearResponse] = await Promise.all([
+        systemAPI.getYears().catch((error) => {
+          console.error("Error fetching years list:", error);
+          return null;
+        }),
+        systemConfigAPI.getCurrentYear().catch((error) => {
+          console.error("Error fetching current year:", error);
+          return null;
+        }),
+      ]);
+
+      const rawYears = Array.isArray(yearsResponse?.years)
+        ? yearsResponse.years
+        : Array.isArray(yearsResponse?.data)
+        ? yearsResponse.data
+        : Array.isArray(yearsResponse)
+        ? yearsResponse
         : [];
 
       const normalizedYears = rawYears
@@ -161,6 +181,30 @@ export default function AnnouncementPage() {
         .filter((year) => year.year_id && year.year);
 
       setYears(normalizedYears);
+
+      const defaultYearCandidate =
+        currentYearResponse?.current_year ??
+        currentYearResponse?.data?.current_year ??
+        currentYearResponse?.year ??
+        null;
+
+      const normalizedDefaultYear =
+        defaultYearCandidate != null && defaultYearCandidate !== ""
+          ? String(defaultYearCandidate)
+          : null;
+
+      if (normalizedDefaultYear != null) {
+        setCurrentYearLabel((prev) => prev ?? normalizedDefaultYear);
+
+        const matchingYear = normalizedYears.find(
+          (year) => String(year.year) === normalizedDefaultYear
+        );
+
+        if (matchingYear?.year_id != null) {
+          const matchingYearId = String(matchingYear.year_id);
+          setSelectedYearId((prev) => (prev === "all" ? matchingYearId : prev));
+        }
+      }
     } catch (error) {
       console.error("Error loading years:", error);
       setYears([]);
@@ -168,6 +212,24 @@ export default function AnnouncementPage() {
       setYearsLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (!currentYearLabel || selectedYearId !== "all") {
+      return;
+    }
+
+    if (!Array.isArray(years) || years.length === 0) {
+      return;
+    }
+
+    const normalizedLabel = String(currentYearLabel);
+    const matchedYear = years.find((year) => String(year.year) === normalizedLabel);
+
+    if (matchedYear?.year_id != null) {
+      const matchedYearId = String(matchedYear.year_id);
+      setSelectedYearId((prev) => (prev === "all" ? matchedYearId : prev));
+    }
+  }, [years, currentYearLabel, selectedYearId]);
 
   const handleViewFile = (filePath) => {
     if (!filePath) return;
