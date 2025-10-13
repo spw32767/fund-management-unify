@@ -253,6 +253,16 @@ export const submissionAPI = {
       console.error('Error submitting submission:', error);
       throw error;
     }
+  },
+
+  async mergeSubmissionDocuments(submissionId) {
+    try {
+      const response = await apiClient.post(`/submissions/${submissionId}/merge-documents`);
+      return response;
+    } catch (error) {
+      console.error('Error merging submission documents:', error);
+      throw error;
+    }
   }
 };
 
