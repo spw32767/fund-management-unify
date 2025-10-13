@@ -172,6 +172,80 @@ export const adminAPI = {
     }
   },
 
+  // ==================== INSTALLMENT PERIOD MANAGEMENT ====================
+
+  async getInstallmentPeriods({ yearId, status = "active", limit = 50, offset = 0, includeDeleted = false } = {}) {
+    if (!yearId) {
+      throw new Error("yearId is required to load installment periods");
+    }
+
+    const params = {
+      year_id: yearId,
+      status,
+      limit,
+      offset,
+    };
+
+    if (includeDeleted) {
+      params.include_deleted = true;
+    }
+
+    try {
+      return await apiClient.get("/admin/installments", params);
+    } catch (error) {
+      console.error("Error fetching installment periods:", error);
+      throw error;
+    }
+  },
+
+  async createInstallmentPeriod(data) {
+    try {
+      return await apiClient.post("/admin/installments", data);
+    } catch (error) {
+      console.error("Error creating installment period:", error);
+      throw error;
+    }
+  },
+
+  async updateInstallmentPeriod(id, data) {
+    if (!id) {
+      throw new Error("installment_period_id is required for update");
+    }
+
+    try {
+      return await apiClient.put(`/admin/installments/${id}`, data);
+    } catch (error) {
+      console.error("Error updating installment period:", error);
+      throw error;
+    }
+  },
+
+  async deleteInstallmentPeriod(id) {
+    if (!id) {
+      throw new Error("installment_period_id is required for delete");
+    }
+
+    try {
+      return await apiClient.delete(`/admin/installments/${id}`);
+    } catch (error) {
+      console.error("Error deleting installment period:", error);
+      throw error;
+    }
+  },
+
+  async restoreInstallmentPeriod(id) {
+    if (!id) {
+      throw new Error("installment_period_id is required for restore");
+    }
+
+    try {
+      return await apiClient.patch(`/admin/installments/${id}/restore`);
+    } catch (error) {
+      console.error("Error restoring installment period:", error);
+      throw error;
+    }
+  },
+
   // ==================== SUBCATEGORIES MANAGEMENT ====================
   
   // Get all subcategories (admin view - no filtering)

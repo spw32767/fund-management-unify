@@ -428,6 +428,16 @@ func SetupRoutes(router *gin.Engine) {
 					budgets.PATCH("/:id/toggle", controllers.ToggleSubcategoryBudgetStatus) // PATCH /api/v1/admin/budgets/:id/toggle
 				}
 
+				installments := admin.Group("/installments")
+				{
+					installments.GET("", controllers.AdminListFundInstallmentPeriods)
+					installments.POST("", controllers.AdminCreateFundInstallmentPeriod)
+					installments.PUT("/:id", controllers.AdminUpdateFundInstallmentPeriod)
+					installments.PATCH("/:id", controllers.AdminUpdateFundInstallmentPeriod)
+					installments.DELETE("/:id", controllers.AdminDeleteFundInstallmentPeriod)
+					installments.PATCH("/:id/restore", controllers.AdminRestoreFundInstallmentPeriod)
+				}
+
 				admin.POST("/funds/copy-year", controllers.CopyFundConfigurationToYear)
 
 				// ========== STATISTICS AND REPORTING ==========
