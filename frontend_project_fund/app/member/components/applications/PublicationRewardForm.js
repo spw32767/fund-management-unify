@@ -766,9 +766,13 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
   const [, setPolicyContext] = useState(null);
 
   // Form data state
+  const normalizedInitialYearId = typeof yearId === 'string'
+    ? (Number(yearId) || yearId)
+    : yearId;
+
   const [formData, setFormData] = useState({
     // Basic submission info
-    year_id: yearId || null,  // Initialize with yearId prop
+    year_id: normalizedInitialYearId || null,  // Initialize with yearId prop
     category_id: categoryId || null,  // Initialize with categoryId prop
     subcategory_id: null,
     subcategory_budget_id: null,
@@ -908,7 +912,12 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
     try {
       const resp = await publicationBudgetAPI.getEnabledYears(category_id);
       const list = resp.years || resp.data || [];
-      return list.map(y => y.year_id);
+      return list
+        .map((entry) => {
+          const yearId = entry?.year_id ?? entry?.YearID ?? entry?.id ?? entry;
+          return yearId == null ? null : String(yearId);
+        })
+        .filter(Boolean);
     } catch (err) {
       console.error('getEnabledYears error:', err);
       return [];
@@ -1140,7 +1149,7 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
           seenCoauthors.add(normalized.user_id);
           normalizedCoauthors.push(normalized);
         });
-        setCoauthors(normalizedCoauthors);
+        setCoauthors(allowEditing ? [] : normalizedCoauthors);
 
         const externalFundsRaw = detail.external_fundings || detail.ExternalFunds || [];
         const normalizedFunds = externalFundsRaw.map((fund, index) => {
@@ -1149,10 +1158,10 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
             clientId: `server-${fundId ?? index}`,
             externalFundId: fundId,
             fundName: fund.fund_name ?? fund.FundName ?? '',
-            amount: fund.amount ?? fund.Amount ?? '',
+            amount: toNumberOrEmpty(fund.amount ?? fund.Amount ?? ''),
           };
         });
-        setExternalFundings(normalizedFunds);
+        setExternalFundings(allowEditing ? [] : normalizedFunds);
         setExternalFundingFiles([]);
         setUploadedFiles({});
         setOtherDocuments([]);
@@ -1168,9 +1177,27 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
           const authorStatus =
             detail.author_type || detail.author_status || payload.author_status || prev.author_status;
 
+          const rewardValue = toNumberOrEmpty(
+            detail.reward_amount ?? prev.publication_reward ?? prev.reward_amount ?? ''
+          );
+          const revisionValue = toNumberOrEmpty(detail.revision_fee ?? prev.revision_fee ?? '');
+          const publicationValue = toNumberOrEmpty(detail.publication_fee ?? prev.publication_fee ?? '');
+          const resolvedExternalAmount = allowEditing
+            ? 0
+            : toNumberOrEmpty(detail.external_funding_amount ?? prev.external_funding_amount ?? '');
+          const normalizedReward = typeof rewardValue === 'number' ? rewardValue : 0;
+          const normalizedRevision = typeof revisionValue === 'number' ? revisionValue : 0;
+          const normalizedPublication = typeof publicationValue === 'number' ? publicationValue : 0;
+          const normalizedExternal = typeof resolvedExternalAmount === 'number' ? resolvedExternalAmount : 0;
+
+          const calculatedTotal = allowEditing
+            ? normalizedReward + normalizedRevision + normalizedPublication - normalizedExternal
+            : toNumberOrEmpty(detail.total_amount ?? prev.total_amount ?? '');
+
           return {
             ...prev,
-            year_id: payload.year_id ?? prev.year_id ?? yearId ?? null,
+            year_id:
+              parseIntegerOrNull(payload.year_id ?? detail.year_id ?? prev.year_id ?? yearId ?? null),
             category_id: payload.category_id ?? prev.category_id ?? categoryId ?? null,
             subcategory_id: payload.subcategory_id ?? detail.subcategory_id ?? prev.subcategory_id,
             subcategory_budget_id:
@@ -1189,16 +1216,12 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
             in_scopus: indexingFlags.scopus,
             in_web_of_science: indexingFlags.webOfScience,
             in_tci: indexingFlags.tci,
-            publication_reward: toNumberOrEmpty(
-              detail.reward_amount ?? prev.publication_reward ?? prev.reward_amount ?? ''
-            ),
-            reward_amount: toNumberOrEmpty(detail.reward_amount ?? prev.reward_amount ?? ''),
-            revision_fee: toNumberOrEmpty(detail.revision_fee ?? prev.revision_fee ?? ''),
-            publication_fee: toNumberOrEmpty(detail.publication_fee ?? prev.publication_fee ?? ''),
-            external_funding_amount: toNumberOrEmpty(
-              detail.external_funding_amount ?? prev.external_funding_amount ?? ''
-            ),
-            total_amount: toNumberOrEmpty(detail.total_amount ?? prev.total_amount ?? ''),
+            publication_reward: rewardValue,
+            reward_amount: rewardValue,
+            revision_fee: revisionValue,
+            publication_fee: publicationValue,
+            external_funding_amount: resolvedExternalAmount,
+            total_amount: calculatedTotal,
             author_name_list: detail.author_name_list ?? prev.author_name_list ?? '',
             signature: detail.signature ?? prev.signature ?? '',
             has_university_fund: detail.has_university_funding ?? prev.has_university_fund ?? 'no',
@@ -1775,7 +1798,7 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
         // Load enabled years for this category
         if (categoryId) {
           const enabled = await getEnabledYears(categoryId);
-          setEnabledYears(enabled);
+          setEnabledYears(Array.isArray(enabled) ? enabled : []);
         }
       }
 
@@ -1887,6 +1910,21 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
       }));
     }
 
+    // ปีงบประมาณต้องเก็บเป็นตัวเลขเพื่อให้เทียบกับรายการได้ถูกต้อง
+    else if (name === 'year_id') {
+      const numericValue = value === '' ? null : Number(value);
+      const resolvedValue =
+        numericValue === null || Number.isNaN(numericValue) ? (value === '' ? '' : value) : numericValue;
+
+      setFormData(prev => ({
+        ...prev,
+        year_id: resolvedValue,
+      }));
+
+      setResolutionError('');
+      setPolicyContext(null);
+    }
+
     // สำหรับ phone_number ให้ format ตัวเลข
     else if (name === 'phone_number') {
       const formattedPhone = formatPhoneNumber(value);
@@ -1986,14 +2024,16 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
     setExternalFundingFiles(prev => prev.filter(doc => doc.funding_client_id !== clientId));
 
     // Remove funding
-    setExternalFundings(externalFundings.filter(f => f.clientId !== clientId));
+    setExternalFundings(prev => prev.filter(f => f.clientId !== clientId));
   };
 
   // Handle external funding field changes
   const handleExternalFundingChange = (clientId, field, value) => {
-    setExternalFundings(externalFundings.map(funding =>
-      funding.clientId === clientId ? { ...funding, [field]: value } : funding
-    ));
+    setExternalFundings(prev =>
+      prev.map(funding =>
+        funding.clientId === clientId ? { ...funding, [field]: value } : funding
+      )
+    );
   };
 
   // Handle file uploads
@@ -2025,7 +2065,19 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
   const handleExternalFundingFileChange = (clientId, file) => {
     console.log('handleExternalFundingFileChange called with:', { id: clientId, file });
 
-    if (file && file.type === 'application/pdf') {
+    if (!file) {
+      setExternalFundingFiles(prev => prev.filter(doc => doc.funding_client_id !== clientId));
+      setExternalFundings(prev =>
+        prev.map(funding =>
+          funding.clientId === clientId
+            ? { ...funding, file: null, amount: '' }
+            : funding
+        )
+      );
+      return;
+    }
+
+    if (file.type === 'application/pdf') {
       // Update file in funding table
       setExternalFundings(prev => prev.map(funding =>
         funding.clientId === clientId ? { ...funding, file: file } : funding
@@ -2045,7 +2097,7 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
           timestamp: Date.now()
         }];
       });
-      
+
       console.log('External funding file added successfully');
     } else {
       console.error('Invalid file type for external funding:', file?.type);
@@ -3921,18 +3973,25 @@ const showSubmissionConfirmation = async () => {
                   errors.year_id ? 'border-red-500' : 'border-gray-300'
                 }`}
               >
-                <option value="" disabled={formData.year_id !== ''} hidden={formData.year_id !== ''}>
+                <option value="" disabled={formData.year_id !== '' && formData.year_id !== null} hidden={formData.year_id !== '' && formData.year_id !== null}>
                   เลือกปีงบประมาณ (Select Budget Year)
                 </option>
-                {years.map(year => (
-                  <option
-                    key={year.year_id}
-                    value={year.year_id}
-                    disabled={!enabledYears.includes(year.year_id)}
-                  >
-                    ปีงบประมาณ {year.year}
-                  </option>
-                ))}
+                {years.map(year => {
+                  const optionKey = String(year?.year_id ?? year?.YearID ?? year?.id ?? '');
+                  const isDisabled = optionKey
+                    ? (enabledYears.length > 0 && !enabledYears.includes(optionKey))
+                    : false;
+
+                  return (
+                    <option
+                      key={year.year_id}
+                      value={year.year_id}
+                      disabled={isDisabled}
+                    >
+                      ปีงบประมาณ {year.year}
+                    </option>
+                  );
+                })}
               </select>
               {errors.year_id && (
                 <p id="error-year_id" className="text-red-500 text-sm mt-1">{errors.year_id}</p>
