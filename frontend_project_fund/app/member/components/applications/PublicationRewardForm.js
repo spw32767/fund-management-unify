@@ -1263,6 +1263,150 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
     }
   }, [initialSubmissionId]);
 
+  const loadExistingSubmission = useCallback(
+    async (targetSubmissionId) => {
+      if (!targetSubmissionId) {
+        return;
+      }
+
+      try {
+        setLoading(true);
+
+        const response = await submissionAPI.getById(targetSubmissionId);
+        const payload = response?.submission || response;
+
+        if (!payload || !payload.submission_id) {
+          throw new Error('ไม่พบข้อมูลคำร้อง');
+        }
+
+        setCurrentSubmissionId(payload.submission_id);
+
+        const statusCandidates = [
+          payload.status?.code,
+          payload.status?.status_code,
+          payload.status?.status,
+          payload.status_code,
+          payload.Status?.Code,
+          payload.Status?.status_code,
+        ];
+        const normalizedStatus = statusCandidates.map(normalizeStatusCode).find(Boolean) || null;
+        const allowEditing = normalizedStatus ? EDITABLE_STATUS_CODES.has(normalizedStatus) : true;
+        setIsReadOnly(baseReadOnly ? true : !allowEditing);
+
+        const detail = payload.PublicationRewardDetail || payload.publication_reward_detail || {};
+        const applicantId = payload.user_id ?? payload.UserID ?? payload.applicant_user_id ?? null;
+        const submissionUsers = payload.submission_users || payload.SubmissionUsers || [];
+
+        const normalizedCoauthors = [];
+        const seenCoauthors = new Set();
+        submissionUsers.forEach((entry) => {
+          const normalized = buildCoauthorFromSubmissionUser(entry);
+          if (!normalized) return;
+          if (applicantId != null && normalized.user_id === applicantId) return;
+          if (seenCoauthors.has(normalized.user_id)) return;
+          seenCoauthors.add(normalized.user_id);
+          normalizedCoauthors.push(normalized);
+        });
+        setCoauthors(normalizedCoauthors);
+
+        const externalFundsRaw = detail.external_fundings || detail.ExternalFunds || [];
+        const normalizedFunds = externalFundsRaw.map((fund, index) => {
+          const fundId = fund.external_fund_id ?? fund.ExternalFundID ?? null;
+          return {
+            clientId: `server-${fundId ?? index}`,
+            externalFundId: fundId,
+            fundName: fund.fund_name ?? fund.FundName ?? '',
+            amount: fund.amount ?? fund.Amount ?? '',
+          };
+        });
+        setExternalFundings(normalizedFunds);
+        setExternalFundingFiles([]);
+        setUploadedFiles({});
+        setOtherDocuments([]);
+
+        const indexingFlags = parseIndexingFlags(detail.indexing ?? detail.Indexing ?? '');
+
+        setFormData((prev) => {
+          const { year: resolvedYear, month: resolvedMonth } = parsePublicationDateParts(
+            detail.publication_date ?? detail.PublicationDate,
+            { year: prev.journal_year, month: prev.journal_month }
+          );
+
+          const authorStatus =
+            detail.author_type || detail.author_status || payload.author_status || prev.author_status;
+
+          return {
+            ...prev,
+            year_id: payload.year_id ?? prev.year_id ?? yearId ?? null,
+            category_id: payload.category_id ?? prev.category_id ?? categoryId ?? null,
+            subcategory_id: payload.subcategory_id ?? detail.subcategory_id ?? prev.subcategory_id,
+            subcategory_budget_id:
+              payload.subcategory_budget_id ?? detail.subcategory_budget_id ?? prev.subcategory_budget_id,
+            author_status: authorStatus || '',
+            article_title: detail.paper_title ?? detail.article_title ?? prev.article_title ?? '',
+            journal_name: detail.journal_name ?? prev.journal_name ?? '',
+            journal_issue: detail.volume_issue ?? prev.journal_issue ?? '',
+            journal_pages: detail.page_numbers ?? prev.journal_pages ?? '',
+            journal_month: resolvedMonth || prev.journal_month || '',
+            journal_year: resolvedYear || prev.journal_year || '',
+            journal_url: detail.url ?? prev.journal_url ?? '',
+            doi: detail.doi ?? prev.doi ?? '',
+            article_online_db: detail.indexing ?? prev.article_online_db ?? '',
+            in_isi: indexingFlags.isi,
+            in_scopus: indexingFlags.scopus,
+            in_web_of_science: indexingFlags.webOfScience,
+            in_tci: indexingFlags.tci,
+            publication_reward: toNumberOrEmpty(
+              detail.reward_amount ?? prev.publication_reward ?? prev.reward_amount ?? ''
+            ),
+            reward_amount: toNumberOrEmpty(detail.reward_amount ?? prev.reward_amount ?? ''),
+            revision_fee: toNumberOrEmpty(detail.revision_fee ?? prev.revision_fee ?? ''),
+            publication_fee: toNumberOrEmpty(detail.publication_fee ?? prev.publication_fee ?? ''),
+            external_funding_amount: toNumberOrEmpty(
+              detail.external_funding_amount ?? prev.external_funding_amount ?? ''
+            ),
+            total_amount: toNumberOrEmpty(detail.total_amount ?? prev.total_amount ?? ''),
+            author_name_list: detail.author_name_list ?? prev.author_name_list ?? '',
+            signature: detail.signature ?? prev.signature ?? '',
+            has_university_fund: detail.has_university_funding ?? prev.has_university_fund ?? 'no',
+            university_fund_ref: detail.funding_references ?? prev.university_fund_ref ?? '',
+            university_ranking: detail.university_rankings ?? prev.university_ranking ?? '',
+            phone_number: payload.phone_number ?? prev.phone_number ?? '',
+            bank_account: payload.bank_account ?? prev.bank_account ?? '',
+            bank_name: payload.bank_name ?? prev.bank_name ?? '',
+          };
+        });
+
+        setDeclarations((prev) => ({
+          ...prev,
+          confirmNoPreviousFunding: (detail.has_university_funding ?? '').toString().toLowerCase() !== 'yes',
+          agreeToRegulations: true,
+        }));
+
+        if (detail.main_annoucement != null || detail.reward_announcement != null) {
+          setAnnouncementLock((prev) => ({
+            main_annoucement: detail.main_annoucement ?? prev.main_annoucement ?? null,
+            reward_announcement: detail.reward_announcement ?? prev.reward_announcement ?? null,
+          }));
+        }
+
+        deleteDraftFromLocal();
+        setPrefilledSubmissionId(payload.submission_id);
+      } catch (error) {
+        console.error('Failed to load submission for editing:', error);
+        const message = error?.message || 'ไม่สามารถโหลดข้อมูลคำร้องได้';
+        Toast.fire({
+          icon: 'error',
+          title: 'ไม่สามารถโหลดคำร้อง',
+          text: message,
+        });
+      } finally {
+        setLoading(false);
+      }
+    },
+    [baseReadOnly, categoryId, yearId]
+  );
+
   // Load initial data on mount
   useEffect(() => {
     loadInitialData();
@@ -1909,150 +2053,6 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
       setInitialDataReady(true);
     }
   };
-
-  const loadExistingSubmission = useCallback(
-    async (targetSubmissionId) => {
-      if (!targetSubmissionId) {
-        return;
-      }
-
-      try {
-        setLoading(true);
-
-        const response = await submissionAPI.getById(targetSubmissionId);
-        const payload = response?.submission || response;
-
-        if (!payload || !payload.submission_id) {
-          throw new Error('ไม่พบข้อมูลคำร้อง');
-        }
-
-        setCurrentSubmissionId(payload.submission_id);
-
-        const statusCandidates = [
-          payload.status?.code,
-          payload.status?.status_code,
-          payload.status?.status,
-          payload.status_code,
-          payload.Status?.Code,
-          payload.Status?.status_code,
-        ];
-        const normalizedStatus = statusCandidates.map(normalizeStatusCode).find(Boolean) || null;
-        const allowEditing = normalizedStatus ? EDITABLE_STATUS_CODES.has(normalizedStatus) : true;
-        setIsReadOnly(baseReadOnly ? true : !allowEditing);
-
-        const detail = payload.PublicationRewardDetail || payload.publication_reward_detail || {};
-        const applicantId = payload.user_id ?? payload.UserID ?? payload.applicant_user_id ?? null;
-        const submissionUsers = payload.submission_users || payload.SubmissionUsers || [];
-
-        const normalizedCoauthors = [];
-        const seenCoauthors = new Set();
-        submissionUsers.forEach((entry) => {
-          const normalized = buildCoauthorFromSubmissionUser(entry);
-          if (!normalized) return;
-          if (applicantId != null && normalized.user_id === applicantId) return;
-          if (seenCoauthors.has(normalized.user_id)) return;
-          seenCoauthors.add(normalized.user_id);
-          normalizedCoauthors.push(normalized);
-        });
-        setCoauthors(normalizedCoauthors);
-
-        const externalFundsRaw = detail.external_fundings || detail.ExternalFunds || [];
-        const normalizedFunds = externalFundsRaw.map((fund, index) => {
-          const fundId = fund.external_fund_id ?? fund.ExternalFundID ?? null;
-          return {
-            clientId: `server-${fundId ?? index}`,
-            externalFundId: fundId,
-            fundName: fund.fund_name ?? fund.FundName ?? '',
-            amount: fund.amount ?? fund.Amount ?? '',
-          };
-        });
-        setExternalFundings(normalizedFunds);
-        setExternalFundingFiles([]);
-        setUploadedFiles({});
-        setOtherDocuments([]);
-
-        const indexingFlags = parseIndexingFlags(detail.indexing ?? detail.Indexing ?? '');
-
-        setFormData((prev) => {
-          const { year: resolvedYear, month: resolvedMonth } = parsePublicationDateParts(
-            detail.publication_date ?? detail.PublicationDate,
-            { year: prev.journal_year, month: prev.journal_month }
-          );
-
-          const authorStatus =
-            detail.author_type || detail.author_status || payload.author_status || prev.author_status;
-
-          return {
-            ...prev,
-            year_id: payload.year_id ?? prev.year_id ?? yearId ?? null,
-            category_id: payload.category_id ?? prev.category_id ?? categoryId ?? null,
-            subcategory_id: payload.subcategory_id ?? detail.subcategory_id ?? prev.subcategory_id,
-            subcategory_budget_id:
-              payload.subcategory_budget_id ?? detail.subcategory_budget_id ?? prev.subcategory_budget_id,
-            author_status: authorStatus || '',
-            article_title: detail.paper_title ?? detail.article_title ?? prev.article_title ?? '',
-            journal_name: detail.journal_name ?? prev.journal_name ?? '',
-            journal_issue: detail.volume_issue ?? prev.journal_issue ?? '',
-            journal_pages: detail.page_numbers ?? prev.journal_pages ?? '',
-            journal_month: resolvedMonth || prev.journal_month || '',
-            journal_year: resolvedYear || prev.journal_year || '',
-            journal_url: detail.url ?? prev.journal_url ?? '',
-            doi: detail.doi ?? prev.doi ?? '',
-            article_online_db: detail.indexing ?? prev.article_online_db ?? '',
-            in_isi: indexingFlags.isi,
-            in_scopus: indexingFlags.scopus,
-            in_web_of_science: indexingFlags.webOfScience,
-            in_tci: indexingFlags.tci,
-            publication_reward: toNumberOrEmpty(
-              detail.reward_amount ?? prev.publication_reward ?? prev.reward_amount ?? ''
-            ),
-            reward_amount: toNumberOrEmpty(detail.reward_amount ?? prev.reward_amount ?? ''),
-            revision_fee: toNumberOrEmpty(detail.revision_fee ?? prev.revision_fee ?? ''),
-            publication_fee: toNumberOrEmpty(detail.publication_fee ?? prev.publication_fee ?? ''),
-            external_funding_amount: toNumberOrEmpty(
-              detail.external_funding_amount ?? prev.external_funding_amount ?? ''
-            ),
-            total_amount: toNumberOrEmpty(detail.total_amount ?? prev.total_amount ?? ''),
-            author_name_list: detail.author_name_list ?? prev.author_name_list ?? '',
-            signature: detail.signature ?? prev.signature ?? '',
-            has_university_fund: detail.has_university_funding ?? prev.has_university_fund ?? 'no',
-            university_fund_ref: detail.funding_references ?? prev.university_fund_ref ?? '',
-            university_ranking: detail.university_rankings ?? prev.university_ranking ?? '',
-            phone_number: payload.phone_number ?? prev.phone_number ?? '',
-            bank_account: payload.bank_account ?? prev.bank_account ?? '',
-            bank_name: payload.bank_name ?? prev.bank_name ?? '',
-          };
-        });
-
-        setDeclarations((prev) => ({
-          ...prev,
-          confirmNoPreviousFunding: (detail.has_university_funding ?? '').toString().toLowerCase() !== 'yes',
-          agreeToRegulations: true,
-        }));
-
-        if (detail.main_annoucement != null || detail.reward_announcement != null) {
-          setAnnouncementLock((prev) => ({
-            main_annoucement: detail.main_annoucement ?? prev.main_annoucement ?? null,
-            reward_announcement: detail.reward_announcement ?? prev.reward_announcement ?? null,
-          }));
-        }
-
-        deleteDraftFromLocal();
-        setPrefilledSubmissionId(payload.submission_id);
-      } catch (error) {
-        console.error('Failed to load submission for editing:', error);
-        const message = error?.message || 'ไม่สามารถโหลดข้อมูลคำร้องได้';
-        Toast.fire({
-          icon: 'error',
-          title: 'ไม่สามารถโหลดคำร้อง',
-          text: message,
-        });
-      } finally {
-        setLoading(false);
-      }
-    },
-    [baseReadOnly, categoryId, yearId]
-  );
 
   // =================================================================
   // EVENT HANDLERS
