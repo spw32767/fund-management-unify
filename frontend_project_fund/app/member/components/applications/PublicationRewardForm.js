@@ -1475,6 +1475,16 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
           const authorStatus =
             detail.author_type || detail.author_status || payload.author_status || prev.author_status;
 
+          const quartileValue = findFirstString([
+            detail.quartile,
+            detail.journal_quartile,
+            detail.JournalQuartile,
+            payload.quartile,
+            payload.journal_quartile,
+            prev.journal_quartile,
+          ]);
+          const normalizedQuartile = quartileValue ? quartileValue.toUpperCase() : (prev.journal_quartile || '');
+
           const nextYearId = parseIntegerOrNull(
             payload.year_id ?? detail.year_id ?? prev.year_id ?? yearId ?? null
           );
@@ -1506,6 +1516,7 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
             subcategory_budget_id:
               payload.subcategory_budget_id ?? detail.subcategory_budget_id ?? prev.subcategory_budget_id,
             author_status: authorStatus || '',
+            journal_quartile: normalizedQuartile,
             article_title: detail.paper_title ?? detail.article_title ?? prev.article_title ?? '',
             journal_name: detail.journal_name ?? prev.journal_name ?? '',
             journal_issue: detail.volume_issue ?? prev.journal_issue ?? '',
