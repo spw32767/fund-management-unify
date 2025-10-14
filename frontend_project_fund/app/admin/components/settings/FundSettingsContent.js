@@ -59,6 +59,7 @@ export default function FundSettingsContent({ onNavigate }) {
   
   // Categories Management
   const [categories, setCategories] = useState([]);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [expandedCategories, setExpandedCategories] = useState({});
   const [expandedSubcategories, setExpandedSubcategories] = useState({});
   
@@ -252,10 +253,12 @@ export default function FundSettingsContent({ onNavigate }) {
     return fallback;
   };
 
-  const loadCategories = async () => {
+  const loadCategories = async ({ silent = false } = {}) => {
     if (!selectedYear) return;
 
-    setLoading(true);
+    if (!silent) {
+      setLoading(true);
+    }
     setError(null);
     try {
       const data = await adminAPI.getCategoriesWithDetails(selectedYear.year_id);
@@ -455,7 +458,9 @@ export default function FundSettingsContent({ onNavigate }) {
       setError("ไม่สามารถโหลดข้อมูลหมวดหมู่ได้");
       showError("ไม่สามารถโหลดข้อมูลหมวดหมู่ได้");
     } finally {
-      setLoading(false);
+      if (!silent) {
+        setLoading(false);
+      }
     }
   };
 
@@ -1082,6 +1087,125 @@ export default function FundSettingsContent({ onNavigate }) {
       }
     }
 
+    if (mode === 'existing' && copyOptions.targetYearId) {
+      const normalizeName = (value) =>
+        String(value ?? "")
+          .normalize("NFC")
+          .trim()
+          .replace(/\s+/g, " ")
+          .toLowerCase();
+
+      const escapeHtml = (value) =>
+        String(value ?? "")
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;")
+          .replace(/'/g, "&#39;");
+
+      try {
+        const targetCategories = await adminAPI.getCategoriesWithDetails(copyOptions.targetYearId);
+
+        const targetCategoryNames = new Map();
+        const targetSubcategoryKeys = new Map();
+
+        (Array.isArray(targetCategories) ? targetCategories : []).forEach((category) => {
+          const normalizedCategoryName = normalizeName(category?.category_name);
+          if (normalizedCategoryName) {
+            targetCategoryNames.set(normalizedCategoryName, category?.category_name ?? "");
+          }
+
+          (Array.isArray(category?.subcategories) ? category.subcategories : []).forEach((subcategory) => {
+            const normalizedSubcategoryName = normalizeName(subcategory?.subcategory_name);
+            if (!normalizedSubcategoryName || !normalizedCategoryName) {
+              return;
+            }
+            const key = `${normalizedCategoryName}::${normalizedSubcategoryName}`;
+            targetSubcategoryKeys.set(key, {
+              categoryName: category?.category_name ?? "",
+              subcategoryName: subcategory?.subcategory_name ?? "",
+            });
+          });
+        });
+
+        const duplicateCategoryNames = new Set();
+        const duplicateSubcategories = new Map();
+
+        (Array.isArray(categories) ? categories : []).forEach((category) => {
+          const normalizedCategoryName = normalizeName(category?.category_name);
+
+          if (normalizedCategoryName && targetCategoryNames.has(normalizedCategoryName)) {
+            duplicateCategoryNames.add(category?.category_name ?? targetCategoryNames.get(normalizedCategoryName));
+          }
+
+          (Array.isArray(category?.subcategories) ? category.subcategories : []).forEach((subcategory) => {
+            const normalizedSubcategoryName = normalizeName(subcategory?.subcategory_name);
+            if (!normalizedCategoryName || !normalizedSubcategoryName) {
+              return;
+            }
+
+            const key = `${normalizedCategoryName}::${normalizedSubcategoryName}`;
+            if (targetSubcategoryKeys.has(key)) {
+              const existing = duplicateSubcategories.get(key);
+              if (!existing) {
+                duplicateSubcategories.set(key, {
+                  categoryName: category?.category_name ?? targetSubcategoryKeys.get(key)?.categoryName ?? "",
+                  subcategoryName:
+                    subcategory?.subcategory_name ?? targetSubcategoryKeys.get(key)?.subcategoryName ?? "",
+                });
+              }
+            }
+          });
+        });
+
+        if (duplicateCategoryNames.size > 0 || duplicateSubcategories.size > 0) {
+          const listItems = [];
+
+          if (duplicateCategoryNames.size > 0) {
+            const categoriesHtml = Array.from(duplicateCategoryNames)
+              .map((name) => `"${escapeHtml(name)}"`)
+              .join(", ");
+            listItems.push(`<li><strong>หมวดหมู่</strong>: ${categoriesHtml}</li>`);
+          }
+
+          if (duplicateSubcategories.size > 0) {
+            const subItems = Array.from(duplicateSubcategories.values())
+              .map(
+                ({ categoryName, subcategoryName }) =>
+                  `<li>ทุนย่อย "${escapeHtml(subcategoryName)}" (หมวด "${escapeHtml(categoryName)}")</li>`
+              )
+              .join("");
+
+            listItems.push(
+              `<li><strong>ทุนย่อย</strong><ul class="list-disc list-inside ml-4">${subItems}</ul></li>`
+            );
+          }
+
+          const duplicatesHtml = `
+            พบชื่อซ้ำในปีปลายทางที่เลือก ไม่สามารถคัดลอกได้
+            <div class="text-left mt-3">
+              <ul class="list-disc list-inside text-sm text-gray-700">
+                ${listItems.join("")}
+              </ul>
+            </div>
+            <p class="mt-3 text-sm text-gray-600">กรุณาจัดการชื่อที่ซ้ำในปีปลายทางก่อนทำการคัดลอกอีกครั้ง</p>
+          `;
+
+          await Swal.fire({
+            icon: 'warning',
+            title: 'ไม่สามารถคัดลอกได้',
+            html: duplicatesHtml,
+            confirmButtonText: 'ตกลง',
+          });
+          return;
+        }
+      } catch (error) {
+        console.error('Error validating destination year:', error);
+        showError('ไม่สามารถตรวจสอบข้อมูลปีปลายทางได้');
+        return;
+      }
+    }
+
     setLoading(true);
     try {
       const response = await adminAPI.copyFundStructure(sourceYearId, copyOptions);
@@ -1188,12 +1312,20 @@ export default function FundSettingsContent({ onNavigate }) {
   };
 
   const handleRefresh = async () => {
-    if (!selectedYear) {
-      await loadYears({ preserveSelection: true });
+    if (isRefreshing) {
       return;
     }
 
-    await loadCategories();
+    setIsRefreshing(true);
+    try {
+      if (!selectedYear) {
+        await loadYears({ preserveSelection: true });
+      } else {
+        await loadCategories({ silent: true });
+      }
+    } finally {
+      setIsRefreshing(false);
+    }
   };
 
   // ==================== ERROR BOUNDARY ====================
@@ -1261,6 +1393,7 @@ export default function FundSettingsContent({ onNavigate }) {
     onToggleBudgetStatus: handleToggleBudgetStatus,
     onCopyToNewYear: handleCopyToNewYear,
     onRefresh: handleRefresh,
+    isRefreshing,
   };
 
   const renderActiveContent = () => {

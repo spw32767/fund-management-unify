@@ -27,6 +27,7 @@ const RewardConfigManager = () => {
   const [loading, setLoading] = useState(false);
   const [selectedYear, setSelectedYear] = useState('');
   const [years, setYears] = useState([]);
+  const [copying, setCopying] = useState(false);
 
   // ====== Modal (เดิม) ======
   const [showRateForm, setShowRateForm] = useState(false);
@@ -51,6 +52,11 @@ const RewardConfigManager = () => {
   // ====== Sorting State ======
   const [rateSort, setRateSort] = useState({ key: null, dir: 'asc' });
   const [configSort, setConfigSort] = useState({ key: null, dir: 'asc' });
+
+  const existingTargetYears = useMemo(
+    () => years.filter((year) => year !== selectedYear),
+    [years, selectedYear]
+  );
 
   const authorStatusOptions = [
     { value: 'first_author', label: 'First Author (ผู้ประพันธ์ชื่อแรก)' },
@@ -325,32 +331,148 @@ const RewardConfigManager = () => {
 
   // ====== Copy to New Year ======
   const copyToNewYear = async () => {
-    const { value: newYear } = await Swal.fire({
-      title: 'คัดลอกข้อมูลไปยังปีใหม่',
-      input: 'text',
-      inputLabel: 'ระบุปีปลายทาง (พ.ศ.)',
-      inputPlaceholder: 'เช่น 2569',
+    if (!selectedYear) {
+      await Swal.fire('แจ้งเตือน', 'กรุณาเลือกปีที่ต้องการคัดลอกก่อน', 'warning');
+      return;
+    }
+
+    const numericSource = Number(selectedYear);
+    const defaultYear = Number.isFinite(numericSource) ? String(numericSource + 1) : '';
+    const hasExistingTargets = existingTargetYears.length > 0;
+    const existingOptionsMarkup = existingTargetYears
+      .map((year) => `<option value="${year}">พ.ศ. ${year}</option>`)
+      .join('');
+
+    const dialogHtml = `
+      <div class="text-left space-y-4">
+        <div class="rounded-lg border border-gray-200 p-3" data-copy-section="new">
+          <label class="flex items-start gap-2">
+            <input type="radio" name="reward-copy-mode" value="new" class="mt-1" checked />
+            <div>
+              <p class="font-medium text-gray-800">คัดลอกไปปีใหม่</p>
+              <p class="text-sm text-gray-600 mt-1">ระบบจะสร้างข้อมูลปีใหม่ตามปีที่ระบุ</p>
+            </div>
+          </label>
+          <input id="reward-copy-new-year" class="swal2-input mt-3" placeholder="เช่น 2569" value="${defaultYear}" />
+        </div>
+        <div class="rounded-lg border border-gray-200 p-3 ${hasExistingTargets ? '' : 'opacity-50'}" data-copy-section="existing">
+          <label class="flex items-start gap-2">
+            <input type="radio" name="reward-copy-mode" value="existing" class="mt-1" ${hasExistingTargets ? '' : 'disabled'} />
+            <div>
+              <p class="font-medium text-gray-800">เพิ่มไปยังปีที่มีอยู่</p>
+              <p class="text-sm text-gray-600 mt-1">เพิ่มหรือแทนที่ข้อมูลในปีที่เลือก</p>
+            </div>
+          </label>
+          <select id="reward-copy-existing-year" class="swal2-select mt-3" ${hasExistingTargets ? '' : 'disabled'}>
+            <option value="">เลือกปีปลายทาง</option>
+            ${existingOptionsMarkup}
+          </select>
+        </div>
+      </div>
+    `;
+
+    const { value, isConfirmed } = await Swal.fire({
+      title: `คัดลอกข้อมูลจากปี ${selectedYear}`,
+      html: dialogHtml,
+      focusConfirm: false,
       showCancelButton: true,
-      inputValidator: (value) => {
-        if (!value) return 'กรุณาระบุปี';
-        if (!/^\d{4}$/.test(value)) return 'กรุณาระบุปีในรูปแบบ พ.ศ. 4 หลัก';
-        if (parseInt(value) < 2500) return 'ปีต้องมากกว่า 2500';
-        if (years.includes(value)) return 'ปีนี้มีข้อมูลอยู่แล้ว';
-      }
+      confirmButtonText: 'คัดลอก',
+      cancelButtonText: 'ยกเลิก',
+      didOpen: (popup) => {
+        const updateModeState = () => {
+          const mode = popup.querySelector('input[name="reward-copy-mode"]:checked')?.value || 'new';
+          const newSection = popup.querySelector('[data-copy-section="new"]');
+          const existingSection = popup.querySelector('[data-copy-section="existing"]');
+          const newInput = popup.querySelector('#reward-copy-new-year');
+          const existingSelect = popup.querySelector('#reward-copy-existing-year');
+
+          if (newSection) {
+            newSection.classList.toggle('opacity-50', mode !== 'new');
+          }
+          if (newInput) {
+            newInput.disabled = mode !== 'new';
+          }
+          if (existingSection) {
+            const disableExisting = mode !== 'existing' || !hasExistingTargets;
+            existingSection.classList.toggle('opacity-50', disableExisting);
+            if (existingSelect) {
+              existingSelect.disabled = disableExisting;
+              if (!disableExisting && !existingSelect.value && existingSelect.options.length > 1) {
+                existingSelect.selectedIndex = 1;
+              }
+            }
+          }
+        };
+
+        updateModeState();
+        popup
+          .querySelectorAll('input[name="reward-copy-mode"]')
+          .forEach((radio) => radio.addEventListener('change', updateModeState));
+      },
+      preConfirm: () => {
+        const popup = Swal.getPopup();
+        const mode = popup.querySelector('input[name="reward-copy-mode"]:checked')?.value || 'new';
+
+        if (mode === 'existing') {
+          if (!hasExistingTargets) {
+            Swal.showValidationMessage('ยังไม่มีปีปลายทางให้เลือก');
+            return false;
+          }
+          const select = popup.querySelector('#reward-copy-existing-year');
+          if (!select || !select.value) {
+            Swal.showValidationMessage('กรุณาเลือกปีที่ต้องการเพิ่มข้อมูล');
+            return false;
+          }
+          if (String(select.value) === String(selectedYear)) {
+            Swal.showValidationMessage('กรุณาเลือกปีปลายทางที่แตกต่างจากปีต้นทาง');
+            return false;
+          }
+          return { mode: 'existing', year: select.value };
+        }
+
+        const input = popup.querySelector('#reward-copy-new-year');
+        const value = (input?.value || '').trim();
+        if (!value) {
+          Swal.showValidationMessage('กรุณาระบุปี');
+          return false;
+        }
+        if (!/^\d{4}$/.test(value)) {
+          Swal.showValidationMessage('กรุณาระบุปีในรูปแบบ พ.ศ. 4 หลัก');
+          return false;
+        }
+        if (parseInt(value, 10) < 2500) {
+          Swal.showValidationMessage('ปีต้องมากกว่า 2500');
+          return false;
+        }
+        if (value === String(selectedYear)) {
+          Swal.showValidationMessage('กรุณาระบุปีที่แตกต่างจากปีต้นทาง');
+          return false;
+        }
+        if (years.includes(value)) {
+          Swal.showValidationMessage('ปีนี้มีข้อมูลอยู่แล้ว กรุณาเลือกตัวเลือก "เพิ่มไปยังปีที่มีอยู่"');
+          return false;
+        }
+        return { mode: 'new', year: value };
+      },
     });
 
-    if (!newYear) return;
+    if (!isConfirmed || !value) return;
+
     try {
+      setCopying(true);
+      const targetYear = value.year;
       if (activeSubTab === 'rates') {
-        await adminAPI.copyPublicationRewardRates(selectedYear, newYear);
+        await adminAPI.copyPublicationRewardRates(selectedYear, targetYear);
       } else {
-        await adminAPI.copyRewardConfigs(selectedYear, newYear);
+        await adminAPI.copyRewardConfigs(selectedYear, targetYear);
       }
-      Swal.fire('สำเร็จ', `คัดลอกข้อมูลไปยังปี ${newYear} เรียบร้อย`, 'success');
+      await Swal.fire('สำเร็จ', `คัดลอกข้อมูลไปยังปี ${targetYear} เรียบร้อย`, 'success');
       await loadAvailableYears();
-      setSelectedYear(newYear);
-    } catch {
-      Swal.fire('Error', 'ไม่สามารถคัดลอกข้อมูลได้', 'error');
+      setSelectedYear(targetYear);
+    } catch (error) {
+      Swal.fire('Error', error?.response?.data?.message || 'ไม่สามารถคัดลอกข้อมูลได้', 'error');
+    } finally {
+      setCopying(false);
     }
   };
 
@@ -365,10 +487,11 @@ const RewardConfigManager = () => {
         years.length > 0 ? (
           <button
             onClick={copyToNewYear}
-            className="inline-flex items-center gap-2 rounded-lg border border-blue-200 px-4 py-2 text-sm font-medium text-blue-600 transition hover:bg-blue-50"
+            disabled={!selectedYear || copying}
+            className="inline-flex items-center gap-2 rounded-lg border border-blue-200 px-4 py-2 text-sm font-medium text-blue-600 transition hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-60"
           >
             <Copy size={16} />
-            คัดลอกไปยังปีอื่น
+            {copying ? 'กำลังคัดลอก...' : 'คัดลอกไปยังปีอื่น'}
           </button>
         ) : null
       }
@@ -443,25 +566,25 @@ const RewardConfigManager = () => {
             <table className="min-w-full divide-y divide-gray-200 text-sm">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-4 py-3 text-left font-semibold text-gray-700">
+                  <th className="px-4 py-3 text-center font-semibold text-gray-700">
                     <button
-                      className="inline-flex items-center gap-1 hover:text-blue-600"
+                      className="inline-flex items-center justify-center gap-1 hover:text-blue-600"
                       onClick={() => toggleSort('rates', 'author_status')}
                     >
                       สถานะผู้ประพันธ์ {sortIcon(rateSort, 'author_status')}
                     </button>
                   </th>
-                  <th className="px-4 py-3 text-left font-semibold text-gray-700">
+                  <th className="px-4 py-3 text-center font-semibold text-gray-700">
                     <button
-                      className="inline-flex items-center gap-1 hover:text-blue-600"
+                      className="inline-flex items-center justify-center gap-1 hover:text-blue-600"
                       onClick={() => toggleSort('rates', 'journal_quartile')}
                     >
                       Quartile {sortIcon(rateSort, 'journal_quartile')}
                     </button>
                   </th>
-                  <th className="px-4 py-3 text-right font-semibold text-gray-700">
+                  <th className="px-4 py-3 text-center font-semibold text-gray-700">
                     <button
-                      className="inline-flex items-center gap-1 justify-end hover:text-blue-600"
+                      className="inline-flex items-center justify-center gap-1 hover:text-blue-600"
                       onClick={() => toggleSort('rates', 'reward_amount')}
                     >
                       จำนวนเงินรางวัล {sortIcon(rateSort, 'reward_amount')}
@@ -481,13 +604,13 @@ const RewardConfigManager = () => {
               <tbody className="bg-white divide-y divide-gray-100">
                 {sortedRates.map((rate) => (
                   <tr key={rate.rate_id}>
-                    <td className="px-3 py-3 whitespace-nowrap text-sm font-medium text-gray-900">
+                    <td className="px-3 py-3 text-center text-sm font-medium text-gray-900 whitespace-nowrap">
                       {authorLabel(rate.author_status)}
                     </td>
-                    <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-700">
+                    <td className="px-3 py-3 text-center text-sm text-gray-700 whitespace-nowrap">
                       {quartileOptions.find(q => q.value === rate.journal_quartile)?.label || rate.journal_quartile}
                     </td>
-                    <td className="px-3 py-3 whitespace-nowrap text-sm text-right text-gray-900">
+                    <td className="px-3 py-3 text-center text-sm font-semibold text-gray-900 whitespace-nowrap">
                       {new Intl.NumberFormat('th-TH').format(rate.reward_amount)} บาท
                     </td>
                     <td className="px-3 py-3 whitespace-nowrap text-center">
@@ -557,7 +680,7 @@ const RewardConfigManager = () => {
                 <tr>
                   <th className="px-4 py-3 text-center font-semibold text-gray-700">
                     <button
-                      className="inline-flex items-center gap-1 hover:text-blue-600"
+                      className="inline-flex items-center justify-center gap-1 hover:text-blue-600"
                       onClick={() => toggleSort('configs', 'journal_quartile')}
                     >
                       Quartile {sortIcon(configSort, 'journal_quartile')}
@@ -565,7 +688,7 @@ const RewardConfigManager = () => {
                   </th>
                   <th className="px-4 py-3 text-center font-semibold text-gray-700">
                     <button
-                      className="inline-flex items-center gap-1 justify-end hover:text-blue-600"
+                      className="inline-flex items-center justify-center gap-1 hover:text-blue-600"
                       onClick={() => toggleSort('configs', 'max_amount')}
                     >
                       วงเงินสูงสุด {sortIcon(configSort, 'max_amount')}
@@ -573,7 +696,7 @@ const RewardConfigManager = () => {
                   </th>
                   <th className="px-4 py-3 text-center font-semibold text-gray-700">
                     <button
-                      className="inline-flex items-center gap-1 hover:text-blue-600"
+                      className="inline-flex items-center justify-center gap-1 hover:text-blue-600"
                       onClick={() => toggleSort('configs', 'condition_description')}
                     >
                       เงื่อนไข/หมายเหตุ {sortIcon(configSort, 'condition_description')}
@@ -593,15 +716,15 @@ const RewardConfigManager = () => {
               <tbody className="bg-white divide-y divide-gray-100">
                 {sortedConfigs.map((config) => (
                   <tr key={config.config_id}>
-                    <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900">
+                    <td className="px-4 py-3 text-center text-sm font-medium text-gray-900 whitespace-nowrap">
                       {quartileOptions.find(q => q.value === config.journal_quartile)?.label || config.journal_quartile}
                     </td>
-                    <td className="px-4 py-3 whitespace-nowrap text-sm text-right text-gray-900">
+                    <td className="px-4 py-3 text-center text-sm font-semibold text-gray-900 whitespace-nowrap">
                       {config.max_amount > 0
                         ? `${new Intl.NumberFormat('th-TH').format(config.max_amount)} บาท`
                         : 'ไม่สนับสนุน'}
                     </td>
-                    <td className="px-4 py-3 text-sm text-gray-700">
+                    <td className="px-4 py-3 text-center text-sm text-gray-700">
                       {config.condition_description || '-'}
                     </td>
                     <td className="px-4 py-3 whitespace-nowrap text-center">
