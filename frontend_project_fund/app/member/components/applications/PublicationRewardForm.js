@@ -41,9 +41,6 @@ const Toast = Swal.mixin({
   }
 });
 
-// Draft storage constants
-const DRAFT_KEY = 'publication_reward_draft';
-
 const normalizeStatusCode = (value) => {
   if (value === null || value === undefined) return null;
   const normalized = String(value).trim().toLowerCase();
@@ -501,86 +498,6 @@ const getDocumentTypeName = (documentTypeId) => {
   return typeMap[documentTypeId] || `เอกสารประเภท ${documentTypeId}`;
 };
 
-
-// =================================================================
-// DRAFT MANAGEMENT FUNCTIONS
-// =================================================================
-
-// Save draft to localStorage
-const saveDraftToLocal = (data) => {
-  try {
-    const sanitizedFormData = data.formData ? { ...data.formData } : {};
-    const sanitizedCoauthors = Array.isArray(data.coauthors) ? [...data.coauthors] : [];
-    const timestampBase = Date.now();
-    const sanitizedExternalFundings = Array.isArray(data.externalFundings)
-      ? data.externalFundings.map((funding, index) => ({
-          clientId:
-            funding.clientId ||
-            funding.client_id ||
-            funding.externalFundId ||
-            funding.external_fund_id ||
-            funding.id ||
-            `draft-${index}-${timestampBase}`,
-          externalFundId: funding.externalFundId ?? funding.external_fund_id ?? null,
-          fundName: funding.fundName || '',
-          amount: funding.amount || '',
-        }))
-      : [];
-    const hadMainAttachments = data.uploadedFiles
-      ? Object.values(data.uploadedFiles).some(file => Boolean(file))
-      : false;
-    const hadOtherAttachments = Array.isArray(data.otherDocuments) && data.otherDocuments.length > 0;
-    const hadExternalFundingAttachments = Array.isArray(data.externalFundingFiles)
-      ? data.externalFundingFiles.some(doc => Boolean(doc?.file))
-      : false;
-
-    const draftData = {
-      formData: sanitizedFormData,
-      coauthors: sanitizedCoauthors,
-      externalFundings: sanitizedExternalFundings,
-      otherDocuments: [],
-      attachmentSummary: {
-        hasMainAttachments: hadMainAttachments,
-        hasOtherAttachments: hadOtherAttachments,
-        hasExternalFundingAttachments: hadExternalFundingAttachments,
-      },
-      savedAt: new Date().toISOString(),
-      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString() // 7 days
-    };
-
-    localStorage.setItem(DRAFT_KEY, JSON.stringify(draftData));
-    return true;
-  } catch (error) {
-    console.error('Error saving draft to localStorage:', error);
-    return false;
-  }
-};
-
-// Load draft from localStorage
-const loadDraftFromLocal = () => {
-  try {
-    const draftString = localStorage.getItem(DRAFT_KEY);
-    if (!draftString) return null;
-    
-    const draft = JSON.parse(draftString);
-    
-    // Check if draft has expired
-    if (new Date(draft.expiresAt) < new Date()) {
-      localStorage.removeItem(DRAFT_KEY);
-      return null;
-    }
-    
-    return draft;
-  } catch (error) {
-    console.error('Error loading draft from localStorage:', error);
-    return null;
-  }
-};
-
-// Delete draft from localStorage
-const deleteDraftFromLocal = () => {
-  localStorage.removeItem(DRAFT_KEY);
-};
 
 // =================================================================
 // REWARD CALCULATION
@@ -1177,92 +1094,6 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
   }, [categoryId, yearId]);
 
 
-  const checkAndLoadDraft = useCallback(async () => {
-    if (initialSubmissionId) {
-      return;
-    }
-    const draft = loadDraftFromLocal();
-    if (draft) {
-      const savedDate = new Date(draft.savedAt).toLocaleString('th-TH');
-
-      const result = await Swal.fire({
-        title: 'พบข้อมูลที่บันทึกไว้',
-        html: `
-          <p>พบข้อมูลร่างที่บันทึกไว้เมื่อ ${savedDate}</p>
-          <p class="text-lg font-semibold mt-2">ต้องการโหลดข้อมูลนี้หรือไม่?</p>
-        `,
-        icon: 'question',
-        showCancelButton: true,
-        confirmButtonText: 'โหลดข้อมูล',
-        cancelButtonText: 'เริ่มใหม่',
-        confirmButtonColor: '#3085d6',
-        cancelButtonColor: '#d33'
-      });
-
-      if (result.isConfirmed) {
-        // Load form data
-        setFormData(prev => ({
-          ...prev,
-          ...(draft.formData || {})
-        }));
-        setCoauthors(draft.coauthors || []);
-        setUploadedFiles({});
-        setOtherDocuments([]);
-        setExternalFundingFiles([]);
-        setExternalFundings(
-          Array.isArray(draft.externalFundings)
-            ? draft.externalFundings.map((funding, index) => ({
-                clientId:
-                  funding.clientId ||
-                  funding.client_id ||
-                  funding.externalFundId ||
-                  funding.external_fund_id ||
-                  funding.id ||
-                  `loaded-${index}-${Date.now()}`,
-                externalFundId: funding.externalFundId ?? funding.external_fund_id ?? null,
-                fundName: funding.fundName || '',
-                amount: funding.amount || '',
-                file: null,
-              }))
-            : []
-        );
-
-        const hadAttachments = (() => {
-          if (draft.attachmentSummary) {
-            return Object.values(draft.attachmentSummary).some(Boolean);
-          }
-          if (Array.isArray(draft.otherDocuments)) {
-            return draft.otherDocuments.some(doc => doc?.fileName);
-          }
-          return false;
-        })();
-
-        if (hadAttachments) {
-          Swal.fire({
-            icon: 'info',
-            title: 'กรุณาอัปโหลดไฟล์อีกครั้ง',
-            html: `
-              <p class="text-sm text-gray-700">
-                เพื่อความปลอดภัย ระบบจะไม่เก็บไฟล์ไว้ในร่างที่บันทึกไว้
-              </p>
-              <p class="text-sm text-gray-600 mt-2">
-                กรุณาเลือกไฟล์แนบใหม่ก่อนส่งคำร้อง
-              </p>
-            `,
-            confirmButtonColor: '#3085d6'
-          });
-        }
-
-        Toast.fire({
-          icon: 'success',
-          title: 'โหลดข้อมูลร่างเรียบร้อยแล้ว'
-        });
-      } else {
-        deleteDraftFromLocal();
-      }
-    }
-  }, [initialSubmissionId]);
-
   const loadExistingSubmission = useCallback(
     async (targetSubmissionId) => {
       if (!targetSubmissionId) {
@@ -1390,7 +1221,6 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
           }));
         }
 
-        deleteDraftFromLocal();
         setPrefilledSubmissionId(payload.submission_id);
       } catch (error) {
         console.error('Failed to load submission for editing:', error);
@@ -1422,25 +1252,15 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
         return;
       }
       loadExistingSubmission(initialSubmissionId);
-    } else {
-      if (prefilledSubmissionId !== null) {
-        setPrefilledSubmissionId(null);
-      }
-      checkAndLoadDraft();
+    } else if (prefilledSubmissionId !== null) {
+      setPrefilledSubmissionId(null);
     }
   }, [
-    checkAndLoadDraft,
     initialDataReady,
     initialSubmissionId,
     loadExistingSubmission,
     prefilledSubmissionId,
   ]);
-
-  useEffect(() => {
-    if (!initialSubmissionId && currentSubmissionId) {
-      setCurrentSubmissionId(null);
-    }
-  }, [currentSubmissionId, initialSubmissionId]);
 
   useEffect(() => {
     if (!Array.isArray(availableDocumentTypes) || availableDocumentTypes.length === 0) {
@@ -1717,24 +1537,6 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
   }, [formData.publication_reward, formData.revision_fee, formData.publication_fee, externalFundings]);
 
   // Auto-save draft periodically
-  useEffect(() => {
-    const autoSaveTimer = setTimeout(() => {
-      if (formData.article_title || formData.journal_name) {
-        saveDraftToLocal({
-          formData,
-          coauthors,
-          otherDocuments,
-          uploadedFiles,
-          externalFundings,
-          externalFundingFiles
-        });
-        console.log('Auto-saved draft');
-      }
-    }, 10000); // auto-save every 10 seconds
-
-    return () => clearTimeout(autoSaveTimer);
-  }, [formData, coauthors, otherDocuments, uploadedFiles, externalFundings, externalFundingFiles]);
-
   // Check fees limit when quartile or fees change
   useEffect(() => {
     const checkFees = async () => {
@@ -2859,53 +2661,169 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
 
   // Save draft
   const saveDraft = async () => {
+    if (saving) {
+      return;
+    }
+
     try {
       setSaving(true);
-      
-      // Show loading dialog
+
       Swal.fire({
         title: 'กำลังบันทึกร่าง...',
         allowOutsideClick: false,
         showConfirmButton: false,
-        willOpen: () => {
+        didOpen: () => {
           Swal.showLoading();
         }
       });
 
-      // Wait briefly for UI update
-      await new Promise(resolve => setTimeout(resolve, 500));
+      await new Promise(resolve => setTimeout(resolve, 300));
 
-      // Save data to localStorage
-      const saved = saveDraftToLocal({
-        formData,
-        coauthors,
-        otherDocuments,
-        uploadedFiles,
-        externalFundings,
-        externalFundingFiles
-      });
+      const optionKey = formData.author_status && formData.journal_quartile
+        ? `${formData.author_status}|${formData.journal_quartile}`
+        : null;
+      const optionContext = optionKey ? budgetOptionMap[optionKey] : null;
+
+      const submissionSubcategoryId = formData.subcategory_id
+        ?? optionContext?.subcategory_id
+        ?? null;
+      const submissionSubcategoryBudgetId = formData.subcategory_budget_id
+        ?? optionContext?.subcategory_budget_id
+        ?? null;
+
+      let submissionId = currentSubmissionId;
+
+      if (!submissionId) {
+        if (!formData.year_id) {
+          throw new Error('กรุณาเลือกปีงบประมาณก่อนบันทึกร่าง');
+        }
+
+        const createPayload = {
+          submission_type: 'publication_reward',
+          year_id: formData.year_id,
+        };
+
+        const resolvedCategoryId = formData.category_id || categoryId || null;
+        if (resolvedCategoryId) {
+          createPayload.category_id = resolvedCategoryId;
+        }
+        if (submissionSubcategoryId) {
+          createPayload.subcategory_id = submissionSubcategoryId;
+        }
+        if (submissionSubcategoryBudgetId) {
+          createPayload.subcategory_budget_id = submissionSubcategoryBudgetId;
+        }
+
+        const submissionResponse = await submissionAPI.create(createPayload);
+        submissionId = submissionResponse?.submission?.submission_id
+          ?? submissionResponse?.submission_id
+          ?? null;
+
+        if (!submissionId) {
+          throw new Error('ไม่สามารถสร้างร่างคำร้องได้');
+        }
+
+        setCurrentSubmissionId(submissionId);
+        setPrefilledSubmissionId(submissionId);
+      } else {
+        const updatePayload = {};
+        const resolvedCategoryId = formData.category_id || categoryId || null;
+        if (resolvedCategoryId) {
+          updatePayload.category_id = resolvedCategoryId;
+        }
+        if (submissionSubcategoryId) {
+          updatePayload.subcategory_id = submissionSubcategoryId;
+        }
+        if (submissionSubcategoryBudgetId) {
+          updatePayload.subcategory_budget_id = submissionSubcategoryBudgetId;
+        }
+
+        if (Object.keys(updatePayload).length > 0) {
+          try {
+            await submissionAPI.update(submissionId, updatePayload);
+          } catch (updateError) {
+            console.warn('Failed to update submission metadata for draft:', updateError);
+          }
+        }
+      }
+
+      if (!submissionId) {
+        throw new Error('ไม่สามารถกำหนดหมายเลขคำร้องได้');
+      }
+
+      try {
+        await submissionUsersAPI.setCoauthors(submissionId, coauthors);
+      } catch (coauthorError) {
+        console.warn('Failed to persist co-authors for draft:', coauthorError);
+      }
+
+      const publicationDate = formData.journal_year && formData.journal_month
+        ? `${formData.journal_year}-${formData.journal_month.padStart(2, '0')}-01`
+        : `${new Date().getFullYear()}-01-01`;
+
+      const externalFundingData = externalFundings.map(funding => ({
+        client_id: funding.clientId || '',
+        external_fund_id: funding.externalFundId ?? null,
+        fund_name: funding.fundName || '',
+        amount: parseFloat(funding.amount) || 0,
+      }));
+
+      const authorSubmissionFields = getAuthorSubmissionFields(formData);
+
+      const publicationData = {
+        article_title: formData.article_title || '',
+        journal_name: formData.journal_name || '',
+        publication_date: publicationDate,
+        publication_type: 'journal',
+        journal_quartile: formData.journal_quartile || '',
+        impact_factor: parseFloat(formData.impact_factor) || 0,
+        doi: formData.doi || '',
+        url: formData.journal_url || '',
+        page_numbers: formData.journal_pages || '',
+        volume_issue: formData.journal_issue || '',
+        indexing: [
+          formData.in_isi && 'ISI',
+          formData.in_scopus && 'Scopus',
+          formData.in_web_of_science && 'Web of Science',
+          formData.in_tci && 'TCI'
+        ].filter(Boolean).join(', ') || '',
+        reward_amount: parseFloat(formData.publication_reward) || 0,
+        revision_fee: parseFloat(formData.revision_fee) || 0,
+        publication_fee: parseFloat(formData.publication_fee) || 0,
+        external_funding_amount: parseFloat(formData.external_funding_amount) || 0,
+        total_amount: parseFloat(formData.total_amount) || 0,
+        external_fundings: externalFundingData,
+        author_count: (coauthors?.length || 0) + 1,
+        is_corresponding_author: formData.author_status === 'corresponding_author',
+        author_status: formData.author_status || '',
+        author_type: formData.author_status || '',
+        ...authorSubmissionFields,
+        bank_account: formData.bank_account || '',
+        bank_name: formData.bank_name || '',
+        phone_number: formData.phone_number || '',
+        has_university_funding: formData.has_university_fund || '',
+        university_fund_ref: formData.university_fund_ref || '',
+        main_annoucement: announcementLock.main_annoucement ?? null,
+        reward_announcement: announcementLock.reward_announcement ?? null,
+      };
+
+      await publicationDetailsAPI.add(submissionId, publicationData);
 
       Swal.close();
-
-      if (saved) {
-        Toast.fire({
-          icon: 'success',
-          title: 'บันทึกร่างเรียบร้อยแล้ว',
-          html: '<small>ข้อมูลจะถูกเก็บไว้ 7 วัน</small>'
-        });
-      } else {
-        throw new Error('ไม่สามารถบันทึกข้อมูลได้');
-      }
-      
+      Toast.fire({
+        icon: 'success',
+        title: 'บันทึกร่างเรียบร้อยแล้ว',
+        html: '<small>ระบบได้บันทึกข้อมูลของคุณบนเซิร์ฟเวอร์</small>'
+      });
     } catch (error) {
       console.error('Error saving draft:', error);
       Swal.close();
-      
+
       Swal.fire({
         icon: 'error',
         title: 'เกิดข้อผิดพลาด',
-        text: 'ไม่สามารถบันทึกร่างได้ อาจเนื่องจากพื้นที่จัดเก็บเต็ม',
-        confirmButtonColor: '#3085d6'
+        text: error?.message || 'ไม่สามารถบันทึกร่างได้ โปรดลองอีกครั้ง',
+        confirmButtonColor: '#d33'
       });
     } finally {
       setSaving(false);
@@ -2925,15 +2843,31 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
       cancelButtonColor: '#3085d6'
     });
 
-    if (result.isConfirmed) {
-      deleteDraftFromLocal();
-      resetForm();
-      
-      Toast.fire({
-        icon: 'success',
-        title: 'ลบร่างเรียบร้อยแล้ว'
-      });
+    if (!result.isConfirmed) {
+      return;
     }
+
+    if (currentSubmissionId) {
+      try {
+        await submissionAPI.delete(currentSubmissionId);
+      } catch (deleteError) {
+        console.warn('Failed to delete server-side draft:', deleteError);
+      }
+      setCurrentSubmissionId(null);
+      setPrefilledSubmissionId(null);
+    }
+
+    resetForm();
+    setCoauthors([]);
+    setUploadedFiles({});
+    setOtherDocuments([]);
+    setExternalFundings([]);
+    setExternalFundingFiles([]);
+
+    Toast.fire({
+      icon: 'success',
+      title: 'ลบร่างเรียบร้อยแล้ว'
+    });
   };
 
   // Reset form to initial state
@@ -2971,10 +2905,11 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
     setUploadedFiles({});
     setOtherDocuments([]);
     setExternalFundings([]);
+    setExternalFundingFiles([]);
     setErrors({});
     setCurrentSubmissionId(null);
+    setPrefilledSubmissionId(null);
     setPreviewAcknowledged(false);
-    deleteDraftFromLocal();
   };
 
   // =================================================================
@@ -3855,9 +3790,6 @@ const showSubmissionConfirmation = async () => {
       } catch (e) {
         console.warn('notifySubmissionSubmitted failed:', e);
       }
-
-      // Delete draft from localStorage
-      deleteDraftFromLocal();
 
       const fileCounts = getFileCountByType();
 
