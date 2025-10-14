@@ -664,14 +664,15 @@ const FundManagementTab = ({
                     {subcategories.map((subcategory) => {
                       const subExpanded = expandedSubcategories?.[subcategory.subcategory_id];
                       const { overall, rules } = categorizeBudgets(subcategory.budgets);
+                      const hasOverallBudget = hasBudgetRecord(overall);
                       const targetRoleLabel = describeTargetRoles(subcategory.target_roles);
                       const normalizedTargetRoles = targetRoleLabel || "ทุกบทบาท";
-                      const overallSummaryText = overall
+                      const overallSummaryText = hasOverallBudget
                         ? `วงเงินรวมต่อปี: ${formatCurrency(overall.max_amount_per_year)} | จำนวนครั้งรวม: ${formatGrantCount(
                             overall.max_grants
                           )}`
                         : "ยังไม่กำหนดวงเงินรวม";
-                      const overallSecondarySummary = overall
+                      const overallSecondarySummary = hasOverallBudget
                         ? [
                             `วงเงินต่อครั้งค่าเริ่มต้น: ${
                               overall.max_amount_per_grant
@@ -695,6 +696,35 @@ const FundManagementTab = ({
                         `มี ${rules.length.toLocaleString()} ระดับ`,
                       ].filter(Boolean);
 
+                      const overallTitle = (overall?.fund_description || "").trim() || "นโยบายภาพรวม";
+                      const overallStats = hasOverallBudget
+                        ? [
+                            {
+                              label: "วงเงินรวมต่อปี",
+                              value: formatCurrency(overall.max_amount_per_year),
+                            },
+                            {
+                              label: "จำนวนครั้งรวม",
+                              value: formatGrantCount(overall.max_grants),
+                            },
+                            overall?.max_amount_per_grant !== undefined &&
+                            overall?.max_amount_per_grant !== null
+                              ? {
+                                  label: "วงเงินต่อครั้งค่าเริ่มต้น",
+                                  value: formatCurrency(overall.max_amount_per_grant),
+                                }
+                              : null,
+                            overall?.allocated_amount !== undefined &&
+                            overall?.allocated_amount !== null &&
+                            overall?.allocated_amount !== ""
+                              ? {
+                                  label: "งบประมาณที่จัดสรร",
+                                  value: formatAllocatedAmount(overall.allocated_amount),
+                                }
+                              : null,
+                          ].filter(Boolean)
+                        : [];
+
                       return (
                         <div key={subcategory.subcategory_id} className="border border-gray-200 rounded-lg">
                           <div className="flex flex-wrap gap-3 items-center px-4 py-3">
@@ -708,7 +738,7 @@ const FundManagementTab = ({
                                 <p className="font-medium text-gray-900">{subcategory.subcategory_name}</p>
                               </div>
                             </button>
-                            <div className="flex flex-wrap items-center gap-2 ml-auto">
+                            <div className="flex flex-wrap items-center justify-end gap-2 ml-auto">
                               <StatusBadge
                                 status={subcategory.status}
                                 interactive
@@ -717,7 +747,7 @@ const FundManagementTab = ({
                                 inactiveLabel="ปิดใช้งาน"
                                 className="shrink-0"
                               />
-                              <div className="flex items-center gap-2">
+                              <div className="flex flex-wrap items-center justify-end gap-2">
                                 <button
                                   type="button"
                                   onClick={() => onEditSubcategory?.(subcategory, category)}
@@ -734,22 +764,96 @@ const FundManagementTab = ({
                                 </button>
                               </div>
                             </div>
-                              </div>
 
-                              {subExpanded && (
-                                <div className="px-4 pb-4 space-y-4">
-                                  <div className="rounded-lg border border-blue-100 bg-blue-50/60 p-4">
-                                    <p className="text-sm font-semibold text-gray-900 mb-2">รายละเอียดทุน</p>
-                                    <div className="space-y-1">
-                                      {summaryLines.map((line, index) => (
-                                        <p
-                                          key={`${subcategory.subcategory_id}-summary-${index}`}
-                                          className="text-sm text-gray-700"
+                            {subExpanded && (
+                              <div className="px-4 pb-4 space-y-4">
+                                <div className="rounded-lg border border-blue-100 bg-blue-50/60 p-4">
+                                  <p className="text-sm font-semibold text-gray-900 mb-2">รายละเอียดทุน</p>
+                                  <div className="space-y-1">
+                                    {summaryLines.map((line, index) => (
+                                      <p
+                                        key={`${subcategory.subcategory_id}-summary-${index}`}
+                                        className="text-sm text-gray-700"
+                                      >
+                                        {line}
+                                      </p>
+                                    ))}
+                                  </div>
+                                </div>
+
+                                <div className="space-y-3">
+                                  <div className="space-y-3">
+                                    <div className="flex items-center justify-between">
+                                      <h4 className="text-sm font-semibold text-gray-700">นโยบายภาพรวมของทุนย่อย</h4>
+                                      {hasOverallBudget ? null : (
+                                        <button
+                                          type="button"
+                                          onClick={() => onEditSubcategory?.(subcategory, category)}
+                                          className="inline-flex items-center gap-2 rounded-lg border border-blue-200 px-3 py-1 text-xs font-medium text-blue-600 transition hover:bg-blue-50"
                                         >
-                                          {line}
-                                        </p>
-                                      ))}
+                                          <Edit size={14} className="inline" /> ปรับจากทุนย่อย
+                                        </button>
+                                      )}
                                     </div>
+
+                                    {hasOverallBudget ? (
+                                      <div className="border border-gray-200 rounded-lg p-4">
+                                        <div className="flex flex-wrap gap-3 items-start">
+                                          <div className="flex-1 min-w-[220px]">
+                                            <div className="flex items-start gap-2 text-gray-700">
+                                              <Layers size={16} className="mt-1" />
+                                              <div>
+                                                <p className="font-semibold text-gray-900">{overallTitle}</p>
+                                                {overall?.comment && (
+                                                  <p className="text-xs text-gray-500 mt-0.5">หมายเหตุ: {overall.comment}</p>
+                                                )}
+                                              </div>
+                                            </div>
+                                            {overallStats.length > 0 && (
+                                              <div className="mt-3 grid gap-3 sm:grid-cols-2 text-sm text-gray-700">
+                                                {overallStats.map((item, statIndex) => (
+                                                  <div key={`${subcategory.subcategory_id}-overall-stat-${statIndex}`}>
+                                                    <p className="text-xs text-gray-500">{item.label}</p>
+                                                    <p className="font-medium">{item.value}</p>
+                                                  </div>
+                                                ))}
+                                              </div>
+                                            )}
+                                          </div>
+                                          <div className="flex flex-col gap-2 items-end ml-auto">
+                                            <StatusBadge
+                                              status={overall?.status}
+                                              interactive
+                                              onChange={(next) =>
+                                                onToggleBudgetStatus?.(overall, subcategory, category, next)
+                                              }
+                                              activeLabel="เปิดใช้งาน"
+                                              inactiveLabel="ปิดใช้งาน"
+                                            />
+                                            <div className="flex flex-wrap justify-end gap-2">
+                                              <button
+                                                type="button"
+                                                onClick={() => onEditBudget?.(overall, subcategory)}
+                                                className="inline-flex items-center gap-1 rounded-lg border border-blue-200 px-3 py-1 text-xs font-medium text-blue-600 transition hover:bg-blue-50"
+                                              >
+                                                <Edit size={14} className="inline mr-1" /> แก้ไข
+                                              </button>
+                                              <button
+                                                type="button"
+                                                onClick={() => confirmDeleteBudget(overall, subcategory)}
+                                                className="inline-flex items-center gap-1 rounded-lg border border-red-200 px-3 py-1 text-xs font-medium text-red-600 transition hover:bg-red-50"
+                                              >
+                                                <Trash2 size={14} className="inline mr-1" /> ลบ
+                                              </button>
+                                            </div>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    ) : (
+                                      <div className="border border-dashed border-gray-300 rounded-lg p-4 text-sm text-gray-600">
+                                        ยังไม่กำหนดนโยบายภาพรวม สามารถแก้ไขจากปุ่ม "แก้ไข" ของทุนย่อยเพื่อเพิ่มรายละเอียดภาพรวมได้
+                                      </div>
+                                    )}
                                   </div>
 
                                   <div className="flex justify-between items-center">
@@ -827,7 +931,7 @@ const FundManagementTab = ({
                                                   activeLabel="เปิดใช้งาน"
                                                   inactiveLabel="ปิดใช้งาน"
                                                 />
-                                                <div className="flex gap-2">
+                                                <div className="flex flex-wrap justify-end gap-2">
                                                   <button
                                                     type="button"
                                                     onClick={() => onEditBudget?.(rule, subcategory)}
@@ -855,10 +959,12 @@ const FundManagementTab = ({
                                     )}
                                   </div>
                                 </div>
-                              )}
-                            </div>
-                          );
-                        })}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
                       </div>
                     )}
                   </div>
