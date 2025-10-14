@@ -1133,8 +1133,10 @@ export default function AnnouncementManager() {
                           </div>
                         </div>
                       </td>
-                      <td className="px-3 py-2">{TYPE_LABEL[row.announcement_type] || row.announcement_type || "-"}</td>
-                      <td className="px-3 py-2">{resolveYearLabel(row)}</td>
+                      <td className="px-3 py-2 text-center text-sm text-gray-700">
+                        {TYPE_LABEL[row.announcement_type] || row.announcement_type || "-"}
+                      </td>
+                      <td className="px-3 py-2 text-center text-sm text-gray-700">{resolveYearLabel(row)}</td>
                       <td className="px-3 py-2">{formatThaiDateTime(row.published_at)}</td>
                       <td className="px-3 py-2">
                         <div
@@ -1275,9 +1277,13 @@ export default function AnnouncementManager() {
                           </div>
                         </div>
                       </td>
-                      <td className="px-3 py-2">{FORM_TYPE_LABEL[row.form_type] || row.form_type || "-"}</td>
-                      <td className="px-3 py-2">{FUND_CATEGORY_LABEL[row.fund_category] || row.fund_category || "-"}</td>
-                      <td className="px-3 py-2">{resolveYearLabel(row)}</td>
+                      <td className="px-3 py-2 text-center text-sm text-gray-700">
+                        {FORM_TYPE_LABEL[row.form_type] || row.form_type || "-"}
+                      </td>
+                      <td className="px-3 py-2 text-center text-sm text-gray-700">
+                        {FUND_CATEGORY_LABEL[row.fund_category] || row.fund_category || "-"}
+                      </td>
+                      <td className="px-3 py-2 text-center text-sm text-gray-700">{resolveYearLabel(row)}</td>
                       <td className="px-3 py-2 align-center">
                         <div
                           className="text-gray-500 line-clamp-2 max-w-[48ch] break-words"
