@@ -521,8 +521,8 @@ const DocumentTypeManager = () => {
                       </div>
                     </td>
                     <td className="px-3 py-3 text-left text-gray-700">{item.code || "-"}</td>
-                    <td className="px-3 py-3">
-                      <div className="space-y-1">
+                    <td className="px-3 py-3 text-center">
+                      <div className="flex flex-wrap justify-center gap-2">
                         {(() => {
                           const fundTypes = Array.isArray(item.fund_types)
                             ? item.fund_types
@@ -532,7 +532,7 @@ const DocumentTypeManager = () => {
 
                           if (inactive) {
                             return (
-                              <span className="block rounded-full bg-gray-100 px-3 py-1 text-xs text-gray-500">
+                              <span className="inline-flex items-center rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-600">
                                 ไม่ได้ใช้งาน
                               </span>
                             );
@@ -540,7 +540,7 @@ const DocumentTypeManager = () => {
 
                           if (mode === "all" || fundTypes.length === 0) {
                             return (
-                              <span className="block rounded-full bg-gray-100 px-3 py-1 text-xs text-gray-500">
+                              <span className="inline-flex items-center rounded-full bg-blue-50 px-3 py-1 text-xs font-medium text-blue-700">
                                 ทุกประเภททุน
                               </span>
                             );
@@ -549,7 +549,7 @@ const DocumentTypeManager = () => {
                           return fundTypes.map((fund) => (
                             <span
                               key={`${item.document_type_id}-${fund.toLowerCase()}`}
-                              className="block rounded-lg bg-blue-50 px-3 py-1 text-xs text-blue-700"
+                              className="inline-flex items-center rounded-full bg-blue-100 px-3 py-1 text-xs font-medium text-blue-700 shadow-sm"
                             >
                               {FUND_TYPE_DISPLAY_NAMES[fund] ||
                                 FUND_TYPE_LABELS[fund] ||

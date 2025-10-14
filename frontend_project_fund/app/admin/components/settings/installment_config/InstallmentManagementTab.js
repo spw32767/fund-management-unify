@@ -756,13 +756,13 @@ const InstallmentManagementTab = ({ years = [] }) => {
         }
         contentClassName="space-y-6"
       >
-        <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3">
-          <label className="flex flex-col gap-1">
+        <div className="rounded-xl border border-gray-200 bg-white px-4 py-3 shadow-sm">
+          <div className="flex flex-wrap items-center gap-3">
             <span className="text-sm font-medium text-gray-700">ปีงบประมาณ</span>
             <select
               value={selectedYearId ?? ""}
               onChange={handleYearChange}
-              className="rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+              className="min-w-[160px] rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
             >
               {yearOptions.map((option) => (
                 <option key={option.id ?? option.label} value={option.id ?? ""}>
@@ -770,7 +770,7 @@ const InstallmentManagementTab = ({ years = [] }) => {
                 </option>
               ))}
             </select>
-          </label>
+          </div>
         </div>
 
         <div className="overflow-x-auto rounded-lg border border-gray-200">
