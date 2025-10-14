@@ -65,6 +65,16 @@ export const submissionAPI = {
     }
   },
 
+  async hardDelete(id) {
+    try {
+      const response = await apiClient.delete(`/submissions/${id}/hard`);
+      return response;
+    } catch (error) {
+      console.error('Error permanently deleting submission:', error);
+      throw error;
+    }
+  },
+
   // Submit submission (change status)
   async submitSubmission(id) {
     try {
