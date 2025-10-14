@@ -759,13 +759,13 @@ export default function SystemConfigSettings() {
     const disabled = savingSlot === valueKey || (hasId && !okWindow);
 
     return (
-      <div className="space-y-3 border rounded-xl p-3 md:p-4">
+      <div className="space-y-3  border border-gray-300 rounded-xl p-3 md:p-4">
         <div className="flex items-center justify-between">
           <label className="block text-sm font-medium text-gray-800">{label}</label>
           <button
             onClick={() => handleSaveAnnouncement(valueKey)}
             disabled={disabled}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-60"
+            className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-blue-700 disabled:opacity-60"
             title={
               hasId && !okWindow
                 ? "ต้องตั้งวัน-เวลาเริ่มและสิ้นสุดของประกาศก่อนบันทึก"
@@ -857,7 +857,7 @@ export default function SystemConfigSettings() {
               loadAnnouncementHistory(),
             ]).finally(() => setLoading(false));
           }}
-          className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50"
+          className="inline-flex items-center gap-2 rounded-lg border border-green-200 px-4 py-2 text-sm font-medium text-green-600 transition hover:bg-green-50 disabled:opacity-60"
           disabled={loading}
         >
           <RefreshCw size={16} />
@@ -875,10 +875,10 @@ export default function SystemConfigSettings() {
                 <button
                   onClick={handleSave}
                   disabled={saving || loading}
-                  className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-60"
+                  className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-blue-700 disabled:opacity-60"
                 >
                   <Save size={16} />
-                  {saving ? "กำลังบันทึก..." : "บันทึก ปีงบประมาณ & ช่วงเวลา"}
+                  {saving ? "กำลังบันทึก..." : "บันทึกปีงบประมาณและช่วงเวลา"}
                 </button>
               </div>
               <input
@@ -943,7 +943,7 @@ export default function SystemConfigSettings() {
         <section className="space-y-4">
           <div className="rounded-lg border border-gray-300 p-5">
             <h3 className="text-base font-semibold text-gray-900 mb-3">ประกาศที่ใช้งาน</h3>
-            <div className="grid md:grid-cols-2 gap-4">
+            <div className="grid md:grid-cols-2 gap-4 ">
               {renderAnnSelect("ประกาศหลักเกณฑ์การใช้จ่ายเงินกองทุน", "main_annoucement")}
               {renderAnnSelect("ประกาศขอใช้เงินกองทุนวิจัยฯ ทุนอุดหนุนกิจกรรม", "reward_announcement")}
               {renderAnnSelect("ประกาศขอใช้เงินกองทุนวิจัยฯ ทุนส่งเสริมวิจัย ", "activity_support_announcement")}
@@ -957,11 +957,11 @@ export default function SystemConfigSettings() {
         <section className="space-y-4">
           <div className="rounded-lg border border-gray-300 p-5">
             <div className="flex items-center justify-between mb-3">
-              <h3 className="text-base font-semibold text-gray-900">ประวัติการตั้งค่าประกาศ</h3>
+              <h3 className="text-base font-semibold text-gray-900 ">ประวัติการตั้งค่าประกาศ</h3>
               <button
                 onClick={loadAnnouncementHistory}
                 disabled={annHistoryLoading}
-                className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50"
+                className="inline-flex items-center gap-2 rounded-lg border border-green-200 px-4 py-2 text-sm font-medium text-green-600 transition hover:bg-green-50 disabled:opacity-60"
                 title="รีเฟรช"
               >
                 <RefreshCw size={16} />
@@ -1019,7 +1019,7 @@ export default function SystemConfigSettings() {
                 <button
                   onClick={handleAssignDeptHead}
                   disabled={headSaving || !deptHeadForm.head_user_id}
-                  className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-60"
+                  className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-blue-700 disabled:opacity-60"
                   title="บันทึก/เปลี่ยนหัวหน้าสาขา"
                 >
                   <Save size={16} />

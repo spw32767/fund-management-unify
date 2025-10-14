@@ -9,6 +9,7 @@ import {
   Copy,
   RefreshCw,
   Layers,
+  PlusCircle,
 } from "lucide-react";
 import Swal from "sweetalert2";
 import { targetRolesUtils } from "@/app/lib/target_roles_utils";
@@ -480,11 +481,7 @@ const FundManagementTab = ({
             type="button"
             onClick={() => onRefresh?.()}
             disabled={!onRefresh}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg border transition-colors ${
-              onRefresh
-                ? "border-gray-300 text-gray-700 hover:bg-gray-100"
-                : "border-gray-200 text-gray-400 cursor-not-allowed bg-gray-100"
-            }`}
+            className="inline-flex items-center gap-2 rounded-lg border border-green-200 px-4 py-2 text-sm font-medium text-green-600 transition hover:bg-green-50"
           >
             <RefreshCw size={16} />
             รีเฟรช
@@ -493,14 +490,10 @@ const FundManagementTab = ({
             type="button"
             onClick={handleCopyToNextYear}
             disabled={Boolean(copyDisabledReason) || !onCopyToNewYear}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
-              copyDisabledReason || !onCopyToNewYear
-                ? "bg-gray-200 text-gray-500 cursor-not-allowed"
-                : "bg-green-600 text-white hover:bg-green-700"
-            }`}
+            className="inline-flex items-center gap-2 rounded-lg border border-blue-200 px-4 py-2 text-sm font-medium text-blue-600 transition hover:bg-blue-50"
           >
             <Copy size={16} />
-            คัดลอกไปปีถัดไป
+            คัดลอกไปยังปีอื่น
           </button>
         </>
       }
@@ -512,7 +505,7 @@ const FundManagementTab = ({
           <select
             value={getSelectedYearValue(selectedYear)}
             onChange={(event) => onYearChange?.(event.target.value)}
-            className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            className="px-3 py-1 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           >
             {years.map((year) => {
               const value = year.year_id || year.year || year;
@@ -533,7 +526,7 @@ const FundManagementTab = ({
               value={searchTerm}
               onChange={(event) => onSearchChange?.(event.target.value)}
               placeholder="ค้นหาหมวดหมู่หรือทุนย่อย"
-              className="pl-9 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent w-72"
+              className="pl-9 pr-3 py-1 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent w-72"
             />
           </div>
 
@@ -541,9 +534,9 @@ const FundManagementTab = ({
             type="button"
             onClick={onAddCategory}
             disabled={!selectedYear}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
+            className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-blue-700 disabled:bg-blue-300 disabled:cursor-not-allowed"
           >
-            <Plus size={16} />
+            <PlusCircle size={16} />
             เพิ่มหมวดหมู่
           </button>
         </div>
@@ -596,14 +589,14 @@ const FundManagementTab = ({
                     <button
                       type="button"
                       onClick={() => onEditCategory?.(category)}
-                      className="text-blue-600 hover:bg-blue-50 p-2 rounded-lg mr-1 inline-flex items-center gap-1"
+                      className="inline-flex items-center gap-1 rounded-lg border border-blue-200 px-3 py-1 text-xs font-medium text-blue-600 transition hover:bg-blue-50"
                     >
                       <Edit size={16} className="inline mr-1" /> แก้ไข
                     </button>
                     <button
                       type="button"
                       onClick={() => confirmDeleteCategory(category)}
-                      className="text-red-600 hover:bg-red-50 p-2 rounded-lg mr-1 inline-flex items-center gap-1"
+                      className="inline-flex items-center gap-1 rounded-lg border border-red-200 px-3 py-1 text-xs font-medium text-red-600 transition hover:bg-red-50"
                     >
                       <Trash2 size={16} className="inline mr-1" /> ลบ
                     </button>
@@ -686,16 +679,16 @@ const FundManagementTab = ({
                                   <button
                                     type="button"
                                     onClick={() => onEditSubcategory?.(subcategory, category)}
-                                    className="text-blue-600 hover:bg-blue-50 p-2 rounded-lg mr-1 inline-flex items-center gap-1"
+                                    className="inline-flex items-center gap-1 rounded-lg border border-blue-200 px-3 py-1 text-xs font-medium text-blue-600 transition hover:bg-blue-50"
                                   >
-                                    <Edit size={14} className="inline mr-1" /> แก้ไข
+                                    <Edit size={16} className="inline mr-1" /> แก้ไข
                                   </button>
                                   <button
                                     type="button"
                                     onClick={() => confirmDeleteSubcategory(subcategory, category)}
-                                    className="text-red-600 hover:bg-red-50 p-2 rounded-lg mr-1 inline-flex items-center gap-1"
+                                    className="inline-flex items-center gap-1 rounded-lg border border-red-200 px-3 py-1 text-xs font-medium text-red-600 transition hover:bg-red-50"
                                   >
-                                    <Trash2 size={14} className="inline mr-1" /> ลบ
+                                    <Trash2 size={16} className="inline mr-1" /> ลบ
                                   </button>
                                 </div>
                               </div>
@@ -795,14 +788,14 @@ const FundManagementTab = ({
                                                   <button
                                                     type="button"
                                                     onClick={() => onEditBudget?.(rule, subcategory)}
-                                                    className="px-3 py-1.5 text-xs rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-100"
+                                                    className="inline-flex items-center gap-1 rounded-lg border border-blue-200 px-3 py-1 text-xs font-medium text-blue-600 transition hover:bg-blue-50"
                                                   >
                                                     <Edit size={14} className="inline mr-1" /> แก้ไข
                                                   </button>
                                                   <button
                                                     type="button"
                                                     onClick={() => confirmDeleteBudget(rule, subcategory)}
-                                                    className="px-3 py-1.5 text-xs rounded-lg border border-red-200 text-red-600 hover:bg-red-50"
+                                                    className="inline-flex items-center gap-1 rounded-lg border border-red-200 px-3 py-1 text-xs font-medium text-red-600 transition hover:bg-red-50"
                                                   >
                                                     <Trash2 size={14} className="inline mr-1" /> ลบ
                                                   </button>

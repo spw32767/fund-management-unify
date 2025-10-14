@@ -332,7 +332,6 @@ const SubcategoryModal = ({
                       type="number"
                       min="0"
                       step="0.01"
-                      required
                       value={overallPolicyForm.allocated_amount}
                       onChange={(e) => handleOverallPolicyChange("allocated_amount", e.target.value)}
                       className="w-full text-gray-700 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"

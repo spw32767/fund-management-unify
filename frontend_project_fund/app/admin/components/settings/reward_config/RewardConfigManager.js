@@ -12,6 +12,7 @@ import {
   Save,
   X,
   Trophy,
+  PlusCircle
 } from "lucide-react";
 import Swal from 'sweetalert2';
 import adminAPI from "@/app/lib/admin_api";
@@ -364,10 +365,10 @@ const RewardConfigManager = () => {
         years.length > 0 ? (
           <button
             onClick={copyToNewYear}
-            className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+            className="inline-flex items-center gap-2 rounded-lg border border-blue-200 px-4 py-2 text-sm font-medium text-blue-600 transition hover:bg-blue-50"
           >
             <Copy size={16} />
-            คัดลอกไปปีใหม่
+            คัดลอกไปยังปีอื่น
           </button>
         ) : null
       }
@@ -431,9 +432,9 @@ const RewardConfigManager = () => {
                   reward_amount: ''
                 });
               }}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 ml-auto"
+              className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-blue-700 ml-auto"
             >
-              <Plus size={16} />
+              <PlusCircle size={16} />
               เพิ่มอัตราใหม่
             </button>
           </div>
@@ -480,16 +481,16 @@ const RewardConfigManager = () => {
               <tbody className="bg-white divide-y divide-gray-100">
                 {sortedRates.map((rate) => (
                   <tr key={rate.rate_id}>
-                    <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900">
+                    <td className="px-3 py-3 whitespace-nowrap text-sm font-medium text-gray-900">
                       {authorLabel(rate.author_status)}
                     </td>
-                    <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-700">
+                    <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-700">
                       {quartileOptions.find(q => q.value === rate.journal_quartile)?.label || rate.journal_quartile}
                     </td>
-                    <td className="px-4 py-3 whitespace-nowrap text-sm text-right text-gray-900">
+                    <td className="px-3 py-3 whitespace-nowrap text-sm text-right text-gray-900">
                       {new Intl.NumberFormat('th-TH').format(rate.reward_amount)} บาท
                     </td>
-                    <td className="px-4 py-3 whitespace-nowrap text-center">
+                    <td className="px-3 py-3 whitespace-nowrap text-center">
                       <StatusBadge
                         status={!!rate.is_active}
                         interactive
@@ -497,7 +498,7 @@ const RewardConfigManager = () => {
                         onChange={() => toggleStatus(rate.rate_id, rate.is_active, 'rate')}
                       />
                     </td>
-                    <td className="px-4 py-3 whitespace-nowrap text-center text-sm font-medium">
+                    <td className="flex justify-center gap-2 px-3 py-3 whitespace-nowrap text-sm font-medium">
                       <button
                         onClick={() => {
                           setEditingRate(rate);
@@ -509,14 +510,14 @@ const RewardConfigManager = () => {
                           });
                           setShowRateForm(true);
                         }}
-                        className="text-blue-600 hover:bg-blue-50 p-2 rounded-lg mr-1 inline-flex items-center gap-1"
+                        className="inline-flex items-center gap-1 rounded-lg border border-blue-200 px-3 py-1 text-xs font-medium text-blue-600 transition hover:bg-blue-50"
                         title="แก้ไข"
                       >
                         <Edit size={16} /> แก้ไข
                       </button>
                       <button
                         onClick={() => deleteItem(rate.rate_id, 'rate')}
-                        className="text-red-600 hover:bg-red-50 p-2 rounded-lg mr-1 inline-flex items-center gap-1"
+                        className="inline-flex items-center gap-1 rounded-lg border border-red-200 px-3 py-1 text-xs font-medium text-red-600 transition hover:bg-red-50"
                         title="ลบ"
                       >
                         <Trash2 size={16} /> ลบ
@@ -543,9 +544,9 @@ const RewardConfigManager = () => {
                   condition_description: ''
                 });
               }}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 ml-auto"
+              className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-blue-700 ml-auto"
             >
-              <Plus size={16} />
+              <PlusCircle size={16} />
               เพิ่มการกำหนดค่าใหม่
             </button>
           </div>
@@ -554,7 +555,7 @@ const RewardConfigManager = () => {
             <table className="min-w-full divide-y divide-gray-200 text-sm">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-4 py-3 text-left font-semibold text-gray-700">
+                  <th className="px-4 py-3 text-center font-semibold text-gray-700">
                     <button
                       className="inline-flex items-center gap-1 hover:text-blue-600"
                       onClick={() => toggleSort('configs', 'journal_quartile')}
@@ -562,7 +563,7 @@ const RewardConfigManager = () => {
                       Quartile {sortIcon(configSort, 'journal_quartile')}
                     </button>
                   </th>
-                  <th className="px-4 py-3 text-right font-semibold text-gray-700">
+                  <th className="px-4 py-3 text-center font-semibold text-gray-700">
                     <button
                       className="inline-flex items-center gap-1 justify-end hover:text-blue-600"
                       onClick={() => toggleSort('configs', 'max_amount')}
@@ -570,7 +571,7 @@ const RewardConfigManager = () => {
                       วงเงินสูงสุด {sortIcon(configSort, 'max_amount')}
                     </button>
                   </th>
-                  <th className="px-4 py-3 text-left font-semibold text-gray-700">
+                  <th className="px-4 py-3 text-center font-semibold text-gray-700">
                     <button
                       className="inline-flex items-center gap-1 hover:text-blue-600"
                       onClick={() => toggleSort('configs', 'condition_description')}
@@ -611,7 +612,7 @@ const RewardConfigManager = () => {
                         onChange={() => toggleStatus(config.config_id, config.is_active, 'config')}
                       />
                     </td>
-                    <td className="px-4 py-3 whitespace-nowrap text-center text-sm font-medium">
+                    <td className="flex justify-center gap-2 px-3 py-3 whitespace-nowrap text-sm font-medium">
                       <button
                         onClick={() => {
                           setEditingConfig(config);
@@ -623,14 +624,14 @@ const RewardConfigManager = () => {
                           });
                           setShowConfigForm(true);
                         }}
-                        className="text-blue-600 hover:bg-blue-50 p-2 rounded-lg mr-1 inline-flex items-center gap-1"
+                        className="inline-flex items-center gap-1 rounded-lg border border-blue-200 px-3 py-1 text-xs font-medium text-blue-600 transition hover:bg-blue-50"
                         title="แก้ไข"
                       >
                         <Edit size={16} /> แก้ไข
                       </button>
                       <button
                         onClick={() => deleteItem(config.config_id, 'config')}
-                        className="text-red-600 hover:bg-red-50 p-2 rounded-lg mr-1 inline-flex items-center gap-1"
+                        className="inline-flex items-center gap-1 rounded-lg border border-red-200 px-3 py-1 text-xs font-medium text-red-600 transition hover:bg-red-50"
                         title="ลบ"
                       >
                         <Trash2 size={16} /> ลบ

@@ -9,6 +9,7 @@ import {
   FileStack,
   Save,
   GripVertical,
+  Edit,
 } from "lucide-react";
 import Swal from "sweetalert2";
 
@@ -422,7 +423,7 @@ const DocumentTypeManager = () => {
       <SettingsSectionCard
         icon={FileStack}
         iconSize={20}
-        title="จัดการประเภทเอกสาร"
+        title="ตั้งค่าเอกสารแนบทุน"
         description="เพิ่ม แก้ไข หรือกำหนดเงื่อนไขของไฟล์ที่ต้องใช้ในแบบฟอร์มต่างๆ"
         actions={
           <>
@@ -430,10 +431,10 @@ const DocumentTypeManager = () => {
               type="button"
               onClick={loadDocumentTypes}
               disabled={loading || saving}
-              className="inline-flex items-center gap-2 rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-70"
+              className="inline-flex items-center gap-2 rounded-lg border border-green-200 px-4 py-2 text-sm font-medium text-green-600 transition hover:bg-green-50 disabled:cursor-not-allowed disabled:opacity-70"
             >
               <RefreshCcw size={16} />
-              โหลดข้อมูลใหม่
+              รีเฟรช
             </button>
             <button
               type="button"
@@ -475,12 +476,12 @@ const DocumentTypeManager = () => {
           <table className="min-w-full divide-y divide-gray-200 text-sm">
             <thead className="bg-gray-50">
               <tr>
-                <th className="w-16 px-3 py-3 text-center font-medium text-gray-600">ลำดับ</th>
-                <th className="px-3 py-3 text-left font-medium text-gray-600">ชื่อเอกสาร</th>
-                <th className="px-3 py-3 text-left font-medium text-gray-600">รหัส</th>
-                <th className="px-3 py-3 text-left font-medium text-gray-600">ประเภททุน</th>
-                <th className="px-3 py-3 text-left font-medium text-gray-600">ตัวเลือก</th>
-                <th className="px-3 py-3 text-right font-medium text-gray-600">การจัดการ</th>
+                <th className="w-16 px-3 py-3 text-center font-bold text-gray-600">ลำดับ</th>
+                <th className="px-3 py-3 text-center font-bold text-gray-600">ชื่อเอกสาร</th>
+                <th className="px-3 py-3 text-center font-bold text-gray-600">รหัส</th>
+                <th className="px-3 py-3 text-center font-bold text-gray-600">ประเภททุน</th>
+                <th className="px-3 py-3 text-center font-bold text-gray-600">ตัวเลือก</th>
+                <th className="px-3 py-3 text-center font-bold text-gray-600">การจัดการ</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -506,7 +507,7 @@ const DocumentTypeManager = () => {
                     onDragEnd={handleDragEnd}
                     className={`${draggingId === item.document_type_id ? "bg-blue-50" : "hover:bg-gray-50"}`}
                   >
-                    <td className="px-3 py-3 text-gray-400">
+                    <td className="px-3 py-3 text-center text-gray-400">
                       <div
                         className={`inline-flex items-center gap-1 ${isFiltering ? "cursor-not-allowed" : "cursor-grab"}`}
                       >
@@ -515,11 +516,11 @@ const DocumentTypeManager = () => {
                       </div>
                     </td>
                     <td className="px-3 py-3">
-                      <div className="font-medium text-gray-900">
+                      <div className="font-medium text-left text-gray-900">
                         {item.document_type_name || "(ไม่ระบุชื่อ)"}
                       </div>
                     </td>
-                    <td className="px-3 py-3 text-gray-700">{item.code || "-"}</td>
+                    <td className="px-3 py-3 text-left text-gray-700">{item.code || "-"}</td>
                     <td className="px-3 py-3">
                       <div className="space-y-1">
                         {(() => {
@@ -571,20 +572,20 @@ const DocumentTypeManager = () => {
                       </div>
                     </td>
                     <td className="px-3 py-3 text-right">
-                      <div className="flex justify-end gap-2">
+                      <div className="flex justify-center gap-2 px-3 py-3 whitespace-nowrap text-sm font-medium">
                         <button
                           type="button"
                           onClick={() => handleEditDocumentType(item)}
-                          className="inline-flex items-center gap-1 rounded-lg border border-gray-200 px-3 py-1 text-xs font-medium text-gray-600 transition hover:bg-gray-50"
+                          className="inline-flex items-center gap-1 rounded-lg border border-blue-200 px-3 py-1 text-xs font-medium text-blue-600 transition hover:bg-blue-50"
                         >
-                          <Pencil size={14} /> แก้ไข
+                          <Edit size={16} /> แก้ไข
                         </button>
                         <button
                           type="button"
                           onClick={() => handleDeleteDocumentType(item)}
                           className="inline-flex items-center gap-1 rounded-lg border border-red-200 px-3 py-1 text-xs font-medium text-red-600 transition hover:bg-red-50"
                         >
-                          <Trash2 size={14} /> ลบ
+                          <Trash2 size={16} /> ลบ
                         </button>
                       </div>
                     </td>

@@ -4,8 +4,8 @@ import React, { useEffect, useState } from "react";
 import { X } from "lucide-react";
 
 export const FUND_TYPE_OPTIONS = [
-  { value: "fund_application", label: "คำขอรับทุนวิจัย" },
-  { value: "publication_reward", label: "เงินรางวัลผลงานเผยแพร่" },
+  { value: "publication_reward", label: "เงินรางวัล/เงินสมทบผลงานเผยแพร่" },
+  { value: "fund_application", label: "ทุนอื่น ๆ ที่ไม่ใช่เงินรางวัล/เงินสมทบฯ" },
 ];
 
 const initialFormState = {
@@ -104,10 +104,10 @@ const DocumentTypeModal = ({
         </div>
 
         <form onSubmit={handleSubmit} className="px-6 py-6">
-          <div className="grid gap-6 md:grid-cols-2">
+          <div className="grid gap-6 md:grid-cols-1">
             <div className="space-y-4">
               <div>
-                <label className="mb-2 block text-sm font-medium text-gray-700">
+                <label className="mb-2 block text-sm font-bold text-gray-700">
                   ชื่อประเภทเอกสาร
                 </label>
                 <input
@@ -126,7 +126,7 @@ const DocumentTypeModal = ({
               </div>
 
               <div>
-                <label className="mb-2 block text-sm font-medium text-gray-700">
+                <label className="mb-2 block text-sm font-bold text-gray-700">
                   รหัสเอกสาร (Code)
                 </label>
                 <input
@@ -145,84 +145,81 @@ const DocumentTypeModal = ({
               </div>
 
               <div className="space-y-2">
-                <label className="block text-sm font-medium text-gray-700">
-                  ตัวเลือกเพิ่มเติม
+                <label className="block text-sm font-bold text-gray-700">
+                  ตั้งค่าความจำเป็นของเอกสาร
                 </label>
-                <div className="flex flex-col gap-2">
-                  <label className="inline-flex items-center gap-2 text-sm text-gray-700">
-                    <input
-                      type="checkbox"
-                      checked={formState.required}
-                      onChange={(e) =>
-                        setFormState((prev) => ({
-                          ...prev,
-                          required: e.target.checked,
-                        }))
-                      }
-                      className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                    />
-                    ต้องแนบไฟล์อย่างน้อย 1 ไฟล์
-                  </label>
-                  <label className="inline-flex items-center gap-2 text-sm text-gray-700">
-                    <input
-                      type="checkbox"
-                      checked={formState.multiple}
-                      onChange={(e) =>
-                        setFormState((prev) => ({
-                          ...prev,
-                          multiple: e.target.checked,
-                        }))
-                      }
-                      className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                    />
-                    อนุญาตให้อัปโหลดหลายไฟล์
-                  </label>
+                  <div className="rounded-lg border border-gray-200 p-4">
+                    <div className="flex flex-col gap-2">                  
+                      <label 
+                        className="flex items-center justify-between gap-3 rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 transition hover:border-blue-300"
+                      >
+                      <div className="flex flex-1 items-center gap-2">
+                      <input
+                        type="checkbox"
+                        checked={formState.required}
+                        onChange={(e) =>
+                          setFormState((prev) => ({
+                            ...prev,
+                            required: e.target.checked,
+                          }))
+                        }
+                        className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                      />
+                      ต้องแนบไฟล์อย่างน้อย 1 ไฟล์
+                      </div>
+                    </label>
+                    <label 
+                        className="flex items-center justify-between gap-3 rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 transition hover:border-blue-300"
+                      >
+                      <div className="flex flex-1 items-center gap-2">
+                      <input
+                        type="checkbox"
+                        checked={formState.multiple}
+                        onChange={(e) =>
+                          setFormState((prev) => ({
+                            ...prev,
+                            multiple: e.target.checked,
+                          }))
+                        }
+                        className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                      />
+                      อนุญาตให้อัปโหลดหลายไฟล์
+                      </div>
+                    </label>
+                  </div>
                 </div>
               </div>
             </div>
 
-            <div className="space-y-4">
-              <div>
-                <label className="mb-2 block text-sm font-medium text-gray-700">
-                  ประเภททุนที่ใช้งาน
-                </label>
-                <div className="rounded-lg border border-gray-200 p-4">
-                  <p className="mb-3 text-xs text-gray-500">
-                    ไม่เลือกหมายถึงใช้ได้กับทุกประเภททุน
-                  </p>
-                  <div className="flex flex-col gap-2">
-                    {FUND_TYPE_OPTIONS.map((option) => {
-                      const checked = selectedFundTypes.includes(option.value);
-                      return (
-                        <label
-                          key={option.value}
-                          className="flex items-center justify-between gap-3 rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 transition hover:border-blue-300"
-                        >
-                          <div className="flex flex-1 items-center gap-2">
-                            <input
-                              type="checkbox"
-                              checked={checked}
-                              onChange={() => handleFundTypeToggle(option.value)}
-                              className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                            />
-                            <span>{option.label}</span>
-                          </div>
-                          {checked && (
-                            <span className="rounded-full bg-blue-50 px-2 py-0.5 text-xs text-blue-600">เลือกไว้</span>
-                          )}
-                        </label>
-                      );
-                    })}
-                  </div>
+            <div className="space-y-2">
+              <label className="mb-2 block text-sm font-bold text-gray-700">
+                เอกสารนี้ใช้กับแบบฟอร์มทุนประเภทใด
+              </label>
+              <div className="rounded-lg border border-gray-200 p-4">
+                <div className="flex flex-col gap-2">
+                  {FUND_TYPE_OPTIONS.map((option) => {
+                    const checked = selectedFundTypes.includes(option.value);
+                    return (
+                      <label
+                        key={option.value}
+                        className="flex items-center justify-between gap-3 rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 transition hover:border-blue-300"
+                      >
+                        <div className="flex flex-1 items-center gap-2">
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() => handleFundTypeToggle(option.value)}
+                            className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                          />
+                          <span>{option.label}</span>
+                        </div>
+                        {checked && (
+                          <span className="rounded-full bg-blue-50 px-2 py-0.5 text-xs text-blue-600">เลือกไว้</span>
+                        )}
+                      </label>
+                    );
+                  })}
                 </div>
-              </div>
-
-              <div className="rounded-lg bg-gray-50 p-4 text-xs text-gray-600">
-                <p className="font-semibold text-gray-700">คำแนะนำ</p>
-                <ul className="mt-2 list-disc space-y-1 pl-5">
-                  <li>เว้นว่างไม่เลือกประเภททุน เพื่อให้ใช้ได้กับทุกแบบฟอร์ม</li>
-                  <li>เลือกอย่างน้อย 1 รายการ หากต้องการจำกัดให้ใช้เฉพาะฟอร์มที่ระบุ</li>
-                </ul>
               </div>
             </div>
           </div>

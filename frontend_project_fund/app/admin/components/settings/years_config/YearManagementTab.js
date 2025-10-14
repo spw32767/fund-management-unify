@@ -3,13 +3,14 @@ import React, { useMemo, useState } from "react";
 import {
   Plus,
   Edit,
-  // Trash2,
+  Trash2,
   Save,
   X,
   ArrowUpDown,
   ArrowUp,
   ArrowDown,
   Calendar,
+  PlusCircle
 } from "lucide-react";
 import Swal from "sweetalert2";
 import StatusBadge from "@/app/admin/components/settings/StatusBadge";
@@ -150,9 +151,9 @@ const YearManagementTab = ({ years = [], onSaveYear /*, onDeleteYear */ }) => {
         actions={
           <button
             onClick={handleAddNew}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+            className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-blue-700"
           >
-            <Plus size={16} />
+            <PlusCircle size={16} />
             เพิ่มปีงบประมาณ
           </button>
         }
@@ -213,7 +214,7 @@ const YearManagementTab = ({ years = [], onSaveYear /*, onDeleteYear */ }) => {
                   <td className="px-4 py-3 whitespace-nowrap text-center text-sm font-medium">
                     <button
                       onClick={() => handleEdit(item)}
-                      className="text-blue-600 hover:bg-blue-50 p-2 rounded-lg mr-1 inline-flex items-center gap-1"
+                      className="inline-flex items-center gap-1 rounded-lg border border-blue-200 px-3 py-1 text-xs font-medium text-blue-600 transition hover:bg-blue-50"
                       title="แก้ไข"
                     >
                       <Edit size={16} /> แก้ไข
@@ -222,7 +223,7 @@ const YearManagementTab = ({ years = [], onSaveYear /*, onDeleteYear */ }) => {
                      * ระบบลบปีงบประมาณถูกปิดใช้งานชั่วคราว
                      * <button
                      *   onClick={() => handleDelete(item)}
-                     *   className="text-red-600 hover:bg-red-50 p-2 rounded-lg inline-flex items-center gap-1"
+                     *   className="inline-flex items-center gap-1 rounded-lg border border-red-200 px-3 py-2 text-xs font-medium text-red-600 transition hover:bg-red-50"
                      *   title="ลบ"
                      * >
                      *   <Trash2 size={16} /> ลบ
