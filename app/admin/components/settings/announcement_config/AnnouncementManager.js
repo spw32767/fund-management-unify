@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { FileText, Eye, Download, Bell, BookOpen, Plus, Edit, Trash2, Save, X, GripVertical, RefreshCw } from "lucide-react";
+import { FileText, Eye, Download, Bell, BookOpen, Plus, Edit, Trash2, Save, X, GripVertical, RefreshCw, PlusCircle } from "lucide-react";
 import Swal from "sweetalert2";
 import apiClient from "@/app/lib/api";
 import { adminAnnouncementAPI, adminFundFormAPI } from "@/app/lib/admin_announcement_api";
@@ -1053,22 +1053,22 @@ export default function AnnouncementManager() {
             <>
               <button
                 onClick={loadAnnouncements}
-                className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border text-sm hover:bg-gray-50"
+                className="inline-flex items-center gap-2 rounded-lg border border-green-200 px-4 py-2 text-sm font-medium text-green-600 transition hover:bg-green-50"
               >
                 <RefreshCw size={16} /> รีเฟรช
               </button>
               <button
                 onClick={aPersistOrder}
                 disabled={!aOrderDirty}
-                className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border text-sm bg-white hover:bg-gray-50 disabled:opacity-50"
+                className="inline-flex items-center gap-2 rounded-lg border border-blue-200 px-4 py-2 text-sm font-medium text-blue-600 transition hover:bg-blue-50 disabled:opacity-50"
               >
                 <Save size={16} /> บันทึกลำดับ
               </button>
               <button
                 onClick={openACreate}
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700"
+                className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-blue-700"
               >
-                <Plus size={16} /> เพิ่มประกาศ
+                <PlusCircle size={16} /> เพิ่มประกาศ
               </button>
             </>
           }
@@ -1145,11 +1145,11 @@ export default function AnnouncementManager() {
                         </div>
                       </td>
                       <td className="px-3 py-2">
-                          <div className="flex flex-row justify-end gap-2 flex-nowrap [&>button]:whitespace-nowrap">
+                          <div className="flex flex-row justify-center gap-2 flex-nowrap [&>button]:whitespace-nowrap">
                               <button
                                   onClick={() => handleDownloadFile(row, "announcement")}
                                   disabled={downloadingIds.has(id)} // เพิ่มบรรทัดนี้
-                                  className="text-green-600 hover:bg-green-50 p-2 rounded-lg inline-flex items-center gap-1 disabled:opacity-50 disabled:cursor-wait" // เพิ่ม class
+                                  className="inline-flex items-center gap-1 rounded-lg border border-green-200 px-3 py-1 text-xs font-medium text-green-600 transition hover:bg-green-50 disabled:opacity-50 disabled:cursor-wait" // เพิ่ม class
                                   title="ดาวน์โหลดไฟล์"
                               >
                                   <Download size={16} />
@@ -1157,14 +1157,14 @@ export default function AnnouncementManager() {
                               </button>
                           <button
                             onClick={() => openAEdit(row)}
-                            className="text-blue-600 hover:bg-blue-50 p-2 rounded-lg inline-flex items-center gap-1"
+                            className="inline-flex items-center gap-1 rounded-lg border border-blue-200 px-3 py-1 text-xs font-medium text-blue-600 transition hover:bg-blue-50"
                             title="แก้ไข"
                           >
                             <Edit size={16} /> แก้ไข
                           </button>
                           <button
                             onClick={() => handleADelete(row)}
-                            className="text-red-600 hover:bg-red-50 p-2 rounded-lg inline-flex items-center gap-1"
+                            className="inline-flex items-center gap-1 rounded-lg border border-red-200 px-3 py-1 text-xs font-medium text-red-600 transition hover:bg-red-50"
                             title="ลบ"
                           >
                             <Trash2 size={16} /> ลบ
@@ -1291,7 +1291,7 @@ export default function AnnouncementManager() {
                           <button
                               onClick={() => handleDownloadFile(row, "fundForm")}
                               disabled={downloadingIds.has(id)} // เพิ่มบรรทัดนี้
-                              className="text-green-600 hover:bg-green-50 p-2 rounded-lg inline-flex items-center gap-1 disabled:opacity-50 disabled:cursor-wait" // เพิ่ม class
+                              className="inline-flex items-center gap-1 rounded-lg border border-green-200 px-3 py-1 text-xs font-medium text-green-600 transition hover:bg-green-50 disabled:opacity-50 disabled:cursor-wait" // เพิ่ม class
                               title="ดาวน์โหลดไฟล์"
                           >
                               <Download size={16} />
@@ -1299,14 +1299,14 @@ export default function AnnouncementManager() {
                           </button>
                           <button
                             onClick={() => openFEdit(row)}
-                            className="text-blue-600 hover:bg-blue-50 p-2 rounded-lg inline-flex items-center gap-1"
+                            className="inline-flex items-center gap-1 rounded-lg border border-blue-200 px-3 py-1 text-xs font-medium text-blue-600 transition hover:bg-blue-50"
                             title="แก้ไข"
                           >
                             <Edit size={16} /> แก้ไข
                           </button>
                           <button
                             onClick={() => handleFDelete(row)}
-                            className="text-red-600 hover:bg-red-50 p-2 rounded-lg inline-flex items-center gap-1"
+                            className="inline-flex items-center gap-1 rounded-lg border border-red-200 px-3 py-1 text-xs font-medium text-red-600 transition hover:bg-red-50"
                             title="ลบ"
                           >
                             <Trash2 size={16} /> ลบ
