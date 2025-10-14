@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { Award, Upload, Users, FileText, Plus, X, Save, Send, AlertCircle, Calculator, Search, Eye, Signature, ArrowLeft } from "lucide-react";
+import { Award, Upload, Users, FileText, Plus, X, Save, Send, AlertCircle, Calculator, Search, Eye, Signature, ArrowLeft, Info } from "lucide-react";
 import PageLayout from "../common/PageLayout";
 import SimpleCard from "../common/SimpleCard";
 import apiClient, { systemAPI, authAPI } from '../../../lib/api';
@@ -756,6 +756,7 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
   const [initialDataReady, setInitialDataReady] = useState(false);
   const [prefilledSubmissionId, setPrefilledSubmissionId] = useState(null);
   const [currentSubmissionId, setCurrentSubmissionId] = useState(initialSubmissionId ?? null);
+  const [currentSubmissionStatus, setCurrentSubmissionStatus] = useState(null);
   const [currentUser, setCurrentUser] = useState(null);
   const [previewState, setPreviewState] = useState({
     loading: false,
@@ -882,6 +883,7 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
     setResolvedSubcategoryName(null);
     setResolutionError('');
     setAvailableQuartiles([]);
+    setCurrentSubmissionStatus(null);
 
     setFormData({
       year_id: defaultYearId,
@@ -1144,6 +1146,60 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
       .join('|');
   }, [externalFundings]);
 
+  const selectedFundSummary = useMemo(() => {
+    if (!formData.author_status || !formData.journal_quartile) {
+      return null;
+    }
+
+    const key = `${formData.author_status}|${formData.journal_quartile}`;
+    const option = budgetOptionMap[key] || {};
+    const description = findFirstString([
+      option?.fund_description,
+      resolvedSubcategoryName,
+    ]);
+
+    if (!description) {
+      return null;
+    }
+
+    return { description };
+  }, [formData.author_status, formData.journal_quartile, budgetOptionMap, resolvedSubcategoryName]);
+
+  const budgetYearText = useMemo(() => {
+    const normalizeYearLabel = (value) => {
+      if (value === null || value === undefined) {
+        return '';
+      }
+      const raw = String(value).trim();
+      if (!raw) {
+        return '';
+      }
+      return /^ปี/.test(raw) ? raw : `ปีงบประมาณ ${raw}`;
+    };
+
+    if (lockedBudgetYearLabel) {
+      return normalizeYearLabel(lockedBudgetYearLabel);
+    }
+
+    if (formData.year_id == null && years.length === 0) {
+      return '';
+    }
+
+    const targetId = formData.year_id != null ? String(formData.year_id) : null;
+    if (targetId) {
+      const matched = years.find((entry) => {
+        const yearId = entry?.year_id ?? entry?.YearID ?? entry?.id ?? null;
+        return yearId != null && String(yearId) === targetId;
+      });
+
+      if (matched) {
+        return normalizeYearLabel(matched?.year ?? matched?.Year);
+      }
+    }
+
+    return targetId ? normalizeYearLabel(targetId) : '';
+  }, [formData.year_id, years, lockedBudgetYearLabel]);
+
   const formSignature = useMemo(() => {
     return JSON.stringify({
       author_status: formData.author_status,
@@ -1260,6 +1316,7 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
         ];
         const normalizedStatus = statusCandidates.map(normalizeStatusCode).find(Boolean) || null;
         const allowEditing = normalizedStatus ? EDITABLE_STATUS_CODES.has(normalizedStatus) : true;
+        setCurrentSubmissionStatus(normalizedStatus);
         setIsReadOnly(baseReadOnly ? true : !allowEditing);
 
         const detail = payload.PublicationRewardDetail || payload.publication_reward_detail || {};
@@ -1395,6 +1452,7 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
 
         if (statusCode === 404) {
           resetForm();
+          setCurrentSubmissionStatus(null);
           const submissionKey = toSubmissionKey(targetSubmissionId);
           if (submissionKey) {
             missingSubmissionRef.current.add(submissionKey);
@@ -3328,6 +3386,7 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
 
         setCurrentSubmissionId(submissionId);
         setPrefilledSubmissionId(toSubmissionKey(submissionId));
+        setCurrentSubmissionStatus('draft');
       } else {
         const updatePayload = {};
         const resolvedCategoryId = formData.category_id || categoryId || null;
@@ -3348,6 +3407,8 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
             console.warn('Failed to update submission metadata for draft:', updateError);
           }
         }
+
+        setCurrentSubmissionStatus('draft');
       }
 
       if (!submissionId) {
@@ -3476,6 +3537,7 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
         setPrefilledSubmissionId(submissionKey);
       }
       setCurrentSubmissionId(null);
+      setCurrentSubmissionStatus(null);
     }
 
     resetForm();
@@ -4432,6 +4494,15 @@ const showSubmissionConfirmation = async () => {
   // MAIN RENDER
   // =================================================================
 
+  const editingExistingSubmission = Boolean(prefilledSubmissionId);
+  const draftLockedSelections = editingExistingSubmission && currentSubmissionStatus === 'draft' && !isReadOnly;
+  const selectedFundDescription = selectedFundSummary?.description || '';
+  const shouldShowDraftBanner = Boolean(draftLockedSelections && selectedFundDescription);
+  const enforceBudgetYearReadOnly = Boolean(lockedBudgetYearId) || editingExistingSubmission || isReadOnly;
+  const disableAuthorStatusSelect = draftLockedSelections || availableAuthorStatuses.length === 0;
+  const disableQuartileSelect = draftLockedSelections || availableQuartiles.length === 0;
+  const disableJournalNameInput = (availableQuartiles.length === 0 && !editingExistingSubmission);
+
   return (
     <PageLayout
       title="แบบฟอร์มขอเบิกเงินรางวัลการตีพิมพ์เผยแพร่ผลงานวิจัยที่ได้รับการตีพิมพ์ในสาขาวิทยาศาสตร์และเทคโนโลยี"
@@ -4453,12 +4524,27 @@ const showSubmissionConfirmation = async () => {
       ]}
     >
       <form ref={formRef} className="space-y-6" noValidate>
-      {isReadOnly && (
-        <div className="rounded-lg border border-yellow-300 bg-yellow-50 p-4 text-sm text-yellow-800">
-          ขณะนี้เป็นโหมด <strong>อ่านอย่างเดียว</strong> — ไม่สามารถแก้ไขหรือส่งคำร้องได้
-        </div>
-      )}
-      <fieldset disabled={isReadOnly} aria-disabled={isReadOnly} className="space-y-6">
+        {shouldShowDraftBanner && (
+          <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 text-sm text-blue-800">
+            <div className="flex items-start gap-3">
+              <Info className="h-5 w-5 flex-shrink-0 text-blue-500" aria-hidden="true" />
+              <div className="space-y-2">
+                <p className="font-medium text-blue-900">
+                  แบบฟอร์มนี้กำลังใช้ทุน {selectedFundDescription}
+                </p>
+                <p className="text-xs text-blue-700 sm:text-sm">
+                  หากต้องการเปลี่ยนให้ลบร่าง แล้วสร้างใหม่อีกครั้ง
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+        {isReadOnly && (
+          <div className="rounded-lg border border-yellow-300 bg-yellow-50 p-4 text-sm text-yellow-800">
+            ขณะนี้เป็นโหมด <strong>อ่านอย่างเดียว</strong> — ไม่สามารถแก้ไขหรือส่งคำร้องได้
+          </div>
+        )}
+        <fieldset disabled={isReadOnly} aria-disabled={isReadOnly} className="space-y-6">
         {/* =================================================================
         // BASIC INFORMATION SECTION
         // ================================================================= */}
@@ -4476,50 +4562,75 @@ const showSubmissionConfirmation = async () => {
 
             {/* Budget Year */}
             <div id="field-year_id">
-              <label htmlFor="year_id" className="block text-sm font-medium text-gray-700 mb-2">
+              <label
+                htmlFor={enforceBudgetYearReadOnly ? 'year_id_display' : 'year_id'}
+                className="block text-sm font-medium text-gray-700 mb-2"
+              >
                 ปีงบประมาณ (Budget Year) <span className="text-red-500">*</span>
               </label>
-              <select
-                id="year_id"
-                name="year_id"
-                value={formData.year_id || ''}
-                onChange={handleInputChange}
-                disabled={isReadOnly || Boolean(lockedBudgetYearId)}
-                required
-                aria-required="true"
-                aria-invalid={errors.year_id ? 'true' : 'false'}
-                aria-describedby={errors.year_id ? 'error-year_id' : undefined}
-                className={`w-full text-gray-600 px-4 py-2 border rounded-lg focus:outline-none focus:border-blue-500 ${
-                  errors.year_id ? 'border-red-500' : 'border-gray-300'
-                }`}
-              >
-                <option value="" disabled={formData.year_id !== '' && formData.year_id !== null} hidden={formData.year_id !== '' && formData.year_id !== null}>
-                  เลือกปีงบประมาณ (Select Budget Year)
-                </option>
-                {years.map(year => {
-                  const optionKey = String(year?.year_id ?? year?.YearID ?? year?.id ?? '');
-                  const selectedKey = formData.year_id != null ? String(formData.year_id) : null;
-                  const lockedKey = lockedBudgetYearId != null ? String(lockedBudgetYearId) : null;
-                  const enforceLock = lockedKey && (!selectedKey || selectedKey === lockedKey);
-                  const isLockedMismatch = enforceLock && optionKey !== lockedKey;
-                  const outsideEnabled = optionKey
-                    ? (enabledYears.length > 0 && !enabledYears.includes(optionKey) && optionKey !== selectedKey)
-                    : false;
-                  const isDisabled = Boolean(isLockedMismatch || outsideEnabled);
-
-                  return (
-                    <option
-                      key={year.year_id}
-                      value={year.year_id}
-                      disabled={isDisabled}
-                    >
-                      ปีงบประมาณ {year.year}
+              {enforceBudgetYearReadOnly ? (
+                <>
+                  <input
+                    type="hidden"
+                    id="year_id"
+                    name="year_id"
+                    value={formData.year_id ?? ''}
+                  />
+                  <div
+                    id="year_id_display"
+                    className="w-full px-4 py-2 border border-gray-200 rounded-lg bg-gray-50 text-gray-700"
+                  >
+                    {budgetYearText || 'ยังไม่กำหนดปีงบประมาณ'}
+                  </div>
+                  {errors.year_id && (
+                    <p id="error-year_id" className="text-red-500 text-sm mt-1">{errors.year_id}</p>
+                  )}
+                </>
+              ) : (
+                <>
+                  <select
+                    id="year_id"
+                    name="year_id"
+                    value={formData.year_id || ''}
+                    onChange={handleInputChange}
+                    disabled={isReadOnly || Boolean(lockedBudgetYearId)}
+                    required
+                    aria-required="true"
+                    aria-invalid={errors.year_id ? 'true' : 'false'}
+                    aria-describedby={errors.year_id ? 'error-year_id' : undefined}
+                    className={`w-full text-gray-600 px-4 py-2 border rounded-lg focus:outline-none focus:border-blue-500 ${
+                      errors.year_id ? 'border-red-500' : 'border-gray-300'
+                    }`}
+                  >
+                    <option value="" disabled={formData.year_id !== '' && formData.year_id !== null} hidden={formData.year_id !== '' && formData.year_id !== null}>
+                      เลือกปีงบประมาณ (Select Budget Year)
                     </option>
-                  );
-                })}
-              </select>
-              {errors.year_id && (
-                <p id="error-year_id" className="text-red-500 text-sm mt-1">{errors.year_id}</p>
+                    {years.map(year => {
+                      const optionKey = String(year?.year_id ?? year?.YearID ?? year?.id ?? '');
+                      const selectedKey = formData.year_id != null ? String(formData.year_id) : null;
+                      const lockedKey = lockedBudgetYearId != null ? String(lockedBudgetYearId) : null;
+                      const enforceLock = lockedKey && (!selectedKey || selectedKey === lockedKey);
+                      const isLockedMismatch = enforceLock && optionKey !== lockedKey;
+                      const outsideEnabled = optionKey
+                        ? (enabledYears.length > 0 && !enabledYears.includes(optionKey) && optionKey !== selectedKey)
+                        : false;
+                      const isDisabled = Boolean(isLockedMismatch || outsideEnabled);
+
+                      return (
+                        <option
+                          key={year.year_id}
+                          value={year.year_id}
+                          disabled={isDisabled}
+                        >
+                          ปีงบประมาณ {year.year}
+                        </option>
+                      );
+                    })}
+                  </select>
+                  {errors.year_id && (
+                    <p id="error-year_id" className="text-red-500 text-sm mt-1">{errors.year_id}</p>
+                  )}
+                </>
               )}
             </div>
 
@@ -4533,14 +4644,14 @@ const showSubmissionConfirmation = async () => {
                 name="author_status"
                 value={formData.author_status}
                 onChange={handleInputChange}
-                disabled={availableAuthorStatuses.length === 0}
+                disabled={disableAuthorStatusSelect}
                 required
                 aria-required="true"
                 aria-invalid={errors.author_status ? 'true' : 'false'}
                 aria-describedby={errors.author_status ? 'error-author_status' : undefined}
                 className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:border-blue-500 ${
                   errors.author_status ? 'border-red-500' : 'border-gray-300'
-                } ${availableAuthorStatuses.length === 0 ? 'bg-gray-100 cursor-not-allowed' : ''}`}
+                } ${disableAuthorStatusSelect ? 'bg-gray-100 cursor-not-allowed' : ''}`}
               >
                 <option value="" disabled={formData.author_status !== ''} hidden={formData.author_status !== ''}>
                   เลือกประเภทผู้ประพันธ์ (Select Author Type)
@@ -4648,7 +4759,7 @@ const showSubmissionConfirmation = async () => {
                   name="journal_name"
                   value={formData.journal_name}
                   onChange={handleInputChange}
-                  disabled={availableQuartiles.length === 0}
+                  disabled={disableJournalNameInput}
                   placeholder="ชื่อวารสารที่ตีพิมพ์ (Journal name)"
                   required
                   aria-required="true"
@@ -4656,7 +4767,7 @@ const showSubmissionConfirmation = async () => {
                   aria-describedby={errors.journal_name ? 'error-journal_name' : undefined}
                   className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:border-blue-500 ${
                     errors.journal_name ? 'border-red-500' : 'border-gray-300'
-                  } ${availableQuartiles.length === 0 ? 'bg-gray-100 cursor-not-allowed' : ''}`}
+                  } ${disableJournalNameInput ? 'bg-gray-100 cursor-not-allowed' : ''}`}
                 />
                 {errors.journal_name && (
                   <p id="error-journal_name" className="text-red-500 text-sm mt-1">{errors.journal_name}</p>
@@ -4673,6 +4784,7 @@ const showSubmissionConfirmation = async () => {
                   name="journal_quartile"
                   value={formData.journal_quartile}
                   onChange={handleInputChange}
+                  disabled={disableQuartileSelect}
                   required
                   aria-required="true"
                   aria-invalid={errors.journal_quartile ? 'true' : 'false'}
@@ -4682,7 +4794,7 @@ const showSubmissionConfirmation = async () => {
                   ].filter(Boolean).join(' ') || undefined}
                   className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:border-blue-500 ${
                     errors.journal_quartile ? 'border-red-500' : 'border-gray-300'
-                  }`}
+                  } ${disableQuartileSelect ? 'bg-gray-100 cursor-not-allowed' : ''}`}
                 >
                   <option value="" disabled={formData.journal_quartile !== ''} hidden={formData.journal_quartile !== ''}>
                     เลือกควอร์ไทล์ (Select Quartile)
