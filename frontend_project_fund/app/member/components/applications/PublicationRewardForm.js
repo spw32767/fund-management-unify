@@ -16,6 +16,7 @@ import {
   publicationRewardAPI,
   publicationFormAPI,
   submissionUsersAPI,
+  publicationRewardRatesAPI,
   rewardConfigAPI,
   publicationBudgetAPI
 } from '../../../lib/publication_api';
@@ -389,20 +390,31 @@ const sortQuartiles = (quartiles) => {
 };
 
 // Get maximum fee limit based on quartile
-const getMaxFeeLimit = async (quartile, year = null) => {
+const getMaxFeeLimit = async (quartile, year = null, preloadedLimits = null) => {
   if (!quartile) return 0;
-  
+
+  const normalizedQuartile = String(quartile).trim().toUpperCase();
+
+  if (preloadedLimits && Object.prototype.hasOwnProperty.call(preloadedLimits, normalizedQuartile)) {
+    const cachedValue = preloadedLimits[normalizedQuartile];
+    if (cachedValue == null) {
+      return 0;
+    }
+    const numeric = Number(cachedValue);
+    return Number.isFinite(numeric) ? numeric : 0;
+  }
+
   try {
     // หา year (พ.ศ.) จาก year_id หรือใช้ปีปัจจุบัน + 543
     const currentYear = new Date().getFullYear() + 543;
     const targetYear = year || currentYear.toString();
-    
+
     // เรียก API เพื่อดึงวงเงินสูงสุด
     const response = await rewardConfigAPI.lookupMaxAmount(
       targetYear,
-      quartile
+      normalizedQuartile
     );
-    
+
     return response.max_amount || 0;
   } catch (error) {
     // ถ้าไม่พบ config สำหรับ quartile นี้ ให้ return 0
@@ -415,14 +427,14 @@ const getMaxFeeLimit = async (quartile, year = null) => {
   }
 };
 
-const validateFees = async (journalQuartile, revisionFee, publicationFee, currentYear) => {
+const validateFees = async (journalQuartile, revisionFee, publicationFee, currentYear, feeLimitMap = null) => {
   const errors = [];
-  
+
   if (journalQuartile) {
     try {
       // ดึงวงเงินสูงสุดจาก API
-      const maxLimit = await getMaxFeeLimit(journalQuartile, currentYear);
-      
+      const maxLimit = await getMaxFeeLimit(journalQuartile, currentYear, feeLimitMap);
+
       // คำนวณผลรวมของค่าปรับปรุงและค่าตีพิมพ์
       const totalFees = (parseFloat(revisionFee) || 0) + (parseFloat(publicationFee) || 0);
       
@@ -456,7 +468,7 @@ const validateFeesRealtime = async (revisionFee, publicationFee, quartile, feeLi
   return true;
 };
 // Check if fees are within limit
-const checkFeesLimit = async (revisionFee, publicationFee, quartile) => {
+const checkFeesLimit = async (revisionFee, publicationFee, quartile, feeLimitMap = null, targetYear = null) => {
   if (!quartile) {
     return {
       isValid: true,
@@ -465,11 +477,11 @@ const checkFeesLimit = async (revisionFee, publicationFee, quartile) => {
       remaining: 0
     };
   }
-  
+
   try {
-    const maxLimit = await getMaxFeeLimit(quartile);
+    const maxLimit = await getMaxFeeLimit(quartile, targetYear, feeLimitMap);
     const total = (parseFloat(revisionFee) || 0) + (parseFloat(publicationFee) || 0);
-    
+
     return {
       isValid: total <= maxLimit,
       total: total,
@@ -763,6 +775,13 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
   const [resolutionError, setResolutionError] = useState('');
   const [rewardRateMap, setRewardRateMap] = useState({});
   const [budgetOptionMap, setBudgetOptionMap] = useState({});
+  const [lockedBudgetYearLabel, setLockedBudgetYearLabel] = useState(null);
+  const [lockedBudgetYearId, setLockedBudgetYearId] = useState(null);
+  const [rewardRateYear, setRewardRateYear] = useState(null);
+  const [rewardConfigYear, setRewardConfigYear] = useState(null);
+  const [rewardConfigMap, setRewardConfigMap] = useState({});
+  const [fallbackRewardRateMap, setFallbackRewardRateMap] = useState({});
+  const [preloadedQuartileConfigs, setPreloadedQuartileConfigs] = useState({});
   const [, setPolicyContext] = useState(null);
 
   // Form data state
@@ -925,7 +944,7 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
   };
 
   // Helper: get valid author status & quartile pairs for year
-  const getEnabledAuthorStatusQuartiles = async ({ category_id, year_id }) => {
+  const getEnabledAuthorStatusQuartiles = async ({ category_id, year_id, fallbackRateMap = {} }) => {
     try {
       const resp = await publicationBudgetAPI.getValidOptions(category_id, year_id);
       const options = resp.options || resp.data || [];
@@ -957,6 +976,19 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
           max_amount_per_grant: parseNumberOrNull(opt.max_amount_per_grant),
         };
       });
+
+      if (pairs.length === 0 && fallbackRateMap && Object.keys(fallbackRateMap).length > 0) {
+        Object.entries(fallbackRateMap).forEach(([key, amount]) => {
+          const [authorStatus, quartile] = key.split('|');
+          if (!authorStatus || !quartile) return;
+
+          pairs.push({ author_status: authorStatus, journal_quartile: quartile });
+
+          if (!Object.prototype.hasOwnProperty.call(rateMap, key)) {
+            rateMap[key] = amount;
+          }
+        });
+      }
 
       return { pairs, rateMap, budgetMap };
 
@@ -1233,6 +1265,17 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
           };
         });
 
+        if (payload.year_id != null) {
+          const enabledKey = String(payload.year_id);
+          setEnabledYears((prev) => {
+            const list = Array.isArray(prev) ? [...prev] : [];
+            if (!list.includes(enabledKey)) {
+              list.push(enabledKey);
+            }
+            return list;
+          });
+        }
+
         setDeclarations((prev) => ({
           ...prev,
           confirmNoPreviousFunding: (detail.has_university_funding ?? '').toString().toLowerCase() !== 'yes',
@@ -1333,37 +1376,66 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
   // Reload quartile configs when year changes
   useEffect(() => {
     const loadQuartileConfigs = async () => {
-      if (formData.year_id && years.length > 0) {
-        const yearObj = years.find(y => y.year_id === formData.year_id);
-        if (yearObj) {
-          try {
-            const configResponse = await rewardConfigAPI.getConfig({ 
-              year: yearObj.year 
-            });
-            
-            if (configResponse && configResponse.data) {
-              const configMap = {};
-              configResponse.data.forEach(config => {
-                if (config.is_active) {
-                  configMap[config.journal_quartile] = {
-                    maxAmount: config.max_amount,
-                    isActive: config.is_active,
-                    description: config.condition_description
-                  };
-                }
-              });
-              setQuartileConfigs(configMap);
+      if (!formData.year_id || years.length === 0) {
+        return;
+      }
+
+      const yearObj = years.find(y => y.year_id === formData.year_id);
+      if (!yearObj) {
+        setQuartileConfigs({});
+        return;
+      }
+
+      const targetYearLabel = String(yearObj.year);
+
+      if (
+        rewardConfigYear &&
+        String(rewardConfigYear) === targetYearLabel &&
+        Object.keys(preloadedQuartileConfigs || {}).length > 0
+      ) {
+        setQuartileConfigs(preloadedQuartileConfigs);
+        return;
+      }
+
+      try {
+        const configResponse = await rewardConfigAPI.getConfig({
+          year: yearObj.year
+        });
+
+        if (configResponse && configResponse.data) {
+          const configMeta = {};
+          const limitMap = {};
+          configResponse.data.forEach(config => {
+            if (!config) return;
+            const quartileKey = config.journal_quartile ?? config.JournalQuartile;
+            if (!quartileKey) return;
+            const normalizedKey = String(quartileKey).trim().toUpperCase();
+            const maxAmountValue = parseNumberOrNull(config.max_amount ?? config.MaxAmount);
+            const isActive = Boolean(config.is_active ?? config.IsActive);
+            if (isActive && maxAmountValue !== null) {
+              limitMap[normalizedKey] = maxAmountValue;
+            } else if (!Object.prototype.hasOwnProperty.call(limitMap, normalizedKey)) {
+              limitMap[normalizedKey] = null;
             }
-          } catch (error) {
-            console.error('Error loading quartile configs:', error);
-            setQuartileConfigs({});
-          }
+            configMeta[normalizedKey] = {
+              maxAmount: maxAmountValue,
+              isActive,
+              description: config.condition_description ?? config.ConditionDescription ?? '',
+            };
+          });
+          setQuartileConfigs(configMeta);
+          setPreloadedQuartileConfigs(configMeta);
+          setRewardConfigMap(limitMap);
+          setRewardConfigYear(targetYearLabel);
         }
+      } catch (error) {
+        console.error('Error loading quartile configs:', error);
+        setQuartileConfigs({});
       }
     };
-    
+
     loadQuartileConfigs();
-  }, [formData.year_id, years]);
+  }, [formData.year_id, years, rewardConfigYear, preloadedQuartileConfigs]);
 
   // Recompute enabled pairs when year changes
   useEffect(() => {
@@ -1371,12 +1443,17 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
       if (categoryId && formData.year_id) {
         const { pairs, rateMap, budgetMap } = await getEnabledAuthorStatusQuartiles({
           category_id: categoryId,
-          year_id: formData.year_id
+          year_id: formData.year_id,
+          fallbackRateMap: fallbackRewardRateMap,
         });
         setEnabledPairs(pairs);
-        setRewardRateMap(rateMap);
+        const combinedRateMap = { ...fallbackRewardRateMap, ...rateMap };
+        setRewardRateMap(combinedRateMap);
         setBudgetOptionMap(budgetMap);
-        const uniqueStatuses = [...new Set(pairs.map(p => p.author_status))];
+        let uniqueStatuses = [...new Set(pairs.map(p => p.author_status))];
+        if (uniqueStatuses.length === 0 && Object.keys(combinedRateMap).length > 0) {
+          uniqueStatuses = [...new Set(Object.keys(combinedRateMap).map((key) => key.split('|')[0]))];
+        }
         setAvailableAuthorStatuses(uniqueStatuses);
         setAvailableQuartiles([]);
         setFormData(prev => ({ ...prev, author_status: '', journal_quartile: '', subcategory_id: null, subcategory_budget_id: null, publication_reward: 0, reward_amount: 0 }));
@@ -1386,7 +1463,7 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
       }
     };
     recompute();
-  }, [categoryId, formData.year_id]);
+  }, [categoryId, formData.year_id, fallbackRewardRateMap]);
 
   // Update quartile options when author status changes
   useEffect(() => {
@@ -1518,10 +1595,14 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
         try {
           // หา year (พ.ศ.) จาก year_id
           const yearObj = years.find(y => y.year_id === formData.year_id);
-          const targetYear = yearObj?.year || (new Date().getFullYear() + 543).toString();
-          
-          const maxLimit = await getMaxFeeLimit(formData.journal_quartile, targetYear);
-          
+          const targetYear =
+            lockedBudgetYearLabel ||
+            rewardConfigYear ||
+            yearObj?.year ||
+            (new Date().getFullYear() + 543).toString();
+
+          const maxLimit = await getMaxFeeLimit(formData.journal_quartile, targetYear, rewardConfigMap);
+
           setFeeLimits({
             total: maxLimit
           });
@@ -1540,9 +1621,9 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
         });
       }
     };
-    
+
     updateFeeLimits();
-  }, [formData.journal_quartile, formData.year_id, years]);
+  }, [formData.journal_quartile, formData.year_id, years, lockedBudgetYearLabel, rewardConfigMap, rewardConfigYear]);
 
   // Calculate total amount when relevant values change
   useEffect(() => {
@@ -1566,12 +1647,20 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
   useEffect(() => {
     const checkFees = async () => {
       if (formData.journal_quartile) {
+        const yearObj = years.find(y => y.year_id === formData.year_id);
+        const targetYear =
+          lockedBudgetYearLabel ||
+          rewardConfigYear ||
+          yearObj?.year ||
+          (new Date().getFullYear() + 543).toString();
         const check = await checkFeesLimit(
           formData.revision_fee,
           formData.publication_fee,
-          formData.journal_quartile
+          formData.journal_quartile,
+          rewardConfigMap,
+          targetYear
         );
-        
+
         if (!check.isValid && check.maxLimit > 0) {
           setFeeError(`รวมค่าปรับปรุงและค่าตีพิมพ์เกินวงเงินที่กำหนด (ไม่เกิน ${formatCurrency(check.maxLimit)} บาท)`);
         } else {
@@ -1579,16 +1668,30 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
         }
       }
     };
-    
+
     checkFees();
-  }, [formData.journal_quartile, formData.revision_fee, formData.publication_fee]);
+  }, [
+    formData.journal_quartile,
+    formData.revision_fee,
+    formData.publication_fee,
+    years,
+    lockedBudgetYearLabel,
+    rewardConfigMap,
+    rewardConfigYear,
+  ]);
 
   // Clear fees and external funding when quartile changes to ineligible ones
   useEffect(() => {
     const clearFeesIfNeeded = async () => {
       if (formData.journal_quartile) {
-        const maxLimit = await getMaxFeeLimit(formData.journal_quartile);
-        
+        const yearObj = years.find(y => y.year_id === formData.year_id);
+        const targetYear =
+          lockedBudgetYearLabel ||
+          rewardConfigYear ||
+          yearObj?.year ||
+          (new Date().getFullYear() + 543).toString();
+        const maxLimit = await getMaxFeeLimit(formData.journal_quartile, targetYear, rewardConfigMap);
+
         // If quartile doesn't allow fees
         if (maxLimit === 0) {
           // Clear revision and publication fees
@@ -1617,9 +1720,9 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
         }
       }
     };
-    
+
     clearFeesIfNeeded();
-  }, [formData.journal_quartile]);
+  }, [formData.journal_quartile, formData.year_id, years, lockedBudgetYearLabel, rewardConfigMap, rewardConfigYear]);
 
   // =================================================================
   // HELPER FUNCTIONS
@@ -1740,10 +1843,24 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
       }
 
       // Load system data
-      const [yearsResponse, usersResponse, docTypesResponse] = await Promise.all([
+      const [
+        yearsResponse,
+        usersResponse,
+        docTypesResponse,
+        currentYearResponse,
+        availableRateYearsResponse,
+      ] = await Promise.all([
         systemAPI.getYears(),
         publicationFormAPI.getUsers(),
-        publicationFormAPI.getDocumentTypes()
+        publicationFormAPI.getDocumentTypes(),
+        systemConfigAPI.getCurrentYear().catch((error) => {
+          console.warn('Unable to fetch current year from system config:', error);
+          return null;
+        }),
+        publicationRewardRatesAPI.getAvailableYears().catch((error) => {
+          console.warn('Unable to fetch publication reward rate years:', error);
+          return null;
+        }),
       ]);
 
       // === Lock current system_config to the submission time ===
@@ -1770,36 +1887,230 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
 
       console.log('Raw API responses:');
       console.log('Years:', yearsResponse);
-      console.log('Users:', usersResponse); 
+      console.log('Users:', usersResponse);
       console.log('Document Types:', docTypesResponse);
+      console.log('Current System Year:', currentYearResponse);
+      console.log('Available Rate Years:', availableRateYearsResponse);
 
-      // Handle years response
+      // Normalize year list from response
+      const rawYears = Array.isArray(yearsResponse?.years)
+        ? yearsResponse.years
+        : Array.isArray(yearsResponse?.data)
+          ? yearsResponse.data
+          : Array.isArray(yearsResponse)
+            ? yearsResponse
+            : [];
+
+      const normalizedYears = rawYears
+        .map((entry) => {
+          const yearId = entry?.year_id ?? entry?.YearID ?? entry?.id ?? null;
+          const yearLabel = entry?.year ?? entry?.Year ?? null;
+          if (yearId == null || yearLabel == null) {
+            return null;
+          }
+          return {
+            ...entry,
+            year_id: Number.isNaN(Number(yearId)) ? yearId : Number(yearId),
+            year: String(yearLabel),
+          };
+        })
+        .filter(Boolean);
+
+      if (normalizedYears.length > 0) {
+        setYears(normalizedYears);
+      } else {
+        setYears([]);
+      }
+
+      const sortedYearsDesc = normalizedYears
+        .slice()
+        .sort((a, b) => Number(String(b.year).replace(/[^0-9]/g, '')) - Number(String(a.year).replace(/[^0-9]/g, '')));
+
+      const systemYearCandidate = [
+        currentYearResponse?.current_year,
+        currentYearResponse?.data?.current_year,
+        currentYearResponse?.year,
+        currentYearResponse?.data?.year,
+      ].find((value) => value !== null && value !== undefined && value !== '') ?? null;
+
+      let lockedYearEntry = null;
+      if (systemYearCandidate != null) {
+        const targetLabel = String(systemYearCandidate);
+        lockedYearEntry = normalizedYears.find((year) => String(year.year) === targetLabel) ?? null;
+      }
+
+      if (!lockedYearEntry && sortedYearsDesc.length > 0) {
+        lockedYearEntry = sortedYearsDesc[0];
+      }
+
+      const lockedYearLabel = lockedYearEntry ? String(lockedYearEntry.year) : systemYearCandidate ? String(systemYearCandidate) : null;
+      setLockedBudgetYearLabel(lockedYearLabel ?? null);
+      setLockedBudgetYearId(lockedYearEntry?.year_id ?? null);
+
       let currentYear = null;
-      if (yearsResponse && yearsResponse.years) {
-        console.log('Setting years:', yearsResponse.years);
-        setYears(yearsResponse.years);
-        
-        // If yearId prop is provided, find that year
-        if (yearId) {
-          const targetYear = yearsResponse.years.find(y => y.year_id === yearId);
-          if (targetYear) {
-            currentYear = targetYear;
-            setFormData(prev => ({ ...prev, year_id: targetYear.year_id }));
+
+      if (yearId != null) {
+        const matchedFromProp = normalizedYears.find((year) => Number(year.year_id) === Number(yearId));
+        if (matchedFromProp) {
+          currentYear = matchedFromProp;
+        }
+      }
+
+      if (!currentYear && lockedYearEntry) {
+        currentYear = lockedYearEntry;
+      }
+
+      if (!currentYear && sortedYearsDesc.length > 0) {
+        currentYear = sortedYearsDesc[0];
+      }
+
+      if (currentYear && !initialSubmissionId) {
+        setFormData((prev) => {
+          if (prev.year_id != null && prev.year_id !== '') {
+            return prev;
           }
-        } else {
-          // Fallback to current year
-          const targetYearStr = (new Date().getFullYear() + 543).toString();
-          currentYear = yearsResponse.years.find(y => y.year === targetYearStr);
-          if (currentYear) {
-            setFormData(prev => ({ ...prev, year_id: currentYear.year_id }));
+          return { ...prev, year_id: currentYear.year_id };
+        });
+      }
+
+      // Load enabled years for this category and ensure locked year stays selectable
+      if (categoryId) {
+        const enabled = await getEnabledYears(categoryId);
+        const enabledList = Array.isArray(enabled) ? [...enabled] : [];
+        if (lockedYearEntry?.year_id != null) {
+          const lockedKey = String(lockedYearEntry.year_id);
+          if (!enabledList.includes(lockedKey)) {
+            enabledList.push(lockedKey);
           }
         }
-        
-        // Load enabled years for this category
-        if (categoryId) {
-          const enabled = await getEnabledYears(categoryId);
-          setEnabledYears(Array.isArray(enabled) ? enabled : []);
+        setEnabledYears(enabledList);
+      } else {
+        setEnabledYears(lockedYearEntry?.year_id != null ? [String(lockedYearEntry.year_id)] : []);
+      }
+
+      // Determine prioritized years for reward rate/config lookup
+      const availableRateYearsRaw = Array.isArray(availableRateYearsResponse?.years)
+        ? availableRateYearsResponse.years
+        : Array.isArray(availableRateYearsResponse?.data)
+          ? availableRateYearsResponse.data
+          : Array.isArray(availableRateYearsResponse)
+            ? availableRateYearsResponse
+            : [];
+
+      const normalizedRateYears = availableRateYearsRaw
+        .map((value) => {
+          if (value == null) return null;
+          if (typeof value === 'object') {
+            const raw = value.year ?? value.Year ?? value.value ?? null;
+            return raw == null ? null : String(raw);
+          }
+          return String(value);
+        })
+        .filter(Boolean);
+
+      const prioritizedRateYears = [];
+      const pushUniqueYear = (candidate) => {
+        if (!candidate && candidate !== 0) return;
+        const normalized = String(candidate);
+        if (!prioritizedRateYears.includes(normalized)) {
+          prioritizedRateYears.push(normalized);
         }
+      };
+
+      pushUniqueYear(lockedYearLabel);
+      normalizedRateYears.forEach(pushUniqueYear);
+      pushUniqueYear(new Date().getFullYear() + 543);
+
+      // Fetch reward rates using prioritized years
+      let resolvedRateYearLabel = null;
+      let resolvedRateMap = {};
+
+      for (const yearLabel of prioritizedRateYears) {
+        try {
+          const rateResponse = await publicationRewardRatesAPI.getRatesByYear(yearLabel);
+          const rateList = rateResponse?.rates || rateResponse?.data || [];
+          if (Array.isArray(rateList) && rateList.length > 0) {
+            resolvedRateYearLabel = rateResponse?.year ?? yearLabel;
+            const map = {};
+            rateList.forEach((rate) => {
+              const authorStatus = rate?.author_status ?? rate?.AuthorStatus ?? '';
+              const quartile = rate?.journal_quartile ?? rate?.JournalQuartile ?? '';
+              if (!authorStatus || !quartile) return;
+              const key = `${String(authorStatus).trim()}|${String(quartile).trim()}`;
+              const amount = parseNumberOrNull(rate?.reward_amount ?? rate?.RewardAmount);
+              if (amount !== null) {
+                map[key] = amount;
+              }
+            });
+            if (Object.keys(map).length > 0) {
+              resolvedRateMap = map;
+              break;
+            }
+          }
+        } catch (error) {
+          console.warn('Failed to fetch reward rates for year', yearLabel, error);
+        }
+      }
+
+      if (resolvedRateYearLabel) {
+        setRewardRateYear(resolvedRateYearLabel);
+        setFallbackRewardRateMap(resolvedRateMap);
+      } else {
+        setRewardRateYear(null);
+        setFallbackRewardRateMap({});
+      }
+
+      // Fetch reward configuration for manuscript/page charge limits
+      let resolvedConfigYearLabel = null;
+      let resolvedConfigMap = {};
+      let resolvedQuartileConfigs = {};
+
+      for (const yearLabel of prioritizedRateYears) {
+        try {
+          const configResponse = await rewardConfigAPI.getConfig({ year: yearLabel });
+          const configList = configResponse?.data || configResponse?.configs || configResponse?.reward_config || [];
+          if (Array.isArray(configList) && configList.length > 0) {
+            const limitMap = {};
+            const configMeta = {};
+            configList.forEach((configEntry) => {
+              if (!configEntry) return;
+              const quartile = configEntry.journal_quartile ?? configEntry.JournalQuartile ?? null;
+              if (!quartile) return;
+              const normalizedQuartile = String(quartile).trim().toUpperCase();
+              const isActive = Boolean(configEntry.is_active ?? configEntry.IsActive ?? configEntry.IS_ACTIVE);
+              const maxAmountValue = parseNumberOrNull(configEntry.max_amount ?? configEntry.MaxAmount);
+              if (isActive && maxAmountValue !== null) {
+                limitMap[normalizedQuartile] = maxAmountValue;
+              } else if (!Object.prototype.hasOwnProperty.call(limitMap, normalizedQuartile)) {
+                limitMap[normalizedQuartile] = null;
+              }
+              configMeta[normalizedQuartile] = {
+                maxAmount: maxAmountValue,
+                isActive,
+                description: configEntry.condition_description ?? configEntry.ConditionDescription ?? '',
+              };
+            });
+
+            resolvedConfigYearLabel = yearLabel;
+            resolvedConfigMap = limitMap;
+            resolvedQuartileConfigs = configMeta;
+            break;
+          }
+        } catch (error) {
+          console.warn('Failed to fetch reward config for year', yearLabel, error);
+        }
+      }
+
+      if (resolvedConfigYearLabel) {
+        setRewardConfigYear(resolvedConfigYearLabel);
+        setRewardConfigMap(resolvedConfigMap);
+        setQuartileConfigs(resolvedQuartileConfigs);
+        setPreloadedQuartileConfigs(resolvedQuartileConfigs);
+      } else {
+        setRewardConfigYear(null);
+        setRewardConfigMap({});
+        setQuartileConfigs({});
+        setPreloadedQuartileConfigs({});
       }
 
       // Handle users response and filter out current user
@@ -1862,14 +2173,21 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
       if (categoryId && currentYear) {
         const { pairs, rateMap, budgetMap } = await getEnabledAuthorStatusQuartiles({
           category_id: categoryId,
-          year_id: currentYear.year_id
+          year_id: currentYear.year_id,
+          fallbackRateMap: resolvedRateMap,
         });
         setEnabledPairs(pairs);
-        setRewardRateMap(rateMap);
+        const combinedRateMap = { ...resolvedRateMap, ...rateMap };
+        setRewardRateMap(combinedRateMap);
         setBudgetOptionMap(budgetMap);
-        const uniqueStatuses = [...new Set(pairs.map(p => p.author_status))];
+        let uniqueStatuses = [...new Set(pairs.map(p => p.author_status))];
+        if (uniqueStatuses.length === 0 && Object.keys(combinedRateMap).length > 0) {
+          uniqueStatuses = [...new Set(Object.keys(combinedRateMap).map((key) => key.split('|')[0]))];
+        }
         setAvailableAuthorStatuses(uniqueStatuses);
         setAvailableQuartiles([]);
+      } else {
+        setRewardRateMap(resolvedRateMap);
       }
 
     } catch (error) {
@@ -2682,12 +3000,17 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
     let feesMessage = '';
     if (formData.journal_quartile) {
       const yearObj = years.find(y => y.year_id === formData.year_id);
-      const targetYear = yearObj?.year || (new Date().getFullYear() + 543).toString();
+      const targetYear =
+        lockedBudgetYearLabel ||
+        rewardConfigYear ||
+        yearObj?.year ||
+        (new Date().getFullYear() + 543).toString();
       const feeErrors = await validateFees(
         formData.journal_quartile,
         formData.revision_fee,
         formData.publication_fee,
-        targetYear
+        targetYear,
+        rewardConfigMap
       );
       if (feeErrors.length > 0) {
         feesMessage = feeErrors.join(', ');
@@ -3965,6 +4288,7 @@ const showSubmissionConfirmation = async () => {
                 name="year_id"
                 value={formData.year_id || ''}
                 onChange={handleInputChange}
+                disabled={isReadOnly || Boolean(lockedBudgetYearId)}
                 required
                 aria-required="true"
                 aria-invalid={errors.year_id ? 'true' : 'false'}
@@ -3978,9 +4302,14 @@ const showSubmissionConfirmation = async () => {
                 </option>
                 {years.map(year => {
                   const optionKey = String(year?.year_id ?? year?.YearID ?? year?.id ?? '');
-                  const isDisabled = optionKey
-                    ? (enabledYears.length > 0 && !enabledYears.includes(optionKey))
+                  const selectedKey = formData.year_id != null ? String(formData.year_id) : null;
+                  const lockedKey = lockedBudgetYearId != null ? String(lockedBudgetYearId) : null;
+                  const enforceLock = lockedKey && (!selectedKey || selectedKey === lockedKey);
+                  const isLockedMismatch = enforceLock && optionKey !== lockedKey;
+                  const outsideEnabled = optionKey
+                    ? (enabledYears.length > 0 && !enabledYears.includes(optionKey) && optionKey !== selectedKey)
                     : false;
+                  const isDisabled = Boolean(isLockedMismatch || outsideEnabled);
 
                   return (
                     <option
