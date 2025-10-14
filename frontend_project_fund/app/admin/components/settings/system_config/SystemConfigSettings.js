@@ -664,6 +664,13 @@ export default function SystemConfigSettings() {
 
   const hasMoreHeadHistory = (headHistory || []).length > HEAD_HISTORY_LIMIT;
 
+  const currentHeadNote = useMemo(() => {
+    const note = currentHead?.note;
+    if (note == null) return "";
+    const text = String(note).trim();
+    return text;
+  }, [currentHead]);
+
   useEffect(() => {
     if (!hasMoreAnnHistory && showAllAnnHistory) {
       setShowAllAnnHistory(false);
@@ -779,6 +786,17 @@ export default function SystemConfigSettings() {
       toast("error", e.message || "เกิดข้อผิดพลาดในการบันทึก");
     } finally {
       setHeadSaving(false);
+    }
+  };
+
+  const handleRefreshHeadData = async () => {
+    setHeadLoading(true);
+    try {
+      await Promise.all([loadCurrentHead(), loadHeadHistory()]);
+    } catch (e) {
+      toast("error", e?.message || "เกิดข้อผิดพลาดในการโหลดประวัติหัวหน้าสาขา");
+    } finally {
+      setHeadLoading(false);
     }
   };
 
@@ -1113,97 +1131,154 @@ export default function SystemConfigSettings() {
               </button>
             </div>
 
-            <div className="mt-6 grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
-              <div className="space-y-5">
-                <div className="space-y-2">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <label className="text-sm font-medium text-gray-700">เลือกผู้ใช้ที่จะเป็นหัวหน้าสาขา</label>
-                    <span className="text-xs text-gray-500">ผู้ใช้ที่แสดง: {selectableUsers?.length || 0}</span>
+            <div className="mt-6 space-y-6">
+              <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,0.9fr)]">
+                <div className="space-y-5 rounded-xl border border-gray-100 bg-slate-50/80 p-5">
+                  <div className="space-y-2">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <label className="text-sm font-medium text-gray-700">เลือกผู้ใช้ที่จะเป็นหัวหน้าสาขา</label>
+                      <span className="text-xs text-gray-500">ผู้ใช้ที่แสดง: {selectableUsers?.length || 0}</span>
+                    </div>
+                    <select
+                      value={deptHeadForm.head_user_id}
+                      onChange={(e) => setDeptHeadForm((f) => ({ ...f, head_user_id: e.target.value }))}
+                      className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
+                    >
+                      <option value="">— เลือกผู้ใช้ —</option>
+                      {selectableUsers?.map?.((u) => {
+                        const id = u?.user_id ?? u?.id;
+                        const label = formatUserName(u) || u?.email || `ผู้ใช้ #${id}`;
+                        return (
+                          <option key={id} value={id}>
+                            {label}
+                          </option>
+                        );
+                      })}
+                    </select>
                   </div>
-                  <select
-                    value={deptHeadForm.head_user_id}
-                    onChange={(e) => setDeptHeadForm((f) => ({ ...f, head_user_id: e.target.value }))}
-                    className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
-                  >
-                    <option value="">— เลือกผู้ใช้ —</option>
-                    {selectableUsers?.map?.((u) => {
-                      const id = u?.user_id ?? u?.id;
-                      const label = formatUserName(u) || u?.email || `ผู้ใช้ #${id}`;
-                      return (
-                        <option key={id} value={id}>
-                          {label}
-                        </option>
-                      );
-                    })}
-                  </select>
-                </div>
 
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <div className="space-y-1">
-                    <span className="text-sm font-medium text-gray-700">วัน/เวลาเริ่ม</span>
-                    <div className="flex items-center gap-2 rounded-lg border border-gray-300 px-3 py-2 focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-200">
-                      <Clock size={18} className="text-gray-500" />
-                      <input
-                        type="datetime-local"
-                        value={deptHeadForm.start_date || ""}
-                        onChange={(e) => setDeptHeadForm((f) => ({ ...f, start_date: e.target.value }))}
-                        className="w-full border-none bg-transparent text-sm text-gray-700 focus:outline-none"
-                        placeholder="เลือกวัน/เวลาเริ่ม"
-                      />
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="space-y-1">
+                      <span className="text-sm font-medium text-gray-700">วัน/เวลาเริ่ม</span>
+                      <div className="flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 py-2 focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-200">
+                        <Clock size={18} className="text-gray-500" />
+                        <input
+                          type="datetime-local"
+                          value={deptHeadForm.start_date || ""}
+                          onChange={(e) => setDeptHeadForm((f) => ({ ...f, start_date: e.target.value }))}
+                          className="w-full border-none bg-transparent text-sm text-gray-700 focus:outline-none"
+                          placeholder="เลือกวัน/เวลาเริ่ม"
+                        />
+                      </div>
+                    </div>
+                    <div className="space-y-1">
+                      <span className="text-sm font-medium text-gray-700">วัน/เวลาสิ้นสุด</span>
+                      <div className="flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 py-2 focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-200">
+                        <Clock size={18} className="text-gray-500" />
+                        <input
+                          type="datetime-local"
+                          value={deptHeadForm.end_date || ""}
+                          onChange={(e) => setDeptHeadForm((f) => ({ ...f, end_date: e.target.value }))}
+                          className="w-full border-none bg-transparent text-sm text-gray-700 focus:outline-none"
+                          placeholder="เลือกวัน/เวลาสิ้นสุด"
+                        />
+                      </div>
                     </div>
                   </div>
-                  <div className="space-y-1">
-                    <span className="text-sm font-medium text-gray-700">วัน/เวลาสิ้นสุด</span>
-                    <div className="flex items-center gap-2 rounded-lg border border-gray-300 px-3 py-2 focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-200">
-                      <Clock size={18} className="text-gray-500" />
-                      <input
-                        type="datetime-local"
-                        value={deptHeadForm.end_date || ""}
-                        onChange={(e) => setDeptHeadForm((f) => ({ ...f, end_date: e.target.value }))}
-                        className="w-full border-none bg-transparent text-sm text-gray-700 focus:outline-none"
-                        placeholder="เลือกวัน/เวลาสิ้นสุด"
-                      />
-                    </div>
-                  </div>
+
+                  {deptHeadForm.start_date &&
+                    deptHeadForm.end_date &&
+                    new Date(deptHeadForm.start_date) > new Date(deptHeadForm.end_date) && (
+                      <div className="flex items-start gap-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-700">
+                        <Clock size={14} className="mt-0.5" />
+                        <span>วัน/เวลาเริ่มต้องไม่เกินวัน/เวลาสิ้นสุด</span>
+                      </div>
+                    )}
                 </div>
 
-                {deptHeadForm.start_date && deptHeadForm.end_date && new Date(deptHeadForm.start_date) > new Date(deptHeadForm.end_date) && (
-                  <div className="flex items-start gap-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-700">
-                    <Clock size={14} className="mt-0.5" />
-                    <span>วัน/เวลาเริ่มต้องไม่เกินวัน/เวลาสิ้นสุด</span>
+                <div className="flex flex-col gap-4 rounded-xl border border-gray-100 bg-slate-50/80 p-5">
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-sm font-semibold text-slate-700">หัวหน้าสาขาปัจจุบัน</p>
+                      {headLoading ? <span className="text-xs text-slate-500">กำลังโหลด...</span> : null}
+                    </div>
+                    <dl className="space-y-2 text-sm text-slate-600">
+                      <div className="flex items-center justify-between gap-2">
+                        <dt className="text-slate-600">ผู้ใช้</dt>
+                        <dd className="font-semibold text-slate-800">{userDisplay(currentHead?.head_user_id)}</dd>
+                      </div>
+                      <div className="flex items-start justify-between gap-2 text-xs sm:text-sm">
+                        <dt className="text-slate-600">เริ่มมีผล</dt>
+                        <dd className="text-slate-700">
+                          {currentHead?.effective_from ? formatThaiFull(currentHead.effective_from) : "-"}
+                        </dd>
+                      </div>
+                      <div className="flex items-start justify-between gap-2 text-xs sm:text-sm">
+                        <dt className="text-slate-600">สิ้นสุด</dt>
+                        <dd className="text-slate-700">
+                          {currentHead?.effective_to ? formatThaiFull(currentHead.effective_to) : "-"}
+                        </dd>
+                      </div>
+                      <div className="flex items-start justify-between gap-2 text-xs sm:text-sm">
+                        <dt className="text-slate-600">ปรับโดย</dt>
+                        <dd className="text-slate-700">{userDisplay(currentHead?.changed_by)}</dd>
+                      </div>
+                      <div className="flex items-start justify-between gap-2 text-xs sm:text-sm">
+                        <dt className="text-slate-600">เมื่อ</dt>
+                        <dd className="text-slate-700">
+                          {currentHead?.changed_at ? formatThaiFull(currentHead.changed_at) : "-"}
+                        </dd>
+                      </div>
+                    </dl>
                   </div>
-                )}
+
+                  {currentHeadNote ? (
+                    <div className="rounded-lg border border-dashed border-slate-300 bg-white/90 p-3 text-xs leading-relaxed text-slate-600">
+                      <span className="font-semibold text-slate-700">หมายเหตุ:</span> {currentHeadNote}
+                    </div>
+                  ) : null}
+                </div>
               </div>
 
-              <div className="space-y-4">
-                <div className="rounded-xl bg-slate-50 p-4">
-                  <p className="text-sm font-semibold text-slate-700">หัวหน้าสาขาปัจจุบัน</p>
-                  <p className="mt-1 text-sm text-slate-600">
-                    ผู้ใช้: <span className="font-semibold text-slate-800">{userDisplay(currentHead?.head_user_id)}</span>
-                  </p>
-                  <p className="text-xs text-slate-500">
-                    เริ่มมีผล: {currentHead?.effective_from ? formatThaiFull(currentHead.effective_from) : "-"}
-                  </p>
-                </div>
-
-                <div className="rounded-xl border border-gray-100">
-                  <div className="flex items-center justify-between gap-2 px-4 py-3">
+              <div className="rounded-xl border border-gray-100">
+                <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
+                  <div>
                     <h4 className="text-sm font-semibold text-gray-800">ประวัติหัวหน้าสาขา</h4>
-                    <span className="text-xs text-gray-500">{headHistoryVisible.length} / {(headHistory || []).length} รายการ</span>
+                    <p className="text-xs text-gray-500">ติดตามการมอบหมายหัวหน้าสาขาย้อนหลัง</p>
                   </div>
-                  <div className="max-h-72 overflow-y-auto border-t border-gray-100">
-                    <table className="min-w-full divide-y divide-gray-200 text-sm">
-                      <thead className="bg-gray-50 text-gray-600">
+                  <div className="flex flex-wrap items-center gap-3 text-xs text-gray-500">
+                    <span>{headHistoryVisible.length} / {(headHistory || []).length} รายการ</span>
+                    <button
+                      type="button"
+                      onClick={handleRefreshHeadData}
+                      disabled={headLoading}
+                      className="inline-flex items-center gap-1 rounded-full border border-green-200 px-3 py-1 font-medium text-green-600 transition hover:bg-green-50 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      <RefreshCw size={14} />
+                      {headLoading ? "กำลังโหลด..." : "รีเฟรช"}
+                    </button>
+                  </div>
+                </div>
+                <div className="overflow-x-auto border-t border-gray-100">
+                  <table className="min-w-full divide-y divide-gray-200 text-sm">
+                    <thead className="bg-gray-50 text-gray-600">
+                      <tr>
+                        <th className="px-3 py-2 text-left font-medium">ผู้ใช้</th>
+                        <th className="px-3 py-2 text-left font-medium">เริ่ม</th>
+                        <th className="px-3 py-2 text-left font-medium">สิ้นสุด</th>
+                        <th className="px-3 py-2 text-left font-medium">ปรับโดย</th>
+                        <th className="px-3 py-2 text-left font-medium">เมื่อ</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100 bg-white">
+                      {headLoading ? (
                         <tr>
-                          <th className="px-3 py-2 text-left font-medium">ผู้ใช้</th>
-                          <th className="px-3 py-2 text-left font-medium">เริ่ม</th>
-                          <th className="px-3 py-2 text-left font-medium">สิ้นสุด</th>
-                          <th className="px-3 py-2 text-left font-medium">ปรับโดย</th>
-                          <th className="px-3 py-2 text-left font-medium">เมื่อ</th>
+                          <td className="px-4 py-6 text-center text-sm text-gray-500" colSpan={5}>
+                            กำลังโหลดข้อมูล...
+                          </td>
                         </tr>
-                      </thead>
-                      <tbody className="divide-y divide-gray-100 bg-white">
-                        {headHistoryVisible.map((h) => (
+                      ) : headHistoryVisible.length ? (
+                        headHistoryVisible.map((h) => (
                           <tr key={h.assignment_id} className="hover:bg-slate-50">
                             <td className="px-3 py-2 text-sm text-gray-700">{userDisplay(h.head_user_id)}</td>
                             <td className="px-3 py-2 text-sm text-gray-600">{h.effective_from ? formatThaiFull(h.effective_from) : "-"}</td>
@@ -1211,27 +1286,28 @@ export default function SystemConfigSettings() {
                             <td className="px-3 py-2 text-sm text-gray-600">{userDisplay(h.changed_by)}</td>
                             <td className="px-3 py-2 text-sm text-gray-600">{h.changed_at ? formatThaiFull(h.changed_at) : "-"}</td>
                           </tr>
-                        ))}
-                        {!headHistoryVisible.length && (
-                          <tr>
-                            <td className="px-4 py-6 text-center text-sm text-gray-500" colSpan={5}>
-                              — ไม่พบประวัติ —
-                            </td>
-                          </tr>
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
+                        ))
+                      ) : (
+                        <tr>
+                          <td className="px-4 py-6 text-center text-sm text-gray-500" colSpan={5}>
+                            — ไม่พบประวัติ —
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+                <div className="flex flex-wrap items-center justify-between gap-2 border-t border-gray-100 px-4 py-3 text-xs text-gray-500">
+                  <span>แสดง {headHistoryVisible.length} จาก {(headHistory || []).length} รายการ</span>
                   {hasMoreHeadHistory && (
-                    <div className="flex justify-end border-t border-gray-100 px-4 py-3">
-                      <button
-                        type="button"
-                        onClick={() => setShowAllHeadHistory((prev) => !prev)}
-                        className="inline-flex items-center gap-1 rounded-full border border-blue-200 px-3 py-1 text-xs font-medium text-blue-600 transition hover:bg-blue-50"
-                      >
-                        {showAllHeadHistory ? "แสดงน้อยลง" : "ดูเพิ่มเติม"}
-                      </button>
-                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setShowAllHeadHistory((prev) => !prev)}
+                      disabled={headLoading}
+                      className="inline-flex items-center gap-1 rounded-full border border-blue-200 px-3 py-1 font-medium text-blue-600 transition hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {showAllHeadHistory ? "แสดงน้อยลง" : "ดูเพิ่มเติม"}
+                    </button>
                   )}
                 </div>
               </div>

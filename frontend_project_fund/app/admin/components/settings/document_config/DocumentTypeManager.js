@@ -521,8 +521,8 @@ const DocumentTypeManager = () => {
                       </div>
                     </td>
                     <td className="px-3 py-3 text-left text-gray-700">{item.code || "-"}</td>
-                    <td className="px-3 py-3">
-                      <div className="flex flex-wrap gap-2">
+                    <td className="px-3 py-3 text-center">
+                      <div className="flex flex-wrap justify-center gap-2">
                         {(() => {
                           const fundTypes = Array.isArray(item.fund_types)
                             ? item.fund_types
