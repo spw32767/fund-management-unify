@@ -1177,6 +1177,92 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
   }, [categoryId, yearId]);
 
 
+  const checkAndLoadDraft = useCallback(async () => {
+    if (initialSubmissionId) {
+      return;
+    }
+    const draft = loadDraftFromLocal();
+    if (draft) {
+      const savedDate = new Date(draft.savedAt).toLocaleString('th-TH');
+
+      const result = await Swal.fire({
+        title: 'พบข้อมูลที่บันทึกไว้',
+        html: `
+          <p>พบข้อมูลร่างที่บันทึกไว้เมื่อ ${savedDate}</p>
+          <p class="text-lg font-semibold mt-2">ต้องการโหลดข้อมูลนี้หรือไม่?</p>
+        `,
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonText: 'โหลดข้อมูล',
+        cancelButtonText: 'เริ่มใหม่',
+        confirmButtonColor: '#3085d6',
+        cancelButtonColor: '#d33'
+      });
+
+      if (result.isConfirmed) {
+        // Load form data
+        setFormData(prev => ({
+          ...prev,
+          ...(draft.formData || {})
+        }));
+        setCoauthors(draft.coauthors || []);
+        setUploadedFiles({});
+        setOtherDocuments([]);
+        setExternalFundingFiles([]);
+        setExternalFundings(
+          Array.isArray(draft.externalFundings)
+            ? draft.externalFundings.map((funding, index) => ({
+                clientId:
+                  funding.clientId ||
+                  funding.client_id ||
+                  funding.externalFundId ||
+                  funding.external_fund_id ||
+                  funding.id ||
+                  `loaded-${index}-${Date.now()}`,
+                externalFundId: funding.externalFundId ?? funding.external_fund_id ?? null,
+                fundName: funding.fundName || '',
+                amount: funding.amount || '',
+                file: null,
+              }))
+            : []
+        );
+
+        const hadAttachments = (() => {
+          if (draft.attachmentSummary) {
+            return Object.values(draft.attachmentSummary).some(Boolean);
+          }
+          if (Array.isArray(draft.otherDocuments)) {
+            return draft.otherDocuments.some(doc => doc?.fileName);
+          }
+          return false;
+        })();
+
+        if (hadAttachments) {
+          Swal.fire({
+            icon: 'info',
+            title: 'กรุณาอัปโหลดไฟล์อีกครั้ง',
+            html: `
+              <p class="text-sm text-gray-700">
+                เพื่อความปลอดภัย ระบบจะไม่เก็บไฟล์ไว้ในร่างที่บันทึกไว้
+              </p>
+              <p class="text-sm text-gray-600 mt-2">
+                กรุณาเลือกไฟล์แนบใหม่ก่อนส่งคำร้อง
+              </p>
+            `,
+            confirmButtonColor: '#3085d6'
+          });
+        }
+
+        Toast.fire({
+          icon: 'success',
+          title: 'โหลดข้อมูลร่างเรียบร้อยแล้ว'
+        });
+      } else {
+        deleteDraftFromLocal();
+      }
+    }
+  }, [initialSubmissionId]);
+
   // Load initial data on mount
   useEffect(() => {
     loadInitialData();
@@ -1823,93 +1909,6 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
       setInitialDataReady(true);
     }
   };
-
-  // Check and load draft from localStorage
-  const checkAndLoadDraft = useCallback(async () => {
-    if (initialSubmissionId) {
-      return;
-    }
-    const draft = loadDraftFromLocal();
-    if (draft) {
-      const savedDate = new Date(draft.savedAt).toLocaleString('th-TH');
-      
-      const result = await Swal.fire({
-        title: 'พบข้อมูลที่บันทึกไว้',
-        html: `
-          <p>พบข้อมูลร่างที่บันทึกไว้เมื่อ ${savedDate}</p>
-          <p class="text-lg font-semibold mt-2">ต้องการโหลดข้อมูลนี้หรือไม่?</p>
-        `,
-        icon: 'question',
-        showCancelButton: true,
-        confirmButtonText: 'โหลดข้อมูล',
-        cancelButtonText: 'เริ่มใหม่',
-        confirmButtonColor: '#3085d6',
-        cancelButtonColor: '#d33'
-      });
-
-      if (result.isConfirmed) {
-        // Load form data
-        setFormData(prev => ({
-          ...prev,
-          ...(draft.formData || {})
-        }));
-        setCoauthors(draft.coauthors || []);
-        setUploadedFiles({});
-        setOtherDocuments([]);
-        setExternalFundingFiles([]);
-        setExternalFundings(
-          Array.isArray(draft.externalFundings)
-            ? draft.externalFundings.map((funding, index) => ({
-                clientId:
-                  funding.clientId ||
-                  funding.client_id ||
-                  funding.externalFundId ||
-                  funding.external_fund_id ||
-                  funding.id ||
-                  `loaded-${index}-${Date.now()}`,
-                externalFundId: funding.externalFundId ?? funding.external_fund_id ?? null,
-                fundName: funding.fundName || '',
-                amount: funding.amount || '',
-                file: null,
-              }))
-            : []
-        );
-
-        const hadAttachments = (() => {
-          if (draft.attachmentSummary) {
-            return Object.values(draft.attachmentSummary).some(Boolean);
-          }
-          if (Array.isArray(draft.otherDocuments)) {
-            return draft.otherDocuments.some(doc => doc?.fileName);
-          }
-          return false;
-        })();
-
-        if (hadAttachments) {
-          Swal.fire({
-            icon: 'info',
-            title: 'กรุณาอัปโหลดไฟล์อีกครั้ง',
-            html: `
-              <p class="text-sm text-gray-700">
-                เพื่อความปลอดภัย ระบบจะไม่เก็บไฟล์ไว้ในร่างที่บันทึกไว้
-              </p>
-              <p class="text-sm text-gray-600 mt-2">
-                กรุณาเลือกไฟล์แนบใหม่ก่อนส่งคำร้อง
-              </p>
-            `,
-            confirmButtonColor: '#3085d6'
-          });
-        }
-
-        Toast.fire({
-          icon: 'success',
-          title: 'โหลดข้อมูลร่างเรียบร้อยแล้ว'
-        });
-      } else {
-        deleteDraftFromLocal();
-      }
-    }
-  }, [initialSubmissionId]);
 
   const loadExistingSubmission = useCallback(
     async (targetSubmissionId) => {
