@@ -46,6 +46,7 @@ const normalizeStatusCode = (value) => {
   const normalized = String(value).trim().toLowerCase();
   if (!normalized) return null;
   switch (normalized) {
+    case '3':
     case 'revision':
     case 'needs_more_info':
     case 'need_more_info':
@@ -61,6 +62,7 @@ const normalizeStatusCode = (value) => {
     case 'pending-revision':
     case 'pending revision':
       return 'needs_more_info';
+    case '4':
     case 'draft':
     case 'ร่าง':
       return 'draft';
