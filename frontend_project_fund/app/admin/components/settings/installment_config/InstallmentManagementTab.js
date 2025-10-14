@@ -103,6 +103,7 @@ const initialFormState = {
 const InstallmentManagementTab = ({ years = [] }) => {
   const [selectedYearId, setSelectedYearId] = useState(null);
   const [currentYearValue, setCurrentYearValue] = useState(null);
+  const [currentYearLoaded, setCurrentYearLoaded] = useState(false);
   const [defaultYearApplied, setDefaultYearApplied] = useState(false);
 
   const [periods, setPeriods] = useState([]);
@@ -159,6 +160,10 @@ const InstallmentManagementTab = ({ years = [] }) => {
         if (!ignore) {
           console.warn("ไม่สามารถอ่านปีปัจจุบันจาก system config:", err);
         }
+      } finally {
+        if (!ignore) {
+          setCurrentYearLoaded(true);
+        }
       }
     };
 
@@ -171,6 +176,7 @@ const InstallmentManagementTab = ({ years = [] }) => {
 
   useEffect(() => {
     if (!yearOptions.length) return;
+    if (!currentYearLoaded) return;
 
     if (selectedYearId != null) {
       if (!defaultYearApplied) {
@@ -229,7 +235,13 @@ const InstallmentManagementTab = ({ years = [] }) => {
       setSelectedYearId(candidate.id);
       setDefaultYearApplied(true);
     }
-  }, [yearOptions, currentYearValue, selectedYearId, defaultYearApplied]);
+  }, [
+    yearOptions,
+    currentYearValue,
+    selectedYearId,
+    defaultYearApplied,
+    currentYearLoaded,
+  ]);
 
   useEffect(() => {
     setPage(0);
