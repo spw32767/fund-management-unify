@@ -181,6 +181,13 @@ const toNumberOrEmpty = (value) => {
   return Number.isNaN(num) ? '' : num;
 };
 
+const toSubmissionKey = (value) => {
+  if (value === null || value === undefined) {
+    return null;
+  }
+  return String(value);
+};
+
 // =================================================================
 // UTILITY FUNCTIONS
 // =================================================================
@@ -789,6 +796,7 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
     ? (Number(yearId) || yearId)
     : yearId;
   const hydratingRef = useRef(false);
+  const missingSubmissionRef = useRef(new Set());
   const previousYearRef = useRef(normalizedInitialYearId || null);
   const previousAuthorStatusRef = useRef('');
 
@@ -861,6 +869,89 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
     main_annoucement: null,
     reward_announcement: null,
   });
+
+  const resetForm = useCallback(() => {
+    let defaultYearId = lockedBudgetYearId ?? normalizedInitialYearId ?? null;
+    if (defaultYearId == null && Array.isArray(years) && years.length > 0) {
+      defaultYearId = years[0]?.year_id ?? null;
+    }
+
+    previousYearRef.current = defaultYearId ?? null;
+    previousAuthorStatusRef.current = '';
+    setPolicyContext(null);
+    setResolvedSubcategoryName(null);
+    setResolutionError('');
+    setAvailableQuartiles([]);
+
+    setFormData({
+      year_id: defaultYearId,
+      category_id: categoryId || null,
+      subcategory_id: null,
+      subcategory_budget_id: null,
+      author_status: '',
+      article_title: '',
+      journal_name: '',
+      journal_issue: '',
+      journal_pages: '',
+      journal_month: '',
+      journal_year: new Date().getFullYear().toString(),
+      journal_url: '',
+      doi: '',
+      article_online_db: '',
+      journal_tier: '',
+      journal_quartile: '',
+      author_name_list: '',
+      in_isi: false,
+      in_scopus: false,
+      in_web_of_science: false,
+      in_tci: false,
+      article_type: '',
+      journal_type: '',
+      reward_amount: 0,
+      publication_reward: 0,
+      revision_fee: 0,
+      publication_fee: 0,
+      external_funding_amount: 0,
+      total_amount: 0,
+      bank_account: '',
+      bank_name: '',
+      phone_number: '',
+      signature: '',
+      university_ranking: '',
+      has_university_fund: '',
+      university_fund_ref: '',
+    });
+
+    setDeclarations({
+      confirmNoPreviousFunding: false,
+      agreeToRegulations: false,
+    });
+
+    setCoauthors([]);
+    setUploadedFiles({});
+    setOtherDocuments([]);
+    setExternalFundings([]);
+    setExternalFundingFiles([]);
+    setErrors({});
+    setCurrentSubmissionId(null);
+    setPrefilledSubmissionId(null);
+    setPreviewAcknowledged(false);
+  }, [
+    categoryId,
+    lockedBudgetYearId,
+    normalizedInitialYearId,
+    setCoauthors,
+    setCurrentSubmissionId,
+    setDeclarations,
+    setErrors,
+    setExternalFundingFiles,
+    setExternalFundings,
+    setOtherDocuments,
+    setPrefilledSubmissionId,
+    setPreviewAcknowledged,
+    setUploadedFiles,
+    years,
+  ]);
 
   const computeDocumentRequirements = useCallback(
     (docs) => {
@@ -1298,15 +1389,38 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
           }));
         }
 
-        setPrefilledSubmissionId(payload.submission_id);
+        setPrefilledSubmissionId(toSubmissionKey(payload.submission_id));
       } catch (error) {
-        console.error('Failed to load submission for editing:', error);
-        const message = error?.message || 'ไม่สามารถโหลดข้อมูลคำร้องได้';
-        Toast.fire({
-          icon: 'error',
-          title: 'ไม่สามารถโหลดคำร้อง',
-          text: message,
-        });
+        const statusCode = error?.response?.status ?? error?.status ?? null;
+
+        if (statusCode === 404) {
+          resetForm();
+          const submissionKey = toSubmissionKey(targetSubmissionId);
+          if (submissionKey) {
+            missingSubmissionRef.current.add(submissionKey);
+          }
+          setCurrentSubmissionId(null);
+          setPrefilledSubmissionId((prev) => {
+            if (!submissionKey) {
+              return prev;
+            }
+            return prev === submissionKey ? prev : submissionKey;
+          });
+          setIsReadOnly(baseReadOnly);
+          Toast.fire({
+            icon: 'info',
+            title: 'ร่างถูกลบแล้ว',
+            text: 'ไม่พบคำร้องที่ต้องการแก้ไข ระบบได้สร้างแบบฟอร์มใหม่ให้คุณแล้ว',
+          });
+        } else {
+          console.error('Failed to load submission for editing:', error);
+          const message = error?.message || 'ไม่สามารถโหลดข้อมูลคำร้องได้';
+          Toast.fire({
+            icon: 'error',
+            title: 'ไม่สามารถโหลดคำร้อง',
+            text: message,
+          });
+        }
       } finally {
         setLoading(false);
         setTimeout(() => {
@@ -1314,7 +1428,12 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
         }, 0);
       }
     },
-    [baseReadOnly, categoryId, yearId]
+    [
+      baseReadOnly,
+      categoryId,
+      resetForm,
+      yearId,
+    ]
   );
 
   // Load initial data on mount
@@ -1327,12 +1446,25 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
       return;
     }
 
-    if (initialSubmissionId) {
-      if (prefilledSubmissionId === initialSubmissionId) {
+    const normalizedInitialId = toSubmissionKey(initialSubmissionId);
+
+    if (normalizedInitialId) {
+      if (missingSubmissionRef.current.has(normalizedInitialId)) {
+        if (prefilledSubmissionId !== normalizedInitialId) {
+          setPrefilledSubmissionId(normalizedInitialId);
+        }
         return;
       }
+
+      if (prefilledSubmissionId === normalizedInitialId) {
+        return;
+      }
+
       loadExistingSubmission(initialSubmissionId);
-    } else if (prefilledSubmissionId !== null) {
+      return;
+    }
+
+    if (prefilledSubmissionId !== null) {
       setPrefilledSubmissionId(null);
     }
   }, [
@@ -3195,7 +3327,7 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
         }
 
         setCurrentSubmissionId(submissionId);
-        setPrefilledSubmissionId(submissionId);
+        setPrefilledSubmissionId(toSubmissionKey(submissionId));
       } else {
         const updatePayload = {};
         const resolvedCategoryId = formData.category_id || categoryId || null;
@@ -3338,77 +3470,21 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
           return;
         }
       }
+      const submissionKey = toSubmissionKey(currentSubmissionId);
+      if (submissionKey) {
+        missingSubmissionRef.current.add(submissionKey);
+        setPrefilledSubmissionId(submissionKey);
+      }
       setCurrentSubmissionId(null);
-      setPrefilledSubmissionId(null);
     }
 
     resetForm();
-    setCoauthors([]);
-    setUploadedFiles({});
-    setOtherDocuments([]);
-    setExternalFundings([]);
-    setExternalFundingFiles([]);
 
     Toast.fire({
       icon: 'success',
       title: 'ลบร่างเรียบร้อยแล้ว'
     });
   };
-
-  // Reset form to initial state
-  const resetForm = () => {
-    let defaultYearId = lockedBudgetYearId ?? normalizedInitialYearId ?? null;
-    if (defaultYearId == null && Array.isArray(years) && years.length > 0) {
-      defaultYearId = years[0]?.year_id ?? null;
-    }
-
-    previousYearRef.current = defaultYearId ?? null;
-    previousAuthorStatusRef.current = '';
-    setPolicyContext(null);
-    setResolvedSubcategoryName(null);
-    setResolutionError('');
-    setAvailableQuartiles([]);
-
-    setFormData({
-      year_id: defaultYearId,
-      author_status: '',
-      article_title: '',
-      journal_name: '',
-      journal_issue: '',
-      journal_pages: '',
-      journal_month: '',
-      journal_year: new Date().getFullYear().toString(),
-      journal_url: '',
-      doi: '',
-      article_online_db: '',
-      journal_quartile: '',
-      in_isi: false,
-      in_scopus: false,
-      article_type: '',
-      journal_type: '',
-      reward_amount: 0,
-      revision_fee: 0,
-      publication_fee: 0,
-      external_funding_amount: 0,
-      total_amount: 0,
-      bank_account: '',
-      bank_name: '',
-      phone_number: '',
-      university_ranking: '',
-      has_university_fund: '',
-      university_fund_ref: ''
-    });
-    setCoauthors([]);
-    setUploadedFiles({});
-    setOtherDocuments([]);
-    setExternalFundings([]);
-    setExternalFundingFiles([]);
-    setErrors({});
-    setCurrentSubmissionId(null);
-    setPrefilledSubmissionId(null);
-    setPreviewAcknowledged(false);
-  };
-
   // =================================================================
   // SUBMISSION CONFIRMATION
   // =================================================================

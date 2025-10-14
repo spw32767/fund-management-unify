@@ -100,7 +100,7 @@ export const submissionAPI = {
   // Get documents for submission - เพิ่มใหม่
   async getDocuments(submissionId) {
     try {
-      const response = await submissionAPI.getDocuments(submissionId);
+      const response = await apiClient.get(`/submissions/${submissionId}/documents`);
       return response;
     } catch (error) {
       console.error('Error fetching documents:', error);
