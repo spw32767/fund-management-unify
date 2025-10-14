@@ -44,6 +44,143 @@ const Toast = Swal.mixin({
 // Draft storage constants
 const DRAFT_KEY = 'publication_reward_draft';
 
+const normalizeStatusCode = (value) => {
+  if (value === null || value === undefined) return null;
+  const normalized = String(value).trim().toLowerCase();
+  if (!normalized) return null;
+  switch (normalized) {
+    case 'revision':
+    case 'needs_more_info':
+    case 'need_more_info':
+    case 'needs-more-info':
+    case 'needs more info':
+    case 'returned':
+    case 'return':
+    case 'resubmit':
+    case 'resubmission_requested':
+    case 'resubmission-required':
+    case 'resubmission required':
+    case 'pending_revision':
+    case 'pending-revision':
+    case 'pending revision':
+      return 'needs_more_info';
+    case 'draft':
+    case 'ร่าง':
+      return 'draft';
+    case 'approved':
+    case 'อนุมัติ':
+      return 'approved';
+    case 'rejected':
+    case 'ปฏิเสธ':
+      return 'rejected';
+    default:
+      return normalized;
+  }
+};
+
+const EDITABLE_STATUS_CODES = new Set(['draft', 'needs_more_info']);
+
+const parsePublicationDateParts = (value, fallback = {}) => {
+  if (!value) {
+    return {
+      year: fallback.year || '',
+      month: fallback.month || '',
+    };
+  }
+
+  let dateValue = value;
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (!trimmed) {
+      return {
+        year: fallback.year || '',
+        month: fallback.month || '',
+      };
+    }
+    const normalized = trimmed.length === 10 && /\d{4}-\d{2}-\d{2}/.test(trimmed)
+      ? `${trimmed}T00:00:00`
+      : trimmed;
+    dateValue = new Date(normalized);
+  }
+
+  if (dateValue instanceof Date && !Number.isNaN(dateValue.getTime())) {
+    const year = dateValue.getFullYear().toString();
+    const month = String(dateValue.getMonth() + 1).padStart(2, '0');
+    return { year, month };
+  }
+
+  return {
+    year: fallback.year || '',
+    month: fallback.month || '',
+  };
+};
+
+const parseIndexingFlags = (value) => {
+  if (!value || typeof value !== 'string') {
+    return { isi: false, scopus: false, webOfScience: false, tci: false };
+  }
+  const normalized = value.toLowerCase();
+  return {
+    isi: /isi/.test(normalized),
+    scopus: /scopus/.test(normalized),
+    webOfScience: /web\s*of\s*science/.test(normalized),
+    tci: /tci/.test(normalized),
+  };
+};
+
+const resolveUserNameParts = (user = {}) => {
+  const firstName = findFirstString([
+    user.user_fname,
+    user.fname,
+    user.first_name,
+    user.firstname,
+    user.name_th,
+    user.full_name ? user.full_name.split(' ')[0] : null,
+    user.name ? user.name.split(' ')[0] : null,
+  ]) || '';
+
+  const lastName = findFirstString([
+    user.user_lname,
+    user.lname,
+    user.last_name,
+    user.lastname,
+    user.surname,
+    user.full_name ? user.full_name.split(' ').slice(1).join(' ') : null,
+    user.name ? user.name.split(' ').slice(1).join(' ') : null,
+  ]) || '';
+
+  return { firstName, lastName };
+};
+
+const buildCoauthorFromSubmissionUser = (entry) => {
+  if (!entry) return null;
+  const user = entry.user || entry.User || entry;
+  const userId = user?.user_id ?? entry?.user_id ?? entry?.UserID ?? null;
+  if (!userId) {
+    return null;
+  }
+
+  const { firstName, lastName } = resolveUserNameParts(user);
+
+  return {
+    user_id: userId,
+    user_fname: firstName,
+    user_lname: lastName,
+    email: user?.email ?? entry?.email ?? null,
+  };
+};
+
+const toNumberOrEmpty = (value) => {
+  if (value === null || value === undefined) {
+    return '';
+  }
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value;
+  }
+  const num = Number(value);
+  return Number.isNaN(num) ? '' : num;
+};
+
 // =================================================================
 // UTILITY FUNCTIONS
 // =================================================================
@@ -663,7 +800,7 @@ const FileUpload = ({ onFileSelect, accept, multiple = false, error, label }) =>
 // MAIN COMPONENT START
 // =================================================================
 
-export default function PublicationRewardForm({ onNavigate, categoryId, yearId, readOnly = false }) {
+export default function PublicationRewardForm({ onNavigate, categoryId, yearId, submissionId: initialSubmissionId = null, readOnly = false }) {
   // =================================================================
   // STATE DECLARATIONS
   // =================================================================
@@ -678,7 +815,9 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
   const [availableDocumentTypes, setAvailableDocumentTypes] = useState([]);
   const [resolvedSubcategoryName, setResolvedSubcategoryName] = useState(null);
   const [years, setYears] = useState([]);
-  const [currentSubmissionId, setCurrentSubmissionId] = useState(null);
+  const [initialDataReady, setInitialDataReady] = useState(false);
+  const [prefilledSubmissionId, setPrefilledSubmissionId] = useState(null);
+  const [currentSubmissionId, setCurrentSubmissionId] = useState(initialSubmissionId ?? null);
   const [currentUser, setCurrentUser] = useState(null);
   const [previewState, setPreviewState] = useState({
     loading: false,
@@ -770,6 +909,7 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
   // External funding sources
   const [externalFundings, setExternalFundings] = useState([])
 
+  const [baseReadOnly, setBaseReadOnly] = useState(false);
   const [isReadOnly, setIsReadOnly] = useState(false);
 
   const [announcementLock, setAnnouncementLock] = useState({
@@ -808,10 +948,8 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
   useEffect(() => {
     let ro = false;
 
-    // 1) รับจาก prop
     if (readOnly === true) ro = true;
 
-    // 2) รับจาก URL query
     if (typeof window !== 'undefined') {
       const sp = new URLSearchParams(window.location.search);
       const roq = (sp.get('readonly') || '').toLowerCase();
@@ -819,15 +957,14 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
       if (['1', 'true', 'yes'].includes(roq)) ro = true;
       if (['view', 'detail', 'details', 'readonly'].includes(mode)) ro = true;
 
-      // 3) รับจาก sessionStorage (fallback ที่เราตั้งจากหน้ารายการ)
       try {
         const s = window.sessionStorage.getItem('fund_form_readonly');
         if (s === '1') ro = true;
-        // เคลียร์เพื่อไม่ให้ติดไปหน้าอื่น
         window.sessionStorage.removeItem('fund_form_readonly');
       } catch {}
     }
 
+    setBaseReadOnly(ro);
     setIsReadOnly(ro);
   }, [readOnly]);
 
@@ -1043,8 +1180,37 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
   // Load initial data on mount
   useEffect(() => {
     loadInitialData();
-    checkAndLoadDraft();
-  }, [categoryId, yearId]);
+  }, [categoryId, yearId, initialSubmissionId]);
+
+  useEffect(() => {
+    if (!initialDataReady) {
+      return;
+    }
+
+    if (initialSubmissionId) {
+      if (prefilledSubmissionId === initialSubmissionId) {
+        return;
+      }
+      loadExistingSubmission(initialSubmissionId);
+    } else {
+      if (prefilledSubmissionId !== null) {
+        setPrefilledSubmissionId(null);
+      }
+      checkAndLoadDraft();
+    }
+  }, [
+    checkAndLoadDraft,
+    initialDataReady,
+    initialSubmissionId,
+    loadExistingSubmission,
+    prefilledSubmissionId,
+  ]);
+
+  useEffect(() => {
+    if (!initialSubmissionId && currentSubmissionId) {
+      setCurrentSubmissionId(null);
+    }
+  }, [currentSubmissionId, initialSubmissionId]);
 
   useEffect(() => {
     if (!Array.isArray(availableDocumentTypes) || availableDocumentTypes.length === 0) {
@@ -1483,6 +1649,7 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
   // Load initial data from APIs
   const loadInitialData = async () => {
     try {
+      setInitialDataReady(false);
       setLoading(true);
       console.log('Starting loadInitialData...');
       
@@ -1653,11 +1820,15 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
       alert('เกิดข้อผิดพลาดในการโหลดข้อมูล: ' + error.message);
     } finally {
       setLoading(false);
+      setInitialDataReady(true);
     }
   };
 
   // Check and load draft from localStorage
-  const checkAndLoadDraft = async () => {
+  const checkAndLoadDraft = useCallback(async () => {
+    if (initialSubmissionId) {
+      return;
+    }
     const draft = loadDraftFromLocal();
     if (draft) {
       const savedDate = new Date(draft.savedAt).toLocaleString('th-TH');
@@ -1738,7 +1909,151 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
         deleteDraftFromLocal();
       }
     }
-  };
+  }, [initialSubmissionId]);
+
+  const loadExistingSubmission = useCallback(
+    async (targetSubmissionId) => {
+      if (!targetSubmissionId) {
+        return;
+      }
+
+      try {
+        setLoading(true);
+
+        const response = await submissionAPI.getById(targetSubmissionId);
+        const payload = response?.submission || response;
+
+        if (!payload || !payload.submission_id) {
+          throw new Error('ไม่พบข้อมูลคำร้อง');
+        }
+
+        setCurrentSubmissionId(payload.submission_id);
+
+        const statusCandidates = [
+          payload.status?.code,
+          payload.status?.status_code,
+          payload.status?.status,
+          payload.status_code,
+          payload.Status?.Code,
+          payload.Status?.status_code,
+        ];
+        const normalizedStatus = statusCandidates.map(normalizeStatusCode).find(Boolean) || null;
+        const allowEditing = normalizedStatus ? EDITABLE_STATUS_CODES.has(normalizedStatus) : true;
+        setIsReadOnly(baseReadOnly ? true : !allowEditing);
+
+        const detail = payload.PublicationRewardDetail || payload.publication_reward_detail || {};
+        const applicantId = payload.user_id ?? payload.UserID ?? payload.applicant_user_id ?? null;
+        const submissionUsers = payload.submission_users || payload.SubmissionUsers || [];
+
+        const normalizedCoauthors = [];
+        const seenCoauthors = new Set();
+        submissionUsers.forEach((entry) => {
+          const normalized = buildCoauthorFromSubmissionUser(entry);
+          if (!normalized) return;
+          if (applicantId != null && normalized.user_id === applicantId) return;
+          if (seenCoauthors.has(normalized.user_id)) return;
+          seenCoauthors.add(normalized.user_id);
+          normalizedCoauthors.push(normalized);
+        });
+        setCoauthors(normalizedCoauthors);
+
+        const externalFundsRaw = detail.external_fundings || detail.ExternalFunds || [];
+        const normalizedFunds = externalFundsRaw.map((fund, index) => {
+          const fundId = fund.external_fund_id ?? fund.ExternalFundID ?? null;
+          return {
+            clientId: `server-${fundId ?? index}`,
+            externalFundId: fundId,
+            fundName: fund.fund_name ?? fund.FundName ?? '',
+            amount: fund.amount ?? fund.Amount ?? '',
+          };
+        });
+        setExternalFundings(normalizedFunds);
+        setExternalFundingFiles([]);
+        setUploadedFiles({});
+        setOtherDocuments([]);
+
+        const indexingFlags = parseIndexingFlags(detail.indexing ?? detail.Indexing ?? '');
+
+        setFormData((prev) => {
+          const { year: resolvedYear, month: resolvedMonth } = parsePublicationDateParts(
+            detail.publication_date ?? detail.PublicationDate,
+            { year: prev.journal_year, month: prev.journal_month }
+          );
+
+          const authorStatus =
+            detail.author_type || detail.author_status || payload.author_status || prev.author_status;
+
+          return {
+            ...prev,
+            year_id: payload.year_id ?? prev.year_id ?? yearId ?? null,
+            category_id: payload.category_id ?? prev.category_id ?? categoryId ?? null,
+            subcategory_id: payload.subcategory_id ?? detail.subcategory_id ?? prev.subcategory_id,
+            subcategory_budget_id:
+              payload.subcategory_budget_id ?? detail.subcategory_budget_id ?? prev.subcategory_budget_id,
+            author_status: authorStatus || '',
+            article_title: detail.paper_title ?? detail.article_title ?? prev.article_title ?? '',
+            journal_name: detail.journal_name ?? prev.journal_name ?? '',
+            journal_issue: detail.volume_issue ?? prev.journal_issue ?? '',
+            journal_pages: detail.page_numbers ?? prev.journal_pages ?? '',
+            journal_month: resolvedMonth || prev.journal_month || '',
+            journal_year: resolvedYear || prev.journal_year || '',
+            journal_url: detail.url ?? prev.journal_url ?? '',
+            doi: detail.doi ?? prev.doi ?? '',
+            article_online_db: detail.indexing ?? prev.article_online_db ?? '',
+            in_isi: indexingFlags.isi,
+            in_scopus: indexingFlags.scopus,
+            in_web_of_science: indexingFlags.webOfScience,
+            in_tci: indexingFlags.tci,
+            publication_reward: toNumberOrEmpty(
+              detail.reward_amount ?? prev.publication_reward ?? prev.reward_amount ?? ''
+            ),
+            reward_amount: toNumberOrEmpty(detail.reward_amount ?? prev.reward_amount ?? ''),
+            revision_fee: toNumberOrEmpty(detail.revision_fee ?? prev.revision_fee ?? ''),
+            publication_fee: toNumberOrEmpty(detail.publication_fee ?? prev.publication_fee ?? ''),
+            external_funding_amount: toNumberOrEmpty(
+              detail.external_funding_amount ?? prev.external_funding_amount ?? ''
+            ),
+            total_amount: toNumberOrEmpty(detail.total_amount ?? prev.total_amount ?? ''),
+            author_name_list: detail.author_name_list ?? prev.author_name_list ?? '',
+            signature: detail.signature ?? prev.signature ?? '',
+            has_university_fund: detail.has_university_funding ?? prev.has_university_fund ?? 'no',
+            university_fund_ref: detail.funding_references ?? prev.university_fund_ref ?? '',
+            university_ranking: detail.university_rankings ?? prev.university_ranking ?? '',
+            phone_number: payload.phone_number ?? prev.phone_number ?? '',
+            bank_account: payload.bank_account ?? prev.bank_account ?? '',
+            bank_name: payload.bank_name ?? prev.bank_name ?? '',
+          };
+        });
+
+        setDeclarations((prev) => ({
+          ...prev,
+          confirmNoPreviousFunding: (detail.has_university_funding ?? '').toString().toLowerCase() !== 'yes',
+          agreeToRegulations: true,
+        }));
+
+        if (detail.main_annoucement != null || detail.reward_announcement != null) {
+          setAnnouncementLock((prev) => ({
+            main_annoucement: detail.main_annoucement ?? prev.main_annoucement ?? null,
+            reward_announcement: detail.reward_announcement ?? prev.reward_announcement ?? null,
+          }));
+        }
+
+        deleteDraftFromLocal();
+        setPrefilledSubmissionId(payload.submission_id);
+      } catch (error) {
+        console.error('Failed to load submission for editing:', error);
+        const message = error?.message || 'ไม่สามารถโหลดข้อมูลคำร้องได้';
+        Toast.fire({
+          icon: 'error',
+          title: 'ไม่สามารถโหลดคำร้อง',
+          text: message,
+        });
+      } finally {
+        setLoading(false);
+      }
+    },
+    [baseReadOnly, categoryId, yearId]
+  );
 
   // =================================================================
   // EVENT HANDLERS
