@@ -300,22 +300,41 @@ func CreateSubmission(c *gin.Context) {
 }
 
 func determineInitialStatusID(submissionType string, requestedStatusID *int, roleID int) (int, error) {
-	if requestedStatusID != nil && roleID == 3 {
+	// Admins may explicitly choose any status; honour the request if provided.
+	if requestedStatusID != nil {
 		status, err := utils.GetApplicationStatusByID(*requestedStatusID)
 		if err != nil {
 			return 0, err
 		}
-		return status.ApplicationStatusID, nil
+
+		if roleID == 3 {
+			return status.ApplicationStatusID, nil
+		}
+
+		// Non-admins can only request draft explicitly. For backwards compatibility with
+		// older clients that still send the dept-head pending status we silently ignore it
+		// and fall back to the server-managed draft behaviour below.
+		ok, err := utils.StatusMatchesCodes(status.ApplicationStatusID, utils.StatusCodeDraft)
+		if err != nil {
+			return 0, err
+		}
+		if ok {
+			return status.ApplicationStatusID, nil
+		}
 	}
 
-	switch submissionType {
-	case "fund_application":
-		return utils.GetStatusIDByCode(utils.StatusCodeDeptHeadPending)
-	case "publication_reward":
-		return utils.GetStatusIDByCode(utils.StatusCodeDeptHeadPending)
-	default:
-		return utils.GetStatusIDByCode(utils.StatusCodePending)
+	// Default initial status: admins keep the previous behaviour while member-facing
+	// clients receive a server-managed draft that can later be submitted.
+	if roleID == 3 {
+		switch submissionType {
+		case "fund_application", "publication_reward":
+			return utils.GetStatusIDByCode(utils.StatusCodeDeptHeadPending)
+		default:
+			return utils.GetStatusIDByCode(utils.StatusCodePending)
+		}
 	}
+
+	return utils.GetStatusIDByCode(utils.StatusCodeDraft)
 }
 
 // UpdateSubmission updates a submission (only if editable)
@@ -415,6 +434,92 @@ func DeleteSubmission(c *gin.Context) {
 	})
 }
 
+// HardDeleteSubmission permanently deletes a draft submission and its related records.
+func HardDeleteSubmission(c *gin.Context) {
+	submissionIDParam := c.Param("id")
+	submissionID, err := strconv.Atoi(submissionIDParam)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid submission ID"})
+		return
+	}
+
+	userID, _ := c.Get("userID")
+	roleID, _ := c.Get("roleID")
+
+	tx := config.DB.Begin()
+	if tx.Error != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete submission"})
+		return
+	}
+
+	var submission models.Submission
+	query := tx.Where("submission_id = ?", submissionID)
+	if roleID.(int) != 3 {
+		query = query.Where("user_id = ?", userID)
+	}
+
+	if err := query.First(&submission).Error; err != nil {
+		tx.Rollback()
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Submission not found"})
+		} else {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete submission"})
+		}
+		return
+	}
+
+	if submission.IsSubmitted() {
+		tx.Rollback()
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Cannot delete submitted submission"})
+		return
+	}
+
+	cleanupOperations := []func() error{
+		func() error {
+			return tx.Unscoped().Where("submission_id = ?", submissionID).Delete(&models.SubmissionDocument{}).Error
+		},
+		func() error {
+			return tx.Unscoped().Where("submission_id = ?", submissionID).Delete(&models.SubmissionUser{}).Error
+		},
+		func() error {
+			return tx.Unscoped().Where("submission_id = ?", submissionID).Delete(&models.PublicationRewardExternalFund{}).Error
+		},
+		func() error {
+			return tx.Unscoped().Where("submission_id = ?", submissionID).Delete(&models.PublicationRewardDetail{}).Error
+		},
+		func() error {
+			return tx.Unscoped().Where("submission_id = ?", submissionID).Delete(&models.FundApplicationDetail{}).Error
+		},
+		func() error {
+			return tx.Unscoped().Where("submission_id = ?", submissionID).Delete(&models.ResearchFundAdminEvent{}).Error
+		},
+	}
+
+	for _, cleanup := range cleanupOperations {
+		if err := cleanup(); err != nil {
+			tx.Rollback()
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete submission"})
+			return
+		}
+	}
+
+	if err := tx.Unscoped().Where("submission_id = ?", submissionID).Delete(&models.Submission{}).Error; err != nil {
+		tx.Rollback()
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete submission"})
+		return
+	}
+
+	if err := tx.Commit().Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete submission"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "Submission permanently deleted",
+	})
+}
+
 // SubmitSubmission submits a submission (changes status)
 func SubmitSubmission(c *gin.Context) {
 	submissionID := c.Param("id")
@@ -440,6 +545,18 @@ func SubmitSubmission(c *gin.Context) {
 		return
 	}
 
+	targetStatusCode := utils.StatusCodePending
+	switch strings.TrimSpace(submission.SubmissionType) {
+	case "fund_application", "publication_reward":
+		targetStatusCode = utils.StatusCodeDeptHeadPending
+	}
+
+	targetStatusID, err := utils.GetStatusIDByCode(targetStatusCode)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to resolve submission status"})
+		return
+	}
+
 	now := time.Now()
 
 	if err := config.DB.Transaction(func(tx *gorm.DB) error {
@@ -449,8 +566,20 @@ func SubmitSubmission(c *gin.Context) {
 		}
 
 		updates := map[string]interface{}{
-			"submitted_at": &now,
-			"updated_at":   now,
+			"status_id":              targetStatusID,
+			"submitted_at":           &now,
+			"updated_at":             now,
+			"reviewed_at":            gorm.Expr("NULL"),
+			"head_approved_by":       gorm.Expr("NULL"),
+			"head_approved_at":       gorm.Expr("NULL"),
+			"head_rejected_by":       gorm.Expr("NULL"),
+			"head_rejected_at":       gorm.Expr("NULL"),
+			"head_rejection_reason":  gorm.Expr("NULL"),
+			"admin_approved_by":      gorm.Expr("NULL"),
+			"admin_approved_at":      gorm.Expr("NULL"),
+			"admin_rejected_by":      gorm.Expr("NULL"),
+			"admin_rejected_at":      gorm.Expr("NULL"),
+			"admin_rejection_reason": gorm.Expr("NULL"),
 		}
 
 		if submission.InstallmentNumberAtSubmit != nil {
@@ -469,6 +598,7 @@ func SubmitSubmission(c *gin.Context) {
 
 		submission.SubmittedAt = &now
 		submission.UpdatedAt = now
+		submission.StatusID = targetStatusID
 		if resolvedInstallment != nil {
 			submission.InstallmentNumberAtSubmit = resolvedInstallment
 		}
@@ -2314,20 +2444,33 @@ func AddFundDetails(c *gin.Context) {
 		return
 	}
 
-	// Create fund application details
-	fundDetails := models.FundApplicationDetail{
-		SubmissionID:                submission.SubmissionID,
-		SubcategoryID:               req.SubcategoryID,
-		ProjectTitle:                req.ProjectTitle,
-		ProjectDescription:          req.ProjectDescription,
-		RequestedAmount:             req.RequestedAmount,
-		MainAnnoucement:             ann.MainAnnoucement,
-		ActivitySupportAnnouncement: ann.ActivitySupportAnnouncement,
+	// Create or update fund application details
+	var fundDetails models.FundApplicationDetail
+	if err := config.DB.Where("submission_id = ?", submission.SubmissionID).First(&fundDetails).Error; err != nil {
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to load fund details"})
+			return
+		}
+		fundDetails = models.FundApplicationDetail{SubmissionID: submission.SubmissionID}
 	}
 
-	if err := config.DB.Create(&fundDetails).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save fund details"})
-		return
+	fundDetails.SubcategoryID = req.SubcategoryID
+	fundDetails.ProjectTitle = req.ProjectTitle
+	fundDetails.ProjectDescription = req.ProjectDescription
+	fundDetails.RequestedAmount = req.RequestedAmount
+	fundDetails.MainAnnoucement = ann.MainAnnoucement
+	fundDetails.ActivitySupportAnnouncement = ann.ActivitySupportAnnouncement
+
+	if fundDetails.DetailID == 0 {
+		if err := config.DB.Create(&fundDetails).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save fund details"})
+			return
+		}
+	} else {
+		if err := config.DB.Save(&fundDetails).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update fund details"})
+			return
+		}
 	}
 
 	// Update submission with category, subcategory, and budget references

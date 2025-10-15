@@ -177,6 +177,7 @@ func SetupRoutes(router *gin.Engine) {
 				deptHead.GET("/submissions/:id/details", controllers.GetDeptHeadSubmissionDetails)
 				deptHead.POST("/submissions/:id/recommend", controllers.DeptHeadRecommendSubmission)
 				deptHead.POST("/submissions/:id/reject", controllers.DeptHeadRejectSubmission)
+				deptHead.POST("/submissions/:id/request-revision", controllers.DeptHeadRequestRevision)
 			}
 
 			// Fund Applications
@@ -203,6 +204,7 @@ func SetupRoutes(router *gin.Engine) {
 				submissions.GET("/:id", controllers.GetSubmission)
 				submissions.PUT("/:id", controllers.UpdateSubmission)
 				submissions.DELETE("/:id", controllers.DeleteSubmission)
+				submissions.DELETE("/:id/hard", controllers.HardDeleteSubmission)
 
 				// Submit submission
 				submissions.POST("/:id/submit", controllers.SubmitSubmission)
@@ -517,6 +519,7 @@ func SetupRoutes(router *gin.Engine) {
 					submissionManagement.PATCH("/:id/publication-reward/approval-amounts", controllers.UpdatePublicationRewardApprovalAmounts)
 					submissionManagement.POST("/:id/approve", controllers.ApproveSubmission)
 					submissionManagement.POST("/:id/reject", controllers.RejectSubmission)
+					submissionManagement.POST("/:id/request-revision", controllers.RequestSubmissionRevision)
 				}
 
 				documentTypes := admin.Group("/document-types")
