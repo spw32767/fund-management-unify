@@ -255,7 +255,27 @@ export const deptHeadAPI = {
       } catch (error) {
         lastError = error;
         console.warn(`[deptHeadAPI] ${attempt.label} documents fetch failed`, error);
+
+        if (error?.status === 404 || String(error?.status) === '404') {
+          return {
+            documents: [],
+            data: { documents: [] },
+            success: true,
+            source: attempt.label,
+            error: undefined,
+          };
+        }
       }
+    }
+
+    if (lastError?.status === 404 || String(lastError?.status) === '404') {
+      return {
+        documents: [],
+        data: { documents: [] },
+        success: true,
+        source: 'dept-head',
+        error: undefined,
+      };
     }
 
     try {
