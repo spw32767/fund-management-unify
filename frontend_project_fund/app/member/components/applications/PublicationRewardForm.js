@@ -1087,7 +1087,14 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
   }, [readOnly]);
 
   // Helper: resolve subcategory and budget via backend resolver
-  const resolveBudgetAndSubcategory = async ({ category_id, year_id, author_status, journal_quartile }) => {
+  const resolveBudgetAndSubcategory = async ({
+    category_id,
+    year_id,
+    author_status,
+    journal_quartile,
+    optionContext = {},
+    fallbackReward = null,
+  }) => {
     try {
       const response = await publicationBudgetAPI.resolve({
         category_id,
@@ -1097,6 +1104,24 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
       });
       return response;
     } catch (err) {
+      const message = typeof err?.message === 'string' ? err.message.toLowerCase() : '';
+      if (message.includes('no overall budget')) {
+        const derivedName = findFirstString([
+          optionContext?.subcategory_name,
+          optionContext?.subcategory_name_th,
+          optionContext?.fund_description,
+        ]);
+        return {
+          subcategory_id: optionContext?.subcategory_id ?? optionContext?.subcategoryId ?? null,
+          subcategory_budget_id: optionContext?.subcategory_budget_id ?? optionContext?.subcategoryBudgetId ?? null,
+          overall_subcategory_budget_id: optionContext?.overall_subcategory_budget_id ?? null,
+          reward_amount: optionContext?.reward_amount ?? optionContext?.RewardAmount ?? fallbackReward ?? null,
+          policy: optionContext?.policy ?? null,
+          subcategory_name: derivedName ?? null,
+          fund_description: optionContext?.fund_description ?? null,
+        };
+      }
+
       console.error('resolveBudgetAndSubcategory error:', err);
       return null;
     }
@@ -1274,6 +1299,29 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
     budgetOptionMap,
     resolvedSubcategoryName,
     lockedFundSummary,
+  ]);
+
+  useEffect(() => {
+    const editingDraft = prefilledSubmissionId && currentSubmissionStatus === 'draft' && !isReadOnly;
+    if (!editingDraft) {
+      return;
+    }
+
+    if (!selectedFundSummary) {
+      return;
+    }
+
+    setLockedFundSummary((prev) => {
+      if (prev && (prev.name || prev.description || prev.detail)) {
+        return prev;
+      }
+      return selectedFundSummary ? { ...selectedFundSummary } : prev;
+    });
+  }, [
+    prefilledSubmissionId,
+    currentSubmissionStatus,
+    isReadOnly,
+    selectedFundSummary,
   ]);
 
   const budgetYearText = useMemo(() => {
@@ -1771,14 +1819,10 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
         return;
       }
 
-      if (prefilledSubmissionId && currentSubmissionStatus === 'draft' && !isReadOnly) {
-        setResolutionError('');
-        return;
-      }
-
       const currentYearId = formData.year_id;
       const previousYearId = previousYearRef.current;
       const hydrating = hydratingRef.current;
+      const editingDraft = prefilledSubmissionId && currentSubmissionStatus === 'draft' && !isReadOnly;
 
       try {
         const { pairs, rateMap, budgetMap } = await getEnabledAuthorStatusQuartiles({
@@ -1804,24 +1848,26 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
         const yearChanged = previousYearId !== currentYearId;
         previousYearRef.current = currentYearId;
 
-        if (!hydrating && yearChanged) {
-          setAvailableQuartiles([]);
-          setFormData((prev) => ({
-            ...prev,
-            author_status: '',
-            journal_quartile: '',
-            subcategory_id: null,
-            subcategory_budget_id: null,
-            publication_reward: 0,
-            reward_amount: 0,
-          }));
-          setPolicyContext(null);
-          setResolvedSubcategoryName(null);
-        } else if (!hydrating && !formData.author_status) {
-          setAvailableQuartiles([]);
+        if (!hydrating) {
+          if (!editingDraft && yearChanged) {
+            setAvailableQuartiles([]);
+            setFormData((prev) => ({
+              ...prev,
+              author_status: '',
+              journal_quartile: '',
+              subcategory_id: null,
+              subcategory_budget_id: null,
+              publication_reward: 0,
+              reward_amount: 0,
+            }));
+            setPolicyContext(null);
+            setResolvedSubcategoryName(null);
+          } else if (!editingDraft && !formData.author_status) {
+            setAvailableQuartiles([]);
+          }
         }
 
-        setResolutionError(pairs.length === 0 ? 'ไม่พบทุนสำหรับปี/สถานะ/ควอร์ไทล์ที่เลือก' : '');
+        setResolutionError(editingDraft ? '' : (pairs.length === 0 ? 'ไม่พบทุนสำหรับปี/สถานะ/ควอร์ไทล์ที่เลือก' : ''));
       } catch (error) {
         console.error('Failed to resolve author status/quartile pairs:', error);
         setEnabledPairs([]);
@@ -1830,17 +1876,21 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
         setAvailableAuthorStatuses([]);
         if (!hydrating) {
           setAvailableQuartiles([]);
-          setFormData((prev) => ({
-            ...prev,
-            author_status: '',
-            journal_quartile: '',
-            subcategory_id: null,
-            subcategory_budget_id: null,
-            publication_reward: 0,
-            reward_amount: 0,
-          }));
+          if (!editingDraft) {
+            setFormData((prev) => ({
+              ...prev,
+              author_status: '',
+              journal_quartile: '',
+              subcategory_id: null,
+              subcategory_budget_id: null,
+              publication_reward: 0,
+              reward_amount: 0,
+            }));
+            setPolicyContext(null);
+            setResolvedSubcategoryName(null);
+          }
         }
-        setResolutionError('ไม่สามารถตรวจสอบทุนได้');
+        setResolutionError(editingDraft ? '' : 'ไม่สามารถตรวจสอบทุนได้');
       }
     };
 
@@ -1852,6 +1902,7 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
     prefilledSubmissionId,
     currentSubmissionStatus,
     isReadOnly,
+    formData.author_status,
   ]);
 
   // Update quartile options when author status changes
@@ -1932,7 +1983,9 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
             category_id: categoryId,
             year_id: formData.year_id,
             author_status: formData.author_status,
-            journal_quartile: formData.journal_quartile
+            journal_quartile: formData.journal_quartile,
+            optionContext,
+            fallbackReward,
           });
           if (result) {
             const resolvedSubcategoryId = parseIntegerOrNull(result?.subcategory_id ?? optionContext.subcategory_id);

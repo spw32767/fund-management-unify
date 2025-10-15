@@ -596,7 +596,10 @@ export const publicationBudgetAPI = {
       const res = await apiClient.get(`/publication-rewards/resolve?${query}`);
       return res;
     } catch (error) {
-      console.error('Error resolving publication budget:', error);
+      const message = typeof error?.message === 'string' ? error.message.toLowerCase() : '';
+      if (!message.includes('no overall budget')) {
+        console.error('Error resolving publication budget:', error);
+      }
       throw error;
     }
   },
