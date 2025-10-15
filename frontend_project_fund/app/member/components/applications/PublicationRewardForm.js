@@ -327,6 +327,31 @@ const buildCoauthorFromSubmissionUser = (entry) => {
   };
 };
 
+const getNormalizedUserId = (entry) => {
+  if (!entry) {
+    return null;
+  }
+  const candidates = [
+    entry.user_id,
+    entry.UserID,
+    entry.userId,
+    entry.UserId,
+    entry.id,
+    entry.Id,
+  ];
+  for (const candidate of candidates) {
+    if (candidate === null || candidate === undefined) {
+      continue;
+    }
+    const normalized = String(candidate).trim();
+    if (!normalized) {
+      continue;
+    }
+    return normalized;
+  }
+  return null;
+};
+
 const toNumberOrEmpty = (value) => {
   if (value === null || value === undefined) {
     return '';
@@ -1161,6 +1186,76 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
   const [preloadedQuartileConfigs, setPreloadedQuartileConfigs] = useState({});
   const [lockedFundSummary, setLockedFundSummary] = useState(null);
   const [, setPolicyContext] = useState(null);
+
+  const userLookupById = useMemo(() => {
+    const map = new Map();
+    users.forEach((user) => {
+      const key = getNormalizedUserId(user);
+      if (!key || map.has(key)) {
+        return;
+      }
+      map.set(key, user);
+    });
+    return map;
+  }, [users]);
+
+  const getCoauthorDisplayInfo = useCallback(
+    (coauthor) => {
+      if (!coauthor) {
+        return { name: '', email: '' };
+      }
+
+      const combinedName = [coauthor.user_fname, coauthor.user_lname]
+        .filter(Boolean)
+        .join(' ')
+        .trim();
+
+      let name = findFirstString([
+        coauthor.display_name,
+        combinedName || null,
+        coauthor.user_fname,
+        coauthor.user_lname,
+      ]) || '';
+
+      let email = findFirstString([
+        coauthor.email,
+        coauthor.user_email,
+        coauthor.UserEmail,
+      ]) || '';
+
+      const lookupKey = getNormalizedUserId(coauthor);
+
+      if (lookupKey && userLookupById.has(lookupKey)) {
+        const user = userLookupById.get(lookupKey);
+        if (user) {
+          if (!name) {
+            const parts = resolveUserNameParts(user);
+            const composed = [parts.prefix, parts.firstName, parts.lastName]
+              .filter(Boolean)
+              .join(' ')
+              .trim();
+            name = parts.displayName || composed || name;
+          }
+          if (!email) {
+            email =
+              findFirstString([
+                user.email,
+                user.Email,
+                user.user_email,
+                user.userEmail,
+                user.UserEmail,
+              ]) || '';
+          }
+        }
+      }
+
+      return {
+        name: name || '',
+        email: email || '',
+      };
+    },
+    [userLookupById],
+  );
 
   // Form data state
   const normalizedInitialYearId = typeof yearId === 'string'
@@ -3213,7 +3308,8 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
       return;
     }
 
-    if (!coauthors.find(c => c.user_id === normalized.user_id)) {
+    const targetId = getNormalizedUserId(normalized);
+    if (!coauthors.some((c) => getNormalizedUserId(c) === targetId)) {
       setCoauthors(prev => [...prev, normalized]);
     }
   };
@@ -3222,7 +3318,8 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
   const handleRemoveCoauthor = async (index) => {
     const target = coauthors[index];
     const fallbackName = `${target?.user_fname || ''} ${target?.user_lname || ''}`.trim();
-    const displayName = (target?.display_name || fallbackName || 'ผู้แต่งร่วม').trim();
+    const { name: resolvedDisplayName } = getCoauthorDisplayInfo(target);
+    const displayName = (resolvedDisplayName || fallbackName || 'ผู้แต่งร่วม').trim();
 
     const result = await Swal.fire({
       title: 'ยืนยันการลบผู้แต่งร่วม?',
@@ -5884,7 +5981,11 @@ const showSubmissionConfirmation = async () => {
   // =================================================================
 
   const editingExistingSubmission = Boolean(prefilledSubmissionId);
-  const draftLockedSelections = editingExistingSubmission && currentSubmissionStatus === 'draft' && !isReadOnly;
+  const selectionLocked =
+    editingExistingSubmission &&
+    !isReadOnly &&
+    currentSubmissionStatus != null &&
+    !EDITABLE_STATUS_CODES.has(currentSubmissionStatus);
   const selectedFundName = selectedFundSummary?.name || '';
   const selectedFundDescription = selectedFundSummary?.description || '';
   const selectedFundDetail = selectedFundSummary?.detail || '';
@@ -5896,12 +5997,12 @@ const showSubmissionConfirmation = async () => {
     (editingExistingSubmission || lockedFundSummary) && (bannerPrimaryDescription || bannerSecondaryDescription)
   );
   const enforceBudgetYearReadOnly = Boolean(lockedBudgetYearId) || editingExistingSubmission || isReadOnly;
-  const disableAuthorStatusSelect = draftLockedSelections || availableAuthorStatuses.length === 0;
-  const disableQuartileSelect = draftLockedSelections || availableQuartiles.length === 0;
+  const disableAuthorStatusSelect = selectionLocked || availableAuthorStatuses.length === 0;
+  const disableQuartileSelect = selectionLocked || availableQuartiles.length === 0;
   const disableJournalNameInput = (availableQuartiles.length === 0 && !editingExistingSubmission);
-  const displayResolutionError = draftLockedSelections ? '' : resolutionError;
+  const displayResolutionError = selectionLocked ? '' : resolutionError;
   const allowExternalFunding = Boolean(
-    formData.journal_quartile && (feeLimits.total > 0 || draftLockedSelections)
+    formData.journal_quartile && (feeLimits.total > 0 || selectionLocked)
   );
   const shouldShowReviewerComments =
     currentSubmissionStatus === 'needs_more_info' &&
@@ -5941,9 +6042,9 @@ const showSubmissionConfirmation = async () => {
                     {bannerSecondaryDescription}
                   </p>
                 )}
-                {draftLockedSelections && (
+                {selectionLocked && (
                   <p className="text-xs text-blue-700 sm:text-sm">
-                    หากต้องการเปลี่ยนให้ลบร่าง แล้วสร้างใหม่อีกครั้ง
+                    ไม่สามารถเปลี่ยนทุนสำหรับคำร้องในสถานะนี้ได้ กรุณาติดต่อเจ้าหน้าที่หรือสร้างคำร้องใหม่หากจำเป็น
                   </p>
                 )}
               </div>
@@ -6452,12 +6553,15 @@ const showSubmissionConfirmation = async () => {
               <select
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                 onChange={(e) => {
-                  const userId = parseInt(e.target.value);
-                  if (userId) {
-                    const user = users.find(u => u.user_id === userId);
+                  const selectedId = e.target.value;
+                  if (selectedId) {
+                    const user = users.find((candidate) => {
+                      const candidateId = getNormalizedUserId(candidate);
+                      return candidateId != null && candidateId === selectedId;
+                    });
                     if (user) {
                       handleAddCoauthor(user);
-                      e.target.value = ''; // Reset dropdown
+                      e.target.value = '';
                     }
                   }
                 }}
@@ -6465,25 +6569,33 @@ const showSubmissionConfirmation = async () => {
                 <option value="">เลือกผู้ร่วมวิจัย... (Select Co-Author...)</option>
                 {users
                   .filter(user => {
-                    // Filter out current user
-                    if (currentUser && user.user_id === currentUser.user_id) {
+                    const normalizedUserId = getNormalizedUserId(user);
+                    if (!normalizedUserId) {
                       return false;
                     }
-                    // Filter out already selected co-authors
-                    if (coauthors.some(c => c.user_id === user.user_id)) {
-                      return false;
+
+                    if (currentUser) {
+                      const currentUserId = getNormalizedUserId(currentUser);
+                      if (currentUserId && currentUserId === normalizedUserId) {
+                        return false;
+                      }
                     }
-                    return true;
+
+                    return !coauthors.some((coauthor) => {
+                      const coauthorId = getNormalizedUserId(coauthor);
+                      return coauthorId && coauthorId === normalizedUserId;
+                    });
                   })
                   .map(user => {
+                    const normalizedUserId = getNormalizedUserId(user);
                     const nameParts = resolveUserNameParts(user);
                     const fallbackName = `${nameParts.firstName || ''} ${nameParts.lastName || ''}`.trim();
                     const labelName = nameParts.displayName || fallbackName;
                     const optionLabel = labelName || user.user_fname || user.user_lname || 'ไม่ทราบชื่อ';
                     return (
                       <option
-                        key={user.user_id}
-                        value={user.user_id}
+                        key={normalizedUserId || `user-${user.user_id}`}
+                        value={normalizedUserId || ''}
                       >
                         {optionLabel}{user.email ? ` (${user.email})` : ''}
                       </option>
@@ -6494,10 +6606,24 @@ const showSubmissionConfirmation = async () => {
 
             {/* Available co-authors count */}
             <p className="text-xs text-gray-500">
-              สามารถเลือกได้ (Available): {users.filter(u => 
-                (!currentUser || u.user_id !== currentUser.user_id) && 
-                !coauthors.some(c => c.user_id === u.user_id)
-              ).length} คน (persons)
+              สามารถเลือกได้ (Available): {users.filter((u) => {
+                const normalizedUserId = getNormalizedUserId(u);
+                if (!normalizedUserId) {
+                  return false;
+                }
+
+                if (currentUser) {
+                  const currentUserId = getNormalizedUserId(currentUser);
+                  if (currentUserId && currentUserId === normalizedUserId) {
+                    return false;
+                  }
+                }
+
+                return !coauthors.some((c) => {
+                  const coauthorId = getNormalizedUserId(c);
+                  return coauthorId && coauthorId === normalizedUserId;
+                });
+              }).length} คน (persons)
             </p>
 
             {/* Selected co-authors list */}
@@ -6507,33 +6633,40 @@ const showSubmissionConfirmation = async () => {
                   ผู้ร่วมวิจัยที่เลือก (Selected Co-researchers) ({coauthors.length} คน/persons)
                 </label>
                 <div className="space-y-2">
-                  {coauthors.map((coauthor, index) => (
-                    <div
-                      key={coauthor.user_id}
-                      className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
-                    >
-                      <div className="flex items-center space-x-3">
-                        <span className="text-sm font-medium text-gray-600">
-                          {index + 1}.
-                        </span>
-                        <div>
-                          <p className="text-sm font-medium text-gray-900">
-                            {coauthor.display_name || `${coauthor.user_fname || ''} ${coauthor.user_lname || ''}`.trim()}
-                          </p>
-                          <p className="text-xs text-gray-500">
-                            {coauthor.email}
-                          </p>
-                        </div>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveCoauthor(index)}
-                        className="text-red-500 hover:text-red-700"
+                  {coauthors.map((coauthor, index) => {
+                    const { name, email } = getCoauthorDisplayInfo(coauthor);
+                    const resolvedName = name || `${coauthor.user_fname || ''} ${coauthor.user_lname || ''}`.trim() || 'ไม่ทราบชื่อ';
+
+                    return (
+                      <div
+                        key={getNormalizedUserId(coauthor) || coauthor.user_id || `coauthor-${index}`}
+                        className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
                       >
-                        <X className="h-4 w-4" />
-                      </button>
-                    </div>
-                  ))}
+                        <div className="flex items-center space-x-3">
+                          <span className="text-sm font-medium text-gray-600">
+                            {index + 1}.
+                          </span>
+                          <div>
+                            <p className="text-sm font-medium text-gray-900">
+                              {resolvedName}
+                            </p>
+                            {email && (
+                              <p className="text-xs text-gray-500">
+                                {email}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveCoauthor(index)}
+                          className="text-red-500 hover:text-red-700"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             )}
