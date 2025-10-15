@@ -5,7 +5,8 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   ArrowLeft, FileText,
   CheckCircle, XCircle, AlertTriangle, Clock,
-  Eye, Download, PlusCircle, Loader2, RefreshCw
+  Eye, Download, PlusCircle, Loader2, RefreshCw,
+  ChevronDown, MessageCircle,
 } from 'lucide-react';
 
 import PageLayout from '../common/PageLayout';
@@ -311,6 +312,160 @@ const resolveApprovedAmount = (submission, fundDetail, fallback = null) => {
   return fallback;
 };
 
+const DECISION_OPTIONS = [
+  {
+    value: 'approve',
+    label: 'อนุมัติ',
+    hint: 'บันทึกผลเป็นอนุมัติ',
+    description: 'ยืนยันจำนวนเงินที่อนุมัติและปิดการพิจารณา',
+    icon: CheckCircle,
+    iconClass: 'text-emerald-600',
+    iconBg: 'bg-emerald-50',
+    activeRing: 'ring-emerald-200',
+  },
+  {
+    value: 'reject',
+    label: 'ไม่อนุมัติ',
+    hint: 'เปลี่ยนสถานะเป็นไม่อนุมัติ',
+    description: 'ปฏิเสธคำร้องและแจ้งเหตุผลให้ผู้ยื่นทราบ',
+    icon: XCircle,
+    iconClass: 'text-red-600',
+    iconBg: 'bg-red-50',
+    activeRing: 'ring-red-200',
+  },
+  {
+    value: 'revision',
+    label: 'ต้องการข้อมูลเพิ่มเติม',
+    hint: 'แจ้งผู้ยื่นให้ส่งข้อมูลเพิ่ม',
+    description: 'ใช้หมายเหตุของผู้ดูแลระบบเพื่อขอข้อมูลเพิ่มเติม',
+    icon: MessageCircle,
+    iconClass: 'text-amber-600',
+    iconBg: 'bg-amber-50',
+    activeRing: 'ring-amber-200',
+  },
+];
+
+function DecisionDropdown({ value, onChange, disabled = false, className = '' }) {
+  const [open, setOpen] = useState(false);
+  const buttonRef = useRef(null);
+  const menuRef = useRef(null);
+
+  const selectedOption = useMemo(() => {
+    return DECISION_OPTIONS.find((option) => option.value === value) || DECISION_OPTIONS[0];
+  }, [value]);
+
+  useEffect(() => {
+    if (!open) return undefined;
+
+    const handleClick = (event) => {
+      if (
+        buttonRef.current?.contains(event.target) ||
+        menuRef.current?.contains(event.target)
+      ) {
+        return;
+      }
+      setOpen(false);
+    };
+
+    const handleKey = (event) => {
+      if (event.key === 'Escape') {
+        setOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClick);
+    document.addEventListener('touchstart', handleClick);
+    document.addEventListener('keydown', handleKey);
+
+    return () => {
+      document.removeEventListener('mousedown', handleClick);
+      document.removeEventListener('touchstart', handleClick);
+      document.removeEventListener('keydown', handleKey);
+    };
+  }, [open]);
+
+  useEffect(() => {
+    if (disabled) {
+      setOpen(false);
+    }
+  }, [disabled]);
+
+  const handleSelect = (nextValue) => {
+    if (typeof onChange === 'function') {
+      onChange(nextValue);
+    }
+    setOpen(false);
+  };
+
+  return (
+    <div className={`relative ${className}`}>
+      <button
+        type="button"
+        ref={buttonRef}
+        onClick={() => setOpen((prev) => !prev)}
+        disabled={disabled}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        className={[
+          'inline-flex w-full items-center gap-3 rounded-lg border border-gray-300 bg-white px-3 py-2',
+          'text-sm font-medium text-gray-700 shadow-sm transition',
+          'hover:border-blue-300 hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500',
+          'disabled:cursor-not-allowed disabled:opacity-60',
+        ].join(' ')}
+      >
+        <span
+          className={`flex h-10 w-10 items-center justify-center rounded-full ${selectedOption.iconBg} ${open ? `ring-2 ring-offset-2 ${selectedOption.activeRing}` : ''}`}
+        >
+          <selectedOption.icon className={`h-5 w-5 ${selectedOption.iconClass}`} />
+        </span>
+        <span className="flex flex-1 flex-col text-left">
+          <span className="text-sm font-semibold text-gray-900">{selectedOption.label}</span>
+          <span className="text-xs text-gray-500">{selectedOption.hint}</span>
+        </span>
+        <ChevronDown className={`h-4 w-4 text-gray-500 transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+
+      {open && (
+        <div
+          ref={menuRef}
+          role="listbox"
+          className="absolute left-0 z-50 mt-2 w-72 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-xl ring-1 ring-black/5"
+        >
+          <div className="py-1">
+            {DECISION_OPTIONS.map((option) => {
+              const active = option.value === selectedOption.value;
+              return (
+                <button
+                  type="button"
+                  key={option.value}
+                  role="option"
+                  aria-selected={active}
+                  onClick={() => handleSelect(option.value)}
+                  className={[
+                    'flex w-full items-center gap-3 px-4 py-3 text-left text-sm transition',
+                    active ? 'bg-blue-50/70 text-gray-900' : 'text-gray-700 hover:bg-gray-50',
+                  ].join(' ')}
+                >
+                  <span
+                    className={`flex h-10 w-10 items-center justify-center rounded-full ${option.iconBg} ${active ? `ring-2 ring-offset-2 ${option.activeRing}` : ''}`}
+                  >
+                    <option.icon className={`h-5 w-5 ${option.iconClass}`} />
+                  </span>
+                  <span className="flex-1">
+                    <span className="block font-semibold">{option.label}</span>
+                    <span className="block text-xs text-gray-500">{option.description}</span>
+                  </span>
+                  {active ? <CheckCircle className="h-4 w-4 text-blue-600" /> : null}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* =========================
  * Approval Panel
  * ========================= */
@@ -369,13 +524,21 @@ function FundApprovalPanel({ submission, fundDetail, onApprove, onReject, onRequ
   }, [statusId, submission?.admin_comment, submission?.comment]);
 
   const validate = () => {
-    const e = {};
+    const nextErrors = {};
     const a = Number(approved);
-    if (!Number.isFinite(a)) e.approved = 'กรุณากรอกจำนวนเงินเป็นตัวเลข';
-    else if (a < 0) e.approved = 'จำนวนเงินต้องไม่ติดลบ';
-    else if (a > requested) e.approved = `ต้องไม่เกินจำนวนที่ขอ (${baht(requested)})`;
-    setErrors(e);
-    return Object.keys(e).length === 0;
+    if (!Number.isFinite(a)) nextErrors.approved = 'กรุณากรอกจำนวนเงินเป็นตัวเลข';
+    else if (a < 0) nextErrors.approved = 'จำนวนเงินต้องไม่ติดลบ';
+    else if (a > requested) nextErrors.approved = `ต้องไม่เกินจำนวนที่ขอ (${baht(requested)})`;
+
+    setErrors((prev) => {
+      const merged = { ...prev, ...nextErrors };
+      if (!nextErrors.approved && prev.approved) {
+        delete merged.approved;
+      }
+      return merged;
+    });
+
+    return Object.keys(nextErrors).length === 0;
   };
 
   const handleApprove = async () => {
@@ -476,30 +639,27 @@ function FundApprovalPanel({ submission, fundDetail, onApprove, onReject, onRequ
       return false;
     }
 
-    const { value: message } = await Swal.fire({
-      title: 'ข้อมูลเพิ่มเติมที่ต้องการ',
-      input: 'textarea',
-      inputPlaceholder: 'โปรดระบุรายละเอียดข้อมูลที่ต้องการเพิ่มเติม...',
-      inputAttributes: { 'aria-label': 'รายละเอียดข้อมูลเพิ่มเติม' },
-      showCancelButton: true,
-      confirmButtonText: 'ถัดไป',
-      cancelButtonText: 'ยกเลิก',
-      inputValidator: (value) => (!value?.trim() ? 'กรุณาระบุรายละเอียด' : undefined),
-    });
-
-    if (!message) {
+    const trimmedComment = comment?.trim() || '';
+    if (!trimmedComment) {
+      setErrors((prev) => ({
+        ...prev,
+        comment: 'กรุณาระบุหมายเหตุเพื่อขอข้อมูลเพิ่มเติม',
+      }));
+      await Swal.fire({
+        icon: 'warning',
+        title: 'กรุณาระบุหมายเหตุ',
+        text: 'โปรดกรอกหมายเหตุของผู้ดูแลระบบก่อนขอข้อมูลเพิ่มเติม',
+      });
       return false;
     }
-
-    const trimmed = message.trim();
 
     const result = await Swal.fire({
       title: 'ยืนยันการขอข้อมูลเพิ่มเติม',
       html: `
-        <div style="text-align:left;font-size:14px;line-height:1.6;display:grid;row-gap:.6rem;">
+        <div style="text-align:left;font-size:14px;line-height:1.6;display:grid;row-gap:.75rem;">
           <div>
-            <div style="font-weight:500;margin-bottom:.35rem;">รายละเอียดที่ต้องการเพิ่มเติม</div>
-            <div style="border:1px solid #e5e7eb;background:#f9fafb;padding:.5rem;border-radius:.5rem;white-space:pre-wrap;">${escapeHtml(trimmed)}</div>
+            <div style="font-weight:500;margin-bottom:.35rem;">หมายเหตุของผู้ดูแลระบบ</div>
+            <div style="border:1px solid #e5e7eb;background:#f9fafb;padding:.75rem;border-radius:.75rem;white-space:pre-wrap;">${escapeHtml(trimmedComment)}</div>
           </div>
           <p style="font-size:12px;color:#6b7280;">ระบบจะบันทึกคำขอข้อมูลเพิ่มเติมและแจ้งผู้ยื่นคำร้อง</p>
         </div>
@@ -513,7 +673,7 @@ function FundApprovalPanel({ submission, fundDetail, onApprove, onReject, onRequ
       allowOutsideClick: () => !Swal.isLoading(),
       preConfirm: async () => {
         try {
-          await onRequestRevision({ message: trimmed });
+          await onRequestRevision({ message: trimmedComment, adminComment: trimmedComment });
         } catch (e) {
           Swal.showValidationMessage(e?.message || 'ส่งคำขอไม่สำเร็จ');
           throw e;
@@ -522,6 +682,13 @@ function FundApprovalPanel({ submission, fundDetail, onApprove, onReject, onRequ
     });
 
     if (result.isConfirmed) {
+      setErrors((prev) => {
+        if (!prev.comment) return prev;
+        const updated = { ...prev };
+        delete updated.comment;
+        return updated;
+      });
+
       await Swal.fire({ icon: 'success', title: 'ส่งคำขอแล้ว', timer: 1400, showConfirmButton: false });
       return true;
     }
@@ -702,30 +869,58 @@ function FundApprovalPanel({ submission, fundDetail, onApprove, onReject, onRequ
             หมายเหตุของผู้ดูแลระบบ
             <br /><span className="text-xs font-normal text-gray-600">Comment</span>
           </label>
-          <div className="w-full rounded-md border bg-white shadow-sm transition-all border-gray-300 hover:border-blue-300 focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-500">
-            <textarea
-              className="w-full p-3 rounded-md outline-none bg-transparent resize-y min-h-[96px]"
-              value={comment}
-              onChange={(e) => setComment(e.target.value)}
-              placeholder="เช่น เงื่อนไขการเบิก/เหตุผลประกอบการพิจารณา"
-            />
+          <div className="w-full">
+            <div
+              className={[
+                'rounded-md border bg-white shadow-sm transition-all',
+                'border-gray-300 hover:border-blue-300 focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-500',
+                errors.comment ? 'border-red-400 focus-within:border-red-500 focus-within:ring-red-500/40' : '',
+              ].join(' ')}
+            >
+              <textarea
+                className="w-full p-3 rounded-md outline-none bg-transparent resize-y min-h-[96px]"
+                value={comment}
+                onChange={(e) => {
+                  const next = e.target.value;
+                  setComment(next);
+                  setErrors((prev) => {
+                    if (!prev.comment) return prev;
+                    const updated = { ...prev };
+                    delete updated.comment;
+                    return updated;
+                  });
+                }}
+                placeholder="เช่น เงื่อนไขการเบิก/เหตุผลประกอบการพิจารณา"
+              />
+            </div>
+            {errors.comment ? (
+              <p className="mt-1 text-xs text-red-600 text-right">{errors.comment}</p>
+            ) : (
+              <p className="mt-1 text-xs text-gray-400 text-right">ใช้หมายเหตุนี้เมื่อขอข้อมูลเพิ่มเติม</p>
+            )}
           </div>
         </div>
 
         {/* Actions */}
         <div className="flex flex-col md:flex-row md:items-center gap-3 pt-4 border-t border-gray-200">
-          <div className="flex items-center gap-2">
-            <label className="text-sm font-medium text-gray-700">ดำเนินการ</label>
-            <select
-              className="select select-bordered select-sm md:select-md"
+          <div className="flex flex-col gap-2 md:flex-row md:items-center md:gap-3">
+            <span className="text-sm font-medium text-gray-700">ดำเนินการ</span>
+            <DecisionDropdown
               value={selectedAction}
-              onChange={(e) => setSelectedAction(e.target.value)}
+              onChange={(next) => {
+                setSelectedAction(next);
+                if (next !== 'revision') {
+                  setErrors((prev) => {
+                    if (!prev.comment) return prev;
+                    const updated = { ...prev };
+                    delete updated.comment;
+                    return updated;
+                  });
+                }
+              }}
               disabled={actionPending}
-            >
-              <option value="approve">อนุมัติ</option>
-              <option value="reject">ไม่อนุมัติ</option>
-              <option value="revision">ต้องการข้อมูลเพิ่มเติม</option>
-            </select>
+              className="md:min-w-[18rem]"
+            />
           </div>
           <button
             className="btn btn-primary"
@@ -1673,14 +1868,15 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
     await refetchSubmission();
   };
 
-  const requestRevision = async ({ message }) => {
+  const requestRevision = async ({ message, adminComment: adminCommentOverride } = {}) => {
     const payload = {};
-    const trimmed = message?.trim();
+    const trimmed = (adminCommentOverride ?? message)?.trim();
     if (trimmed) {
       payload.comment = trimmed;
       payload.request_comment = trimmed;
       payload.revision_comment = trimmed;
       payload.reason = trimmed;
+      payload.admin_comment = trimmed;
     }
 
     await adminSubmissionAPI.requestRevision(submission.submission_id, payload);
