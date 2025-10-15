@@ -82,6 +82,7 @@ export function MemberPageContent({ initialPage = 'profile' }) {
             categoryId={selectedFundData?.category_id}
             yearId={selectedFundData?.year_id}
             submissionId={selectedFundData?.submissionId}
+            originPage={selectedFundData?.originPage}
           />
         );
       case 'generic-fund-application':

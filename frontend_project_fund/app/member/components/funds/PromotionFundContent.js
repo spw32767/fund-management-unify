@@ -500,6 +500,7 @@ export default function PromotionFundContent({ onNavigate }) {
         category_id: categoryId,
         year_id: yearId,
         subcategory,
+        originPage: 'promotion-fund',
       });
     } else {
       const docUrl = subcategory.form_url || '/documents/default-fund-form.docx';
@@ -527,6 +528,7 @@ export default function PromotionFundContent({ onNavigate }) {
       category_id: categoryId,
       year_id: yearId,
       subcategory,
+      originPage: 'promotion-fund',
     });
   };
 

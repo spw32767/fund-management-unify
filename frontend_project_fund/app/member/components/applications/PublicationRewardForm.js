@@ -816,7 +816,7 @@ const FileUpload = ({ onFileSelect, accept, multiple = false, error, label }) =>
 // MAIN COMPONENT START
 // =================================================================
 
-export default function PublicationRewardForm({ onNavigate, categoryId, yearId, submissionId: initialSubmissionId = null, readOnly = false }) {
+export default function PublicationRewardForm({ onNavigate, categoryId, yearId, submissionId: initialSubmissionId = null, readOnly = false, originPage = null }) {
   // =================================================================
   // STATE DECLARATIONS
   // =================================================================
@@ -2710,16 +2710,26 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
   // EVENT HANDLERS
   // =================================================================
 
+  const navigationTarget = useMemo(() => {
+    if (originPage) {
+      return originPage;
+    }
+    if (initialSubmissionId) {
+      return 'applications';
+    }
+    return 'promotion-fund';
+  }, [originPage, initialSubmissionId]);
+
   const handleGoBack = () => {
     if (onNavigate) {
-      onNavigate('applications');
+      onNavigate(navigationTarget);
       return;
     }
 
     if (typeof window !== 'undefined' && window.history.length > 1) {
       router.back();
     } else {
-      router.push('/member/applications');
+      router.push('/member');
     }
   };
 

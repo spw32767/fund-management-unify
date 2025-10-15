@@ -535,6 +535,7 @@ export default function ApplicationList({ onNavigate }) {
         submissionId: payload.submissionId,
         categoryId: payload.category_id,
         yearId: payload.year_id,
+        originPage: 'applications',
       });
     } else {
       onNavigate('generic-fund-application', {
