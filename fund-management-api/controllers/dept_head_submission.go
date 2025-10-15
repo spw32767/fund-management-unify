@@ -482,7 +482,7 @@ func DeptHeadRequestRevision(c *gin.Context) {
 	desc := fmt.Sprintf("Department head requested revision: %s", message)
 	auditLog := models.AuditLog{
 		UserID:       userID,
-		Action:       "request_revision",
+		Action:       "review",
 		EntityType:   "submission",
 		EntityID:     &submission.SubmissionID,
 		EntityNumber: &submission.SubmissionNumber,
