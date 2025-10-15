@@ -470,7 +470,7 @@ function ReadonlyMoney({ value, aria }) {
 const DECISION_OPTIONS = [
   {
     value: 'approve',
-    label: 'อนุมัติ',
+    label: 'เห็นควรพิจารณา',
     hint: 'บันทึกผลพร้อมลายเซ็นหัวหน้าสาขา',
     description: 'ยืนยันการอนุมัติและบันทึกหมายเหตุที่ระบุ',
     icon: CheckCircle,
@@ -480,7 +480,7 @@ const DECISION_OPTIONS = [
   },
   {
     value: 'reject',
-    label: 'ไม่อนุมัติ',
+    label: 'ไม่เห็นควรพิจารณา',
     hint: 'เปลี่ยนสถานะเป็นไม่อนุมัติ',
     description: 'ปฏิเสธคำร้องและแจ้งเหตุผลให้ผู้ยื่นทราบ',
     icon: XCircle,

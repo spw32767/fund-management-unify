@@ -3,7 +3,27 @@
 
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { Award, Upload, Users, FileText, Plus, X, Save, Send, AlertCircle, Calculator, Search, Eye, Signature, ArrowLeft, Info } from "lucide-react";
+import {
+  Award,
+  Upload,
+  Users,
+  FileText,
+  Plus,
+  X,
+  Save,
+  Send,
+  AlertCircle,
+  Calculator,
+  Search,
+  Eye,
+  Signature,
+  ArrowLeft,
+  Info,
+  Download,
+  RefreshCw,
+  Trash2,
+  Undo2,
+} from "lucide-react";
 import PageLayout from "../common/PageLayout";
 import SimpleCard from "../common/SimpleCard";
 import apiClient, { systemAPI, authAPI } from '../../../lib/api';
@@ -129,27 +149,156 @@ const parseIndexingFlags = (value) => {
 };
 
 const resolveUserNameParts = (user = {}) => {
-  const firstName = findFirstString([
-    user.user_fname,
-    user.fname,
-    user.first_name,
-    user.firstname,
-    user.name_th,
-    user.full_name ? user.full_name.split(' ')[0] : null,
-    user.name ? user.name.split(' ')[0] : null,
-  ]) || '';
+  const prefixCandidates = [
+    user.prefix_name,
+    user.prefix,
+    user.user_prefix,
+    user.user_prefix_name,
+    user.userPrefixName,
+    user.userPrefix,
+    user.user_prefix_th,
+    user.prefix_name_th,
+    user.prefix_th,
+    user.prefixTH,
+    user.prefixName,
+    user.prefixNameTh,
+    user.PrefixName,
+    user.PrefixNameTh,
+    user.UserPrefix,
+    user.UserPrefixName,
+    user.academic_prefix,
+    user.title,
+    user.Title,
+    user.Prefix?.name,
+    user.Prefix?.Name,
+    user.prefix?.name,
+    user.prefix?.Name,
+    user.user_prefix?.name,
+    user.user_prefix?.Name,
+  ];
 
-  const lastName = findFirstString([
+  let prefix = findFirstString(prefixCandidates) || '';
+
+  const firstNameCandidates = [
+    user.user_fname,
+    user.user_fname_th,
+    user.UserFname,
+    user.UserFName,
+    user.userFname,
+    user.userFName,
+    user.fname_th,
+    user.fname,
+    user.Fname,
+    user.FnameTh,
+    user.first_name_th,
+    user.first_name,
+    user.FirstName,
+    user.FirstNameTh,
+    user.firstname,
+    user.firstname_th,
+    user.thai_first_name,
+    user.ThaiFirstName,
+    user.first_name_en,
+    user.FirstNameEn,
+    user.firstName,
+    user.firstNameTh,
+    user.name_th ? user.name_th.split(' ')[0] : null,
+    user.name ? user.name.split(' ')[0] : null,
+    user.full_name ? user.full_name.split(' ')[0] : null,
+    user.full_name_th ? user.full_name_th.split(' ')[0] : null,
+    user.display_name ? user.display_name.split(' ')[0] : null,
+    user.DisplayName ? user.DisplayName.split(' ')[0] : null,
+  ];
+
+  let firstName = findFirstString(firstNameCandidates) || '';
+
+  const lastNameCandidates = [
     user.user_lname,
+    user.user_lname_th,
+    user.UserLname,
+    user.UserLName,
+    user.userLname,
+    user.userLName,
+    user.lname_th,
     user.lname,
+    user.Lname,
+    user.LnameTh,
+    user.last_name_th,
     user.last_name,
+    user.LastName,
+    user.LastNameTh,
     user.lastname,
     user.surname,
-    user.full_name ? user.full_name.split(' ').slice(1).join(' ') : null,
+    user.thai_last_name,
+    user.ThaiLastName,
+    user.name_th ? user.name_th.split(' ').slice(1).join(' ') : null,
     user.name ? user.name.split(' ').slice(1).join(' ') : null,
-  ]) || '';
+    user.full_name_th ? user.full_name_th.split(' ').slice(1).join(' ') : null,
+    user.full_name ? user.full_name.split(' ').slice(1).join(' ') : null,
+    user.display_name ? user.display_name.split(' ').slice(1).join(' ') : null,
+    user.DisplayName ? user.DisplayName.split(' ').slice(1).join(' ') : null,
+  ];
 
-  return { firstName, lastName };
+  let lastName = findFirstString(lastNameCandidates) || '';
+
+  const displayNameCandidates = [
+    user.display_name,
+    user.DisplayName,
+    user.displayName,
+    user.full_name_th,
+    user.FullNameTh,
+    user.fullname_th,
+    user.FullnameTh,
+    user.full_name,
+    user.FullName,
+    user.fullname,
+    user.Fullname,
+    user.user_fullname,
+    user.user_fullname_th,
+    user.userFullname,
+    user.userFullName,
+    user.userFullnameTh,
+    user.userFullNameTh,
+    user.UserFullname,
+    user.UserFullName,
+    user.UserFullnameTh,
+    user.UserFullNameTh,
+    user.name_th,
+    user.NameTh,
+    user.name,
+    user.Name,
+    user.username,
+    user.Username,
+  ];
+
+  let displayName = findFirstString(displayNameCandidates);
+
+  if (!displayName) {
+    const combinedFallback = [prefix, firstName, lastName].filter(Boolean).join(' ').trim();
+    displayName = combinedFallback || null;
+  }
+
+  if (displayName && (!firstName || !lastName)) {
+    const segments = displayName.split(/\s+/).filter(Boolean);
+    if (!lastName && segments.length > 0) {
+      lastName = segments[segments.length - 1] || '';
+    }
+    if (!firstName) {
+      if (segments.length > 1) {
+        firstName = segments[segments.length - 2] || '';
+      } else if (segments.length === 1) {
+        firstName = segments[0] || '';
+      }
+    }
+    if (!prefix && segments.length > 2) {
+      prefix = segments.slice(0, Math.max(segments.length - 2, 0)).join(' ');
+    }
+  }
+
+  const combined = [prefix, firstName, lastName].filter(Boolean).join(' ').trim();
+  const finalDisplayName = displayName || combined || firstName || lastName || '';
+
+  return { firstName, lastName, prefix, displayName: finalDisplayName };
 };
 
 const buildCoauthorFromSubmissionUser = (entry) => {
@@ -160,13 +309,21 @@ const buildCoauthorFromSubmissionUser = (entry) => {
     return null;
   }
 
-  const { firstName, lastName } = resolveUserNameParts(user);
+  const { firstName, lastName, prefix, displayName } = resolveUserNameParts(user);
+
+  const fallbackCombined = [prefix, firstName, lastName].filter(Boolean).join(' ').trim();
+  const finalDisplayName = displayName || fallbackCombined || firstName || lastName || '';
+  const resolvedFirstName = firstName || finalDisplayName || '';
+  const resolvedLastName = lastName && lastName !== resolvedFirstName ? lastName : '';
+  const composedFirst = [prefix, resolvedFirstName].filter(Boolean).join(' ').trim();
+  const safeFirstName = composedFirst || finalDisplayName || resolvedFirstName;
 
   return {
     user_id: userId,
-    user_fname: firstName,
-    user_lname: lastName,
+    user_fname: safeFirstName,
+    user_lname: resolvedLastName,
     email: user?.email ?? entry?.email ?? null,
+    display_name: finalDisplayName,
   };
 };
 
@@ -626,9 +783,25 @@ const QUARTILE_MAP = {
 // FILE UPLOAD COMPONENT
 // =================================================================
 
-const FileUpload = ({ onFileSelect, accept, multiple = false, error, label }) => {
+const FileUpload = ({
+  onFileSelect,
+  accept,
+  multiple = false,
+  error,
+  label,
+  existingFile = null,
+  onDownloadExisting,
+  onRemoveExisting,
+  onRestoreExisting,
+}) => {
   const [isDragging, setIsDragging] = useState(false);
   const [selectedFiles, setSelectedFiles] = useState([]);
+  const inputId = useMemo(() => {
+    if (label) {
+      return `file-input-${label}`;
+    }
+    return `file-input-${Math.random().toString(16).slice(2)}`;
+  }, [label]);
 
   const handleDragOver = (e) => {
     e.preventDefault();
@@ -642,19 +815,23 @@ const FileUpload = ({ onFileSelect, accept, multiple = false, error, label }) =>
   const handleDrop = (e) => {
     e.preventDefault();
     setIsDragging(false);
-    
-    const files = Array.from(e.dataTransfer.files);
+
+    const files = Array.from(e.dataTransfer.files || []);
     handleFileSelection(files);
   };
 
   const handleFileSelection = (files) => {
+    if (!files || files.length === 0) {
+      setSelectedFiles([]);
+      onFileSelect([]);
+      return;
+    }
+
     if (multiple) {
-      // For multiple files, add to existing list
       const newFiles = [...selectedFiles, ...files];
       setSelectedFiles(newFiles);
       onFileSelect(newFiles);
     } else {
-      // For single file
       const validFiles = files.slice(0, 1);
       setSelectedFiles(validFiles);
       onFileSelect(validFiles);
@@ -662,127 +839,232 @@ const FileUpload = ({ onFileSelect, accept, multiple = false, error, label }) =>
   };
 
   const handleFileInput = (e) => {
-    const files = Array.from(e.target.files);
+    const files = Array.from(e.target.files || []);
     handleFileSelection(files);
   };
 
   const removeFile = (index) => {
-    const newFiles = selectedFiles.filter((_, i) => i !== index);
-    setSelectedFiles(newFiles);
-    onFileSelect(newFiles);
+    if (multiple) {
+      const newFiles = selectedFiles.filter((_, i) => i !== index);
+      setSelectedFiles(newFiles);
+      onFileSelect(newFiles);
+    } else {
+      setSelectedFiles([]);
+      onFileSelect([]);
+    }
   };
 
   const viewFile = (file) => {
+    if (!file) {
+      return;
+    }
     const url = URL.createObjectURL(file);
     window.open(url, '_blank');
   };
 
-  // Display selected file for single file mode
-  if (!multiple && selectedFiles.length > 0) {
+  const triggerFileDialog = () => {
+    const input = document.getElementById(inputId);
+    if (input) {
+      input.click();
+    }
+  };
+
+  const renderExistingFile = () => {
+    if (multiple || !existingFile) {
+      return null;
+    }
+
+    const pendingReason = existingFile.pendingRemovalReason || existingFile.serverDocumentPendingRemovalReason || null;
+    const isPendingReplace = pendingReason === 'replace';
+    const isPendingRemove = pendingReason === 'remove';
+    const highlightClass = isPendingRemove
+      ? 'border-red-200 bg-red-50 text-red-700'
+      : isPendingReplace
+        ? 'border-amber-200 bg-amber-50 text-amber-700'
+        : 'border-blue-200 bg-blue-50 text-blue-800';
+    const statusMessage = isPendingReplace
+      ? 'ไฟล์นี้จะถูกแทนที่เมื่อบันทึก'
+      : isPendingRemove
+        ? 'ไฟล์นี้จะถูกลบเมื่อบันทึก'
+        : 'ไฟล์จากระบบ';
+
+    const fileName = existingFile.original_name || existingFile.name || existingFile.serverFileName || 'ไฟล์จากระบบ';
+
     return (
-      <div className="space-y-2">
-        <div className="flex items-center justify-between bg-green-50 border border-green-200 rounded-lg p-3">
-          <div className="flex items-center gap-3">
-            <FileText className="h-5 w-5 text-green-600" />
+      <div className={`flex flex-col gap-3 rounded-lg border ${highlightClass} p-4`}
+        role="status"
+        aria-live="polite"
+      >
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-start gap-3">
+            <FileText className="mt-0.5 h-5 w-5 flex-shrink-0" />
             <div>
-              <p className="text-sm font-medium text-green-800">{selectedFiles[0].name}</p>
-              <p className="text-xs text-green-600">
-                {(selectedFiles[0].size / 1024 / 1024).toFixed(2)} MB
-              </p>
+              <p className="text-sm font-medium">{fileName}</p>
+              <p className="text-xs font-medium">{statusMessage}</p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
-              onClick={() => viewFile(selectedFiles[0])}
-              className="text-blue-500 hover:text-blue-700"
-              title="ดูไฟล์"
+              onClick={() => onDownloadExisting?.(existingFile)}
+              className="inline-flex items-center gap-1 rounded-full border border-blue-200 bg-white px-3 py-1 text-xs font-medium text-blue-600 transition hover:bg-blue-50"
             >
-              <Eye className="h-4 w-4" />
+              <Download className="h-3.5 w-3.5" />
+              <span>ดาวน์โหลด</span>
+            </button>
+            {!isPendingRemove && (
+              <button
+                type="button"
+                onClick={triggerFileDialog}
+                className="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-medium text-amber-700 transition hover:bg-amber-100"
+              >
+                <RefreshCw className="h-3.5 w-3.5" />
+                <span>แทนที่</span>
+              </button>
+            )}
+            {isPendingRemove ? (
+              <button
+                type="button"
+                onClick={() => onRestoreExisting?.(existingFile)}
+                className="inline-flex items-center gap-1 rounded-full border border-gray-200 bg-white px-3 py-1 text-xs font-medium text-gray-600 transition hover:bg-gray-50"
+              >
+                <Undo2 className="h-3.5 w-3.5" />
+                <span>ยกเลิก</span>
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => onRemoveExisting?.(existingFile)}
+                className="inline-flex items-center gap-1 rounded-full border border-red-200 bg-red-50 px-3 py-1 text-xs font-medium text-red-600 transition hover:bg-red-100"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                <span>ลบ</span>
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const renderSelectedFile = () => {
+    if (multiple || selectedFiles.length === 0) {
+      return null;
+    }
+
+    const [file] = selectedFiles;
+
+    return (
+      <div className="flex flex-col gap-3 rounded-lg border border-green-200 bg-green-50 p-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-start gap-3">
+            <FileText className="mt-0.5 h-5 w-5 text-green-600" />
+            <div>
+              <p className="text-sm font-medium text-green-800">{file.name}</p>
+              <p className="text-xs text-green-700">{(file.size / 1024 / 1024).toFixed(2)} MB • ไฟล์ใหม่ (รออัปโหลด)</p>
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => viewFile(file)}
+              className="inline-flex items-center gap-1 rounded-full border border-blue-200 bg-white px-3 py-1 text-xs font-medium text-blue-600 transition hover:bg-blue-50"
+            >
+              <Eye className="h-3.5 w-3.5" />
+              <span>ดูไฟล์</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => triggerFileDialog()}
+              className="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-medium text-amber-700 transition hover:bg-amber-100"
+            >
+              <RefreshCw className="h-3.5 w-3.5" />
+              <span>แทนที่</span>
             </button>
             <button
               type="button"
               onClick={() => removeFile(0)}
-              className="text-red-500 hover:text-red-700"
-              title="ลบไฟล์"
+              className="inline-flex items-center gap-1 rounded-full border border-red-200 bg-red-50 px-3 py-1 text-xs font-medium text-red-600 transition hover:bg-red-100"
             >
-              <X className="h-4 w-4" />
+              <Trash2 className="h-3.5 w-3.5" />
+              <span>ลบไฟล์ใหม่</span>
             </button>
           </div>
         </div>
-        {error && (
-          <p className="text-red-500 text-sm mt-1 flex items-center gap-1">
-            <AlertCircle className="h-4 w-4" />
-            {error}
-          </p>
-        )}
       </div>
     );
-  }
+  };
 
-  // File drop zone for multiple files or no files selected
-  return (
-    <div className="space-y-2">
-      <div
-        className={`border-2 border-dashed rounded-lg p-4 text-center cursor-pointer transition-colors ${
-          isDragging 
-            ? 'border-blue-400 bg-blue-50' 
-            : error 
-            ? 'border-red-300 bg-red-50' 
+  const renderDropZone = () => (
+    <div
+      className={`border-2 border-dashed rounded-lg p-4 text-center transition-colors ${
+        isDragging
+          ? 'border-blue-400 bg-blue-50'
+          : error
+            ? 'border-red-300 bg-red-50'
             : 'border-gray-300 hover:border-gray-400'
-        }`}
-        onDragOver={handleDragOver}
-        onDragLeave={handleDragLeave}
-        onDrop={handleDrop}
-        onClick={() => document.getElementById(`file-input-${label}`).click()}
-      >
-        <Upload className="mx-auto h-6 w-6 text-gray-400 mb-2" />
-        <p className="text-sm text-gray-600">
-          {multiple ? 
-            'คลิกหรือลากไฟล์มาวางที่นี่ (สามารถเลือกได้หลายไฟล์)' : 
-            'คลิกหรือลากไฟล์มาวางที่นี่'
-          }
-        </p>
-        <p className="text-xs text-gray-500 mt-1">
-          {accept || 'PDF, DOC, DOCX, JPG, PNG (ไม่เกิน 10MB)'}
-        </p>
-        <input
-          id={`file-input-${label}`}
-          type="file"
-          accept={accept}
-          multiple={multiple}
-          onChange={handleFileInput}
-          className="hidden"
-        />
-      </div>
+      }`}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+      onClick={triggerFileDialog}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          triggerFileDialog();
+        }
+      }}
+    >
+      <Upload className="mx-auto h-6 w-6 text-gray-400 mb-2" />
+      <p className="text-sm text-gray-600">
+        {multiple
+          ? 'คลิกหรือลากไฟล์มาวางที่นี่ (สามารถเลือกได้หลายไฟล์)'
+          : 'คลิกหรือลากไฟล์มาวางที่นี่'}
+      </p>
+      <p className="text-xs text-gray-500 mt-1">{accept || 'PDF, DOC, DOCX, JPG, PNG (ไม่เกิน 10MB)'}</p>
+    </div>
+  );
 
-      {/* Display selected files for multiple selection */}
+  return (
+    <div className="space-y-3">
+      {(!multiple && selectedFiles.length > 0) ? (
+        renderSelectedFile()
+      ) : (
+        <>
+          {renderExistingFile()}
+          {renderDropZone()}
+        </>
+      )}
+
       {multiple && selectedFiles.length > 0 && (
-        <div className="mt-3 space-y-2">
+        <div className="space-y-2">
           <p className="text-sm font-medium text-gray-700">ไฟล์ที่เลือก:</p>
           <div className="space-y-2">
             {selectedFiles.map((file, index) => (
-              <div key={index} className="flex items-center justify-between bg-gray-50 rounded-lg p-3">
-                <div className="flex items-center gap-3">
-                  <FileText className="h-5 w-5 text-gray-400" />
+              <div
+                key={`${file.name}-${index}`}
+                className="flex items-center justify-between rounded-lg border border-gray-200 bg-gray-50 p-3"
+              >
+                <div className="flex items-start gap-3">
+                  <FileText className="mt-0.5 h-5 w-5 text-gray-500" />
                   <div>
                     <p className="text-sm font-medium text-gray-700">{file.name}</p>
-                    <p className="text-xs text-gray-500">
-                      {(file.size / 1024 / 1024).toFixed(2)} MB
-                    </p>
+                    <p className="text-xs text-gray-500">{(file.size / 1024 / 1024).toFixed(2)} MB</p>
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <button
                     type="button"
                     onClick={(e) => {
                       e.stopPropagation();
                       viewFile(file);
                     }}
-                    className="text-blue-500 hover:text-blue-700"
-                    title="ดูไฟล์"
+                    className="inline-flex items-center gap-1 rounded-full border border-blue-200 bg-white px-3 py-1 text-xs font-medium text-blue-600 transition hover:bg-blue-50"
                   >
-                    <Eye className="h-4 w-4" />
+                    <Eye className="h-3.5 w-3.5" />
+                    <span>ดูไฟล์</span>
                   </button>
                   <button
                     type="button"
@@ -790,10 +1072,10 @@ const FileUpload = ({ onFileSelect, accept, multiple = false, error, label }) =>
                       e.stopPropagation();
                       removeFile(index);
                     }}
-                    className="text-red-500 hover:text-red-700"
-                    title="ลบไฟล์"
+                    className="inline-flex items-center gap-1 rounded-full border border-red-200 bg-red-50 px-3 py-1 text-xs font-medium text-red-600 transition hover:bg-red-100"
                   >
-                    <X className="h-4 w-4" />
+                    <Trash2 className="h-3.5 w-3.5" />
+                    <span>ลบ</span>
                   </button>
                 </div>
               </div>
@@ -803,11 +1085,20 @@ const FileUpload = ({ onFileSelect, accept, multiple = false, error, label }) =>
       )}
 
       {error && (
-        <p className="text-red-500 text-sm mt-1 flex items-center gap-1">
+        <p className="mt-1 flex items-center gap-1 text-sm text-red-500">
           <AlertCircle className="h-4 w-4" />
           {error}
         </p>
       )}
+
+      <input
+        id={inputId}
+        type="file"
+        accept={accept}
+        multiple={multiple}
+        onChange={handleFileInput}
+        className="hidden"
+      />
     </div>
   );
 };
@@ -879,6 +1170,9 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
   const missingSubmissionRef = useRef(new Set());
   const previousYearRef = useRef(normalizedInitialYearId || null);
   const previousAuthorStatusRef = useRef('');
+  const externalFundingsRef = useRef([]);
+  const serverDocumentsRef = useRef([]);
+  const serverExternalFundingFilesRef = useRef([]);
 
   const [formData, setFormData] = useState({
     // Basic submission info
@@ -933,6 +1227,11 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
   const [uploadedFiles, setUploadedFiles] = useState({});
   const [otherDocuments, setOtherDocuments] = useState([]); // เก็บเฉพาะ Other Documents
   const [externalFundingFiles, setExternalFundingFiles] = useState([]); // เพิ่ม state ใหม่สำหรับ External Funding Files
+  const [serverDocuments, setServerDocuments] = useState([]);
+  const [serverExternalFundingFiles, setServerExternalFundingFiles] = useState([]);
+  const [detachedDocumentIds, setDetachedDocumentIds] = useState([]);
+  const [documentReplacements, setDocumentReplacements] = useState({});
+  const [reviewComments, setReviewComments] = useState({ admin: null, head: null });
 
   const [declarations, setDeclarations] = useState({
     confirmNoPreviousFunding: false,
@@ -964,6 +1263,12 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
     setResolutionError('');
     setAvailableQuartiles([]);
     setCurrentSubmissionStatus(null);
+    setServerDocuments([]);
+    setServerExternalFundingFiles([]);
+    setDetachedDocumentIds([]);
+    setDocumentReplacements({});
+    setReviewComments({ admin: null, head: null });
+    externalFundingsRef.current = [];
 
     setFormData({
       year_id: defaultYearId,
@@ -1204,6 +1509,18 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
   // EFFECT HOOKS
   // =================================================================
 
+  useEffect(() => {
+    externalFundingsRef.current = externalFundings;
+  }, [externalFundings]);
+
+  useEffect(() => {
+    serverDocumentsRef.current = serverDocuments;
+  }, [serverDocuments]);
+
+  useEffect(() => {
+    serverExternalFundingFilesRef.current = serverExternalFundingFiles;
+  }, [serverExternalFundingFiles]);
+
   const attachmentSignature = useMemo(() => {
     const parts = [];
 
@@ -1241,7 +1558,7 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
 
   const coauthorSignature = useMemo(() => {
     return (coauthors || [])
-      .map((coauthor) => `${coauthor.user_id || ''}:${coauthor.user_fname || ''}:${coauthor.user_lname || ''}`)
+      .map((coauthor) => `${coauthor.user_id || ''}:${coauthor.user_fname || ''}:${coauthor.user_lname || ''}:${coauthor.display_name || ''}`)
       .join('|');
   }, [coauthors]);
 
@@ -1492,19 +1809,72 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
           seenCoauthors.add(normalized.user_id);
           normalizedCoauthors.push(normalized);
         });
-        setCoauthors(allowEditing ? [] : normalizedCoauthors);
+        setCoauthors(normalizedCoauthors);
 
         const externalFundsRaw = detail.external_fundings || detail.ExternalFunds || [];
         const normalizedFunds = externalFundsRaw.map((fund, index) => {
           const fundId = fund.external_fund_id ?? fund.ExternalFundID ?? null;
+          const fundDocument = fund.document || fund.Document || fund.file || fund.File || {};
+          const nestedFile = fundDocument.file || fundDocument.File || {};
+
+          const rawDocumentId =
+            fund.document_id ??
+            fund.DocumentID ??
+            fund.DocumentId ??
+            fundDocument.document_id ??
+            fundDocument.DocumentID ??
+            fundDocument.documentId ??
+            fundDocument.Document?.document_id ??
+            fundDocument.Document?.DocumentID ??
+            null;
+
+          const documentId = rawDocumentId != null ? String(rawDocumentId) : null;
+
+          const documentName = findFirstString([
+            fundDocument.original_name,
+            fundDocument.original_filename,
+            fundDocument.file_name,
+            fundDocument.filename,
+            fundDocument.document_name,
+            fundDocument.DocumentName,
+            nestedFile.original_name,
+            nestedFile.original_filename,
+            nestedFile.file_name,
+            nestedFile.filename,
+            fund.document_name,
+            fund.DocumentName,
+          ]);
+
+          const rawFileId =
+            fund.file_id ??
+            fund.FileID ??
+            fundDocument.file_id ??
+            fundDocument.FileID ??
+            fundDocument.fileId ??
+            fundDocument.FileId ??
+            nestedFile.file_id ??
+            nestedFile.FileID ??
+            nestedFile.fileId ??
+            nestedFile.FileId ??
+            null;
+
+          const documentFileId = rawFileId != null ? String(rawFileId) : null;
+          const resolvedFileName = documentName || (documentId ? 'ไฟล์จากระบบ' : null);
+
           return {
             clientId: `server-${fundId ?? index}`,
             externalFundId: fundId,
             fundName: fund.fund_name ?? fund.FundName ?? '',
             amount: toNumberOrEmpty(fund.amount ?? fund.Amount ?? ''),
+            file: null,
+            serverDocumentId: documentId,
+            serverFileName: resolvedFileName,
+            serverFileId: documentFileId,
+            serverDocumentPendingRemovalReason: null,
           };
         });
-        setExternalFundings(allowEditing ? [] : normalizedFunds);
+        setExternalFundings(normalizedFunds);
+        externalFundingsRef.current = normalizedFunds;
         setExternalFundingFiles([]);
         setUploadedFiles({});
         setOtherDocuments([]);
@@ -1544,17 +1914,19 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
           );
           const revisionValue = toNumberOrEmpty(detail.revision_fee ?? prev.revision_fee ?? '');
           const publicationValue = toNumberOrEmpty(detail.publication_fee ?? prev.publication_fee ?? '');
-          const resolvedExternalAmount = allowEditing
-            ? 0
-            : toNumberOrEmpty(detail.external_funding_amount ?? prev.external_funding_amount ?? '');
+          const resolvedExternalAmount = toNumberOrEmpty(
+            detail.external_funding_amount ?? prev.external_funding_amount ?? ''
+          );
           const normalizedReward = typeof rewardValue === 'number' ? rewardValue : 0;
           const normalizedRevision = typeof revisionValue === 'number' ? revisionValue : 0;
           const normalizedPublication = typeof publicationValue === 'number' ? publicationValue : 0;
           const normalizedExternal = typeof resolvedExternalAmount === 'number' ? resolvedExternalAmount : 0;
 
-          const calculatedTotal = allowEditing
-            ? normalizedReward + normalizedRevision + normalizedPublication - normalizedExternal
-            : toNumberOrEmpty(detail.total_amount ?? prev.total_amount ?? '');
+          const calculatedTotal = toNumberOrEmpty(
+            detail.total_amount ??
+            prev.total_amount ??
+            normalizedReward + normalizedRevision + normalizedPublication - normalizedExternal
+          );
 
           return {
             ...prev,
@@ -1619,7 +1991,31 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
           }));
         }
 
+        const adminComment = findFirstString([
+          payload.admin_comment,
+          payload.adminComment,
+          payload.status?.admin_comment,
+          payload.status?.comment,
+          payload.Status?.admin_comment,
+          payload.comment,
+        ]);
+
+        const headComment = findFirstString([
+          payload.head_comment,
+          payload.dept_head_comment,
+          payload.department_head_comment,
+          payload.status?.head_comment,
+          payload.Status?.head_comment,
+        ]);
+
+        setReviewComments({
+          admin: adminComment || null,
+          head: headComment || null,
+        });
+
         setPrefilledSubmissionId(toSubmissionKey(payload.submission_id));
+
+        await refreshSubmissionDocuments(payload.submission_id);
       } catch (error) {
         const statusCode = error?.response?.status ?? error?.status ?? null;
 
@@ -2812,16 +3208,25 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
 
   // Handle co-author addition
   const handleAddCoauthor = (user) => {
-    if (!coauthors.find(c => c.user_id === user.user_id)) {
-      setCoauthors(prev => [...prev, user]);
+    const normalized = buildCoauthorFromSubmissionUser(user);
+    if (!normalized) {
+      return;
+    }
+
+    if (!coauthors.find(c => c.user_id === normalized.user_id)) {
+      setCoauthors(prev => [...prev, normalized]);
     }
   };
 
   // Handle co-author removal
   const handleRemoveCoauthor = async (index) => {
+    const target = coauthors[index];
+    const fallbackName = `${target?.user_fname || ''} ${target?.user_lname || ''}`.trim();
+    const displayName = (target?.display_name || fallbackName || 'ผู้แต่งร่วม').trim();
+
     const result = await Swal.fire({
       title: 'ยืนยันการลบผู้แต่งร่วม?',
-      text: `ต้องการลบ ${coauthors[index].user_fname} ${coauthors[index].user_lname} ออกจากรายชื่อผู้แต่งร่วมหรือไม่?`,
+      text: `ต้องการลบ ${displayName} ออกจากรายชื่อผู้แต่งร่วมหรือไม่?`,
       icon: 'warning',
       showCancelButton: true,
       confirmButtonColor: '#d33',
@@ -2840,6 +3245,681 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
     }
   };
 
+  const normalizeSubmissionDocument = (doc) => {
+    if (!doc) {
+      return null;
+    }
+
+    const rawDocumentId =
+      doc.document_id ??
+      doc.DocumentID ??
+      doc.id ??
+      doc.Document?.document_id ??
+      doc.DocumentID ??
+      null;
+
+    if (rawDocumentId == null) {
+      return null;
+    }
+
+    const resolvedDocumentId = String(rawDocumentId);
+
+    const rawDocumentTypeId =
+      doc.document_type_id ??
+      doc.DocumentTypeID ??
+      doc.document_type?.document_type_id ??
+      doc.document_type?.DocumentTypeID ??
+      doc.document_type?.id ??
+      doc.document_type?.Id ??
+      null;
+
+    const documentTypeId = rawDocumentTypeId != null ? parseIntegerOrNull(rawDocumentTypeId) : null;
+
+    const fileInfo = doc.file || doc.File || {};
+    const externalFundingIdRaw =
+      doc.external_funding_id ??
+      doc.ExternalFundingID ??
+      doc.external_fund_id ??
+      doc.ExternalFundID ??
+      fileInfo.external_funding_id ??
+      fileInfo.ExternalFundingID ??
+      null;
+
+    const externalFundingId = externalFundingIdRaw != null ? parseIntegerOrNull(externalFundingIdRaw) : null;
+
+    const documentTypeName = findFirstString([
+      doc.document_type_name,
+      doc.DocumentTypeName,
+      doc.document_type?.name,
+      doc.document_type?.Name,
+      documentTypeId != null ? getDocumentTypeName(documentTypeId) : null,
+    ]);
+
+    const originalName = findFirstString([
+      doc.original_name,
+      doc.original_filename,
+      doc.file_name,
+      doc.filename,
+      fileInfo.original_name,
+      fileInfo.file_name,
+      fileInfo.filename,
+    ]);
+
+    const fileIdRaw =
+      doc.file_id ??
+      doc.FileID ??
+      fileInfo.file_id ??
+      fileInfo.FileID ??
+      null;
+
+    const fileId = fileIdRaw != null ? String(fileIdRaw) : null;
+
+    const fileSize =
+      fileInfo.file_size ??
+      fileInfo.size ??
+      doc.file_size ??
+      doc.FileSize ??
+      null;
+
+    const resolvedDocumentTypeName =
+      documentTypeName ||
+      (documentTypeId != null ? getDocumentTypeName(documentTypeId) : null) ||
+      (documentTypeId === 12 ? 'เอกสารเบิกจ่ายภายนอก' : null);
+
+    return {
+      document_id: resolvedDocumentId,
+      document_type_id: documentTypeId,
+      document_type_name: resolvedDocumentTypeName,
+      original_name: originalName || null,
+      file_id: fileId,
+      file_size: fileSize ?? null,
+      external_funding_id: externalFundingId,
+      funding_client_id: null,
+      pendingRemoval: false,
+      pendingRemovalReason: null,
+    };
+  };
+
+  const refreshSubmissionDocuments = useCallback(
+    async (submissionId) => {
+      if (!submissionId) {
+        setServerDocuments([]);
+        setServerExternalFundingFiles([]);
+        setDetachedDocumentIds([]);
+        setDocumentReplacements({});
+        return;
+      }
+
+      try {
+        const response = await documentAPI.getSubmissionDocuments(submissionId);
+        const documentsPayload = Array.isArray(response?.documents)
+          ? response.documents
+          : Array.isArray(response?.data)
+            ? response.data
+            : Array.isArray(response)
+              ? response
+              : [];
+
+        const normalized = documentsPayload
+          .map(normalizeSubmissionDocument)
+          .filter((entry) => entry && entry.document_id != null);
+
+        const externalLookup = new Map();
+        (externalFundingsRef.current || []).forEach((funding) => {
+          if (!funding) return;
+          if (funding.externalFundId != null) {
+            externalLookup.set(String(funding.externalFundId), funding);
+          }
+          if (funding.clientId) {
+            externalLookup.set(`client:${funding.clientId}`, funding);
+          }
+          if (funding.serverDocumentId) {
+            externalLookup.set(`doc:${funding.serverDocumentId}`, funding);
+          }
+        });
+
+        const nextGeneralDocs = [];
+        const nextExternalDocs = [];
+
+        normalized.forEach((doc) => {
+          const isExternalDocument = doc.document_type_id === 12 || doc.external_funding_id != null;
+          if (isExternalDocument) {
+            let matchedFunding = null;
+            if (doc.external_funding_id != null) {
+              matchedFunding = externalLookup.get(String(doc.external_funding_id)) || null;
+            }
+            if (!matchedFunding && doc.document_id) {
+              matchedFunding = externalLookup.get(`doc:${doc.document_id}`) || null;
+            }
+            if (!matchedFunding && doc.external_funding_id == null && doc.document_id) {
+              // Fallback to client id mapping if available
+              externalLookup.forEach((value, key) => {
+                if (!matchedFunding && key.startsWith('client:') && value?.serverDocumentId === doc.document_id) {
+                  matchedFunding = value;
+                }
+              });
+            }
+
+            nextExternalDocs.push({
+              ...doc,
+              funding_client_id: matchedFunding?.clientId ?? null,
+            });
+          } else {
+            nextGeneralDocs.push(doc);
+          }
+        });
+
+        setServerDocuments(nextGeneralDocs);
+        setServerExternalFundingFiles(nextExternalDocs);
+        setDetachedDocumentIds([]);
+        setDocumentReplacements({});
+
+        if (nextExternalDocs.length > 0 || externalFundingsRef.current.length > 0) {
+          setExternalFundings((prev) =>
+            prev.map((funding) => {
+              const matchedDoc = nextExternalDocs.find((doc) => {
+                if (!doc) return false;
+                if (funding.externalFundId != null && doc.external_funding_id != null) {
+                  return String(funding.externalFundId) === String(doc.external_funding_id);
+                }
+                if (funding.serverDocumentId) {
+                  return String(funding.serverDocumentId) === String(doc.document_id);
+                }
+                if (doc.funding_client_id && funding.clientId) {
+                  return String(doc.funding_client_id) === String(funding.clientId);
+                }
+                return false;
+              });
+
+              if (!matchedDoc) {
+                return {
+                  ...funding,
+                  serverDocumentPendingRemovalReason: null,
+                  // Preserve existing metadata when not found
+                  serverDocumentId: funding.serverDocumentId && nextExternalDocs.some((doc) => String(doc.document_id) === String(funding.serverDocumentId))
+                    ? funding.serverDocumentId
+                    : null,
+                  serverFileName: funding.serverDocumentId && nextExternalDocs.some((doc) => String(doc.document_id) === String(funding.serverDocumentId))
+                    ? funding.serverFileName ?? null
+                    : null,
+                  serverFileId: funding.serverDocumentId && nextExternalDocs.some((doc) => String(doc.document_id) === String(funding.serverDocumentId))
+                    ? funding.serverFileId ?? null
+                    : null,
+                };
+              }
+
+              return {
+                ...funding,
+                serverDocumentId: matchedDoc.document_id,
+                serverFileName: matchedDoc.original_name || matchedDoc.document_type_name || funding.serverFileName || null,
+                serverFileId: matchedDoc.file_id ?? null,
+                serverDocumentPendingRemovalReason: null,
+                file: null,
+              };
+            })
+          );
+        }
+      } catch (error) {
+        console.error('Failed to load submission documents:', error);
+      }
+    },
+    [setServerDocuments, setServerExternalFundingFiles, setDetachedDocumentIds, setDocumentReplacements, setExternalFundings]
+  );
+
+  const markDocumentForRemoval = useCallback(
+    (docId, reason = 'remove', options = {}) => {
+      if (docId == null) {
+        return;
+      }
+
+      const idStr = String(docId);
+
+      setDetachedDocumentIds((prev) => {
+        if (prev.includes(idStr)) {
+          return prev;
+        }
+        return [...prev, idStr];
+      });
+
+      const updater = (doc) => {
+        if (!doc || String(doc.document_id) !== idStr) {
+          return doc;
+        }
+        return {
+          ...doc,
+          pendingRemoval: true,
+          pendingRemovalReason: reason,
+        };
+      };
+
+      setServerDocuments((prev) => prev.map(updater));
+      setServerExternalFundingFiles((prev) => prev.map(updater));
+
+      if (options.fundingClientId) {
+        setExternalFundings((prev) =>
+          prev.map((funding) =>
+            funding.clientId === options.fundingClientId
+              ? { ...funding, serverDocumentPendingRemovalReason: reason }
+              : funding
+          )
+        );
+      }
+    },
+    [setDetachedDocumentIds, setServerDocuments, setServerExternalFundingFiles, setExternalFundings]
+  );
+
+  const unmarkDocumentRemoval = useCallback(
+    (docId, options = {}) => {
+      if (docId == null) {
+        return;
+      }
+
+      const idStr = String(docId);
+
+      const currentDoc =
+        serverDocumentsRef.current.find((doc) => String(doc.document_id) === idStr) ||
+        serverExternalFundingFilesRef.current.find((doc) => String(doc.document_id) === idStr);
+
+      if (options.expectedReason && currentDoc?.pendingRemovalReason && currentDoc.pendingRemovalReason !== options.expectedReason) {
+        return;
+      }
+
+      setDetachedDocumentIds((prev) => prev.filter((id) => id !== idStr));
+
+      const updater = (doc) => {
+        if (!doc || String(doc.document_id) !== idStr) {
+          return doc;
+        }
+        return {
+          ...doc,
+          pendingRemoval: false,
+          pendingRemovalReason: null,
+        };
+      };
+
+      setServerDocuments((prev) => prev.map(updater));
+      setServerExternalFundingFiles((prev) => prev.map(updater));
+
+      if (options.fundingClientId) {
+        setExternalFundings((prev) =>
+          prev.map((funding) =>
+            funding.clientId === options.fundingClientId
+              ? { ...funding, serverDocumentPendingRemovalReason: null }
+              : funding
+          )
+        );
+      }
+
+      setDocumentReplacements((prev) => {
+        const entries = Object.entries(prev || {});
+        if (entries.length === 0) {
+          return prev;
+        }
+        let changed = false;
+        const next = { ...prev };
+        entries.forEach(([key, value]) => {
+          if (String(value) === idStr) {
+            delete next[key];
+            changed = true;
+          }
+        });
+        return changed ? next : prev;
+      });
+    },
+    [setDetachedDocumentIds, setServerDocuments, setServerExternalFundingFiles, setExternalFundings, setDocumentReplacements]
+  );
+
+  const handleDownloadDocument = useCallback(async (doc) => {
+    if (!doc?.file_id) {
+      Toast.fire({
+        icon: 'error',
+        title: 'ไม่พบไฟล์สำหรับดาวน์โหลด',
+      });
+      return;
+    }
+
+    try {
+      const blob = await fileAPI.downloadFile(doc.file_id);
+      const blobUrl = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.download = doc.original_name || doc.document_type_name || `document-${doc.document_id}`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(blobUrl);
+    } catch (error) {
+      console.error('Failed to download document:', error);
+      Toast.fire({
+        icon: 'error',
+        title: 'ดาวน์โหลดไฟล์ไม่สำเร็จ',
+        text: error?.message || 'ไม่สามารถดาวน์โหลดไฟล์ได้',
+      });
+    }
+  }, []);
+
+  const applyExternalFundingServerIds = useCallback(
+    (savedExternalFunds, { targetFiles } = {}) => {
+      const normalizedFunds = Array.isArray(savedExternalFunds) ? savedExternalFunds : [];
+      const filesArray = Array.isArray(targetFiles) ? targetFiles : [];
+      const serverIdMap = new Map();
+
+      normalizedFunds.forEach((item) => {
+        if (!item) {
+          return;
+        }
+
+        const serverId =
+          item.external_fund_id ??
+          item.ExternalFundID ??
+          item.externalFundId ??
+          item.external_fundID ??
+          null;
+
+        if (serverId == null) {
+          return;
+        }
+
+        const clientKey =
+          item.client_id ??
+          item.clientId ??
+          item.external_fund_client_id ??
+          item.externalFundingClientId ??
+          item.externalFundingClientID ??
+          serverId;
+
+        serverIdMap.set(String(clientKey), serverId);
+      });
+
+      if (serverIdMap.size > 0) {
+        setExternalFundings((prev) => {
+          let changed = false;
+          const next = prev.map((funding) => {
+            if (!funding) {
+              return funding;
+            }
+
+            const candidateKeys = [
+              funding.clientId,
+              funding.externalFundId,
+              funding.external_fund_id,
+              funding.externalFundingId,
+            ].filter((value) => value != null);
+
+            let resolvedId = null;
+            for (const key of candidateKeys) {
+              const mapped = serverIdMap.get(String(key));
+              if (mapped != null) {
+                resolvedId = mapped;
+                break;
+              }
+            }
+
+            if (resolvedId && resolvedId !== funding.externalFundId) {
+              changed = true;
+              return { ...funding, externalFundId: resolvedId };
+            }
+
+            return funding;
+          });
+
+          return changed ? next : prev;
+        });
+
+        setExternalFundingFiles((prev) => {
+          let changed = false;
+          const next = prev.map((doc) => {
+            if (!doc) {
+              return doc;
+            }
+
+            const candidateKeys = [
+              doc.funding_client_id,
+              doc.external_fund_id,
+              doc.externalFundingId,
+              doc.external_funding_id,
+            ].filter((value) => value != null);
+
+            for (const key of candidateKeys) {
+              const mapped = serverIdMap.get(String(key));
+              if (mapped != null && mapped !== doc.external_fund_id) {
+                changed = true;
+                return { ...doc, external_fund_id: mapped };
+              }
+            }
+
+            return doc;
+          });
+
+          return changed ? next : prev;
+        });
+
+        filesArray.forEach((fileData) => {
+          if (!fileData || fileData.document_type_id !== 12) {
+            return;
+          }
+
+          const candidateKeys = [
+            fileData.external_funding_client_id,
+            fileData.funding_client_id,
+            fileData.external_funding_id,
+            fileData.external_fund_id,
+          ].filter((value) => value != null);
+
+          for (const key of candidateKeys) {
+            const mapped = serverIdMap.get(String(key));
+            if (mapped != null) {
+              fileData.external_funding_id = mapped;
+              break;
+            }
+          }
+        });
+      } else {
+        setExternalFundings((prev) => {
+          const shouldReset = prev.some((funding) => funding?.externalFundId);
+          if (!shouldReset) {
+            return prev;
+          }
+
+          return prev.map((funding) =>
+            funding?.externalFundId ? { ...funding, externalFundId: null } : funding
+          );
+        });
+
+        setExternalFundingFiles((prev) => {
+          const shouldReset = prev.some((doc) => doc?.external_fund_id);
+          if (!shouldReset) {
+            return prev;
+          }
+
+          return prev.map((doc) =>
+            doc?.external_fund_id ? { ...doc, external_fund_id: null } : doc
+          );
+        });
+
+        filesArray.forEach((fileData) => {
+          if (fileData && fileData.document_type_id === 12) {
+            fileData.external_funding_id = null;
+          }
+        });
+      }
+
+      return serverIdMap;
+    },
+    [setExternalFundings, setExternalFundingFiles]
+  );
+
+  const syncSubmissionDocuments = useCallback(
+    async ({ submissionId, onProgress, filesOverride } = {}) => {
+      if (!submissionId) {
+        return { detached: 0, uploaded: 0 };
+      }
+
+      const filesToUpload = Array.isArray(filesOverride)
+        ? filesOverride
+        : getAllAttachedFiles();
+      const detachIds = [...detachedDocumentIds];
+      const pendingExternalUploads = new Map();
+
+      filesToUpload.forEach((doc) => {
+        if (!doc || doc.document_type_id !== 12 || !doc.file) {
+          return;
+        }
+
+        const key =
+          doc.external_funding_client_id ??
+          doc.funding_client_id ??
+          doc.external_fund_id ??
+          doc.external_funding_id ??
+          null;
+
+        if (key == null) {
+          return;
+        }
+
+        pendingExternalUploads.set(String(key), doc.file);
+      });
+
+      if (!Array.isArray(filesOverride)) {
+        (externalFundingFiles || []).forEach((doc) => {
+          if (!doc?.funding_client_id || !doc?.file) {
+            return;
+          }
+          pendingExternalUploads.set(String(doc.funding_client_id), doc.file);
+        });
+      }
+
+      const errors = [];
+      let detachedCount = 0;
+      if (detachIds.length > 0) {
+        for (let index = 0; index < detachIds.length; index += 1) {
+          const docId = detachIds[index];
+          try {
+            await documentAPI.detachDocument(submissionId, docId);
+            detachedCount += 1;
+            if (onProgress) {
+              onProgress({ type: 'detach', completed: detachedCount, totalDetach: detachIds.length });
+            }
+          } catch (error) {
+            const statusCode = error?.response?.status ?? error?.status ?? error?.code ?? null;
+            if (statusCode === 404 || statusCode === 410) {
+              console.warn('Ignoring missing document during detach:', docId, error);
+              detachedCount += 1;
+              continue;
+            }
+
+            console.error('Failed to detach document:', docId, error);
+            const message = `ไม่สามารถลบไฟล์เดิม (ID ${docId}) ได้: ${error?.message || 'ไม่ทราบสาเหตุ'}`;
+            errors.push(message);
+          }
+        }
+      }
+
+      let uploadedCount = 0;
+      if (filesToUpload.length > 0) {
+        for (let index = 0; index < filesToUpload.length; index += 1) {
+          const fileData = filesToUpload[index];
+
+          try {
+            const uploadResponse = await fileAPI.uploadFile(fileData.file);
+            if (!uploadResponse?.file?.file_id) {
+              throw new Error('Upload response missing file_id');
+            }
+
+            const attachPayload = {
+              file_id: uploadResponse.file.file_id,
+              document_type_id: fileData.document_type_id,
+              description: fileData.description || fileData.document_type_name || fileData.name,
+              display_order: index + 1,
+            };
+
+            if (fileData.document_type_id === 12 && fileData.external_funding_id) {
+              attachPayload.external_funding_id = fileData.external_funding_id;
+            }
+
+            await documentAPI.attachDocument(submissionId, attachPayload);
+            uploadedCount += 1;
+            if (onProgress) {
+              onProgress({ type: 'upload', completed: uploadedCount, totalUpload: filesToUpload.length });
+            }
+          } catch (error) {
+            console.error('Failed to upload or attach document:', fileData, error);
+            const friendlyName = fileData?.file?.name || fileData?.document_type_name || 'ไฟล์ไม่ทราบชื่อ';
+            const message = `อัปโหลดไฟล์ "${friendlyName}" ไม่สำเร็จ: ${error?.message || 'ไม่ทราบสาเหตุ'}`;
+            errors.push(message);
+          }
+        }
+      }
+
+      const hadChanges = detachedCount > 0 || uploadedCount > 0;
+      const hadErrors = errors.length > 0;
+
+      if (hadChanges) {
+        await refreshSubmissionDocuments(submissionId);
+      }
+
+      if (hadErrors) {
+        if (pendingExternalUploads.size > 0) {
+          setExternalFundings((prev) =>
+            prev.map((funding) => {
+              if (!funding?.clientId) {
+                return funding;
+              }
+              const pendingFile = pendingExternalUploads.get(funding.clientId);
+              if (!pendingFile) {
+                return funding;
+              }
+              return {
+                ...funding,
+                file: pendingFile,
+              };
+            })
+          );
+        }
+
+        const summary = errors.slice(0, 3).join('\n');
+        const aggregatedError = new Error(
+          errors.length > 1 ? `เกิดข้อผิดพลาดหลายรายการ:\n${summary}` : summary
+        );
+        aggregatedError.details = errors;
+        throw aggregatedError;
+      }
+
+      if (hadChanges) {
+        setUploadedFiles({});
+        setOtherDocuments([]);
+        setExternalFundingFiles([]);
+        setDocumentReplacements({});
+        setDetachedDocumentIds([]);
+        setExternalFundings((prev) =>
+          prev.map((funding) => ({
+            ...funding,
+            file: null,
+            serverDocumentPendingRemovalReason:
+              funding.serverDocumentPendingRemovalReason === 'replace' ||
+              funding.serverDocumentPendingRemovalReason === 'remove'
+                ? null
+                : funding.serverDocumentPendingRemovalReason,
+          }))
+        );
+      }
+
+      return { detached: detachedCount, uploaded: uploadedCount };
+    },
+    [
+      detachedDocumentIds,
+      externalFundingFiles,
+      getAllAttachedFiles,
+      refreshSubmissionDocuments,
+      setUploadedFiles,
+      setOtherDocuments,
+      setExternalFundingFiles,
+      setDocumentReplacements,
+      setDetachedDocumentIds,
+      setExternalFundings,
+    ]
+  );
+
   // Handle external funding addition
   const handleAddExternalFunding = () => {
     const clientId = `ext-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`;
@@ -2848,17 +3928,24 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
       externalFundId: null,
       fundName: '',
       amount: '',
-      file: null
+      file: null,
+      serverDocumentId: null,
+      serverFileName: null,
+      serverFileId: null,
+      serverDocumentPendingRemovalReason: null,
     };
     setExternalFundings(prev => [...prev, newFunding]);
   };
 
   // Handle external funding removal
   const handleRemoveExternalFunding = (clientId) => {
-    // Remove file from externalFundingFiles
-    setExternalFundingFiles(prev => prev.filter(doc => doc.funding_client_id !== clientId));
+    const targetFunding = externalFundings.find((funding) => funding.clientId === clientId);
 
-    // Remove funding
+    if (targetFunding?.serverDocumentId) {
+      markDocumentForRemoval(targetFunding.serverDocumentId, 'remove', { fundingClientId: clientId });
+    }
+
+    setExternalFundingFiles(prev => prev.filter(doc => doc.funding_client_id !== clientId));
     setExternalFundings(prev => prev.filter(f => f.clientId !== clientId));
   };
 
@@ -2874,25 +3961,69 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
   // Handle file uploads
   const handleFileUpload = (documentTypeId, files) => {
     console.log('handleFileUpload called with:', { documentTypeId, files });
-    
-    if (files && files.length > 0) {
+
+    const key = documentTypeId;
+
+    if (!files || files.length === 0) {
       if (documentTypeId === 'other') {
-        // For other documents, ADD to existing array (don't replace)
-        console.log('Adding other documents:', files);
-        setOtherDocuments(prev => [...prev, ...files]); // เพิ่มไฟล์เข้าไป ไม่ทับ
-      } else {
-        // For specific document types, store first file only
-        console.log(`Setting uploaded file for type ${documentTypeId}:`, files[0]);
-        setUploadedFiles(prev => ({
-          ...prev,
-          [documentTypeId]: files[0]
-        }));
+        return;
       }
 
-      // Clear error
-      if (errors[`file_${documentTypeId}`]) {
-        setErrors(prev => ({ ...prev, [`file_${documentTypeId}`]: '' }));
+      setUploadedFiles((prev) => {
+        if (!prev || !Object.prototype.hasOwnProperty.call(prev, key)) {
+          return prev;
+        }
+        const next = { ...prev };
+        delete next[key];
+        return next;
+      });
+
+      if (documentReplacements?.[key]) {
+        unmarkDocumentRemoval(documentReplacements[key], { expectedReason: 'replace' });
       }
+
+      setDocumentReplacements((prev) => {
+        if (!prev || !prev[key]) {
+          return prev;
+        }
+        const next = { ...prev };
+        delete next[key];
+        return next;
+      });
+      return;
+    }
+
+    if (documentTypeId === 'other') {
+      console.log('Adding other documents:', files);
+      setOtherDocuments((prev) => [...prev, ...files]);
+      return;
+    }
+
+    const [file] = files;
+    console.log(`Setting uploaded file for type ${documentTypeId}:`, file);
+
+    setUploadedFiles((prev) => ({
+      ...prev,
+      [key]: file,
+    }));
+
+    const numericDocTypeId = parseIntegerOrNull(documentTypeId);
+    if (numericDocTypeId != null) {
+      const existingServerDoc = serverDocuments.find(
+        (doc) => doc.document_type_id === numericDocTypeId && !doc.pendingRemoval
+      );
+
+      if (existingServerDoc) {
+        markDocumentForRemoval(existingServerDoc.document_id, 'replace');
+        setDocumentReplacements((prev) => ({
+          ...(prev || {}),
+          [key]: existingServerDoc.document_id,
+        }));
+      }
+    }
+
+    if (errors[`file_${documentTypeId}`]) {
+      setErrors((prev) => ({ ...prev, [`file_${documentTypeId}`]: '' }));
     }
   };
 
@@ -2900,48 +4031,124 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
   const handleExternalFundingFileChange = (clientId, file) => {
     console.log('handleExternalFundingFileChange called with:', { id: clientId, file });
 
+    const targetFunding = externalFundings.find((funding) => funding.clientId === clientId);
+    if (!targetFunding) {
+      console.warn('No external funding entry found for clientId:', clientId);
+      return;
+    }
+
     if (!file) {
-      setExternalFundingFiles(prev => prev.filter(doc => doc.funding_client_id !== clientId));
-      setExternalFundings(prev =>
-        prev.map(funding =>
-          funding.clientId === clientId
-            ? { ...funding, file: null, amount: '' }
-            : funding
-        )
+      setExternalFundingFiles((prev) => prev.filter((doc) => doc.funding_client_id !== clientId));
+
+      if (targetFunding.serverDocumentId && targetFunding.serverDocumentPendingRemovalReason === 'replace') {
+        unmarkDocumentRemoval(targetFunding.serverDocumentId, {
+          fundingClientId: clientId,
+          expectedReason: 'replace',
+        });
+      }
+
+      setExternalFundings((prev) =>
+        prev.map((funding) => {
+          if (funding.clientId !== clientId) {
+            return funding;
+          }
+          const next = { ...funding, file: null };
+          if (funding.serverDocumentPendingRemovalReason === 'replace') {
+            next.serverDocumentPendingRemovalReason = null;
+          }
+          return next;
+        })
       );
       return;
     }
 
-    if (file.type === 'application/pdf') {
-      // Update file in funding table
-      setExternalFundings(prev => prev.map(funding =>
-        funding.clientId === clientId ? { ...funding, file: file } : funding
-      ));
-
-      // Update external funding files separately
-      setExternalFundingFiles(prev => {
-        // Remove old file for this funding id if exists
-        const filtered = prev.filter(doc => doc.funding_client_id !== clientId);
-        const targetFunding = externalFundings.find(f => f.clientId === clientId);
-        // Add new file
-        return [...filtered, {
-          file: file,
-          funding_client_id: clientId,
-          external_fund_id: targetFunding?.externalFundId ?? null,
-          description: `เอกสารเบิกจ่ายภายนอก - ${file.name}`,
-          timestamp: Date.now()
-        }];
-      });
-
-      console.log('External funding file added successfully');
-    } else {
+    if (file.type !== 'application/pdf') {
       console.error('Invalid file type for external funding:', file?.type);
-      alert('กรุณาเลือกไฟล์ PDF เท่านั้น');
+      Toast.fire({ icon: 'error', title: 'กรุณาเลือกไฟล์ PDF เท่านั้น' });
+      return;
     }
+
+    if (targetFunding.serverDocumentId) {
+      markDocumentForRemoval(targetFunding.serverDocumentId, 'replace', { fundingClientId: clientId });
+    }
+
+    setExternalFundings((prev) =>
+      prev.map((funding) =>
+        funding.clientId === clientId
+          ? {
+              ...funding,
+              file,
+              serverDocumentPendingRemovalReason: targetFunding.serverDocumentId ? 'replace' : funding.serverDocumentPendingRemovalReason,
+            }
+          : funding
+      )
+    );
+
+    setExternalFundingFiles((prev) => {
+      const filtered = prev.filter((doc) => doc.funding_client_id !== clientId);
+      return [
+        ...filtered,
+        {
+          file,
+          funding_client_id: clientId,
+          external_fund_id: targetFunding.externalFundId ?? null,
+          replaces_document_id: targetFunding.serverDocumentId ?? null,
+          description: `เอกสารเบิกจ่ายภายนอก - ${file.name}`,
+          timestamp: Date.now(),
+        },
+      ];
+    });
+
+    const errorKey = 'file_12';
+    if (errors[errorKey]) {
+      setErrors((prev) => ({ ...prev, [errorKey]: '' }));
+    }
+
+    console.log('External funding file added successfully');
+  };
+
+  const handleClearExternalFundingUpload = (clientId) => {
+    handleExternalFundingFileChange(clientId, null);
+  };
+
+  const handleRemoveExternalFundingFile = (clientId) => {
+    const targetFunding = externalFundings.find((funding) => funding.clientId === clientId);
+    if (!targetFunding) {
+      return;
+    }
+
+    if (targetFunding.serverDocumentId) {
+      markDocumentForRemoval(targetFunding.serverDocumentId, 'remove', { fundingClientId: clientId });
+    }
+
+    setExternalFundingFiles((prev) => prev.filter((doc) => doc.funding_client_id !== clientId));
+    setExternalFundings((prev) =>
+      prev.map((funding) =>
+        funding.clientId === clientId
+          ? {
+              ...funding,
+              file: null,
+              serverDocumentPendingRemovalReason: targetFunding.serverDocumentId ? 'remove' : funding.serverDocumentPendingRemovalReason,
+            }
+          : funding
+      )
+    );
+  };
+
+  const handleRestoreExternalFundingFile = (clientId) => {
+    const targetFunding = externalFundings.find((funding) => funding.clientId === clientId);
+    if (!targetFunding?.serverDocumentId) {
+      return;
+    }
+
+    unmarkDocumentRemoval(targetFunding.serverDocumentId, {
+      fundingClientId: clientId,
+      expectedReason: 'remove',
+    });
   };
 
   // ฟังก์ชันรวมไฟล์ทั้งหมดเพื่อแสดงผล
-  const getAllAttachedFiles = () => {
+  function getAllAttachedFiles() {
     const allFiles = [];
     const processedMain = new Set();
 
@@ -3039,7 +4246,7 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
     });
 
     return allFiles;
-  };
+  }
 
   const attachedFiles = useMemo(() => getAllAttachedFiles(), [attachmentSignature, documentTypes, externalFundings]);
   const previewUrl = previewState.blobUrl || previewState.signedUrl;
@@ -3453,8 +4660,28 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
 
     if (documentTypes && documentTypes.length > 0) {
       const normalize = (value = '') => value.toLowerCase();
-      const hasExternalAttachments = Array.isArray(externalFundingFiles) && externalFundingFiles.some(file => !!file?.file);
-      const hasOtherAttachments = Array.isArray(otherDocuments) && otherDocuments.length > 0;
+      const hasServerExternal = Array.isArray(serverExternalFundingFiles)
+        ? serverExternalFundingFiles.some((doc) => !doc.pendingRemoval)
+        : false;
+      const hasExternalAttachments = (Array.isArray(externalFundingFiles) && externalFundingFiles.some(file => !!file?.file)) || hasServerExternal;
+      const otherTypeIds = Array.isArray(documentTypes)
+        ? documentTypes
+            .filter((doc) => {
+              const identifier = doc?.id ?? doc?.document_type_id;
+              if (identifier == null && !doc?.name) {
+                return false;
+              }
+              const labelText = normalize(doc?.name || getDocumentTypeName(identifier));
+              return labelText.includes('อื่น') || labelText.includes('other');
+            })
+            .map((doc) => String(doc?.id ?? doc?.document_type_id))
+        : [];
+      const hasServerOther = Array.isArray(serverDocuments)
+        ? serverDocuments.some((doc) =>
+            otherTypeIds.includes(String(doc.document_type_id)) && !doc.pendingRemoval
+          )
+        : false;
+      const hasOtherAttachments = (Array.isArray(otherDocuments) && otherDocuments.length > 0) || hasServerOther;
 
       documentTypes
         .filter(doc => doc?.required)
@@ -3465,6 +4692,12 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
           }
 
           const hasUploadedFile = Boolean(uploadedFiles?.[docId]);
+          const hasServerDocument = Array.isArray(serverDocuments)
+            ? serverDocuments.some(
+                (serverDoc) =>
+                  String(serverDoc.document_type_id) === String(docId) && !serverDoc.pendingRemoval
+              )
+            : false;
           let hasAttachment = hasUploadedFile;
           if (!hasAttachment) {
             const labelText = normalize(doc.name || '');
@@ -3472,6 +4705,8 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
               hasAttachment = hasOtherAttachments;
             } else if (labelText.includes('ภายนอก') || labelText.includes('external')) {
               hasAttachment = hasExternalAttachments;
+            } else if (hasServerDocument) {
+              hasAttachment = true;
             }
           }
 
@@ -3705,7 +4940,44 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
         reward_announcement: announcementLock.reward_announcement ?? null,
       };
 
-      await publicationDetailsAPI.add(submissionId, publicationData);
+      const pendingUploads = getAllAttachedFiles();
+
+      const response = await publicationDetailsAPI.add(submissionId, publicationData);
+
+      const savedExternalFunds = Array.isArray(response?.external_fundings)
+        ? response.external_fundings
+        : Array.isArray(response?.data?.external_fundings)
+          ? response.data.external_fundings
+          : [];
+
+      applyExternalFundingServerIds(savedExternalFunds, { targetFiles: pendingUploads });
+
+      const unresolvedExternalFile = pendingUploads.some(
+        (fileData) => fileData.document_type_id === 12 && !fileData.external_funding_id
+      );
+
+      if (unresolvedExternalFile) {
+        throw new Error('กรุณาบันทึกข้อมูลทุนภายนอกก่อนแนบไฟล์หลักฐาน');
+      }
+
+      await syncSubmissionDocuments({
+        submissionId,
+        onProgress: ({ type, completed, totalDetach, totalUpload }) => {
+          if (type === 'detach' && totalDetach) {
+            Swal.update({
+              title: 'กำลังลบไฟล์เดิม...',
+              html: `(${completed}/${totalDetach})`,
+            });
+          }
+          if (type === 'upload' && totalUpload) {
+            Swal.update({
+              title: 'กำลังอัปโหลดไฟล์...',
+              html: `(${completed}/${totalUpload})`,
+            });
+          }
+        },
+        filesOverride: pendingUploads,
+      });
 
       Swal.close();
       Toast.fire({
@@ -4429,59 +5701,13 @@ const showSubmissionConfirmation = async () => {
         const response = await publicationDetailsAPI.add(submissionId, publicationData);
         console.log('Publication details saved successfully:', response);
 
-        const savedExternalFunds = Array.isArray(response.external_fundings)
+        const savedExternalFunds = Array.isArray(response?.external_fundings)
           ? response.external_fundings
-          : [];
+          : Array.isArray(response?.data?.external_fundings)
+            ? response.data.external_fundings
+            : [];
 
-        const serverIdMap = new Map();
-        savedExternalFunds.forEach((item) => {
-          const clientKey = item?.client_id ?? (item?.external_fund_id != null ? String(item.external_fund_id) : null);
-          if (clientKey) {
-            serverIdMap.set(String(clientKey), item.external_fund_id);
-          }
-        });
-
-        if (serverIdMap.size > 0) {
-          setExternalFundings((prev) =>
-            prev.map((funding) => {
-              const serverId = serverIdMap.get(String(funding.clientId)) ?? serverIdMap.get(String(funding.externalFundId));
-              if (serverId && serverId !== funding.externalFundId) {
-                return { ...funding, externalFundId: serverId };
-              }
-              return funding;
-            })
-          );
-
-          setExternalFundingFiles((prev) =>
-            prev.map((doc) => {
-              const serverId = serverIdMap.get(String(doc.funding_client_id));
-              if (serverId && serverId !== doc.external_fund_id) {
-                return { ...doc, external_fund_id: serverId };
-              }
-              return doc;
-            })
-          );
-
-          allFiles.forEach((fileData) => {
-            if (fileData.document_type_id === 12) {
-              const clientKey = String(fileData.external_funding_client_id || '');
-              const serverId = serverIdMap.get(clientKey);
-              if (!serverId) {
-                throw new Error('ไม่สามารถจับคู่ไฟล์ทุนภายนอกกับข้อมูลที่บันทึกได้');
-              }
-              fileData.external_funding_id = serverId;
-            }
-          });
-        } else {
-          // เคลียร์ mapping ถ้าไม่มีข้อมูลจาก backend
-          setExternalFundings((prev) => prev.map((funding) => ({ ...funding, externalFundId: null })));
-          setExternalFundingFiles((prev) => prev.map((doc) => ({ ...doc, external_fund_id: null })));
-          allFiles.forEach((fileData) => {
-            if (fileData.document_type_id === 12) {
-              fileData.external_funding_id = null;
-            }
-          });
-        }
+        applyExternalFundingServerIds(savedExternalFunds, { targetFiles: allFiles });
 
         const unresolvedExternalFile = allFiles.some(
           (fileData) => fileData.document_type_id === 12 && !fileData.external_funding_id
@@ -4492,7 +5718,7 @@ const showSubmissionConfirmation = async () => {
         }
       } catch (error) {
         console.error('Failed to save publication details:', error);
-        
+
         // เพิ่มการ log เพื่อดู error detail
         if (error.response) {
           console.error('Error response status:', error.response.status);
@@ -4538,89 +5764,18 @@ const showSubmissionConfirmation = async () => {
         return;
       }
 
-      // Upload files
-      if (allFiles.length > 0) {
-        Swal.update({
-          html: `กำลังอัปโหลดไฟล์... (0/${allFiles.length})`
-        });
-
-        console.log('Starting file upload process...');
-
-        for (let i = 0; i < allFiles.length; i++) {
-          const fileData = allFiles[i];
-          
-          try {
-            console.log(`Uploading file ${i + 1}:`, {
-              name: fileData.file.name,
-              size: fileData.file.size,
-              type: fileData.file.type,
-              document_type_id: fileData.document_type_id,
-              description: fileData.description
-            });
-
-            // Upload file
-            const uploadResponse = await fileAPI.uploadFile(fileData.file);
-            console.log(`File ${i + 1} upload response:`, uploadResponse);
-            
-            if (!uploadResponse.success || !uploadResponse.file || !uploadResponse.file.file_id) {
-              throw new Error('Upload response missing file_id');
-            }
-
-            const originalName = uploadResponse?.file?.original_name ?? fileData.file?.name ?? '';
-
-            // Prepare document attachment data
-            const attachData = {
-              file_id: uploadResponse.file.file_id,
-              document_type_id: fileData.document_type_id,
-              description: fileData.description,
-              display_order: i + 1,
-              original_name: originalName
-            };
-
-            // Add special data for external funding documents
-            if (fileData.document_type_id === 12 && fileData.external_funding_id) {
-              attachData.external_funding_id = fileData.external_funding_id;
-            }
-
-            console.log(`Attaching document ${i + 1}:`, attachData);
-            
-            const attachResponse = await documentAPI.attachDocument(submissionId, attachData);
-            console.log(`Document ${i + 1} attach response:`, attachResponse);
-
-            if (!attachResponse.success) {
-              throw new Error(`Failed to attach document: ${attachResponse.message || 'Unknown error'}`);
-            }
-
-            // Update progress
-            Swal.update({
-              html: `กำลังอัปโหลดไฟล์... (${i + 1}/${allFiles.length})`
-            });
-            
-          } catch (error) {
-            console.error(`Error processing file ${fileData.file.name}:`, error);
-            
-            // Show detailed error
-            Swal.fire({
-              icon: 'error',
-              title: 'ไม่สามารถอัปโหลดไฟล์ได้',
-              html: `
-                <div class="text-left">
-                  <p><strong>ไฟล์:</strong> ${fileData.file.name}</p>
-                  <p><strong>ประเภท:</strong> ${getDocumentTypeName(fileData.document_type_id)}</p>
-                  <p><strong>ข้อผิดพลาด:</strong> ${error.message}</p>
-                  <p class="text-sm text-gray-600 mt-2">กรุณาตรวจสอบไฟล์และลองใหม่อีกครั้ง</p>
-                </div>
-              `,
-              confirmButtonColor: '#ef4444'
-            });
-            throw error; // Stop process
+      await syncSubmissionDocuments({
+        submissionId,
+        onProgress: ({ type, completed, totalDetach, totalUpload }) => {
+          if (type === 'detach' && totalDetach) {
+            Swal.update({ html: `กำลังลบไฟล์เดิม... (${completed}/${totalDetach})` });
           }
-        }
-
-        console.log('All files uploaded and attached successfully');
-      } else {
-        console.log('No files to upload');
-      }
+          if (type === 'upload' && totalUpload) {
+            Swal.update({ html: `กำลังอัปโหลดไฟล์... (${completed}/${totalUpload})` });
+          }
+        },
+        filesOverride: allFiles,
+      });
 
       // Submit the application
       Swal.update({
@@ -4738,7 +5893,7 @@ const showSubmissionConfirmation = async () => {
     ? selectedFundDetail
     : '';
   const shouldShowDraftBanner = Boolean(
-    draftLockedSelections && (bannerPrimaryDescription || bannerSecondaryDescription)
+    (editingExistingSubmission || lockedFundSummary) && (bannerPrimaryDescription || bannerSecondaryDescription)
   );
   const enforceBudgetYearReadOnly = Boolean(lockedBudgetYearId) || editingExistingSubmission || isReadOnly;
   const disableAuthorStatusSelect = draftLockedSelections || availableAuthorStatuses.length === 0;
@@ -4748,6 +5903,9 @@ const showSubmissionConfirmation = async () => {
   const allowExternalFunding = Boolean(
     formData.journal_quartile && (feeLimits.total > 0 || draftLockedSelections)
   );
+  const shouldShowReviewerComments =
+    currentSubmissionStatus === 'needs_more_info' &&
+    ((reviewComments.admin && reviewComments.admin.trim()) || (reviewComments.head && reviewComments.head.trim()));
 
   return (
     <PageLayout
@@ -4783,9 +5941,33 @@ const showSubmissionConfirmation = async () => {
                     {bannerSecondaryDescription}
                   </p>
                 )}
-                <p className="text-xs text-blue-700 sm:text-sm">
-                  หากต้องการเปลี่ยนให้ลบร่าง แล้วสร้างใหม่อีกครั้ง
-                </p>
+                {draftLockedSelections && (
+                  <p className="text-xs text-blue-700 sm:text-sm">
+                    หากต้องการเปลี่ยนให้ลบร่าง แล้วสร้างใหม่อีกครั้ง
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+        {shouldShowReviewerComments && (
+          <div className="rounded-lg border border-orange-200 bg-orange-50 p-4 text-sm text-orange-900">
+            <div className="flex items-start gap-3">
+              <AlertCircle className="h-5 w-5 text-orange-500" aria-hidden="true" />
+              <div className="space-y-3">
+                <p className="font-semibold text-orange-800">คำแนะนำจากผู้ตรวจสอบ</p>
+                {reviewComments.admin && reviewComments.admin.trim() && (
+                  <div>
+                    <p className="text-xs uppercase tracking-wide text-orange-600">เจ้าหน้าที่</p>
+                    <p className="whitespace-pre-wrap text-sm">{reviewComments.admin}</p>
+                  </div>
+                )}
+                {reviewComments.head && reviewComments.head.trim() && (
+                  <div>
+                    <p className="text-xs uppercase tracking-wide text-orange-600">หัวหน้าภาค/ผู้บังคับบัญชา</p>
+                    <p className="whitespace-pre-wrap text-sm">{reviewComments.head}</p>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -5293,14 +6475,20 @@ const showSubmissionConfirmation = async () => {
                     }
                     return true;
                   })
-                  .map(user => (
-                    <option 
-                      key={user.user_id} 
-                      value={user.user_id}
-                    >
-                      {user.user_fname} {user.user_lname} ({user.email})
-                    </option>
-                  ))}
+                  .map(user => {
+                    const nameParts = resolveUserNameParts(user);
+                    const fallbackName = `${nameParts.firstName || ''} ${nameParts.lastName || ''}`.trim();
+                    const labelName = nameParts.displayName || fallbackName;
+                    const optionLabel = labelName || user.user_fname || user.user_lname || 'ไม่ทราบชื่อ';
+                    return (
+                      <option
+                        key={user.user_id}
+                        value={user.user_id}
+                      >
+                        {optionLabel}{user.email ? ` (${user.email})` : ''}
+                      </option>
+                    );
+                  })}
               </select>
             </div>
 
@@ -5330,7 +6518,7 @@ const showSubmissionConfirmation = async () => {
                         </span>
                         <div>
                           <p className="text-sm font-medium text-gray-900">
-                            {coauthor.user_fname} {coauthor.user_lname}
+                            {coauthor.display_name || `${coauthor.user_fname || ''} ${coauthor.user_lname || ''}`.trim()}
                           </p>
                           <p className="text-xs text-gray-500">
                             {coauthor.email}
@@ -5576,39 +6764,218 @@ const showSubmissionConfirmation = async () => {
                             {index + 1}
                           </td>
                           <td className="border-r border-blue-200 px-3 py-2 text-sm">
-                            <div className="flex items-center gap-2">
-                              <span className="text-gray-700">{funding.fundName || funding.file?.name || 'แนบไฟล์หลักฐาน (Attach File)'}</span>
-                              <label className="cursor-pointer text-blue-500 hover:text-blue-700">
-                                <input
-                                  type="file"
-                                  accept=".pdf"
-                                  onChange={(e) => handleExternalFundingFileChange(funding.clientId, e.target.files[0])}
-                                  className="hidden"
-                                />
-                                <Upload className="h-4 w-4" />
-                              </label>
-                              {funding.file && (
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    const url = URL.createObjectURL(funding.file);
-                                    window.open(url, '_blank');
-                                  }}
-                                  className="text-blue-500 hover:text-blue-700"
-                                  title="ดูไฟล์ (View file)"
-                                >
-                                  <Eye className="h-4 w-4" />
-                                </button>
-                              )}
-                              <button
-                                type="button"
-                                onClick={() => handleRemoveExternalFunding(funding.clientId)}
-                                className="text-red-500 hover:text-red-700 ml-auto"
-                                title="ลบ (Delete)"
-                              >
-                                <X className="h-4 w-4" />
-                              </button>
-                            </div>
+                            {(() => {
+                              const serverDoc = serverExternalFundingFiles.find(
+                                (doc) => {
+                                  if (!doc) return false;
+                                  if (funding.serverDocumentId) {
+                                    if (String(doc.document_id) === String(funding.serverDocumentId)) {
+                                      return true;
+                                    }
+                                  }
+                                  if (doc.funding_client_id && funding.clientId) {
+                                    if (String(doc.funding_client_id) === String(funding.clientId)) {
+                                      return true;
+                                    }
+                                  }
+                                  if (doc.external_funding_id != null && funding.externalFundId != null) {
+                                    return String(doc.external_funding_id) === String(funding.externalFundId);
+                                  }
+                                  return false;
+                                }
+                              );
+                              const uploadInputId = `external-funding-upload-${funding.clientId || index}`;
+                              const fundingPendingReason = funding.serverDocumentPendingRemovalReason || null;
+
+                              const previewNewFile = () => {
+                                if (!funding.file) {
+                                  return;
+                                }
+                                const objectUrl = URL.createObjectURL(funding.file);
+                                const opened = window.open(objectUrl, '_blank', 'noopener,noreferrer');
+                                setTimeout(() => {
+                                  URL.revokeObjectURL(objectUrl);
+                                }, 1500);
+                                if (!opened) {
+                                  Toast.fire({ icon: 'info', title: 'โปรดอนุญาตให้เบราว์เซอร์เปิดหน้าต่างใหม่เพื่อดูไฟล์' });
+                                }
+                              };
+
+                              const effectiveDoc = serverDoc
+                                ? {
+                                    ...serverDoc,
+                                    pendingRemoval: serverDoc.pendingRemoval ?? Boolean(fundingPendingReason),
+                                    pendingRemovalReason:
+                                      serverDoc.pendingRemovalReason ?? fundingPendingReason ?? null,
+                                  }
+                                : {
+                                    document_id: funding.serverDocumentId ?? null,
+                                    file_id: funding.serverFileId ?? null,
+                                    original_name:
+                                      funding.serverFileName || (funding.serverDocumentId ? 'ไฟล์จากระบบ' : null),
+                                    document_type_id: 12,
+                                    document_type_name: 'เอกสารเบิกจ่ายภายนอก',
+                                    pendingRemoval: Boolean(fundingPendingReason && funding.serverDocumentId),
+                                    pendingRemovalReason: fundingPendingReason,
+                                    funding_client_id: funding.clientId ?? null,
+                                  };
+
+                              const hasServerFile = Boolean(
+                                effectiveDoc.document_id ||
+                                effectiveDoc.file_id ||
+                                effectiveDoc.original_name
+                              );
+
+                              const pendingReason = effectiveDoc.pendingRemovalReason ?? null;
+                              const isPendingReplace = pendingReason === 'replace';
+                              const isPendingRemove = pendingReason === 'remove';
+                              const highlightClass = isPendingRemove
+                                ? 'border-red-200 bg-red-50 text-red-700'
+                                : isPendingReplace
+                                  ? 'border-amber-200 bg-amber-50 text-amber-700'
+                                  : 'border-blue-200 bg-blue-50 text-blue-800';
+                              const statusMessage = isPendingReplace
+                                ? 'ไฟล์นี้จะถูกแทนที่เมื่อบันทึก'
+                                : isPendingRemove
+                                  ? 'ไฟล์นี้จะถูกลบเมื่อบันทึก'
+                                  : hasServerFile
+                                    ? 'ไฟล์จากระบบ'
+                                    : 'ยังไม่มีไฟล์จากระบบ';
+                              const replaceLabel = funding.file
+                                ? 'เปลี่ยนไฟล์'
+                                : hasServerFile
+                                  ? 'แทนที่ไฟล์'
+                                  : 'แนบไฟล์';
+
+                              return (
+                                <div className="space-y-3">
+                                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                                    <div className="flex-1">
+                                      <input
+                                        type="text"
+                                        value={funding.fundName}
+                                        onChange={(e) => handleExternalFundingChange(funding.clientId, 'fundName', e.target.value)}
+                                        placeholder="กรอกชื่อทุน (Enter fund name)"
+                                        className="w-full rounded border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+                                      />
+                                      <p className="mt-1 text-xs text-gray-500">
+                                        โปรดระบุชื่อแหล่งทุนและแนบไฟล์หลักฐานเป็น PDF
+                                      </p>
+                                    </div>
+                                    <div className="flex flex-wrap items-center gap-2">
+                                      <label
+                                        htmlFor={uploadInputId}
+                                        className="inline-flex cursor-pointer items-center gap-2 rounded-full border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-700 transition hover:bg-blue-100"
+                                      >
+                                        <input
+                                          id={uploadInputId}
+                                          type="file"
+                                          accept=".pdf"
+                                          onChange={(e) => handleExternalFundingFileChange(funding.clientId, e.target.files?.[0] || null)}
+                                          className="hidden"
+                                        />
+                                        <Upload className="h-4 w-4" />
+                                        <span>{replaceLabel}</span>
+                                      </label>
+                                      {funding.file && (
+                                        <button
+                                          type="button"
+                                          onClick={() => handleClearExternalFundingUpload(funding.clientId)}
+                                          className="inline-flex items-center gap-2 rounded-full border border-gray-300 px-3 py-1.5 text-xs text-gray-600 transition hover:bg-gray-100"
+                                        >
+                                          ลบไฟล์ใหม่
+                                        </button>
+                                      )}
+                                      <button
+                                        type="button"
+                                        onClick={() => handleRemoveExternalFunding(funding.clientId)}
+                                        className="inline-flex items-center gap-1 rounded-full border border-red-200 bg-red-50 px-2.5 py-1 text-xs font-medium text-red-600 transition hover:bg-red-100"
+                                      >
+                                        <X className="h-3.5 w-3.5" />
+                                        <span>ลบรายการ</span>
+                                      </button>
+                                    </div>
+                                  </div>
+
+                                  {funding.file && (
+                                    <div className="flex flex-col gap-2 rounded border border-green-200 bg-green-50 px-3 py-2 text-xs text-green-700 sm:flex-row sm:items-center sm:justify-between">
+                                      <div className="flex items-center gap-2">
+                                        <FileText className="h-3 w-3" />
+                                        <span>{funding.file.name}</span>
+                                        <span className="font-semibold text-green-600">ไฟล์ใหม่ (รออัปโหลด)</span>
+                                      </div>
+                                      <div className="flex items-center gap-2">
+                                        <button
+                                          type="button"
+                                          onClick={previewNewFile}
+                                          className="text-green-600 hover:text-green-800"
+                                        >
+                                          ดูไฟล์
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => handleClearExternalFundingUpload(funding.clientId)}
+                                          className="text-gray-600 hover:text-gray-800"
+                                        >
+                                          ยกเลิกไฟล์ใหม่
+                                        </button>
+                                      </div>
+                                    </div>
+                                  )}
+
+                                  {hasServerFile ? (
+                                    <div className={`flex flex-col gap-2 rounded border px-3 py-2 text-xs sm:flex-row sm:items-center sm:justify-between ${highlightClass}`}>
+                                      <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:gap-3">
+                                        <div className="flex items-center gap-2">
+                                          <FileText className="h-3.5 w-3.5" />
+                                          <span>{effectiveDoc.original_name || effectiveDoc.document_type_name || 'ไฟล์จากระบบ'}</span>
+                                        </div>
+                                        <span className="text-xs font-medium">{statusMessage}</span>
+                                      </div>
+                                      <div className="flex flex-wrap items-center gap-2">
+                                        {effectiveDoc.file_id ? (
+                                          <button
+                                            type="button"
+                                            onClick={() => handleDownloadDocument(effectiveDoc)}
+                                            className="inline-flex items-center gap-1 rounded-full border border-blue-200 bg-white px-3 py-1 text-xs font-medium text-blue-600 transition hover:bg-blue-50"
+                                          >
+                                            <Download className="h-3.5 w-3.5" />
+                                            <span>ดาวน์โหลด</span>
+                                          </button>
+                                        ) : (
+                                          <span className="text-xs text-gray-500">ไม่พบไฟล์ในระบบ</span>
+                                        )}
+                                        {isPendingRemove ? (
+                                          <button
+                                            type="button"
+                                            onClick={() => handleRestoreExternalFundingFile(funding.clientId)}
+                                            className="inline-flex items-center gap-1 rounded-full border border-gray-200 bg-white px-3 py-1 text-xs font-medium text-gray-600 transition hover:bg-gray-50"
+                                          >
+                                            <Undo2 className="h-3.5 w-3.5" />
+                                            <span>ยกเลิก</span>
+                                          </button>
+                                        ) : (
+                                          effectiveDoc.document_id && (
+                                            <button
+                                              type="button"
+                                              onClick={() => handleRemoveExternalFundingFile(funding.clientId)}
+                                              className="inline-flex items-center gap-1 rounded-full border border-red-200 bg-red-50 px-3 py-1 text-xs font-medium text-red-600 transition hover:bg-red-100"
+                                            >
+                                              <Trash2 className="h-3.5 w-3.5" />
+                                              <span>ลบไฟล์เดิม</span>
+                                            </button>
+                                          )
+                                        )}
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <div className="rounded border border-dashed border-gray-300 px-3 py-2 text-xs text-gray-500">
+                                      <span>ยังไม่มีไฟล์จากระบบ</span>
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })()}
                           </td>
                           <td className="px-3 py-2">
                             <input
@@ -5733,70 +7100,177 @@ const showSubmissionConfirmation = async () => {
                 {documentTypes.map((docType) => {
                   // Special handling for "Other documents"
                   if (docType.name === 'เอกสารอื่นๆ') {
+                    const pendingOtherDocs = (serverDocuments || []).filter(
+                      (doc) => doc.document_type_id === parseIntegerOrNull(docType.id)
+                    );
+
                     return (
                       <div key={docType.id} className="border border-gray-200 rounded-lg p-4">
                         <label className="block text-sm font-medium text-gray-700 mb-2">
                           เอกสารอื่นๆ (Other Documents) (ถ้ามี/if any)
                         </label>
-                        
+
+                        {pendingOtherDocs.length > 0 && (
+                          <div className="mb-3 space-y-2">
+                            {pendingOtherDocs.map((doc) => {
+                              const pendingMessage =
+                                doc.pendingRemovalReason === 'replace'
+                                  ? 'ไฟล์นี้จะถูกแทนที่เมื่อบันทึก'
+                                  : 'ไฟล์นี้จะถูกลบเมื่อบันทึก';
+                              return (
+                                <div
+                                  key={doc.document_id}
+                                  className="flex items-center justify-between rounded-lg border border-gray-200 bg-gray-50 p-3"
+                                >
+                                  <div>
+                                    <p className="text-sm font-medium text-gray-700">
+                                      {doc.original_name || doc.document_type_name || 'ไฟล์จากระบบ'}
+                                    </p>
+                                    <p className={`text-xs mt-1 ${doc.pendingRemoval ? 'text-red-600' : 'text-gray-500'}`}>
+                                      {doc.pendingRemoval ? pendingMessage : 'ไฟล์จากระบบ'}
+                                    </p>
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <button
+                                      type="button"
+                                      onClick={() => handleDownloadDocument(doc)}
+                                      className="text-blue-600 hover:text-blue-800"
+                                    >
+                                      ดาวน์โหลด
+                                    </button>
+                                    {doc.pendingRemoval ? (
+                                      <button
+                                        type="button"
+                                        onClick={() => unmarkDocumentRemoval(doc.document_id)}
+                                        className="text-gray-600 hover:text-gray-800"
+                                      >
+                                        ยกเลิก
+                                      </button>
+                                    ) : (
+                                      <button
+                                        type="button"
+                                        onClick={() => markDocumentForRemoval(doc.document_id, 'remove')}
+                                        className="text-red-500 hover:text-red-700"
+                                      >
+                                        ลบ
+                                      </button>
+                                    )}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+
                         <FileUpload
                           onFileSelect={(files) => handleFileUpload('other', files)}
                           accept=".pdf"
                           multiple={true}
                           label="other"
-                        />                   
+                        />
                       </div>
                     );
                   }
                   
                   // Special handling for "เอกสารเบิกจ่ายภายนอก"
-                  if (docType.id === 12) {
+                  if (Number(docType.id) === 12) {
                     return (
                       <div key={docType.id} className="border border-gray-200 rounded-lg p-4">
                         <label className="block text-sm font-medium text-gray-700 mb-2">
                           เอกสารเบิกจ่ายภายนอก (External Funding Documents)
                         </label>
-                        
+
+                        {serverExternalFundingFiles.length > 0 && (
+                          <div className="mb-3 space-y-2">
+                            {serverExternalFundingFiles.map((doc) => {
+                              const pendingMessage =
+                                doc.pendingRemovalReason === 'replace'
+                                  ? 'ไฟล์นี้จะถูกแทนที่เมื่อบันทึก'
+                                  : 'ไฟล์นี้จะถูกลบเมื่อบันทึก';
+                              return (
+                                <div
+                                  key={doc.document_id}
+                                  className="flex items-center justify-between rounded-lg border border-blue-200 bg-blue-50 p-3"
+                                >
+                                  <div>
+                                    <p className="text-sm font-medium text-blue-800">
+                                      {doc.original_name || 'ไฟล์จากระบบ'}
+                                    </p>
+                                    <p className={`text-xs mt-1 ${doc.pendingRemoval ? 'text-red-600' : 'text-blue-600'}`}>
+                                      {doc.pendingRemoval ? pendingMessage : 'ไฟล์จากระบบ'}
+                                    </p>
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <button
+                                      type="button"
+                                      onClick={() => handleDownloadDocument(doc)}
+                                      className="text-blue-600 hover:text-blue-800"
+                                    >
+                                      ดาวน์โหลด
+                                    </button>
+                                    {doc.pendingRemoval ? (
+                                      <button
+                                        type="button"
+                                        onClick={() => handleRestoreExternalFundingFile(doc.funding_client_id)}
+                                        className="text-gray-600 hover:text-gray-800"
+                                      >
+                                        ยกเลิก
+                                      </button>
+                                    ) : (
+                                      <button
+                                        type="button"
+                                        onClick={() => handleRemoveExternalFundingFile(doc.funding_client_id)}
+                                        className="text-red-500 hover:text-red-700"
+                                      >
+                                        ลบ
+                                      </button>
+                                    )}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+
                         {externalFundingFiles && externalFundingFiles.length > 0 ? (
                           <div className="space-y-2">
                             <p className="text-sm font-medium text-gray-600">
                               ไฟล์จากตารางทุนภายนอก ({externalFundingFiles.length} ไฟล์):
                             </p>
-                            {externalFundingFiles.map((doc, index) => {
-                              const funding = externalFundings.find(f => f.clientId === doc.funding_client_id);
-                              return (
-                                <div key={`ext-${doc.funding_client_id}`} className="flex items-center justify-between bg-blue-50 rounded-lg p-2">
-                                  <div className="flex items-center gap-2">
-                                    <FileText className="h-4 w-4 text-blue-600" />
-                                    <div className="flex-1">
-                                      <span className="text-sm text-gray-700">{doc.file.name}</span>
-                                      <span className="text-xs text-gray-500 ml-2">
-                                        {(doc.file.size / 1024 / 1024).toFixed(2)} MB
-                                      </span>
-                                    </div>
-                                  </div>
-                                  <div className="flex gap-2">
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        const url = URL.createObjectURL(doc.file);
-                                        window.open(url, '_blank');
-                                      }}
-                                      className="text-blue-500 hover:text-blue-700"
-                                      title="ดูไฟล์"
-                                    >
-                                      <Eye className="h-4 w-4" />
-                                    </button>
-                                    <span className="text-gray-400" title="ลบผ่านตารางทุนภายนอก">
-                                      <X className="h-4 w-4" />
+                            {externalFundingFiles.map((doc) => (
+                              <div key={`ext-${doc.funding_client_id}`} className="flex items-center justify-between bg-blue-50 rounded-lg p-2">
+                                <div className="flex items-center gap-2">
+                                  <FileText className="h-4 w-4 text-blue-600" />
+                                  <div className="flex-1">
+                                    <span className="text-sm text-gray-700">{doc.file.name}</span>
+                                    <span className="text-xs text-gray-500 ml-2">
+                                      {(doc.file.size / 1024 / 1024).toFixed(2)} MB
                                     </span>
                                   </div>
                                 </div>
-                              );
-                            })}
-                            <p className="text-xs text-gray-500 mt-2">
-                              * หากต้องการลบไฟล์ กรุณาลบจากตารางทุนภายนอก
-                            </p>
+                                <div className="flex gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const url = URL.createObjectURL(doc.file);
+                                      window.open(url, '_blank');
+                                    }}
+                                    className="text-blue-500 hover:text-blue-700"
+                                    title="ดูไฟล์"
+                                  >
+                                    <Eye className="h-4 w-4" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => setExternalFundingFiles((prev) => prev.filter((file) => file !== doc))}
+                                    className="text-red-500 hover:text-red-700"
+                                    title="ลบไฟล์"
+                                  >
+                                    <X className="h-4 w-4" />
+                                  </button>
+                                </div>
+                              </div>
+                            ))}
                           </div>
                         ) : (
                           <div className="text-center py-4 bg-gray-50 rounded-lg">
@@ -5829,7 +7303,15 @@ const showSubmissionConfirmation = async () => {
                     };
                     return translations[docName] || docName;
                   };
-                  
+
+                  const serverDocsForType = (serverDocuments || []).filter(
+                    (doc) => doc.document_type_id === parseIntegerOrNull(docType.id)
+                  );
+                  const primaryServerDoc = serverDocsForType.find((doc) => !doc.pendingRemoval) || serverDocsForType[0] || null;
+                  const remainingServerDocs = primaryServerDoc
+                    ? serverDocsForType.filter((doc) => doc !== primaryServerDoc)
+                    : [];
+
                   // Regular document types
                   return (
                     <div key={docType.id} id={`file-upload-${docType.id}`} className="border border-gray-200 rounded-lg p-4">
@@ -5837,14 +7319,85 @@ const showSubmissionConfirmation = async () => {
                         {getDocumentNameWithEnglish(docType.name)}
                         {docType.required && <span className="text-red-500 ml-1">*</span>}
                       </label>
-                      
+
                       <FileUpload
                         onFileSelect={(files) => handleFileUpload(docType.id, files)}
                         accept=".pdf"
                         multiple={false}
                         error={errors[`file_${docType.id}`]}
                         label={`doc_${docType.id}`}
+                        existingFile={primaryServerDoc}
+                        onDownloadExisting={handleDownloadDocument}
+                        onRemoveExisting={(doc) => markDocumentForRemoval(doc.document_id, 'remove')}
+                        onRestoreExisting={(doc) => unmarkDocumentRemoval(doc.document_id)}
                       />
+
+                      {remainingServerDocs.length > 0 && (
+                        <div className="mt-3 space-y-2">
+                          {remainingServerDocs.map((doc) => {
+                            const pendingReason = doc.pendingRemovalReason || null;
+                            const isPendingReplace = pendingReason === 'replace';
+                            const isPendingRemove = pendingReason === 'remove';
+                            const highlightClass = isPendingRemove
+                              ? 'border-red-200 bg-red-50 text-red-700'
+                              : isPendingReplace
+                                ? 'border-amber-200 bg-amber-50 text-amber-700'
+                                : 'border-blue-200 bg-blue-50 text-blue-800';
+                            const statusMessage = isPendingReplace
+                              ? 'ไฟล์นี้จะถูกแทนที่เมื่อบันทึก'
+                              : isPendingRemove
+                                ? 'ไฟล์นี้จะถูกลบเมื่อบันทึก'
+                                : 'ไฟล์จากระบบ';
+                            return (
+                              <div
+                                key={doc.document_id}
+                                className={`flex flex-col gap-3 rounded-lg border ${highlightClass} p-4`}
+                              >
+                                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                                  <div className="flex items-start gap-3">
+                                    <FileText className="mt-0.5 h-5 w-5 flex-shrink-0" />
+                                    <div>
+                                      <p className="text-sm font-medium">
+                                        {doc.original_name || doc.document_type_name || 'ไฟล์จากระบบ'}
+                                      </p>
+                                      <p className="text-xs font-medium">{statusMessage}</p>
+                                    </div>
+                                  </div>
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <button
+                                      type="button"
+                                      onClick={() => handleDownloadDocument(doc)}
+                                      className="inline-flex items-center gap-1 rounded-full border border-blue-200 bg-white px-3 py-1 text-xs font-medium text-blue-600 transition hover:bg-blue-50"
+                                    >
+                                      <Download className="h-3.5 w-3.5" />
+                                      <span>ดาวน์โหลด</span>
+                                    </button>
+                                    {isPendingRemove ? (
+                                      <button
+                                        type="button"
+                                        onClick={() => unmarkDocumentRemoval(doc.document_id)}
+                                        className="inline-flex items-center gap-1 rounded-full border border-gray-200 bg-white px-3 py-1 text-xs font-medium text-gray-600 transition hover:bg-gray-50"
+                                      >
+                                        <Undo2 className="h-3.5 w-3.5" />
+                                        <span>ยกเลิก</span>
+                                      </button>
+                                    ) : (
+                                      <button
+                                        type="button"
+                                        onClick={() => markDocumentForRemoval(doc.document_id, 'remove')}
+                                        className="inline-flex items-center gap-1 rounded-full border border-red-200 bg-red-50 px-3 py-1 text-xs font-medium text-red-600 transition hover:bg-red-100"
+                                      >
+                                        <Trash2 className="h-3.5 w-3.5" />
+                                        <span>ลบ</span>
+                                      </button>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
                     </div>
                   );
                 })}

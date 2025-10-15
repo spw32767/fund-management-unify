@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { Search, Eye, Download, FileText, ClipboardList, Plus, RefreshCcw } from "lucide-react";
+import { Search, Eye, FileText, ClipboardList, Plus, RefreshCcw } from "lucide-react";
 import { submissionAPI, teacherAPI } from "@/app/lib/member_api";
 import { systemAPI } from "@/app/lib/api";
 import { systemConfigAPI } from "@/app/lib/system_config_api";
@@ -12,6 +12,7 @@ import DataTable from "../common/DataTable";
 import PageLayout from "../common/PageLayout";
 import Card from "../common/Card";
 import EmptyState from "../common/EmptyState";
+import { isApprovedStatus } from "../utils/status";
 
 export default function ApplicationList({ onNavigate }) {
   const [applications, setApplications] = useState([]);
@@ -228,28 +229,7 @@ export default function ApplicationList({ onNavigate }) {
             item._original?.Status?.status_name ||
             "";
 
-          const normalizedId = statusId != null ? Number(statusId) : null;
-          const normalizedCode = statusCode != null ? String(statusCode).toLowerCase() : "";
-          const normalizedName = fallbackName ? fallbackName.toLowerCase() : "";
-
-          const isApprovedLike =
-            normalizedId === 2 ||
-            normalizedCode === "approved" ||
-            normalizedCode === "1" ||
-            normalizedCode === "2" ||
-            normalizedName.includes("อนุมัติ") ||
-            normalizedName.includes("approve");
-
-          const isClosedLike =
-            normalizedCode === "closed" ||
-            normalizedCode === "close" ||
-            normalizedCode === "3" ||
-            normalizedName.includes("ปิดทุน") ||
-            normalizedName.includes("ปิดโครงการ") ||
-            normalizedName.includes("ปิด") ||
-            normalizedName.includes("close");
-
-          return !(isApprovedLike || isClosedLike);
+          return !isApprovedStatus(statusId, statusCode, fallbackName);
         });
 
         if (latestApplicationsRequestRef.current === requestId) {
@@ -493,11 +473,11 @@ export default function ApplicationList({ onNavigate }) {
             {(canEditDraft || canRevise) && (
               <button
                 className="inline-flex items-center gap-1 px-3 py-1 text-sm text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-md transition-colors"
-                title={canRevise ? "แก้ไขและส่งใหม่" : "แก้ไขร่าง"}
+                title={canRevise ? "แก้ไขเพิ่มเติม" : "แก้ไขร่าง"}
                 onClick={() => handleEditSubmission(row)}
               >
                 <FileText size={16} />
-                {canRevise ? 'แก้ไขเพื่อส่งใหม่' : 'แก้ไขร่าง'}
+                {canRevise ? 'แก้ไขเพิ่มเติม' : 'แก้ไขร่าง'}
               </button>
             )}
           </div>
