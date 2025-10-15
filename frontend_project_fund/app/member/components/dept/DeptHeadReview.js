@@ -181,7 +181,18 @@ export default function DeptHeadReview() {
       const detailMap = await fetchDetailsForRows(listRows);
       const normalized = await hydrateRows(listRows, detailMap);
 
-      setRows(normalized);
+      const filtered = (normalized || []).filter((row) => {
+        const label = (row?.status || '').trim();
+        const code = String(row?.status_code || '')
+          .trim()
+          .toLowerCase();
+        if (!label && !code) return true;
+        if (label === 'ร่าง') return false;
+        if (code === 'draft') return false;
+        return true;
+      });
+
+      setRows(filtered);
     } catch (e) {
       setError(e?.message || "ไม่สามารถโหลดรายการคำร้องได้");
       setRows([]);

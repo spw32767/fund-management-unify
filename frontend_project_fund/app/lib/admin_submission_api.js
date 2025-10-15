@@ -390,6 +390,179 @@ const normalizeResearchFundTotals = (totals = {}, fallback = {}) => {
   };
 };
 
+const extractFirstArray = (candidate, depth = 0) => {
+  if (Array.isArray(candidate)) {
+    return candidate;
+  }
+  if (!candidate || typeof candidate !== 'object' || depth > 3) {
+    return null;
+  }
+
+  const nextDepth = depth + 1;
+  const keys = [
+    'documents',
+    'document_list',
+    'files',
+    'items',
+    'results',
+    'data',
+    'rows',
+    'list',
+    'values',
+    'attachments',
+    'users',
+    'submission_users',
+    'records',
+  ];
+
+  for (const key of keys) {
+    if (candidate[key] !== undefined) {
+      const found = extractFirstArray(candidate[key], nextDepth);
+      if (found) {
+        return found;
+      }
+    }
+  }
+
+  return null;
+};
+
+const pickArray = (...candidates) => {
+  for (const candidate of candidates) {
+    const arr = extractFirstArray(candidate, 0);
+    if (arr) {
+      return arr;
+    }
+  }
+  return [];
+};
+
+const extractSubmissionFromPayload = (payload) => {
+  if (!payload || typeof payload !== 'object') {
+    return payload ?? null;
+  }
+  if (payload.submission && typeof payload.submission === 'object') {
+    return payload.submission;
+  }
+  if (
+    payload.data &&
+    typeof payload.data === 'object' &&
+    payload.data.submission &&
+    typeof payload.data.submission === 'object'
+  ) {
+    return payload.data.submission;
+  }
+  if (payload.Submission && typeof payload.Submission === 'object') {
+    return payload.Submission;
+  }
+  return payload;
+};
+
+const deriveFallbackDetails = (submission, detailCandidate) => {
+  const candidate = detailCandidate || submission?.details || submission?.Detail || submission?.detail;
+
+  if (candidate && typeof candidate === 'object') {
+    if ('type' in candidate && 'data' in candidate) {
+      return candidate;
+    }
+
+    const resolvedType = pickFirst(
+      candidate?.type,
+      submission?.submission_type,
+      submission?.SubmissionType
+    );
+
+    if (resolvedType) {
+      const data = candidate?.data !== undefined ? candidate.data : candidate;
+      return { type: resolvedType, data };
+    }
+  }
+
+  const type = pickFirst(submission?.submission_type, submission?.SubmissionType);
+  if (!type) {
+    return null;
+  }
+
+  return { type, data: null };
+};
+
+const buildFallbackSubmissionDetails = async (submissionId) => {
+  let submissionPayload;
+  try {
+    submissionPayload = await apiClient.get(`/submissions/${submissionId}`);
+  } catch (error) {
+    console.error('[adminSubmissionAPI] fallback submission fetch failed', error);
+    throw error;
+  }
+
+  let usersPayload = null;
+  try {
+    usersPayload = await apiClient.get(`/submissions/${submissionId}/users`);
+  } catch (error) {
+    console.warn('[adminSubmissionAPI] fallback users fetch failed', error);
+  }
+
+  let documentsPayload = null;
+  try {
+    documentsPayload = await apiClient.get(`/submissions/${submissionId}/documents`);
+  } catch (error) {
+    console.warn('[adminSubmissionAPI] fallback documents fetch failed', error);
+  }
+
+  const submission = extractSubmissionFromPayload(submissionPayload) || null;
+
+  const submissionUsers = pickArray(
+    submission?.submission_users,
+    submissionPayload?.submission_users,
+    submissionPayload?.users,
+    submissionPayload?.data?.submission_users,
+    submissionPayload?.data?.users,
+    usersPayload?.submission_users,
+    usersPayload?.users,
+    usersPayload?.data,
+    usersPayload?.items,
+    usersPayload?.results,
+    usersPayload
+  );
+
+  const documents = pickArray(
+    submission?.documents,
+    submission?.submission_documents,
+    submissionPayload?.documents,
+    submissionPayload?.data?.documents,
+    submissionPayload?.data?.documents?.data,
+    submissionPayload?.data?.documents?.items,
+    submissionPayload?.data?.documents?.results,
+    documentsPayload?.documents,
+    documentsPayload?.data?.documents,
+    documentsPayload?.data,
+    documentsPayload?.items,
+    documentsPayload?.results,
+    documentsPayload
+  );
+
+  const details = deriveFallbackDetails(
+    submission,
+    submissionPayload?.details && typeof submissionPayload.details === 'object'
+      ? submissionPayload.details
+      : null
+  );
+
+  const normalizedSubmission = submission ? { ...submission } : null;
+  if (normalizedSubmission) {
+    normalizedSubmission.submission_users = submissionUsers;
+    normalizedSubmission.documents = documents;
+  }
+
+  return {
+    submission: normalizedSubmission,
+    submission_users: submissionUsers,
+    documents,
+    details,
+    success: Boolean(normalizedSubmission),
+  };
+};
+
 const normalizeFileUploadRecord = (payload = {}) => {
   if (!payload || typeof payload !== 'object') {
     return null;
@@ -459,7 +632,13 @@ export const adminSubmissionAPI = {
       throw new Error('submissionId is required');
     }
 
-    const primary = await apiClient.get(`/admin/submissions/${submissionId}/details`);
+    let primary;
+    try {
+      primary = await apiClient.get(`/admin/submissions/${submissionId}/details`);
+    } catch (error) {
+      console.warn('[adminSubmissionAPI] primary details fetch failed', error);
+      return buildFallbackSubmissionDetails(submissionId);
+    }
     const payload =
       primary && typeof primary === 'object' && !Array.isArray(primary)
         ? { ...primary }
@@ -516,6 +695,10 @@ export const adminSubmissionAPI = {
       return null;
     })();
 
+    if (!mergedSubmission) {
+      return buildFallbackSubmissionDetails(submissionId);
+    }
+
     if (payload && typeof payload === 'object' && !Array.isArray(payload)) {
       return {
         ...payload,
@@ -554,6 +737,10 @@ export const adminSubmissionAPI = {
     return apiClient.post(`/admin/submissions/${submissionId}/reject`, payload);
   },
 
+  async requestRevision(submissionId, payload = {}) {
+    return apiClient.post(`/admin/submissions/${submissionId}/request-revision`, payload);
+  },
+
   async getUsersByIds(ids = []) {
     if (!ids.length) return { users: [] };
     const res = await apiClient.get('/admin/users', { params: { ids: ids.join(',') } }); // { users: [{user_id, user_fname, user_lname, email}] }
@@ -561,13 +748,58 @@ export const adminSubmissionAPI = {
   },
 
   async getSubmissionDocuments(submissionId, params = {}) {
-    // GET /api/v1/submissions/:id/documents
-    return apiClient.get(`/submissions/${submissionId}/documents`, { params });
+    if (!submissionId) {
+      throw new Error('submissionId is required');
+    }
+
+    const query = params && typeof params === 'object' ? { ...params } : {};
+    let lastError = null;
+
+    try {
+      const result = await apiClient.get(`/submissions/${submissionId}/documents`, query);
+      if (result !== undefined && result !== null) {
+        if (typeof result === 'object' && !Array.isArray(result)) {
+          return { ...result, source: result.source ?? 'general' };
+        }
+        return result;
+      }
+    } catch (error) {
+      lastError = error;
+      console.warn('[adminSubmissionAPI] primary documents fetch failed', error);
+    }
+
+    try {
+      const fallback = await buildFallbackSubmissionDetails(submissionId);
+      const documents = fallback?.documents ?? [];
+      const fallbackSuccessFlag =
+        fallback?.success !== undefined && fallback?.success !== null
+          ? Boolean(fallback.success)
+          : undefined;
+      const hasSubmission = fallback?.submission != null;
+      const successValue =
+        fallbackSuccessFlag !== undefined ? fallbackSuccessFlag : hasSubmission;
+      return {
+        documents,
+        data: { documents },
+        success: Boolean(successValue || documents.length > 0),
+        source: 'fallback',
+        error: lastError ? lastError.message : undefined,
+      };
+    } catch (fallbackError) {
+      console.warn('[adminSubmissionAPI] fallback documents fetch failed', fallbackError);
+      return {
+        documents: [],
+        data: { documents: [] },
+        success: false,
+        source: 'error',
+        error: fallbackError?.message || lastError?.message,
+      };
+    }
   },
 
   async getDocumentTypes(params = {}) {
     // GET /api/v1/document-types   (หรือใช้ /admin/document-types ถ้าอยากดึงทั้งหมดแบบไม่กรอง)
-    return apiClient.get('/document-types', { params });
+    return apiClient.get('/document-types', params);
   },
 
   async getResearchFundEvents(submissionId) {
