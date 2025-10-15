@@ -309,19 +309,82 @@ const buildCoauthorFromSubmissionUser = (entry) => {
     return null;
   }
 
+  const directFirstName = findFirstString([
+    entry.user_fname,
+    entry.user_fname_th,
+    entry.UserFname,
+    entry.UserFName,
+    entry.userFname,
+    entry.userFName,
+    user?.user_fname,
+    user?.user_fname_th,
+    user?.UserFname,
+    user?.UserFName,
+    user?.fname,
+    user?.fname_th,
+    user?.Fname,
+    user?.FnameTh,
+  ]);
+
+  const directLastName = findFirstString([
+    entry.user_lname,
+    entry.user_lname_th,
+    entry.UserLname,
+    entry.UserLName,
+    entry.userLname,
+    entry.userLName,
+    user?.user_lname,
+    user?.user_lname_th,
+    user?.UserLname,
+    user?.UserLName,
+    user?.lname,
+    user?.lname_th,
+    user?.Lname,
+    user?.LnameTh,
+  ]);
+
+  const directDisplayName = findFirstString([
+    entry.display_name,
+    entry.DisplayName,
+    entry.displayName,
+    user?.display_name,
+    user?.DisplayName,
+    user?.displayName,
+    entry.full_name,
+    entry.full_name_th,
+    user?.full_name,
+    user?.full_name_th,
+  ]);
+
   const { firstName, lastName, prefix, displayName } = resolveUserNameParts(user);
 
-  const fallbackCombined = [prefix, firstName, lastName].filter(Boolean).join(' ').trim();
-  const finalDisplayName = displayName || fallbackCombined || firstName || lastName || '';
-  const resolvedFirstName = firstName || finalDisplayName || '';
-  const resolvedLastName = lastName && lastName !== resolvedFirstName ? lastName : '';
-  const composedFirst = [prefix, resolvedFirstName].filter(Boolean).join(' ').trim();
-  const safeFirstName = composedFirst || finalDisplayName || resolvedFirstName;
+  let finalFirstName = directFirstName || firstName || '';
+  let finalLastName = directLastName || lastName || '';
+  const fallbackCombined = [prefix, finalFirstName, finalLastName].filter(Boolean).join(' ').trim();
+  let finalDisplayName = directDisplayName || displayName || fallbackCombined || finalFirstName || finalLastName || '';
+
+  if ((!finalFirstName || !finalLastName) && finalDisplayName) {
+    const segments = finalDisplayName.split(/\s+/).filter(Boolean);
+    if (!finalLastName && segments.length > 1) {
+      finalLastName = segments[segments.length - 1];
+    }
+    if (!finalFirstName && segments.length > 0) {
+      finalFirstName = segments.length > 1 ? segments[segments.length - 2] : segments[0];
+    }
+  }
+
+  if (!finalFirstName && finalDisplayName) {
+    finalFirstName = finalDisplayName;
+  }
+
+  if (!finalDisplayName) {
+    finalDisplayName = [finalFirstName, finalLastName].filter(Boolean).join(' ').trim();
+  }
 
   return {
     user_id: userId,
-    user_fname: safeFirstName,
-    user_lname: resolvedLastName,
+    user_fname: finalFirstName,
+    user_lname: finalLastName,
     email: user?.email ?? entry?.email ?? null,
     display_name: finalDisplayName,
   };
@@ -1160,6 +1223,10 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
   const [fallbackRewardRateMap, setFallbackRewardRateMap] = useState({});
   const [preloadedQuartileConfigs, setPreloadedQuartileConfigs] = useState({});
   const [lockedFundSummary, setLockedFundSummary] = useState(null);
+  const [storedSubcategorySelection, setStoredSubcategorySelection] = useState({
+    subcategory_id: null,
+    subcategory_budget_id: null,
+  });
   const [, setPolicyContext] = useState(null);
 
   // Form data state
@@ -1249,6 +1316,13 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
     reward_announcement: null,
   });
 
+  const editingUnlockedSubmission = Boolean(
+    prefilledSubmissionId &&
+    currentSubmissionStatus &&
+    EDITABLE_STATUS_CODES.has(currentSubmissionStatus) &&
+    !isReadOnly
+  );
+
   const resetForm = useCallback(() => {
     let defaultYearId = lockedBudgetYearId ?? normalizedInitialYearId ?? null;
     if (defaultYearId == null && Array.isArray(years) && years.length > 0) {
@@ -1260,6 +1334,7 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
     setPolicyContext(null);
     setResolvedSubcategoryName(null);
     setLockedFundSummary(null);
+    setStoredSubcategorySelection({ subcategory_id: null, subcategory_budget_id: null });
     setResolutionError('');
     setAvailableQuartiles([]);
     setCurrentSubmissionStatus(null);
@@ -1619,8 +1694,7 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
   ]);
 
   useEffect(() => {
-    const editingDraft = prefilledSubmissionId && currentSubmissionStatus === 'draft' && !isReadOnly;
-    if (!editingDraft) {
+    if (!editingUnlockedSubmission) {
       return;
     }
 
@@ -1634,12 +1708,7 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
       }
       return selectedFundSummary ? { ...selectedFundSummary } : prev;
     });
-  }, [
-    prefilledSubmissionId,
-    currentSubmissionStatus,
-    isReadOnly,
-    selectedFundSummary,
-  ]);
+  }, [editingUnlockedSubmission, selectedFundSummary]);
 
   const budgetYearText = useMemo(() => {
     const normalizeYearLabel = (value) => {
@@ -1884,6 +1953,13 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
 
         const indexingFlags = parseIndexingFlags(detail.indexing ?? detail.Indexing ?? '');
 
+        const payloadSubcategoryId = parseIntegerOrNull(
+          payload.subcategory_id ?? detail.subcategory_id ?? null
+        );
+        const payloadSubcategoryBudgetId = parseIntegerOrNull(
+          payload.subcategory_budget_id ?? detail.subcategory_budget_id ?? null
+        );
+
         setFormData((prev) => {
           const { year: resolvedYear, month: resolvedMonth } = parsePublicationDateParts(
             detail.publication_date ?? detail.PublicationDate,
@@ -1932,9 +2008,9 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
             ...prev,
             year_id: nextYearId,
             category_id: payload.category_id ?? prev.category_id ?? categoryId ?? null,
-            subcategory_id: payload.subcategory_id ?? detail.subcategory_id ?? prev.subcategory_id,
+            subcategory_id: payloadSubcategoryId ?? prev.subcategory_id,
             subcategory_budget_id:
-              payload.subcategory_budget_id ?? detail.subcategory_budget_id ?? prev.subcategory_budget_id,
+              payloadSubcategoryBudgetId ?? prev.subcategory_budget_id,
             author_status: authorStatus || '',
             journal_quartile: normalizedQuartile,
             article_title: detail.paper_title ?? detail.article_title ?? prev.article_title ?? '',
@@ -1965,6 +2041,11 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
             bank_account: payload.bank_account ?? prev.bank_account ?? '',
             bank_name: payload.bank_name ?? prev.bank_name ?? '',
           };
+        });
+
+        setStoredSubcategorySelection({
+          subcategory_id: payloadSubcategoryId,
+          subcategory_budget_id: payloadSubcategoryBudgetId,
         });
 
         if (payload.year_id != null) {
@@ -2218,7 +2299,7 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
       const currentYearId = formData.year_id;
       const previousYearId = previousYearRef.current;
       const hydrating = hydratingRef.current;
-      const editingDraft = prefilledSubmissionId && currentSubmissionStatus === 'draft' && !isReadOnly;
+      const editingUnlocked = editingUnlockedSubmission;
 
       try {
         const { pairs, rateMap, budgetMap } = await getEnabledAuthorStatusQuartiles({
@@ -2245,7 +2326,7 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
         previousYearRef.current = currentYearId;
 
         if (!hydrating) {
-          if (!editingDraft && yearChanged) {
+          if (!editingUnlocked && yearChanged) {
             setAvailableQuartiles([]);
             setFormData((prev) => ({
               ...prev,
@@ -2258,12 +2339,13 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
             }));
             setPolicyContext(null);
             setResolvedSubcategoryName(null);
-          } else if (!editingDraft && !formData.author_status) {
+            setStoredSubcategorySelection({ subcategory_id: null, subcategory_budget_id: null });
+          } else if (!editingUnlocked && !formData.author_status) {
             setAvailableQuartiles([]);
           }
         }
 
-        setResolutionError(editingDraft ? '' : (pairs.length === 0 ? 'ไม่พบทุนสำหรับปี/สถานะ/ควอร์ไทล์ที่เลือก' : ''));
+        setResolutionError(editingUnlocked ? '' : (pairs.length === 0 ? 'ไม่พบทุนสำหรับปี/สถานะ/ควอร์ไทล์ที่เลือก' : ''));
       } catch (error) {
         console.error('Failed to resolve author status/quartile pairs:', error);
         setEnabledPairs([]);
@@ -2272,7 +2354,7 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
         setAvailableAuthorStatuses([]);
         if (!hydrating) {
           setAvailableQuartiles([]);
-          if (!editingDraft) {
+          if (!editingUnlocked) {
             setFormData((prev) => ({
               ...prev,
               author_status: '',
@@ -2284,9 +2366,10 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
             }));
             setPolicyContext(null);
             setResolvedSubcategoryName(null);
+            setStoredSubcategorySelection({ subcategory_id: null, subcategory_budget_id: null });
           }
         }
-        setResolutionError(editingDraft ? '' : 'ไม่สามารถตรวจสอบทุนได้');
+        setResolutionError(editingUnlocked ? '' : 'ไม่สามารถตรวจสอบทุนได้');
       }
     };
 
@@ -2298,6 +2381,7 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
     prefilledSubmissionId,
     currentSubmissionStatus,
     isReadOnly,
+    editingUnlockedSubmission,
     formData.author_status,
   ]);
 
@@ -2320,6 +2404,7 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
         }));
         setPolicyContext(null);
         setResolvedSubcategoryName(null);
+        setStoredSubcategorySelection({ subcategory_id: null, subcategory_budget_id: null });
       }
       setResolutionError('');
       previousAuthorStatusRef.current = '';
@@ -2346,9 +2431,10 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
       }));
       setPolicyContext(null);
       setResolvedSubcategoryName(null);
+      setStoredSubcategorySelection({ subcategory_id: null, subcategory_budget_id: null });
     }
 
-    if (prefilledSubmissionId && currentSubmissionStatus === 'draft' && !isReadOnly) {
+    if (editingUnlockedSubmission) {
       setResolutionError('');
     } else if (sorted.length === 0) {
       setResolutionError('ไม่พบทุนสำหรับปี/สถานะ/ควอร์ไทล์ที่เลือก');
@@ -2364,6 +2450,7 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
     prefilledSubmissionId,
     currentSubmissionStatus,
     isReadOnly,
+    editingUnlockedSubmission,
   ]);
 
   // Resolve mapping when author status or quartile changes
@@ -2397,15 +2484,19 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
             ]);
             setResolvedSubcategoryName(resolvedName);
             setPolicyContext(normalizedPolicy);
-          if (!(prefilledSubmissionId && currentSubmissionStatus === 'draft' && !isReadOnly)) {
-            setFormData(prev => ({
-              ...prev,
-              subcategory_id: resolvedSubcategoryId,
-              subcategory_budget_id: resolvedBudgetId,
-              publication_reward: resolvedReward ?? fallbackReward,
-              reward_amount: resolvedReward ?? fallbackReward,
-            }));
-          }
+            setStoredSubcategorySelection({
+              subcategory_id: resolvedSubcategoryId ?? null,
+              subcategory_budget_id: resolvedBudgetId ?? null,
+            });
+            if (!editingUnlockedSubmission) {
+              setFormData(prev => ({
+                ...prev,
+                subcategory_id: resolvedSubcategoryId,
+                subcategory_budget_id: resolvedBudgetId,
+                publication_reward: resolvedReward ?? fallbackReward,
+                reward_amount: resolvedReward ?? fallbackReward,
+              }));
+            }
             const warningMessages = [];
             const userRemainingGrants = normalizedPolicy?.user_remaining?.grants;
             if (userRemainingGrants === 0) {
@@ -2440,35 +2531,37 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
 
             setResolutionError('');
           } else {
-          setResolvedSubcategoryName(null);
-          if (!(prefilledSubmissionId && currentSubmissionStatus === 'draft' && !isReadOnly)) {
-            setFormData(prev => ({
-              ...prev,
-              subcategory_id: null,
-              subcategory_budget_id: null,
-              publication_reward: 0,
-              reward_amount: 0,
-            }));
-          }
-          if (prefilledSubmissionId && currentSubmissionStatus === 'draft' && !isReadOnly) {
-            setResolutionError('');
-          } else {
-            setResolutionError('ไม่พบทุนสำหรับปี/สถานะ/ควอร์ไทล์ที่เลือก');
-          }
-          setPolicyContext(null);
-          policyWarningRef.current.lastShownKey = null;
+            setResolvedSubcategoryName(null);
+            if (!editingUnlockedSubmission) {
+              setFormData(prev => ({
+                ...prev,
+                subcategory_id: null,
+                subcategory_budget_id: null,
+                publication_reward: 0,
+                reward_amount: 0,
+              }));
+              setStoredSubcategorySelection({ subcategory_id: null, subcategory_budget_id: null });
+            }
+            if (editingUnlockedSubmission) {
+              setResolutionError('');
+            } else {
+              setResolutionError('ไม่พบทุนสำหรับปี/สถานะ/ควอร์ไทล์ที่เลือก');
+            }
+            setPolicyContext(null);
+            policyWarningRef.current.lastShownKey = null;
           }
         } catch (error) {
           console.error('resolveBudgetAndSubcategory error:', error);
           setResolvedSubcategoryName(null);
-          if (!(prefilledSubmissionId && currentSubmissionStatus === 'draft' && !isReadOnly)) {
+          if (!editingUnlockedSubmission) {
             setFormData(prev => ({
               ...prev,
               subcategory_id: null,
               subcategory_budget_id: null
             }));
+            setStoredSubcategorySelection({ subcategory_id: null, subcategory_budget_id: null });
           }
-          if (prefilledSubmissionId && currentSubmissionStatus === 'draft' && !isReadOnly) {
+          if (editingUnlockedSubmission) {
             setResolutionError('');
           } else {
             setResolutionError('ไม่สามารถตรวจสอบทุนได้');
@@ -2489,6 +2582,7 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
     prefilledSubmissionId,
     currentSubmissionStatus,
     isReadOnly,
+    editingUnlockedSubmission,
   ]);
 
   // Update fee limits when quartile changes
@@ -4731,10 +4825,26 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
   const validateAdditionalRules = async () => {
     const errorList = [];
     let resolutionMessage = '';
-    const lockedDraft = Boolean(prefilledSubmissionId && currentSubmissionStatus === 'draft' && !isReadOnly);
+    const lockedEditable = editingUnlockedSubmission;
+    const optionKey = formData.author_status && formData.journal_quartile
+      ? `${formData.author_status}|${formData.journal_quartile}`
+      : null;
+    const optionContext = optionKey ? budgetOptionMap[optionKey] : null;
+    const effectiveSubcategoryId = parseIntegerOrNull(
+      formData.subcategory_id ??
+      storedSubcategorySelection.subcategory_id ??
+      optionContext?.subcategory_id ??
+      null
+    );
+    const effectiveBudgetId = parseIntegerOrNull(
+      formData.subcategory_budget_id ??
+      storedSubcategorySelection.subcategory_budget_id ??
+      optionContext?.subcategory_budget_id ??
+      null
+    );
 
-    if (!lockedDraft && formData.author_status && formData.journal_quartile) {
-      if (!formData.subcategory_id || !formData.subcategory_budget_id) {
+    if (!lockedEditable && formData.author_status && formData.journal_quartile) {
+      if (!effectiveSubcategoryId || !effectiveBudgetId) {
         resolutionMessage = resolutionError || 'ไม่พบทุนสำหรับปี/สถานะ/ควอร์ไทล์ที่เลือก';
       } else if (resolutionError && resolutionError.length > 0) {
         resolutionMessage = resolutionError;
@@ -4776,7 +4886,7 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
       }
     }
 
-    setResolutionError(lockedDraft ? '' : resolutionMessage);
+    setResolutionError(lockedEditable ? '' : resolutionMessage);
     setFeeError(feesMessage);
 
     return {
@@ -4814,12 +4924,18 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
         : null;
       const optionContext = optionKey ? budgetOptionMap[optionKey] : null;
 
-      const submissionSubcategoryId = formData.subcategory_id
-        ?? optionContext?.subcategory_id
-        ?? null;
-      const submissionSubcategoryBudgetId = formData.subcategory_budget_id
-        ?? optionContext?.subcategory_budget_id
-        ?? null;
+      const submissionSubcategoryId = parseIntegerOrNull(
+        formData.subcategory_id ??
+        storedSubcategorySelection.subcategory_id ??
+        optionContext?.subcategory_id ??
+        null
+      );
+      const submissionSubcategoryBudgetId = parseIntegerOrNull(
+        formData.subcategory_budget_id ??
+        storedSubcategorySelection.subcategory_budget_id ??
+        optionContext?.subcategory_budget_id ??
+        null
+      );
 
       let submissionId = currentSubmissionId;
 
@@ -5467,8 +5583,18 @@ const showSubmissionConfirmation = async () => {
           ? `${formData.author_status}|${formData.journal_quartile}`
           : null;
         const optionContext = optionKey ? budgetOptionMap[optionKey] : null;
-        const submissionSubcategoryId = formData.subcategory_id ?? optionContext?.subcategory_id ?? null;
-        const submissionSubcategoryBudgetId = formData.subcategory_budget_id ?? optionContext?.subcategory_budget_id ?? null;
+        const submissionSubcategoryId = parseIntegerOrNull(
+          formData.subcategory_id ??
+          storedSubcategorySelection.subcategory_id ??
+          optionContext?.subcategory_id ??
+          null
+        );
+        const submissionSubcategoryBudgetId = parseIntegerOrNull(
+          formData.subcategory_budget_id ??
+          storedSubcategorySelection.subcategory_budget_id ??
+          optionContext?.subcategory_budget_id ??
+          null
+        );
 
         if (!submissionSubcategoryId || !submissionSubcategoryBudgetId) {
           throw new Error('ไม่พบข้อมูลหมวดทุนสำหรับการสร้างคำร้อง');
@@ -5884,7 +6010,7 @@ const showSubmissionConfirmation = async () => {
   // =================================================================
 
   const editingExistingSubmission = Boolean(prefilledSubmissionId);
-  const draftLockedSelections = editingExistingSubmission && currentSubmissionStatus === 'draft' && !isReadOnly;
+  const draftLockedSelections = editingUnlockedSubmission;
   const selectedFundName = selectedFundSummary?.name || '';
   const selectedFundDescription = selectedFundSummary?.description || '';
   const selectedFundDetail = selectedFundSummary?.detail || '';
