@@ -1751,11 +1751,8 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
 
         const resolvedLabel = findFirstString([
           option?.author_status_label,
-          option?.fund_name,
-          option?.fund_title,
-          option?.fund_description,
-          option?.subcategory_name,
-          option?.subcategory_name_th,
+          option?.author_status_name,
+          option?.author_status_display,
           AUTHOR_STATUS_MAP[status],
           status,
         ]);
@@ -1768,9 +1765,6 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
 
     if (formData.author_status && !labelMap[formData.author_status]) {
       const fallbackLabel = findFirstString([
-        lockedFundSummary?.description,
-        lockedFundSummary?.name,
-        lockedFundSummary?.detail,
         AUTHOR_STATUS_MAP[formData.author_status],
         formData.author_status,
       ]);
@@ -1781,7 +1775,7 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
     }
 
     return labelMap;
-  }, [budgetOptionMap, lockedFundSummary, formData.author_status]);
+  }, [budgetOptionMap, formData.author_status]);
 
   const authorStatusOptions = useMemo(() => {
     const seen = new Set();
@@ -1801,8 +1795,27 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
       pushOption(formData.author_status);
     }
 
-    return options;
-  }, [availableAuthorStatuses, authorStatusLabelMap, formData.author_status]);
+    const editingExistingSubmission = Boolean(prefilledSubmissionId);
+    if (!editingExistingSubmission) {
+      return options;
+    }
+
+    const allowedStatuses = new Set(['first_author', 'corresponding_author']);
+    const filteredOptions = options.filter((option) => allowedStatuses.has(option.value));
+
+    if (
+      formData.author_status &&
+      !allowedStatuses.has(formData.author_status) &&
+      !filteredOptions.some((option) => option.value === formData.author_status)
+    ) {
+      const existingOption = options.find((option) => option.value === formData.author_status);
+      if (existingOption) {
+        filteredOptions.unshift(existingOption);
+      }
+    }
+
+    return filteredOptions;
+  }, [availableAuthorStatuses, authorStatusLabelMap, formData.author_status, prefilledSubmissionId]);
 
   useEffect(() => {
     const editingDraft = prefilledSubmissionId && currentSubmissionStatus === 'draft' && !isReadOnly;
