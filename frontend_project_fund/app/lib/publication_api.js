@@ -306,6 +306,24 @@ export const documentAPI = {
       console.error('Error attaching document:', error);
       throw error;
     }
+  },
+
+  async getSubmissionDocuments(submissionId) {
+    try {
+      return await apiClient.get(`/submissions/${submissionId}/documents`);
+    } catch (error) {
+      console.error('Error fetching submission documents:', error);
+      throw error;
+    }
+  },
+
+  async detachDocument(submissionId, documentId) {
+    try {
+      return await apiClient.delete(`/submissions/${submissionId}/documents/${documentId}`);
+    } catch (error) {
+      console.error('Error detaching document:', error);
+      throw error;
+    }
   }
 };
 
