@@ -1,7 +1,7 @@
 // app/admin/submissions/components/SubmissionFilters.js
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { adminAPI } from '../../../lib/admin_api';
 import { useStatusMap } from '@/app/hooks/useStatusMap';
 
@@ -10,6 +10,20 @@ export default function SubmissionFilters({ filters, onFilterChange, onSearch, s
   const [subcategories, setSubcategories] = useState([]);
   const [searchTerm, setSearchTerm] = useState(filters.search || '');
   const { statuses, isLoading: statusLoading, getLabelById } = useStatusMap();
+
+  const statusOptions = useMemo(() => {
+    if (!Array.isArray(statuses)) return [];
+    return statuses.filter((status) => {
+      const name = (status?.status_name || status?.StatusName || '').trim();
+      const code = String(status?.status_code || status?.StatusCode || '')
+        .trim()
+        .toLowerCase();
+      if (!name && !code) return true;
+      if (name === 'ร่าง') return false;
+      if (code === 'draft') return false;
+      return true;
+    });
+  }, [statuses]);
 
   // Fetch categories whenever year changes
   useEffect(() => {
@@ -261,11 +275,10 @@ export default function SubmissionFilters({ filters, onFilterChange, onSearch, s
             value={filters.status}
             onChange={(e) => handleChange('status', e.target.value)}
             className="block w-full pl-3 pr-10 py-2 text-base border border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md bg-white"
-            disabled={statusLoading && !statuses}
+            disabled={statusLoading && statusOptions.length === 0}
           >
             <option value="">ทั้งหมด</option>
-            {Array.isArray(statuses) &&
-              statuses.map((status) => (
+            {statusOptions.map((status) => (
                 <option
                   key={status.application_status_id}
                   value={status.application_status_id}

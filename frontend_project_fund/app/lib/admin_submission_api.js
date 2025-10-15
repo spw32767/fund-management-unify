@@ -748,8 +748,53 @@ export const adminSubmissionAPI = {
   },
 
   async getSubmissionDocuments(submissionId, params = {}) {
-    // GET /api/v1/submissions/:id/documents
-    return apiClient.get(`/submissions/${submissionId}/documents`, { params });
+    if (!submissionId) {
+      throw new Error('submissionId is required');
+    }
+
+    const query = params && typeof params === 'object' ? { ...params } : {};
+    let lastError = null;
+
+    try {
+      const result = await apiClient.get(`/submissions/${submissionId}/documents`, query);
+      if (result !== undefined && result !== null) {
+        if (typeof result === 'object' && !Array.isArray(result)) {
+          return { ...result, source: result.source ?? 'general' };
+        }
+        return result;
+      }
+    } catch (error) {
+      lastError = error;
+      console.warn('[adminSubmissionAPI] primary documents fetch failed', error);
+    }
+
+    try {
+      const fallback = await buildFallbackSubmissionDetails(submissionId);
+      const documents = fallback?.documents ?? [];
+      const fallbackSuccessFlag =
+        fallback?.success !== undefined && fallback?.success !== null
+          ? Boolean(fallback.success)
+          : undefined;
+      const hasSubmission = fallback?.submission != null;
+      const successValue =
+        fallbackSuccessFlag !== undefined ? fallbackSuccessFlag : hasSubmission;
+      return {
+        documents,
+        data: { documents },
+        success: Boolean(successValue || documents.length > 0),
+        source: 'fallback',
+        error: lastError ? lastError.message : undefined,
+      };
+    } catch (fallbackError) {
+      console.warn('[adminSubmissionAPI] fallback documents fetch failed', fallbackError);
+      return {
+        documents: [],
+        data: { documents: [] },
+        success: false,
+        source: 'error',
+        error: fallbackError?.message || lastError?.message,
+      };
+    }
   },
 
   async getDocumentTypes(params = {}) {

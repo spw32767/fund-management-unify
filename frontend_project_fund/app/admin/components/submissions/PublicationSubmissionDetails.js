@@ -436,7 +436,7 @@ function ReadonlyMoney({ value, aria }) {
 /* =========================
  * Approval Panel (admin-only)
  * ========================= */
-function ApprovalPanel({ submission, pubDetail, requestedSummary, approvedSummary, onApprove, onReject }) {
+function ApprovalPanel({ submission, pubDetail, requestedSummary, approvedSummary, onApprove, onReject, onRequestRevision }) {
   const statusId = Number(submission?.status_id);
   const approvable = statusId === 1; // อยู่ระหว่างการพิจารณา
   if (!approvable) {
@@ -574,6 +574,8 @@ function ApprovalPanel({ submission, pubDetail, requestedSummary, approvedSummar
       ''
   );
   const [saving, setSaving] = useState(false);
+  const [selectedDecision, setSelectedDecision] = useState('approve');
+  const [decisionPending, setDecisionPending] = useState(false);
   const [errors, setErrors] = useState({});
 
   // ซ่อน 2 ฟิลด์เมื่อไม่พบเพดาน
@@ -776,7 +778,7 @@ function ApprovalPanel({ submission, pubDetail, requestedSummary, approvedSummar
 
   // ยืนยันอนุมัติ
   const confirmApprove = async () => {
-    if (!validate()) return;
+    if (!validate()) return false;
 
     const capHint =
       typeof feeCap === 'number' && feeCap > 0
@@ -893,7 +895,10 @@ function ApprovalPanel({ submission, pubDetail, requestedSummary, approvedSummar
         timer: 1400,
         showConfirmButton: false,
       });
+      return true;
     }
+
+    return false;
   };
 
   // ยืนยันไม่อนุมัติ
@@ -908,7 +913,7 @@ function ApprovalPanel({ submission, pubDetail, requestedSummary, approvedSummar
       cancelButtonText: 'ยกเลิก',
       inputValidator: (value) => (!value?.trim() ? 'กรุณาระบุเหตุผล' : undefined),
     });
-    if (!reason) return;
+    if (!reason) return false;
 
     const trimmedReason = String(reason).trim();
 
@@ -965,6 +970,97 @@ function ApprovalPanel({ submission, pubDetail, requestedSummary, approvedSummar
         timer: 1200,
         showConfirmButton: false,
       });
+      return true;
+    }
+
+    return false;
+  };
+
+  const confirmRequestRevision = async () => {
+    if (typeof onRequestRevision !== 'function') {
+      return false;
+    }
+
+    const { value: message } = await Swal.fire({
+      title: 'ข้อมูลเพิ่มเติมที่ต้องการ',
+      input: 'textarea',
+      inputPlaceholder: 'โปรดระบุรายละเอียดข้อมูลที่ต้องการเพิ่มเติม...',
+      inputAttributes: { 'aria-label': 'รายละเอียดข้อมูลเพิ่มเติม' },
+      showCancelButton: true,
+      confirmButtonText: 'ถัดไป',
+      cancelButtonText: 'ยกเลิก',
+      inputValidator: (value) => (!value?.trim() ? 'กรุณาระบุรายละเอียด' : undefined),
+    });
+
+    if (!message) {
+      return false;
+    }
+
+    const trimmed = message.trim();
+
+    const result = await Swal.fire({
+      title: 'ยืนยันการขอข้อมูลเพิ่มเติม',
+      html: `
+        <div style="text-align:left;font-size:14px;line-height:1.6;display:grid;row-gap:.6rem;">
+          <div>
+            <div style="font-weight:500;margin-bottom:.35rem;">รายละเอียดที่ต้องการเพิ่มเติม</div>
+            <div style="border:1px solid #e5e7eb;background:#f9fafb;padding:.75rem;border-radius:.5rem;white-space:pre-wrap;">${escapeHtml(trimmed)}</div>
+          </div>
+          <p style="font-size:12px;color:#6b7280;">ระบบจะบันทึกคำขอข้อมูลเพิ่มเติมและแจ้งผู้ยื่นคำร้อง</p>
+        </div>
+      `,
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonText: 'บันทึกคำขอ',
+      cancelButtonText: 'ยกเลิก',
+      focusConfirm: false,
+      showLoaderOnConfirm: true,
+      allowOutsideClick: () => !Swal.isLoading(),
+      preConfirm: async () => {
+        try {
+          setSaving(true);
+          await onRequestRevision({ message: trimmed });
+        } catch (e) {
+          Swal.showValidationMessage(e?.message || 'ส่งคำขอไม่สำเร็จ');
+          throw e;
+        } finally {
+          setSaving(false);
+        }
+      },
+    });
+
+    if (result.isConfirmed) {
+      await Swal.fire({
+        icon: 'success',
+        title: 'ส่งคำขอแล้ว',
+        timer: 1400,
+        showConfirmButton: false,
+      });
+      return true;
+    }
+
+    return false;
+  };
+
+  const handleDecisionSubmit = async () => {
+    if (decisionPending || saving) return;
+
+    setDecisionPending(true);
+    try {
+      let completed = false;
+      if (selectedDecision === 'approve') {
+        completed = await confirmApprove();
+      } else if (selectedDecision === 'reject') {
+        completed = await confirmReject();
+      } else if (selectedDecision === 'revision') {
+        completed = await confirmRequestRevision();
+      }
+
+      if (completed) {
+        setSelectedDecision('approve');
+      }
+    } finally {
+      setDecisionPending(false);
     }
   };
 
@@ -1125,22 +1221,30 @@ function ApprovalPanel({ submission, pubDetail, requestedSummary, approvedSummar
         </div>
 
         {/* Actions */}
-        <div className="flex items-center gap-3 pt-2">
+        <div className="flex flex-col md:flex-row md:items-center gap-3 pt-2">
+          <div className="flex items-center gap-2">
+            <label className="text-sm font-medium text-gray-700">ดำเนินการ</label>
+            <select
+              className="select select-bordered select-sm md:select-md"
+              value={selectedDecision}
+              onChange={(e) => setSelectedDecision(e.target.value)}
+              disabled={saving || decisionPending}
+            >
+              <option value="approve">อนุมัติ</option>
+              <option value="reject">ไม่อนุมัติ</option>
+              <option value="revision">ต้องการข้อมูลเพิ่มเติม</option>
+            </select>
+          </div>
           <button
-            className="btn btn-success inline-flex items-center gap-2 disabled:opacity-60"
-            onClick={confirmApprove}
-            disabled={saving}
+            className="btn btn-primary inline-flex items-center gap-2 disabled:opacity-60"
+            onClick={handleDecisionSubmit}
+            disabled={saving || decisionPending}
           >
-            <Check size={18} /> อนุมัติ
+            <Check size={18} /> บันทึกผล
           </button>
-          <button
-            className="btn btn-danger inline-flex items-center gap-2 disabled:opacity-60"
-            onClick={confirmReject}
-            disabled={saving}
-          >
-            <XIcon size={18} /> ไม่อนุมัติ
-          </button>
-          {saving && <span className="text-sm text-gray-500">กำลังดำเนินการ...</span>}
+          {(saving || decisionPending) && (
+            <span className="text-sm text-gray-500">กำลังดำเนินการ...</span>
+          )}
         </div>
       </div>
     </Card>
@@ -1678,6 +1782,28 @@ export default function PublicationSubmissionDetails({ submissionId, onBack }) {
   const reject = async (reason) => {
     await adminSubmissionAPI.rejectSubmission(submission.submission_id, { rejection_reason: reason });
     // reload
+    const res = await adminSubmissionAPI.getSubmissionDetails(submission.submission_id);
+    let data = res?.submission || res;
+    if (res?.submission_users) data.submission_users = res.submission_users;
+    if (res?.documents) data.documents = res.documents;
+    if (res?.details?.type === 'publication_reward' && res.details.data) {
+      data.PublicationRewardDetail = res.details.data;
+    }
+    setSubmission(data);
+  };
+
+  const requestRevision = async ({ message }) => {
+    const payload = {};
+    const trimmed = message?.trim();
+    if (trimmed) {
+      payload.comment = trimmed;
+      payload.request_comment = trimmed;
+      payload.revision_comment = trimmed;
+      payload.reason = trimmed;
+    }
+
+    await adminSubmissionAPI.requestRevision(submission.submission_id, payload);
+
     const res = await adminSubmissionAPI.getSubmissionDetails(submission.submission_id);
     let data = res?.submission || res;
     if (res?.submission_users) data.submission_users = res.submission_users;
@@ -2251,11 +2377,12 @@ export default function PublicationSubmissionDetails({ submissionId, onBack }) {
           <ApprovalPanel
             submission={submission}
             pubDetail={pubDetail}
-            requestedSummary={requestedSummary}
-            approvedSummary={approvedSummary}
-            onApprove={approve}
-            onReject={reject}
-          />
+          requestedSummary={requestedSummary}
+          approvedSummary={approvedSummary}
+          onApprove={approve}
+          onReject={reject}
+          onRequestRevision={requestRevision}
+        />
         </div>
       )}
 

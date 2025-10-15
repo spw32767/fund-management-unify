@@ -229,13 +229,61 @@ export const deptHeadAPI = {
   async getSubmissionDocuments(submissionId, params = {}) {
     if (!submissionId) throw new Error('submission id is required');
 
-    try {
-      return await apiClient.get(`/dept-head/submissions/${submissionId}/documents`, params);
-    } catch (error) {
-      if (error?.status === 404 || error?.status === 403 || String(error?.status) === '404' || String(error?.status) === '403') {
-        return apiClient.get(`/submissions/${submissionId}/documents`, params);
+    const query = params && typeof params === 'object' ? { ...params } : {};
+    let lastError = null;
+
+    const attempts = [
+      {
+        path: `/dept-head/submissions/${submissionId}/documents`,
+        label: 'dept-head',
+      },
+      {
+        path: `/submissions/${submissionId}/documents`,
+        label: 'general',
+      },
+    ];
+
+    for (const attempt of attempts) {
+      try {
+        const result = await apiClient.get(attempt.path, query);
+        if (result !== undefined && result !== null) {
+          if (typeof result === 'object' && !Array.isArray(result)) {
+            return { ...result, source: result.source ?? attempt.label };
+          }
+          return result;
+        }
+      } catch (error) {
+        lastError = error;
+        console.warn(`[deptHeadAPI] ${attempt.label} documents fetch failed`, error);
       }
-      throw error;
+    }
+
+    try {
+      const fallback = await buildFallbackSubmissionDetails(submissionId);
+      const documents = fallback?.documents ?? [];
+      const fallbackSuccessFlag =
+        fallback?.success !== undefined && fallback?.success !== null
+          ? Boolean(fallback.success)
+          : undefined;
+      const hasSubmission = fallback?.submission != null;
+      const successValue =
+        fallbackSuccessFlag !== undefined ? fallbackSuccessFlag : hasSubmission;
+      return {
+        documents,
+        data: { documents },
+        success: Boolean(successValue || documents.length > 0),
+        source: 'fallback',
+        error: lastError ? lastError.message : undefined,
+      };
+    } catch (fallbackError) {
+      console.warn('[deptHeadAPI] fallback documents via submission details failed', fallbackError);
+      return {
+        documents: [],
+        data: { documents: [] },
+        success: false,
+        source: 'error',
+        error: fallbackError?.message || lastError?.message,
+      };
     }
   },
 

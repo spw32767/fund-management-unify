@@ -314,7 +314,7 @@ const resolveApprovedAmount = (submission, fundDetail, fallback = null) => {
 /* =========================
  * Approval Panel
  * ========================= */
-function FundApprovalPanel({ submission, fundDetail, onApprove, onReject }) {
+function FundApprovalPanel({ submission, fundDetail, onApprove, onReject, onRequestRevision }) {
   const statusId = Number(submission?.status_id);
   const requested = Number(fundDetail?.requested_amount || 0);
 
@@ -340,6 +340,15 @@ function FundApprovalPanel({ submission, fundDetail, onApprove, onReject }) {
     submission?.admin_comment ?? submission?.comment ?? ''
   );
   const [errors, setErrors] = React.useState({});
+
+  const escapeHtml = (value = '') =>
+    String(value)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+
+  const [selectedAction, setSelectedAction] = React.useState('approve');
+  const [actionPending, setActionPending] = React.useState(false);
 
   React.useEffect(() => {
     if (statusId === 1) {
@@ -370,7 +379,7 @@ function FundApprovalPanel({ submission, fundDetail, onApprove, onReject }) {
   };
 
   const handleApprove = async () => {
-    if (!validate()) return;
+    if (!validate()) return false;
 
     const html = `
       <div style="text-align:left;font-size:14px;line-height:1.6;display:grid;row-gap:.6rem;">
@@ -382,9 +391,9 @@ function FundApprovalPanel({ submission, fundDetail, onApprove, onReject }) {
           <span style="font-weight:700;color:#047857;">${baht(Number(approved || 0))}</span>
         </div>
         <div style="display:flex;justify-content:space-between;align-items:center;">
-          <span>หมายเลขอ้างอิงประกาศผลการพิจารณา</span><strong>${(announceRef || '—').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</strong>
+          <span>หมายเลขอ้างอิงประกาศผลการพิจารณา</span><strong>${escapeHtml(announceRef || '—')}</strong>
         </div>
-        ${comment ? `<div><div style="font-weight:500;">หมายเหตุ</div><div style="border:1px solid #e5e7eb;background:#f9fafb;padding:.5rem;border-radius:.5rem;">${comment.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</div></div>` : ''}
+        ${comment ? `<div><div style="font-weight:500;">หมายเหตุ</div><div style="border:1px solid #e5e7eb;background:#f9fafb;padding:.5rem;border-radius:.5rem;">${escapeHtml(comment)}</div></div>` : ''}
         <p style="font-size:12px;color:#6b7280;">ระบบจะบันทึกยอดอนุมัติและเปลี่ยนสถานะเป็น “อนุมัติ”</p>
       </div>
     `;
@@ -416,7 +425,10 @@ function FundApprovalPanel({ submission, fundDetail, onApprove, onReject }) {
 
     if (result.isConfirmed) {
       await Swal.fire({ icon: 'success', title: 'อนุมัติแล้ว', timer: 1400, showConfirmButton: false });
+      return true;
     }
+
+    return false;
   };
 
   const handleReject = async () => {
@@ -430,7 +442,7 @@ function FundApprovalPanel({ submission, fundDetail, onApprove, onReject }) {
       cancelButtonText: 'ยกเลิก',
       inputValidator: (v) => (!v?.trim() ? 'กรุณาระบุเหตุผล' : undefined),
     });
-    if (!reason) return;
+    if (!reason) return false;
 
     const res2 = await Swal.fire({
       title: 'ยืนยันการไม่อนุมัติ',
@@ -453,6 +465,89 @@ function FundApprovalPanel({ submission, fundDetail, onApprove, onReject }) {
 
     if (res2.isConfirmed) {
       await Swal.fire({ icon: 'success', title: 'ดำเนินการแล้ว', timer: 1200, showConfirmButton: false });
+      return true;
+    }
+
+    return false;
+  };
+
+  const handleRequestRevision = async () => {
+    if (typeof onRequestRevision !== 'function') {
+      return false;
+    }
+
+    const { value: message } = await Swal.fire({
+      title: 'ข้อมูลเพิ่มเติมที่ต้องการ',
+      input: 'textarea',
+      inputPlaceholder: 'โปรดระบุรายละเอียดข้อมูลที่ต้องการเพิ่มเติม...',
+      inputAttributes: { 'aria-label': 'รายละเอียดข้อมูลเพิ่มเติม' },
+      showCancelButton: true,
+      confirmButtonText: 'ถัดไป',
+      cancelButtonText: 'ยกเลิก',
+      inputValidator: (value) => (!value?.trim() ? 'กรุณาระบุรายละเอียด' : undefined),
+    });
+
+    if (!message) {
+      return false;
+    }
+
+    const trimmed = message.trim();
+
+    const result = await Swal.fire({
+      title: 'ยืนยันการขอข้อมูลเพิ่มเติม',
+      html: `
+        <div style="text-align:left;font-size:14px;line-height:1.6;display:grid;row-gap:.6rem;">
+          <div>
+            <div style="font-weight:500;margin-bottom:.35rem;">รายละเอียดที่ต้องการเพิ่มเติม</div>
+            <div style="border:1px solid #e5e7eb;background:#f9fafb;padding:.5rem;border-radius:.5rem;white-space:pre-wrap;">${escapeHtml(trimmed)}</div>
+          </div>
+          <p style="font-size:12px;color:#6b7280;">ระบบจะบันทึกคำขอข้อมูลเพิ่มเติมและแจ้งผู้ยื่นคำร้อง</p>
+        </div>
+      `,
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonText: 'บันทึกคำขอ',
+      cancelButtonText: 'ยกเลิก',
+      focusConfirm: false,
+      showLoaderOnConfirm: true,
+      allowOutsideClick: () => !Swal.isLoading(),
+      preConfirm: async () => {
+        try {
+          await onRequestRevision({ message: trimmed });
+        } catch (e) {
+          Swal.showValidationMessage(e?.message || 'ส่งคำขอไม่สำเร็จ');
+          throw e;
+        }
+      },
+    });
+
+    if (result.isConfirmed) {
+      await Swal.fire({ icon: 'success', title: 'ส่งคำขอแล้ว', timer: 1400, showConfirmButton: false });
+      return true;
+    }
+
+    return false;
+  };
+
+  const handleDecisionSubmit = async () => {
+    if (actionPending) return;
+
+    setActionPending(true);
+    try {
+      let completed = false;
+      if (selectedAction === 'approve') {
+        completed = await handleApprove();
+      } else if (selectedAction === 'reject') {
+        completed = await handleReject();
+      } else if (selectedAction === 'revision') {
+        completed = await handleRequestRevision();
+      }
+
+      if (completed) {
+        setSelectedAction('approve');
+      }
+    } finally {
+      setActionPending(false);
     }
   };
 
@@ -618,9 +713,27 @@ function FundApprovalPanel({ submission, fundDetail, onApprove, onReject }) {
         </div>
 
         {/* Actions */}
-        <div className="flex items-center gap-3 pt-4 border-t border-gray-200">
-          <button className="btn btn-success" onClick={handleApprove}>อนุมัติ</button>
-          <button className="btn btn-danger" onClick={handleReject}>ไม่อนุมัติ</button>
+        <div className="flex flex-col md:flex-row md:items-center gap-3 pt-4 border-t border-gray-200">
+          <div className="flex items-center gap-2">
+            <label className="text-sm font-medium text-gray-700">ดำเนินการ</label>
+            <select
+              className="select select-bordered select-sm md:select-md"
+              value={selectedAction}
+              onChange={(e) => setSelectedAction(e.target.value)}
+              disabled={actionPending}
+            >
+              <option value="approve">อนุมัติ</option>
+              <option value="reject">ไม่อนุมัติ</option>
+              <option value="revision">ต้องการข้อมูลเพิ่มเติม</option>
+            </select>
+          </div>
+          <button
+            className="btn btn-primary"
+            onClick={handleDecisionSubmit}
+            disabled={actionPending}
+          >
+            บันทึกผล
+          </button>
         </div>
       </div>
     </Card>
@@ -1560,6 +1673,20 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
     await refetchSubmission();
   };
 
+  const requestRevision = async ({ message }) => {
+    const payload = {};
+    const trimmed = message?.trim();
+    if (trimmed) {
+      payload.comment = trimmed;
+      payload.request_comment = trimmed;
+      payload.revision_comment = trimmed;
+      payload.reason = trimmed;
+    }
+
+    await adminSubmissionAPI.requestRevision(submission.submission_id, payload);
+    await refetchSubmission();
+  };
+
   // file handlers
   const handleView = async (fileId) => {
     try {
@@ -1812,6 +1939,7 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
           fundDetail={detail}
           onApprove={approve}
           onReject={reject}
+          onRequestRevision={requestRevision}
         />
       </div>
 

@@ -129,7 +129,7 @@ function getFileURL(filePath) {
 /* =========================
  * Dept Decision Panel (แทน Approval Result เดิมทั้งก้อน)
  * ========================= */
-function DeptDecisionPanel({ submission, onApprove, onReject, onBack }) {
+function DeptDecisionPanel({ submission, onApprove, onReject, onRequestRevision, onBack }) {
   const [comment, setComment] = useState(
     submission?.head_comment ?? submission?.comment ?? ''
   );
@@ -137,6 +137,8 @@ function DeptDecisionPanel({ submission, onApprove, onReject, onBack }) {
     submission?.head_signature ?? ''
   );
   const [saving, setSaving] = useState(false);
+  const [selectedAction, setSelectedAction] = useState('approve');
+  const [decisionPending, setDecisionPending] = useState(false);
 
   const statusId = Number(submission?.status_id);
   const canAct = statusId === 1 || String(submission?.status?.status_code || '').toLowerCase() === 'pending';
@@ -150,7 +152,7 @@ function DeptDecisionPanel({ submission, onApprove, onReject, onBack }) {
         title: 'กรุณาระบุลายเซ็นหัวหน้าสาขา',
         text: 'โปรดพิมพ์ชื่อเต็มของหัวหน้าสาขาก่อนดำเนินการ.',
       });
-      return;
+      return false;
     }
     const html = `
       <div style="text-align:left;font-size:14px;line-height:1.6;">
@@ -193,8 +195,11 @@ function DeptDecisionPanel({ submission, onApprove, onReject, onBack }) {
 
     if (result.isConfirmed) {
       await Swal.fire({ icon: 'success', title: 'อนุมัติแล้ว', timer: 1400, showConfirmButton: false });
-      if (typeof onBack === 'function') onBack();    
+      if (typeof onBack === 'function') onBack();
+      return true;
     }
+
+    return false;
   };
 
 
@@ -212,7 +217,7 @@ function DeptDecisionPanel({ submission, onApprove, onReject, onBack }) {
       cancelButtonText: 'ยกเลิก',
       inputValidator: (v) => (!v?.trim() ? 'กรุณาระบุเหตุผล' : undefined),
     });
-    if (!reason) return;
+    if (!reason) return false;
 
     // Step 2: กล่องยืนยัน + preConfirm เรียก onReject
     const res2 = await Swal.fire({
@@ -270,7 +275,97 @@ function DeptDecisionPanel({ submission, onApprove, onReject, onBack }) {
 
     if (res2.isConfirmed) {
       await Swal.fire({ icon: 'success', title: 'ดำเนินการแล้ว', timer: 1200, showConfirmButton: false });
-      if (typeof onBack === 'function') onBack();    
+      if (typeof onBack === 'function') onBack();
+      return true;
+    }
+
+    return false;
+  };
+
+  const handleRequestRevision = async () => {
+    const trimmedSignature = headSignature?.trim() || '';
+    const trimmedComment = comment?.trim() || '';
+
+    const { value: message } = await Swal.fire({
+      title: 'ข้อมูลเพิ่มเติมที่ต้องการ',
+      input: 'textarea',
+      inputPlaceholder: 'โปรดระบุรายละเอียดข้อมูลที่ต้องการเพิ่มเติม...',
+      inputAttributes: { 'aria-label': 'รายละเอียดข้อมูลเพิ่มเติม' },
+      showCancelButton: true,
+      confirmButtonText: 'ถัดไป',
+      cancelButtonText: 'ยกเลิก',
+      inputValidator: (value) => (!value?.trim() ? 'กรุณาระบุรายละเอียด' : undefined),
+    });
+
+    if (!message) return false;
+
+    const trimmedMessage = message.trim();
+
+    const result = await Swal.fire({
+      title: 'ยืนยันการขอข้อมูลเพิ่มเติม',
+      html: `
+        <div style="text-align:left;font-size:14px;line-height:1.6;display:grid;row-gap:.6rem;">
+          <div>
+            <div style="font-weight:500;margin-bottom:.35rem;">รายละเอียดที่ต้องการเพิ่มเติม</div>
+            <div style="border:1px solid #e5e7eb;background:#f9fafb;padding:.5rem;border-radius:.5rem;white-space:pre-wrap;">${escapeHtml(trimmedMessage)}</div>
+          </div>
+          <div>
+            <div style="font-weight:500;margin-bottom:.25rem;">หมายเหตุของหัวหน้าสาขา</div>
+            ${trimmedComment
+              ? `<div style="border:1px solid #e5e7eb;background:#f9fafb;padding:.5rem;border-radius:.5rem;white-space:pre-wrap;">${escapeHtml(trimmedComment)}</div>`
+              : `<div style="font-size:12px;color:#6b7280;">(ไม่มีหมายเหตุ)</div>`}
+          </div>
+        </div>
+      `,
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonText: 'บันทึกคำขอ',
+      cancelButtonText: 'ยกเลิก',
+      showLoaderOnConfirm: true,
+      allowOutsideClick: () => !Swal.isLoading(),
+      preConfirm: async () => {
+        try {
+          setSaving(true);
+          await onRequestRevision(
+            { message: trimmedMessage, headComment: trimmedComment, headSignature: trimmedSignature }
+          );
+        } catch (e) {
+          Swal.showValidationMessage(e?.message || 'ส่งคำขอไม่สำเร็จ');
+          throw e;
+        } finally {
+          setSaving(false);
+        }
+      },
+    });
+
+    if (result.isConfirmed) {
+      await Swal.fire({ icon: 'success', title: 'ส่งคำขอแล้ว', timer: 1400, showConfirmButton: false });
+      if (typeof onBack === 'function') onBack();
+      return true;
+    }
+
+    return false;
+  };
+
+  const handleDecisionSubmit = async () => {
+    if (decisionPending || saving) return;
+
+    setDecisionPending(true);
+    try {
+      let completed = false;
+      if (selectedAction === 'approve') {
+        completed = await handleApprove();
+      } else if (selectedAction === 'reject') {
+        completed = await handleReject();
+      } else if (selectedAction === 'revision') {
+        completed = await handleRequestRevision();
+      }
+
+      if (completed) {
+        setSelectedAction('approve');
+      }
+    } finally {
+      setDecisionPending(false);
     }
   };
 
@@ -301,26 +396,33 @@ function DeptDecisionPanel({ submission, onApprove, onReject, onBack }) {
           />
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-col md:flex-row md:items-center gap-3">
+          <div className="flex items-center gap-2">
+            <label className="text-sm font-medium text-gray-700">ดำเนินการ</label>
+            <select
+              className="select select-bordered select-sm md:select-md"
+              value={selectedAction}
+              onChange={(e) => setSelectedAction(e.target.value)}
+              disabled={saving || decisionPending}
+            >
+              <option value="approve">อนุมัติ</option>
+              <option value="reject">ปฏิเสธ</option>
+              <option value="revision">ต้องการข้อมูลเพิ่มเติม</option>
+            </select>
+          </div>
+
           <button
             className="btn btn-primary inline-flex items-center gap-2 disabled:opacity-60"
-            onClick={handleApprove}
-            disabled={saving}
-            title="อนุมัติและส่งต่อให้ Admin พิจารณาต่อ"
+            onClick={handleDecisionSubmit}
+            disabled={saving || decisionPending}
+            title="บันทึกผลการพิจารณา"
           >
-            อนุมัติ
+            บันทึกผล
           </button>
 
-          <button
-            className="btn btn-danger inline-flex items-center gap-2 disabled:opacity-60"
-            onClick={handleReject}
-            disabled={saving}
-            title="ปฏิเสธคำร้อง"
-          >
-            ปฏิเสธ
-          </button>
-
-          {saving && <span className="text-sm text-gray-500">กำลังดำเนินการ…</span>}
+          {(saving || decisionPending) && (
+            <span className="text-sm text-gray-500">กำลังดำเนินการ…</span>
+          )}
         </div>
       </div>
     </Card>
@@ -807,6 +909,37 @@ export default function GeneralSubmissionDetailsDept({ submissionId, onBack }) {
     setSubmission(data);
   };
 
+  const requestRevision = async ({ message, headComment, headSignature }) => {
+    const payload = {};
+    const trimmedMessage = message?.trim();
+    const trimmedComment = headComment?.trim();
+    const trimmedSignature = headSignature?.trim();
+
+    if (trimmedMessage) {
+      payload.request_comment = trimmedMessage;
+      payload.revision_comment = trimmedMessage;
+      payload.reason = trimmedMessage;
+    }
+    if (trimmedComment) {
+      payload.head_comment = trimmedComment;
+      payload.comment = trimmedComment;
+    }
+    if (trimmedSignature) {
+      payload.head_signature = trimmedSignature;
+    }
+
+    await deptHeadAPI.requestRevision(submission.submission_id, payload);
+
+    const res = await deptHeadAPI.getSubmissionDetails(submission.submission_id);
+    let data = res?.submission || res;
+    if (res?.submission_users) data.submission_users = res.submission_users;
+    if (res?.documents) data.documents = res.documents;
+    if (res?.details?.type === 'fund_application' && res.details.data) {
+      data.FundApplicationDetail = res.details.data;
+    }
+    setSubmission(data);
+  };
+
   const statusCode = getCodeById(submission.status_id);
   const ColoredIcon = getColoredStatusIcon(statusCode);
 
@@ -1198,6 +1331,7 @@ export default function GeneralSubmissionDetailsDept({ submissionId, onBack }) {
           submission={submission}
           onApprove={approve}
           onReject={reject}
+          onRequestRevision={requestRevision}
           onBack={onBack}
         />
       </div>
