@@ -77,10 +77,12 @@ export function MemberPageContent({ initialPage = 'profile' }) {
         return <PromotionFundContent onNavigate={handleNavigate} />;
       case 'publication-reward-form':
         return (
-          <PublicationRewardForm 
-            onNavigate={handleNavigate} 
-            categoryId={selectedFundData?.category_id} 
+          <PublicationRewardForm
+            onNavigate={handleNavigate}
+            categoryId={selectedFundData?.category_id}
             yearId={selectedFundData?.year_id}
+            submissionId={selectedFundData?.submissionId}
+            originPage={selectedFundData?.originPage}
           />
         );
       case 'generic-fund-application':

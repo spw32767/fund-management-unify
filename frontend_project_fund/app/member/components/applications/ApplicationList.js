@@ -473,27 +473,74 @@ export default function ApplicationList({ onNavigate }) {
     },
     {
       header: "การดำเนินการ",
-      render: (_, row) => (
-        <div className="flex gap-2">
-          <button
-            className="inline-flex items-center gap-1 px-3 py-1 text-sm text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-md transition-colors"
-            title="ดูรายละเอียด"
-            onClick={() => handleViewDetail(row.application_id)}
-          >
-            <Eye size={16} />
-            ดูรายละเอียด
-          </button>
-        </div>
-      )
+      render: (_, row) => {
+        const statusCode = (row.status_code ?? row._original?.status?.status_code ?? '')
+          .toString()
+          .toLowerCase();
+        const canEditDraft = statusCode === 'draft' || statusCode === '4';
+        const canRevise = statusCode === 'needs_more_info' || statusCode === '3';
+
+        return (
+          <div className="flex flex-wrap gap-2">
+            <button
+              className="inline-flex items-center gap-1 px-3 py-1 text-sm text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-md transition-colors"
+              title="ดูรายละเอียด"
+              onClick={() => handleViewDetail(row.application_id)}
+            >
+              <Eye size={16} />
+              ดูรายละเอียด
+            </button>
+            {(canEditDraft || canRevise) && (
+              <button
+                className="inline-flex items-center gap-1 px-3 py-1 text-sm text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-md transition-colors"
+                title={canRevise ? "แก้ไขและส่งใหม่" : "แก้ไขร่าง"}
+                onClick={() => handleEditSubmission(row)}
+              >
+                <FileText size={16} />
+                {canRevise ? 'แก้ไขเพื่อส่งใหม่' : 'แก้ไขร่าง'}
+              </button>
+            )}
+          </div>
+        );
+      }
     }
   ];
 
   const handleViewDetail = (id) => {
     const app = applications.find(a => a.application_id === id);
-    if (app._original.submission_type === 'publication_reward') { 
+    if (app._original.submission_type === 'publication_reward') {
       onNavigate('publication-reward-detail', { submissionId: id });
     } else {
       onNavigate('fund-application-detail', { submissionId: id });
+    }
+  };
+
+  const handleEditSubmission = (row) => {
+    const original = row?._original;
+    if (!original) {
+      return;
+    }
+
+    const payload = {
+      submissionId: row.application_id,
+      category_id: original.category_id ?? original.CategoryID,
+      subcategory_id: original.subcategory_id ?? original.SubcategoryID,
+      subcategory_budget_id: original.subcategory_budget_id ?? original.SubcategoryBudgetID,
+      year_id: original.year_id ?? original.YearID,
+      submission_type: original.submission_type ?? original.SubmissionType,
+    };
+
+    if (payload.submission_type === 'publication_reward') {
+      onNavigate('publication-reward-form', {
+        submissionId: payload.submissionId,
+        categoryId: payload.category_id,
+        yearId: payload.year_id,
+        originPage: 'applications',
+      });
+    } else {
+      onNavigate('generic-fund-application', {
+        ...payload,
+      });
     }
   };
 

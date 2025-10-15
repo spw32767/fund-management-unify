@@ -411,7 +411,10 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
   const [saving, setSaving] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [errors, setErrors] = useState({});
-  
+  const [currentSubmissionId, setCurrentSubmissionId] = useState(
+    subcategoryData?.submissionId ?? null
+  );
+
   // Form data
   const [formData, setFormData] = useState({
     name: "",
@@ -462,7 +465,9 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
 
       await loadSystemAnnouncements();
 
-      if (typeof window !== 'undefined') {
+      if (subcategoryData?.submissionId) {
+        await loadExistingSubmission(subcategoryData.submissionId);
+      } else if (typeof window !== 'undefined') {
         const draft = loadDraftFromLocal();
         if (draft?.formData) {
           setFormData(prev => ({
@@ -487,6 +492,59 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
       setPendingStatus(null);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadExistingSubmission = async (submissionId) => {
+    try {
+      const response = await submissionAPI.getSubmission(submissionId);
+      const submission = response?.submission ?? response?.data ?? response;
+      if (!submission) {
+        return;
+      }
+
+      setCurrentSubmissionId(submissionId);
+
+      const detail =
+        submission.fund_application_detail ||
+        submission.FundApplicationDetail ||
+        submission.fundApplicationDetail ||
+        null;
+
+      if (detail) {
+        setFormData(prev => ({
+          ...prev,
+          project_title: detail.project_title ?? detail.ProjectTitle ?? "",
+          project_description: detail.project_description ?? detail.ProjectDescription ?? "",
+          requested_amount:
+            detail.requested_amount != null
+              ? String(detail.requested_amount)
+              : detail.RequestedAmount != null
+              ? String(detail.RequestedAmount)
+              : "",
+        }));
+
+        const mainAnn =
+          detail.main_annoucement ??
+          detail.MainAnnoucement ??
+          announcementLock.main_annoucement;
+        const supportAnn =
+          detail.activity_support_announcement ??
+          detail.ActivitySupportAnnouncement ??
+          announcementLock.activity_support_announcement;
+        setAnnouncementLock({
+          main_annoucement: mainAnn,
+          activity_support_announcement: supportAnn,
+        });
+      }
+
+      setHasDraft(true);
+    } catch (error) {
+      console.error('Failed to load submission draft:', error);
+      setErrors(prev => ({
+        ...prev,
+        general: 'ไม่สามารถโหลดร่างคำร้องได้',
+      }));
     }
   };
 
@@ -990,21 +1048,57 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
 
       await new Promise(resolve => setTimeout(resolve, 300));
 
-      const saved = saveDraftToLocal(formData);
+      let submissionId = currentSubmissionId;
+      if (!submissionId) {
+        const payload = {
+          submission_type: 'fund_application',
+          year_id: subcategoryData?.year_id,
+          category_id: subcategoryData?.category_id,
+          subcategory_id: subcategoryData?.subcategory_id,
+          subcategory_budget_id: subcategoryData?.subcategory_budget_id,
+        };
+
+        const submissionRes = await submissionAPI.createSubmission(payload);
+        submissionId = submissionRes?.submission?.submission_id;
+        if (!submissionId) {
+          throw new Error('ไม่สามารถสร้างร่างคำร้องได้');
+        }
+        setCurrentSubmissionId(submissionId);
+      } else {
+        try {
+          await submissionAPI.update(submissionId, {
+            category_id: subcategoryData?.category_id,
+            subcategory_id: subcategoryData?.subcategory_id,
+            subcategory_budget_id: subcategoryData?.subcategory_budget_id,
+          });
+        } catch (updateError) {
+          console.warn('Failed to update submission metadata for draft:', updateError);
+        }
+      }
+
+      if (!submissionId) {
+        throw new Error('ไม่สามารถกำหนดหมายเลขคำร้องได้');
+      }
+
+      const fundDetailsPayload = {
+        project_title: formData.project_title || '',
+        project_description: formData.project_description || '',
+        requested_amount: parseFloat(formData.requested_amount) || 0,
+        subcategory_id: subcategoryData?.subcategory_id,
+        main_annoucement: announcementLock.main_annoucement,
+        activity_support_announcement: announcementLock.activity_support_announcement,
+      };
+
+      await apiClient.post(`/submissions/${submissionId}/fund-details`, fundDetailsPayload);
 
       Swal.close();
-
-      if (saved) {
-        setHasDraft(true);
-        Swal.fire({
-          icon: 'success',
-          title: 'บันทึกร่างเรียบร้อยแล้ว',
-          text: 'ข้อมูลข้อความจะถูกเก็บไว้ชั่วคราว 7 วัน',
-          confirmButtonColor: '#3085d6'
-        });
-      } else {
-        throw new Error('ไม่สามารถบันทึกร่างได้');
-      }
+      setHasDraft(true);
+      Swal.fire({
+        icon: 'success',
+        title: 'บันทึกร่างเรียบร้อยแล้ว',
+        text: 'ระบบได้บันทึกร่างคำร้องของคุณบนเซิร์ฟเวอร์แล้ว',
+        confirmButtonColor: '#3085d6'
+      });
     } catch (error) {
       console.error('Error saving draft:', error);
       Swal.close();
@@ -1033,6 +1127,15 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
 
     if (!result.isConfirmed) {
       return;
+    }
+
+    if (currentSubmissionId) {
+      try {
+        await submissionAPI.deleteSubmission(currentSubmissionId);
+      } catch (deleteError) {
+        console.warn('Failed to delete server-side draft:', deleteError);
+      }
+      setCurrentSubmissionId(null);
     }
 
     deleteDraftFromLocal();
@@ -1071,29 +1174,46 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
     try {
       setSubmitting(true);
 
-      let statusForSubmission = pendingStatus;
-      if (!statusForSubmission?.id) {
-        statusForSubmission = await resolveDeptHeadPendingStatus({ force: true });
-        setPendingStatus(statusForSubmission);
+      let submissionId = currentSubmissionId;
+      if (!submissionId) {
+        let statusForSubmission = pendingStatus;
+        if (!statusForSubmission?.id) {
+          statusForSubmission = await resolveDeptHeadPendingStatus({ force: true });
+          setPendingStatus(statusForSubmission);
+        }
+
+        // Step 1: Create submission record (server defaults to draft status; status_id retained for backwards compatibility)
+        const submissionPayload = {
+          submission_type: 'fund_application',
+          year_id: subcategoryData?.year_id,
+          category_id: subcategoryData?.category_id,
+          subcategory_id: subcategoryData?.subcategory_id,
+          subcategory_budget_id: subcategoryData?.subcategory_budget_id,
+        };
+        if (statusForSubmission?.id) {
+          submissionPayload.status_id = statusForSubmission.id;
+        }
+
+        console.log('Creating submission with payload:', submissionPayload, 'resolved status:', statusForSubmission);
+
+        const submissionRes = await submissionAPI.createSubmission(submissionPayload);
+        submissionId = submissionRes?.submission?.submission_id;
+        console.log('Submission creation response:', submissionRes);
+        if (!submissionId) {
+          throw new Error('ไม่สามารถสร้างคำร้องได้');
+        }
+        setCurrentSubmissionId(submissionId);
+      } else {
+        try {
+          await submissionAPI.update(submissionId, {
+            category_id: subcategoryData?.category_id,
+            subcategory_id: subcategoryData?.subcategory_id,
+            subcategory_budget_id: subcategoryData?.subcategory_budget_id,
+          });
+        } catch (updateError) {
+          console.warn('Failed to update submission metadata before submit:', updateError);
+        }
       }
-
-      if (!statusForSubmission?.id) {
-        throw new Error('ไม่พบสถานะสำหรับการพิจารณาของหัวหน้าสาขา');
-      }
-
-      // Step 1: Create submission record
-      const submissionPayload = {
-        submission_type: 'fund_application',
-        year_id: subcategoryData?.year_id,
-        status_id: statusForSubmission.id,
-      };
-
-      console.log('Creating submission with payload:', submissionPayload, 'resolved status:', statusForSubmission);
-
-      const submissionRes = await submissionAPI.createSubmission(submissionPayload);
-      const submissionId = submissionRes?.submission?.submission_id;
-
-      console.log('Submission creation response:', submissionRes);
 
       // Step 2: Save basic fund details (ใช้ข้อมูลที่มีอยู่)
       if (submissionId) {

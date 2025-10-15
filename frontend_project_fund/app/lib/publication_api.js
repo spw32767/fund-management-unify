@@ -65,6 +65,16 @@ export const submissionAPI = {
     }
   },
 
+  async hardDelete(id) {
+    try {
+      const response = await apiClient.delete(`/submissions/${id}/hard`);
+      return response;
+    } catch (error) {
+      console.error('Error permanently deleting submission:', error);
+      throw error;
+    }
+  },
+
   // Submit submission (change status)
   async submitSubmission(id) {
     try {
@@ -90,7 +100,7 @@ export const submissionAPI = {
   // Get documents for submission - เพิ่มใหม่
   async getDocuments(submissionId) {
     try {
-      const response = await submissionAPI.getDocuments(submissionId);
+      const response = await apiClient.get(`/submissions/${submissionId}/documents`);
       return response;
     } catch (error) {
       console.error('Error fetching documents:', error);
@@ -586,7 +596,10 @@ export const publicationBudgetAPI = {
       const res = await apiClient.get(`/publication-rewards/resolve?${query}`);
       return res;
     } catch (error) {
-      console.error('Error resolving publication budget:', error);
+      const message = typeof error?.message === 'string' ? error.message.toLowerCase() : '';
+      if (!message.includes('no overall budget')) {
+        console.error('Error resolving publication budget:', error);
+      }
       throw error;
     }
   },
