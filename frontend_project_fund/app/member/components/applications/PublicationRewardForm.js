@@ -3598,22 +3598,196 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
     }
   }, []);
 
+  const applyExternalFundingServerIds = useCallback(
+    (savedExternalFunds, { targetFiles } = {}) => {
+      const normalizedFunds = Array.isArray(savedExternalFunds) ? savedExternalFunds : [];
+      const filesArray = Array.isArray(targetFiles) ? targetFiles : [];
+      const serverIdMap = new Map();
+
+      normalizedFunds.forEach((item) => {
+        if (!item) {
+          return;
+        }
+
+        const serverId =
+          item.external_fund_id ??
+          item.ExternalFundID ??
+          item.externalFundId ??
+          item.external_fundID ??
+          null;
+
+        if (serverId == null) {
+          return;
+        }
+
+        const clientKey =
+          item.client_id ??
+          item.clientId ??
+          item.external_fund_client_id ??
+          item.externalFundingClientId ??
+          item.externalFundingClientID ??
+          serverId;
+
+        serverIdMap.set(String(clientKey), serverId);
+      });
+
+      if (serverIdMap.size > 0) {
+        setExternalFundings((prev) => {
+          let changed = false;
+          const next = prev.map((funding) => {
+            if (!funding) {
+              return funding;
+            }
+
+            const candidateKeys = [
+              funding.clientId,
+              funding.externalFundId,
+              funding.external_fund_id,
+              funding.externalFundingId,
+            ].filter((value) => value != null);
+
+            let resolvedId = null;
+            for (const key of candidateKeys) {
+              const mapped = serverIdMap.get(String(key));
+              if (mapped != null) {
+                resolvedId = mapped;
+                break;
+              }
+            }
+
+            if (resolvedId && resolvedId !== funding.externalFundId) {
+              changed = true;
+              return { ...funding, externalFundId: resolvedId };
+            }
+
+            return funding;
+          });
+
+          return changed ? next : prev;
+        });
+
+        setExternalFundingFiles((prev) => {
+          let changed = false;
+          const next = prev.map((doc) => {
+            if (!doc) {
+              return doc;
+            }
+
+            const candidateKeys = [
+              doc.funding_client_id,
+              doc.external_fund_id,
+              doc.externalFundingId,
+              doc.external_funding_id,
+            ].filter((value) => value != null);
+
+            for (const key of candidateKeys) {
+              const mapped = serverIdMap.get(String(key));
+              if (mapped != null && mapped !== doc.external_fund_id) {
+                changed = true;
+                return { ...doc, external_fund_id: mapped };
+              }
+            }
+
+            return doc;
+          });
+
+          return changed ? next : prev;
+        });
+
+        filesArray.forEach((fileData) => {
+          if (!fileData || fileData.document_type_id !== 12) {
+            return;
+          }
+
+          const candidateKeys = [
+            fileData.external_funding_client_id,
+            fileData.funding_client_id,
+            fileData.external_funding_id,
+            fileData.external_fund_id,
+          ].filter((value) => value != null);
+
+          for (const key of candidateKeys) {
+            const mapped = serverIdMap.get(String(key));
+            if (mapped != null) {
+              fileData.external_funding_id = mapped;
+              break;
+            }
+          }
+        });
+      } else {
+        setExternalFundings((prev) => {
+          const shouldReset = prev.some((funding) => funding?.externalFundId);
+          if (!shouldReset) {
+            return prev;
+          }
+
+          return prev.map((funding) =>
+            funding?.externalFundId ? { ...funding, externalFundId: null } : funding
+          );
+        });
+
+        setExternalFundingFiles((prev) => {
+          const shouldReset = prev.some((doc) => doc?.external_fund_id);
+          if (!shouldReset) {
+            return prev;
+          }
+
+          return prev.map((doc) =>
+            doc?.external_fund_id ? { ...doc, external_fund_id: null } : doc
+          );
+        });
+
+        filesArray.forEach((fileData) => {
+          if (fileData && fileData.document_type_id === 12) {
+            fileData.external_funding_id = null;
+          }
+        });
+      }
+
+      return serverIdMap;
+    },
+    [setExternalFundings, setExternalFundingFiles]
+  );
+
   const syncSubmissionDocuments = useCallback(
-    async ({ submissionId, onProgress } = {}) => {
+    async ({ submissionId, onProgress, filesOverride } = {}) => {
       if (!submissionId) {
         return { detached: 0, uploaded: 0 };
       }
 
-      const filesToUpload = getAllAttachedFiles();
+      const filesToUpload = Array.isArray(filesOverride)
+        ? filesOverride
+        : getAllAttachedFiles();
       const detachIds = [...detachedDocumentIds];
       const pendingExternalUploads = new Map();
 
-      (externalFundingFiles || []).forEach((doc) => {
-        if (!doc?.funding_client_id || !doc?.file) {
+      filesToUpload.forEach((doc) => {
+        if (!doc || doc.document_type_id !== 12 || !doc.file) {
           return;
         }
-        pendingExternalUploads.set(doc.funding_client_id, doc.file);
+
+        const key =
+          doc.external_funding_client_id ??
+          doc.funding_client_id ??
+          doc.external_fund_id ??
+          doc.external_funding_id ??
+          null;
+
+        if (key == null) {
+          return;
+        }
+
+        pendingExternalUploads.set(String(key), doc.file);
       });
+
+      if (!Array.isArray(filesOverride)) {
+        (externalFundingFiles || []).forEach((doc) => {
+          if (!doc?.funding_client_id || !doc?.file) {
+            return;
+          }
+          pendingExternalUploads.set(String(doc.funding_client_id), doc.file);
+        });
+      }
 
       const errors = [];
       let detachedCount = 0;
@@ -4766,7 +4940,25 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
         reward_announcement: announcementLock.reward_announcement ?? null,
       };
 
-      await publicationDetailsAPI.add(submissionId, publicationData);
+      const pendingUploads = getAllAttachedFiles();
+
+      const response = await publicationDetailsAPI.add(submissionId, publicationData);
+
+      const savedExternalFunds = Array.isArray(response?.external_fundings)
+        ? response.external_fundings
+        : Array.isArray(response?.data?.external_fundings)
+          ? response.data.external_fundings
+          : [];
+
+      applyExternalFundingServerIds(savedExternalFunds, { targetFiles: pendingUploads });
+
+      const unresolvedExternalFile = pendingUploads.some(
+        (fileData) => fileData.document_type_id === 12 && !fileData.external_funding_id
+      );
+
+      if (unresolvedExternalFile) {
+        throw new Error('กรุณาบันทึกข้อมูลทุนภายนอกก่อนแนบไฟล์หลักฐาน');
+      }
 
       await syncSubmissionDocuments({
         submissionId,
@@ -4784,6 +4976,7 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
             });
           }
         },
+        filesOverride: pendingUploads,
       });
 
       Swal.close();
@@ -5508,59 +5701,13 @@ const showSubmissionConfirmation = async () => {
         const response = await publicationDetailsAPI.add(submissionId, publicationData);
         console.log('Publication details saved successfully:', response);
 
-        const savedExternalFunds = Array.isArray(response.external_fundings)
+        const savedExternalFunds = Array.isArray(response?.external_fundings)
           ? response.external_fundings
-          : [];
+          : Array.isArray(response?.data?.external_fundings)
+            ? response.data.external_fundings
+            : [];
 
-        const serverIdMap = new Map();
-        savedExternalFunds.forEach((item) => {
-          const clientKey = item?.client_id ?? (item?.external_fund_id != null ? String(item.external_fund_id) : null);
-          if (clientKey) {
-            serverIdMap.set(String(clientKey), item.external_fund_id);
-          }
-        });
-
-        if (serverIdMap.size > 0) {
-          setExternalFundings((prev) =>
-            prev.map((funding) => {
-              const serverId = serverIdMap.get(String(funding.clientId)) ?? serverIdMap.get(String(funding.externalFundId));
-              if (serverId && serverId !== funding.externalFundId) {
-                return { ...funding, externalFundId: serverId };
-              }
-              return funding;
-            })
-          );
-
-          setExternalFundingFiles((prev) =>
-            prev.map((doc) => {
-              const serverId = serverIdMap.get(String(doc.funding_client_id));
-              if (serverId && serverId !== doc.external_fund_id) {
-                return { ...doc, external_fund_id: serverId };
-              }
-              return doc;
-            })
-          );
-
-          allFiles.forEach((fileData) => {
-            if (fileData.document_type_id === 12) {
-              const clientKey = String(fileData.external_funding_client_id || '');
-              const serverId = serverIdMap.get(clientKey);
-              if (!serverId) {
-                throw new Error('ไม่สามารถจับคู่ไฟล์ทุนภายนอกกับข้อมูลที่บันทึกได้');
-              }
-              fileData.external_funding_id = serverId;
-            }
-          });
-        } else {
-          // เคลียร์ mapping ถ้าไม่มีข้อมูลจาก backend
-          setExternalFundings((prev) => prev.map((funding) => ({ ...funding, externalFundId: null })));
-          setExternalFundingFiles((prev) => prev.map((doc) => ({ ...doc, external_fund_id: null })));
-          allFiles.forEach((fileData) => {
-            if (fileData.document_type_id === 12) {
-              fileData.external_funding_id = null;
-            }
-          });
-        }
+        applyExternalFundingServerIds(savedExternalFunds, { targetFiles: allFiles });
 
         const unresolvedExternalFile = allFiles.some(
           (fileData) => fileData.document_type_id === 12 && !fileData.external_funding_id
@@ -5571,7 +5718,7 @@ const showSubmissionConfirmation = async () => {
         }
       } catch (error) {
         console.error('Failed to save publication details:', error);
-        
+
         // เพิ่มการ log เพื่อดู error detail
         if (error.response) {
           console.error('Error response status:', error.response.status);
@@ -5627,6 +5774,7 @@ const showSubmissionConfirmation = async () => {
             Swal.update({ html: `กำลังอัปโหลดไฟล์... (${completed}/${totalUpload})` });
           }
         },
+        filesOverride: allFiles,
       });
 
       // Submit the application
