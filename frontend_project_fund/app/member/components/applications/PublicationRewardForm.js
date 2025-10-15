@@ -148,6 +148,106 @@ const parseIndexingFlags = (value) => {
   };
 };
 
+const normalizeSpaces = (value) => {
+  if (value === null || value === undefined) {
+    return '';
+  }
+  return String(value).replace(/\s+/g, ' ').trim();
+};
+
+const escapeRegExp = (value) => {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+};
+
+const stripPrefixFromName = (name, prefix) => {
+  const normalizedName = normalizeSpaces(name);
+  const normalizedPrefix = normalizeSpaces(prefix);
+  if (!normalizedName) {
+    return '';
+  }
+  if (!normalizedPrefix) {
+    return normalizedName;
+  }
+  const pattern = new RegExp(`^${escapeRegExp(normalizedPrefix)}\\s*`, 'i');
+  return normalizedName.replace(pattern, '').trim();
+};
+
+const normalizeAuthorStatusCode = (value) => {
+  if (value === null || value === undefined) {
+    return '';
+  }
+  const raw = String(value).trim();
+  if (!raw) {
+    return '';
+  }
+  const cleaned = raw.replace(/[\s-]+/g, '_').toLowerCase();
+  switch (cleaned) {
+    case 'first_author':
+    case 'firstauthor':
+    case 'first':
+    case 'main_author':
+    case 'mainauthor':
+    case 'owner':
+      return 'first_author';
+    case 'corresponding_author':
+    case 'correspondingauthor':
+    case 'corresponding':
+      return 'corresponding_author';
+    case 'co_author':
+    case 'coauthor':
+    case 'co_authors':
+    case 'coauthors':
+    case 'co':
+      return 'co_author';
+    default:
+      return cleaned;
+  }
+};
+
+const normalizeQuartileCode = (value) => {
+  if (value === null || value === undefined) {
+    return '';
+  }
+  const raw = String(value).trim();
+  if (!raw) {
+    return '';
+  }
+  return raw.toUpperCase();
+};
+
+const normalizeAuthorQuartileKey = (authorStatus, quartile) => {
+  const normalizedStatus = normalizeAuthorStatusCode(authorStatus);
+  const normalizedQuartile = normalizeQuartileCode(quartile);
+  if (!normalizedStatus || !normalizedQuartile) {
+    return null;
+  }
+  return `${normalizedStatus}|${normalizedQuartile}`;
+};
+
+const normalizeAuthorQuartileMap = (input = {}) => {
+  const normalized = {};
+  Object.entries(input || {}).forEach(([key, value]) => {
+    if (!key) return;
+    const [status, quartile] = key.split('|');
+    const normalizedKey = normalizeAuthorQuartileKey(status, quartile);
+    if (!normalizedKey) return;
+    normalized[normalizedKey] = value;
+  });
+  return normalized;
+};
+
+const normalizeBudgetOptionEntries = (input = {}) => {
+  const normalized = {};
+  Object.entries(input || {}).forEach(([key, value]) => {
+    if (!key) return;
+    const [status, quartile] = key.split('|');
+    const normalizedKey = normalizeAuthorQuartileKey(status, quartile);
+    if (!normalizedKey) return;
+    normalized[normalizedKey] = value;
+  });
+  return normalized;
+};
+
 const resolveUserNameParts = (user = {}) => {
   const prefixCandidates = [
     user.prefix_name,
@@ -177,7 +277,7 @@ const resolveUserNameParts = (user = {}) => {
     user.user_prefix?.Name,
   ];
 
-  let prefix = findFirstString(prefixCandidates) || '';
+  let prefix = normalizeSpaces(findFirstString(prefixCandidates) || '');
 
   const firstNameCandidates = [
     user.user_fname,
@@ -210,7 +310,7 @@ const resolveUserNameParts = (user = {}) => {
     user.DisplayName ? user.DisplayName.split(' ')[0] : null,
   ];
 
-  let firstName = findFirstString(firstNameCandidates) || '';
+  let firstName = normalizeSpaces(findFirstString(firstNameCandidates) || '');
 
   const lastNameCandidates = [
     user.user_lname,
@@ -239,7 +339,7 @@ const resolveUserNameParts = (user = {}) => {
     user.DisplayName ? user.DisplayName.split(' ').slice(1).join(' ') : null,
   ];
 
-  let lastName = findFirstString(lastNameCandidates) || '';
+  let lastName = normalizeSpaces(findFirstString(lastNameCandidates) || '');
 
   const displayNameCandidates = [
     user.display_name,
@@ -271,11 +371,11 @@ const resolveUserNameParts = (user = {}) => {
     user.Username,
   ];
 
-  let displayName = findFirstString(displayNameCandidates);
+  let displayName = normalizeSpaces(findFirstString(displayNameCandidates));
 
   if (!displayName) {
     const combinedFallback = [prefix, firstName, lastName].filter(Boolean).join(' ').trim();
-    displayName = combinedFallback || null;
+    displayName = combinedFallback || '';
   }
 
   if (displayName && (!firstName || !lastName)) {
@@ -295,8 +395,12 @@ const resolveUserNameParts = (user = {}) => {
     }
   }
 
+  prefix = normalizeSpaces(prefix);
+  firstName = stripPrefixFromName(firstName, prefix);
+  lastName = normalizeSpaces(lastName);
+
   const combined = [prefix, firstName, lastName].filter(Boolean).join(' ').trim();
-  const finalDisplayName = displayName || combined || firstName || lastName || '';
+  const finalDisplayName = normalizeSpaces(displayName) || combined || firstName || lastName || '';
 
   return { firstName, lastName, prefix, displayName: finalDisplayName };
 };
@@ -309,7 +413,7 @@ const buildCoauthorFromSubmissionUser = (entry) => {
     return null;
   }
 
-  const explicitDisplayName = findFirstString([
+  const explicitDisplayName = normalizeSpaces(findFirstString([
     entry?.display_name,
     entry?.DisplayName,
     entry?.displayName,
@@ -324,9 +428,9 @@ const buildCoauthorFromSubmissionUser = (entry) => {
     user?.full_name_th,
     user?.FullName,
     user?.FullNameTh,
-  ]);
+  ]));
 
-  const explicitFirstName = findFirstString([
+  const explicitFirstName = normalizeSpaces(findFirstString([
     entry?.user_fname,
     entry?.user_fname_th,
     entry?.UserFname,
@@ -343,9 +447,9 @@ const buildCoauthorFromSubmissionUser = (entry) => {
     user?.first_name_th,
     user?.FirstName,
     user?.FirstNameTh,
-  ]);
+  ]));
 
-  const explicitLastName = findFirstString([
+  const explicitLastName = normalizeSpaces(findFirstString([
     entry?.user_lname,
     entry?.user_lname_th,
     entry?.UserLname,
@@ -364,24 +468,25 @@ const buildCoauthorFromSubmissionUser = (entry) => {
     user?.LastName,
     user?.LastNameTh,
     user?.surname,
-  ]);
+    user?.surname_th,
+  ]));
 
-  const explicitPrefix = findFirstString([
+  const explicitPrefix = normalizeSpaces(findFirstString([
     entry?.prefix_name,
     entry?.prefix,
     entry?.title,
     user?.prefix_name,
     user?.prefix,
     user?.title,
-  ]);
+  ]));
 
   const { firstName: computedFirst, lastName: computedLast, prefix: computedPrefix, displayName: computedDisplay } =
     resolveUserNameParts(user);
 
-  let finalDisplayName = (explicitDisplayName || computedDisplay || '').trim();
-  let finalPrefix = (explicitPrefix || computedPrefix || '').trim();
-  let finalFirstName = (explicitFirstName || computedFirst || '').trim();
-  let finalLastName = (explicitLastName || computedLast || '').trim();
+  let finalDisplayName = normalizeSpaces(explicitDisplayName || computedDisplay || '');
+  let finalPrefix = normalizeSpaces(explicitPrefix || computedPrefix || '');
+  let finalFirstName = normalizeSpaces(explicitFirstName || computedFirst || '');
+  let finalLastName = normalizeSpaces(explicitLastName || computedLast || '');
 
   if (finalDisplayName) {
     const segments = finalDisplayName.split(/\s+/).filter(Boolean);
@@ -401,26 +506,24 @@ const buildCoauthorFromSubmissionUser = (entry) => {
     }
   }
 
-  if (finalPrefix) {
-    const normalizedPrefix = finalPrefix.replace(/\s+/g, ' ').trim();
-    const prefixPattern = new RegExp(`^${normalizedPrefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\s*`);
-    if (!prefixPattern.test(finalFirstName)) {
-      finalFirstName = [normalizedPrefix, finalFirstName].filter(Boolean).join(' ').trim();
-    }
+  if (!finalDisplayName) {
+    const combinedDisplay = [finalPrefix, finalFirstName, finalLastName].filter(Boolean).join(' ').trim();
+    const fallbackCombined = [computedPrefix, computedFirst, computedLast].filter(Boolean).join(' ').trim();
+    finalDisplayName = combinedDisplay || fallbackCombined || explicitDisplayName || computedDisplay || '';
   }
 
-  if (!finalDisplayName) {
-    const combinedDisplay = [finalFirstName, finalLastName].filter(Boolean).join(' ').trim();
-    const fallbackCombined = [finalPrefix, computedFirst, computedLast].filter(Boolean).join(' ').trim();
-    finalDisplayName = combinedDisplay || fallbackCombined || computedDisplay || explicitDisplayName || '';
-  }
+  finalPrefix = normalizeSpaces(finalPrefix);
+  finalFirstName = stripPrefixFromName(finalFirstName, finalPrefix);
+  finalLastName = normalizeSpaces(finalLastName);
+  finalDisplayName = normalizeSpaces(finalDisplayName);
 
   return {
     user_id: userId,
     user_fname: finalFirstName,
     user_lname: finalLastName,
     email: user?.email ?? entry?.email ?? null,
-    display_name: finalDisplayName.trim(),
+    display_name: finalDisplayName,
+    prefix_name: finalPrefix || null,
   };
 };
 
@@ -862,6 +965,30 @@ const AUTHOR_STATUS_MAP = {
     'เงินรางวัลการตีพิมพ์เผยแพร่ผลงานวิจัยที่ได้รับการตีพิมพ์ในสาขาวิทยาศาสตร์และเทคโนโลยี (กรณีเป็นผู้แต่งชื่อแรก)',
   corresponding_author:
     'เงินรางวัลการตีพิมพ์เผยแพร่ผลงานวิจัยที่ได้รับการตีพิมพ์ในสาขาวิทยาศาสตร์และเทคโนโลยี (กรณีเป็นผู้ประพันธ์บรรณกิจ)',
+  co_author:
+    'เงินรางวัลการตีพิมพ์เผยแพร่ผลงานวิจัยที่ได้รับการตีพิมพ์ในสาขาวิทยาศาสตร์และเทคโนโลยี (กรณีเป็นผู้แต่งร่วม)',
+};
+
+const AUTHOR_STATUS_LABELS = {
+  first_author: 'ผู้ประพันธ์ชื่อแรก (First Author)',
+  corresponding_author: 'ผู้ประพันธ์บรรณกิจ (Corresponding Author)',
+  co_author: 'ผู้ประพันธ์ร่วม (Co-Author)',
+};
+
+const AUTHOR_STATUS_ORDER = ['first_author', 'corresponding_author', 'co_author'];
+
+const sortAuthorStatuses = (statuses = []) => {
+  const uniqueList = Array.from(new Set(statuses.filter(Boolean)));
+  return uniqueList.sort((a, b) => {
+    const indexA = AUTHOR_STATUS_ORDER.indexOf(a);
+    const indexB = AUTHOR_STATUS_ORDER.indexOf(b);
+    if (indexA === -1 && indexB === -1) {
+      return a.localeCompare(b);
+    }
+    if (indexA === -1) return 1;
+    if (indexB === -1) return -1;
+    return indexA - indexB;
+  });
 };
 
 const QUARTILE_MAP = {
@@ -1251,8 +1378,10 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
   const [budgetOptionMap, setBudgetOptionMap] = useState({});
   const prefilledBudgetOptionsRef = useRef({});
   const mergeBudgetOptions = useCallback((base) => {
-    const normalizedBase = base && typeof base === 'object' && !Array.isArray(base) ? { ...base } : {};
-    const fallback = prefilledBudgetOptionsRef.current || {};
+    const normalizedBase = normalizeBudgetOptionEntries(
+      base && typeof base === 'object' && !Array.isArray(base) ? base : {}
+    );
+    const fallback = normalizeBudgetOptionEntries(prefilledBudgetOptionsRef.current || {});
 
     Object.entries(fallback).forEach(([key, value]) => {
       const normalizedValue = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
@@ -1580,15 +1709,19 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
       const pairs = [];
       const rateMap = {};
       const budgetMap = {};
+      const seenPairs = new Set();
 
       options.forEach(opt => {
         if (!opt) return;
-        const author_status = opt.author_status;
-        const journal_quartile = opt.journal_quartile;
-        if (!author_status || !journal_quartile) return;
+        const normalizedStatus = normalizeAuthorStatusCode(opt.author_status);
+        const normalizedQuartile = normalizeQuartileCode(opt.journal_quartile);
+        const key = normalizeAuthorQuartileKey(normalizedStatus, normalizedQuartile);
+        if (!key) return;
 
-        const key = `${author_status}|${journal_quartile}`;
-        pairs.push({ author_status, journal_quartile });
+        if (!seenPairs.has(key)) {
+          pairs.push({ author_status: normalizedStatus, journal_quartile: normalizedQuartile });
+          seenPairs.add(key);
+        }
 
         const rewardAmount = parseNumberOrNull(opt.reward_amount);
         if (rewardAmount !== null) {
@@ -1606,12 +1739,15 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
         };
       });
 
-      if (pairs.length === 0 && fallbackRateMap && Object.keys(fallbackRateMap).length > 0) {
-        Object.entries(fallbackRateMap).forEach(([key, amount]) => {
-          const [authorStatus, quartile] = key.split('|');
-          if (!authorStatus || !quartile) return;
+      const normalizedFallbackRateMap = normalizeAuthorQuartileMap(fallbackRateMap);
 
-          pairs.push({ author_status: authorStatus, journal_quartile: quartile });
+      if (pairs.length === 0 && Object.keys(normalizedFallbackRateMap).length > 0) {
+        Object.entries(normalizedFallbackRateMap).forEach(([key, amount]) => {
+          const [authorStatus, quartile] = key.split('|');
+          if (!seenPairs.has(key)) {
+            pairs.push({ author_status, journal_quartile: quartile });
+            seenPairs.add(key);
+          }
 
           if (!Object.prototype.hasOwnProperty.call(rateMap, key)) {
             rateMap[key] = amount;
@@ -1623,7 +1759,7 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
 
     } catch (err) {
       console.error('getEnabledAuthorStatusQuartiles error:', err);
-      return { pairs: [], rateMap: {}, budgetMap: {} };
+      return { pairs: [], rateMap: normalizeAuthorQuartileMap(fallbackRateMap), budgetMap: {} };
     }
   };
 
@@ -2020,8 +2156,9 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
             { year: prev.journal_year, month: prev.journal_month }
           );
 
-          const authorStatus =
+          const authorStatusRaw =
             detail.author_type || detail.author_status || payload.author_status || prev.author_status;
+          const normalizedAuthorStatus = normalizeAuthorStatusCode(authorStatusRaw);
 
           const quartileValue = findFirstString([
             detail.quartile,
@@ -2031,13 +2168,15 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
             payload.journal_quartile,
             prev.journal_quartile,
           ]);
-          const normalizedQuartile = quartileValue ? quartileValue.toUpperCase() : (prev.journal_quartile || '');
+          const normalizedQuartile = normalizeQuartileCode(
+            quartileValue || prev.journal_quartile || ''
+          );
 
           const nextYearId = parseIntegerOrNull(
             payload.year_id ?? detail.year_id ?? prev.year_id ?? yearId ?? null
           );
           previousYearRef.current = nextYearId;
-          previousAuthorStatusRef.current = authorStatus || '';
+          previousAuthorStatusRef.current = normalizedAuthorStatus || '';
 
           const rewardValue = toNumberOrEmpty(
             detail.reward_amount ?? prev.publication_reward ?? prev.reward_amount ?? ''
@@ -2065,7 +2204,7 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
             subcategory_id: payload.subcategory_id ?? detail.subcategory_id ?? prev.subcategory_id,
             subcategory_budget_id:
               payload.subcategory_budget_id ?? detail.subcategory_budget_id ?? prev.subcategory_budget_id,
-            author_status: authorStatus || '',
+            author_status: normalizedAuthorStatus || '',
             journal_quartile: normalizedQuartile,
             article_title: detail.paper_title ?? detail.article_title ?? prev.article_title ?? '',
             journal_name: detail.journal_name ?? prev.journal_name ?? '',
@@ -2193,10 +2332,10 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
 
           const existingPrefill = prefilledBudgetOptionsRef.current[fallbackKey] || {};
           const nextPrefill = { ...existingPrefill, ...fallbackOption };
-          prefilledBudgetOptionsRef.current = {
+          prefilledBudgetOptionsRef.current = normalizeBudgetOptionEntries({
             ...prefilledBudgetOptionsRef.current,
             [fallbackKey]: nextPrefill,
-          };
+          });
           updateBudgetOptionMap((prev) => {
             const existing = prev?.[fallbackKey] || {};
             return {
@@ -2424,7 +2563,9 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
         });
 
         setEnabledPairs(pairs);
-        const combinedRateMap = { ...fallbackRewardRateMap, ...rateMap };
+        const normalizedFallbackRates = normalizeAuthorQuartileMap(fallbackRewardRateMap);
+        const normalizedRateMap = normalizeAuthorQuartileMap(rateMap);
+        const combinedRateMap = { ...normalizedFallbackRates, ...normalizedRateMap };
         setRewardRateMap(combinedRateMap);
         updateBudgetOptionMap(budgetMap || {});
 
@@ -2435,7 +2576,7 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
         if (hydrating && formData.author_status && !uniqueStatuses.includes(formData.author_status)) {
           uniqueStatuses = [...uniqueStatuses, formData.author_status];
         }
-        setAvailableAuthorStatuses(uniqueStatuses);
+        setAvailableAuthorStatuses(sortAuthorStatuses(uniqueStatuses));
 
         const yearChanged = previousYearId !== currentYearId;
         previousYearRef.current = currentYearId;
@@ -2463,7 +2604,7 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
       } catch (error) {
         console.error('Failed to resolve author status/quartile pairs:', error);
         setEnabledPairs([]);
-        setRewardRateMap(fallbackRewardRateMap);
+        setRewardRateMap(normalizeAuthorQuartileMap(fallbackRewardRateMap));
         updateBudgetOptionMap({});
         setAvailableAuthorStatuses([]);
         if (!hydrating) {
@@ -3186,11 +3327,11 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
             rateList.forEach((rate) => {
               const authorStatus = rate?.author_status ?? rate?.AuthorStatus ?? '';
               const quartile = rate?.journal_quartile ?? rate?.JournalQuartile ?? '';
-              if (!authorStatus || !quartile) return;
-              const key = `${String(authorStatus).trim()}|${String(quartile).trim()}`;
+              const normalizedKey = normalizeAuthorQuartileKey(authorStatus, quartile);
+              if (!normalizedKey) return;
               const amount = parseNumberOrNull(rate?.reward_amount ?? rate?.RewardAmount);
               if (amount !== null) {
-                map[key] = amount;
+                map[normalizedKey] = amount;
               }
             });
             if (Object.keys(map).length > 0) {
@@ -3205,7 +3346,7 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
 
       if (resolvedRateYearLabel) {
         setRewardRateYear(resolvedRateYearLabel);
-        setFallbackRewardRateMap(resolvedRateMap);
+        setFallbackRewardRateMap(normalizeAuthorQuartileMap(resolvedRateMap));
       } else {
         setRewardRateYear(null);
         setFallbackRewardRateMap({});
@@ -3328,17 +3469,19 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
           fallbackRateMap: resolvedRateMap,
         });
         setEnabledPairs(pairs);
-        const combinedRateMap = { ...resolvedRateMap, ...rateMap };
+        const normalizedResolvedRates = normalizeAuthorQuartileMap(resolvedRateMap);
+        const normalizedRateMap = normalizeAuthorQuartileMap(rateMap);
+        const combinedRateMap = { ...normalizedResolvedRates, ...normalizedRateMap };
         setRewardRateMap(combinedRateMap);
         updateBudgetOptionMap(budgetMap || {});
         let uniqueStatuses = [...new Set(pairs.map(p => p.author_status))];
         if (uniqueStatuses.length === 0 && Object.keys(combinedRateMap).length > 0) {
           uniqueStatuses = [...new Set(Object.keys(combinedRateMap).map((key) => key.split('|')[0]))];
         }
-        setAvailableAuthorStatuses(uniqueStatuses);
+        setAvailableAuthorStatuses(sortAuthorStatuses(uniqueStatuses));
         setAvailableQuartiles([]);
       } else {
-        setRewardRateMap(resolvedRateMap);
+        setRewardRateMap(normalizeAuthorQuartileMap(resolvedRateMap));
       }
 
     } catch (error) {
@@ -3415,9 +3558,16 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
 
     // สำหรับ input อื่นๆ รวมถึง author_status และ journal_quartile
     else {
+      let nextValue = value;
+      if (name === 'author_status') {
+        nextValue = normalizeAuthorStatusCode(value);
+      } else if (name === 'journal_quartile') {
+        nextValue = normalizeQuartileCode(value);
+      }
+
       setFormData(prev => ({
         ...prev,
-        [name]: value
+        [name]: nextValue
       }));
       if (['author_status', 'journal_quartile'].includes(name)) {
         setResolutionError('');
@@ -6381,14 +6531,14 @@ const showSubmissionConfirmation = async () => {
                 <option value="" disabled={formData.author_status !== ''} hidden={formData.author_status !== ''}>
                   เลือกประเภทผู้ประพันธ์ (Select Author Type)
                 </option>
-                {availableAuthorStatuses
-                  .filter(status => status !== 'co_author')
-                  .map(status => (
+                {availableAuthorStatuses.map(status => {
+                  const label = AUTHOR_STATUS_LABELS[status] || status;
+                  return (
                     <option key={status} value={status}>
-                      {status === 'first_author' ? 'ผู้ประพันธ์ชื่อแรก (First Author)' :
-                      status === 'corresponding_author' ? 'ผู้ประพันธ์บรรณกิจ (Corresponding Author)' : status}
+                      {label}
                     </option>
-                  ))}
+                  );
+                })}
               </select>
               {errors.author_status && (
                 <p id="error-author_status" className="text-red-500 text-sm mt-1">{errors.author_status}</p>
