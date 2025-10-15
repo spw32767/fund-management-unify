@@ -429,7 +429,7 @@ function DecisionDropdown({ value, onChange, disabled = false, className = '' })
         <div
           ref={menuRef}
           role="listbox"
-          className="absolute left-0 z-50 mt-2 w-72 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-xl ring-1 ring-black/5"
+          className="absolute left-0 bottom-full z-50 mb-2 w-72 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-xl ring-1 ring-black/5"
         >
           <div className="py-1">
             {DECISION_OPTIONS.map((option) => {
@@ -846,30 +846,30 @@ function FundApprovalPanel({ submission, fundDetail, onApprove, onReject, onRequ
           </div>
         </div>
 
-        {/* Announcement ref */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-center">
-          <label className="block text-sm font-medium text-gray-700 leading-tight">
-            หมายเลขอ้างอิงประกาศผลการพิจารณา (ถ้ามี)
-            <br /><span className="text-xs font-normal text-gray-600">Announcement Ref.</span>
-          </label>
-          <div className="w-full rounded-md border bg-white shadow-sm transition-all border-gray-300 hover:border-blue-300 focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-500">
-            <input
-              type="text"
-              className="w-full p-2.5 rounded-md outline-none bg-transparent"
-              value={announceRef}
-              onChange={(e) => setAnnounceRef(e.target.value)}
-              placeholder="เช่น 123/2568"
-            />
+        <div className="space-y-6">
+          {/* Announcement ref */}
+          <div className="flex flex-col gap-2">
+            <label className="text-sm font-medium text-gray-700 leading-tight">
+              หมายเลขอ้างอิงประกาศผลการพิจารณา (ถ้ามี)
+              <br /><span className="text-xs font-normal text-gray-600">Announcement Ref.</span>
+            </label>
+            <div className="w-full rounded-md border bg-white shadow-sm transition-all border-gray-300 hover:border-blue-300 focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-500">
+              <input
+                type="text"
+                className="w-full p-2.5 rounded-md outline-none bg-transparent"
+                value={announceRef}
+                onChange={(e) => setAnnounceRef(e.target.value)}
+                placeholder="เช่น 123/2568"
+              />
+            </div>
           </div>
-        </div>
 
-        {/* Comment */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
-          <label className="block text-sm font-medium text-gray-700 leading-tight pt-2">
-            หมายเหตุของผู้ดูแลระบบ
-            <br /><span className="text-xs font-normal text-gray-600">Comment</span>
-          </label>
-          <div className="w-full">
+          {/* Comment */}
+          <div className="flex flex-col gap-2">
+            <label className="text-sm font-medium text-gray-700 leading-tight">
+              หมายเหตุของผู้ดูแลระบบ
+              <br /><span className="text-xs font-normal text-gray-600">Comment</span>
+            </label>
             <div
               className={[
                 'rounded-md border bg-white shadow-sm transition-all',
@@ -894,41 +894,45 @@ function FundApprovalPanel({ submission, fundDetail, onApprove, onReject, onRequ
               />
             </div>
             {errors.comment ? (
-              <p className="mt-1 text-xs text-red-600 text-right">{errors.comment}</p>
+              <p className="text-xs text-red-600 text-right">{errors.comment}</p>
             ) : (
-              <p className="mt-1 text-xs text-gray-400 text-right">ใช้หมายเหตุนี้เมื่อขอข้อมูลเพิ่มเติม</p>
+              <p className="text-xs text-gray-400 text-right">ใช้หมายเหตุนี้เมื่อขอข้อมูลเพิ่มเติม</p>
             )}
           </div>
-        </div>
 
-        {/* Actions */}
-        <div className="flex flex-col md:flex-row md:items-center gap-3 pt-4 border-t border-gray-200">
-          <div className="flex flex-col gap-2 md:flex-row md:items-center md:gap-3">
-            <span className="text-sm font-medium text-gray-700">ดำเนินการ</span>
-            <DecisionDropdown
-              value={selectedAction}
-              onChange={(next) => {
-                setSelectedAction(next);
-                if (next !== 'revision') {
-                  setErrors((prev) => {
-                    if (!prev.comment) return prev;
-                    const updated = { ...prev };
-                    delete updated.comment;
-                    return updated;
-                  });
-                }
-              }}
-              disabled={actionPending}
-              className="md:min-w-[18rem]"
-            />
+          {/* Actions */}
+          <div className="border-t border-gray-200 pt-4">
+            <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+              <div className="flex flex-col gap-2 md:flex-row md:items-center md:gap-3 md:max-w-[60%]">
+                <span className="text-sm font-medium text-gray-700">ดำเนินการ</span>
+                <DecisionDropdown
+                  value={selectedAction}
+                  onChange={(next) => {
+                    setSelectedAction(next);
+                    if (next !== 'revision') {
+                      setErrors((prev) => {
+                        if (!prev.comment) return prev;
+                        const updated = { ...prev };
+                        delete updated.comment;
+                        return updated;
+                      });
+                    }
+                  }}
+                  disabled={actionPending}
+                  className="w-full md:min-w-[18rem]"
+                />
+              </div>
+              <div className="flex justify-end md:self-end">
+                <button
+                  className="btn btn-primary min-w-[164px] justify-center"
+                  onClick={handleDecisionSubmit}
+                  disabled={actionPending}
+                >
+                  บันทึกผล
+                </button>
+              </div>
+            </div>
           </div>
-          <button
-            className="btn btn-primary"
-            onClick={handleDecisionSubmit}
-            disabled={actionPending}
-          >
-            บันทึกผล
-          </button>
         </div>
       </div>
     </Card>

@@ -552,7 +552,7 @@ function DecisionDropdown({ value, onChange, disabled = false, className = '' })
         <div
           ref={menuRef}
           role="listbox"
-          className="absolute left-0 z-50 mt-2 w-72 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-xl ring-1 ring-black/5"
+          className="absolute left-0 bottom-full z-50 mb-2 w-72 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-xl ring-1 ring-black/5"
         >
           <div className="py-1">
             {DECISION_OPTIONS.map((option) => {
@@ -1336,18 +1336,15 @@ function ApprovalPanel({ submission, pubDetail, requestedSummary, approvedSummar
           <ReadonlyMoney aria="Total approved amount (readonly)" value={totalApprove} />
         </div>
 
-        {/* Announcement number */}
-        <div className="grid grid-cols-2 items-start pt-2">
-          <label className="block font-medium text-gray-700 pt-2">
-            หมายเลขอ้างอิงประกาศผลการพิจารณา
-            <div className="text-xs text-gray-500 mt-1">
-              ระบุหมายหมายเลขอ้างอิงประกาศผลการพิจารณาที่เกี่ยวข้อง (ถ้ามี)
-            </div>
-          </label>
-          <div className="flex flex-col items-end w-full">
+        <div className="space-y-6">
+          {/* Announcement number */}
+          <div className="flex flex-col gap-2">
+            <label className="text-sm font-medium text-gray-700 leading-tight">
+              หมายเลขอ้างอิงประกาศผลการพิจารณา
+              <br /><span className="text-xs font-normal text-gray-600">Announcement Ref.</span>
+            </label>
             <div
-              className="w-full md:w-72 rounded-md border bg-white shadow-sm transition-all
-              border-gray-300 hover:border-blue-300 focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-500"
+              className="w-full rounded-md border bg-white shadow-sm transition-all border-gray-300 hover:border-blue-300 focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-500"
             >
               <input
                 type="text"
@@ -1357,17 +1354,14 @@ function ApprovalPanel({ submission, pubDetail, requestedSummary, approvedSummar
                 onChange={(e) => setAnnounceRef(e.target.value)}
               />
             </div>
-            <div className="h-5 mt-1" />
           </div>
-        </div>
 
-        {/* Admin comment */}
-        <div className="grid grid-cols-2 items-start">
-          <label className="block text-sm font-medium text-gray-700 leading-tight pt-2">
-            หมายเหตุของผู้ดูแลระบบ
-            <br /><span className="text-xs font-normal text-gray-600">Admin Comment</span>
-          </label>
-          <div className="w-full">
+          {/* Admin comment */}
+          <div className="flex flex-col gap-2">
+            <label className="text-sm font-medium text-gray-700 leading-tight">
+              หมายเหตุของผู้ดูแลระบบ
+              <br /><span className="text-xs font-normal text-gray-600">Admin Comment</span>
+            </label>
             <div
               className={[
                 'rounded-md border bg-white shadow-sm transition-all',
@@ -1392,44 +1386,48 @@ function ApprovalPanel({ submission, pubDetail, requestedSummary, approvedSummar
               />
             </div>
             {errors.adminComment ? (
-              <p className="mt-1 text-xs text-red-600 text-right">{errors.adminComment}</p>
+              <p className="text-xs text-red-600 text-right">{errors.adminComment}</p>
             ) : (
-              <p className="mt-1 text-xs text-gray-400 text-right">หมายเหตุจะแจ้งให้ผู้ยื่นทราบเมื่อขอข้อมูลเพิ่มเติม</p>
+              <p className="text-xs text-gray-400 text-right">หมายเหตุจะแจ้งให้ผู้ยื่นทราบเมื่อขอข้อมูลเพิ่มเติม</p>
             )}
           </div>
-        </div>
 
-        {/* Actions */}
-        <div className="flex flex-col md:flex-row md:items-center gap-3 pt-2">
-          <div className="flex flex-col gap-2 md:flex-row md:items-center md:gap-3">
-            <span className="text-sm font-medium text-gray-700">ดำเนินการ</span>
-            <DecisionDropdown
-              value={selectedDecision}
-              onChange={(next) => {
-                setSelectedDecision(next);
-                if (next !== 'revision') {
-                  setErrors((prev) => {
-                    if (!prev.adminComment) return prev;
-                    const updated = { ...prev };
-                    delete updated.adminComment;
-                    return updated;
-                  });
-                }
-              }}
-              disabled={saving || decisionPending}
-              className="md:min-w-[18rem]"
-            />
+          {/* Actions */}
+          <div className="border-t border-gray-200 pt-4">
+            <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+              <div className="flex flex-col gap-2 md:flex-row md:items-center md:gap-3 md:max-w-[60%]">
+                <span className="text-sm font-medium text-gray-700">ดำเนินการ</span>
+                <DecisionDropdown
+                  value={selectedDecision}
+                  onChange={(next) => {
+                    setSelectedDecision(next);
+                    if (next !== 'revision') {
+                      setErrors((prev) => {
+                        if (!prev.adminComment) return prev;
+                        const updated = { ...prev };
+                        delete updated.adminComment;
+                        return updated;
+                      });
+                    }
+                  }}
+                  disabled={saving || decisionPending}
+                  className="w-full md:min-w-[18rem]"
+                />
+              </div>
+              <div className="flex items-center justify-end gap-3 md:self-end">
+                {(saving || decisionPending) && (
+                  <span className="text-sm text-gray-500">กำลังดำเนินการ...</span>
+                )}
+                <button
+                  className="btn btn-primary min-w-[164px] justify-center gap-2 disabled:opacity-60"
+                  onClick={handleDecisionSubmit}
+                  disabled={saving || decisionPending}
+                >
+                  <Check size={18} /> บันทึกผล
+                </button>
+              </div>
+            </div>
           </div>
-          <button
-            className="btn btn-primary inline-flex items-center gap-2 disabled:opacity-60"
-            onClick={handleDecisionSubmit}
-            disabled={saving || decisionPending}
-          >
-            <Check size={18} /> บันทึกผล
-          </button>
-          {(saving || decisionPending) && (
-            <span className="text-sm text-gray-500">กำลังดำเนินการ...</span>
-          )}
         </div>
       </div>
     </Card>

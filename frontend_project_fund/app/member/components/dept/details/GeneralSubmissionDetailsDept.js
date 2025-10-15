@@ -244,7 +244,7 @@ function DecisionDropdown({ value, onChange, disabled = false, className = '' })
         <div
           ref={menuRef}
           role="listbox"
-          className="absolute left-0 z-50 mt-2 w-72 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-xl ring-1 ring-black/5"
+          className="absolute left-0 bottom-full z-50 mb-2 w-72 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-xl ring-1 ring-black/5"
         >
           <div className="py-1">
             {DECISION_OPTIONS.map((option) => {
@@ -291,10 +291,19 @@ function DeptDecisionPanel({ submission, onApprove, onReject, onRequestRevision,
   const [headSignature, setHeadSignature] = useState(
     submission?.head_signature ?? ''
   );
+  const announceReference =
+    submission?.announce_reference_number ??
+    submission?.announce_reference ??
+    '';
+  const [announceRef, setAnnounceRef] = useState(announceReference || '');
   const [saving, setSaving] = useState(false);
   const [selectedAction, setSelectedAction] = useState('approve');
   const [decisionPending, setDecisionPending] = useState(false);
   const [errors, setErrors] = useState({});
+
+  useEffect(() => {
+    setAnnounceRef(announceReference || '');
+  }, [announceReference]);
 
   const statusId = Number(submission?.status_id);
   const canAct = statusId === 1 || String(submission?.status?.status_code || '').toLowerCase() === 'pending';
@@ -302,6 +311,7 @@ function DeptDecisionPanel({ submission, onApprove, onReject, onRequestRevision,
   const handleApprove = async () => {
     const trimmedComment = comment?.trim() || '';
     const trimmedSignature = headSignature?.trim() || '';
+    const trimmedAnnounce = announceRef?.trim() || '';
     if (!trimmedSignature) {
       await Swal.fire({
         icon: 'warning',
@@ -312,6 +322,12 @@ function DeptDecisionPanel({ submission, onApprove, onReject, onRequestRevision,
     }
     const html = `
       <div style="text-align:left;font-size:14px;line-height:1.6;">
+        ${trimmedAnnounce
+          ? `<div style="margin-bottom:0.75rem;">
+              <div style="font-weight:500;margin-bottom:.25rem;">หมายเลขอ้างอิงประกาศผลการพิจารณา</div>
+              <div style="border:1px solid #e5e7eb;background:#f9fafb;padding:.5rem;border-radius:.5rem;">${escapeHtml(trimmedAnnounce)}</div>
+            </div>`
+          : ''}
         <div style="margin-bottom:0.75rem;">
           <div style="font-weight:500;margin-bottom:.25rem;">ลายเซ็นหัวหน้าสาขา</div>
           <div style="border:1px solid #e5e7eb;background:#f9fafb;padding:.5rem;border-radius:.5rem;">${escapeHtml(trimmedSignature)}</div>
@@ -339,7 +355,7 @@ function DeptDecisionPanel({ submission, onApprove, onReject, onRequestRevision,
         try {
           setSaving(true);
           // ส่งหมายเหตุ (comment/head_comment) ไปเก็บที่ submissions เท่านั้น
-          await onApprove(trimmedComment, trimmedSignature);
+          await onApprove(trimmedComment, trimmedSignature, trimmedAnnounce);
         } catch (e) {
           Swal.showValidationMessage(e?.message || 'อนุมัติไม่สำเร็จ');
           throw e;
@@ -362,6 +378,7 @@ function DeptDecisionPanel({ submission, onApprove, onReject, onRequestRevision,
   const handleReject = async () => {
     const trimmedSignature = headSignature?.trim() || '';
     const trimmedComment = comment?.trim() || '';
+    const trimmedAnnounce = announceRef?.trim() || '';
     // Step 1: กล่องกรอกเหตุผล
     const { value: reason } = await Swal.fire({
       title: 'เหตุผลการไม่อนุมัติ',
@@ -393,6 +410,12 @@ function DeptDecisionPanel({ submission, onApprove, onReject, onRequestRevision,
               : `<div style=\"font-size:12px;color:#6b7280;\">(ไม่ระบุลายเซ็น)</div>`
             }
           </div>
+          ${trimmedAnnounce
+            ? `<div style="margin-bottom:0.75rem;">
+                <div style="font-weight:500;margin-bottom:.25rem;">หมายเลขอ้างอิงประกาศผลการพิจารณา</div>
+                <div style=\"border:1px solid #e5e7eb;background:#f9fafb;padding:.5rem;border-radius:.5rem;\">${escapeHtml(trimmedAnnounce)}</div>
+              </div>`
+            : ''}
           <div>
             <div style="font-weight:500;margin-bottom:.25rem;">หมายเหตุจากหัวหน้าสาขา</div>
             ${trimmedComment
@@ -418,7 +441,8 @@ function DeptDecisionPanel({ submission, onApprove, onReject, onRequestRevision,
           await onReject(
             String(reason).trim(),
             trimmedComment,
-            trimmedSignature
+            trimmedSignature,
+            trimmedAnnounce
           );
         } catch (e) {
           Swal.showValidationMessage(e?.message || 'ไม่อนุมัติไม่สำเร็จ');
@@ -441,6 +465,7 @@ function DeptDecisionPanel({ submission, onApprove, onReject, onRequestRevision,
   const handleRequestRevision = async () => {
     const trimmedSignature = headSignature?.trim() || '';
     const trimmedComment = comment?.trim() || '';
+    const trimmedAnnounce = announceRef?.trim() || '';
 
     if (!trimmedComment) {
       setErrors((prev) => ({
@@ -459,6 +484,12 @@ function DeptDecisionPanel({ submission, onApprove, onReject, onRequestRevision,
       title: 'ยืนยันการขอข้อมูลเพิ่มเติม',
       html: `
         <div style="text-align:left;font-size:14px;line-height:1.6;display:grid;row-gap:.75rem;">
+          ${trimmedAnnounce
+            ? `<div style="margin-bottom:0.75rem;">
+                <div style="font-weight:500;margin-bottom:.25rem;">หมายเลขอ้างอิงประกาศผลการพิจารณา</div>
+                <div style=\"border:1px solid #e5e7eb;background:#f9fafb;padding:.5rem;border-radius:.5rem;\">${escapeHtml(trimmedAnnounce)}</div>
+              </div>`
+            : ''}
           <div>
             <div style="font-weight:500;margin-bottom:.35rem;">หมายเหตุของหัวหน้าสาขา</div>
             <div style="border:1px solid #e5e7eb;background:#f9fafb;padding:.75rem;border-radius:.75rem;white-space:pre-wrap;">${escapeHtml(trimmedComment)}</div>
@@ -484,6 +515,7 @@ function DeptDecisionPanel({ submission, onApprove, onReject, onRequestRevision,
             message: trimmedComment,
             headComment: trimmedComment,
             headSignature: trimmedSignature,
+            announceReference: trimmedAnnounce,
           });
         } catch (e) {
           Swal.showValidationMessage(e?.message || 'ส่งคำขอไม่สำเร็จ');
@@ -534,13 +566,34 @@ function DeptDecisionPanel({ submission, onApprove, onReject, onRequestRevision,
 
   return (
     <Card title="ผลการพิจารณา (หัวหน้าสาขา)" icon={DollarSign} collapsible={false}>
-      <div className="space-y-4">
-        {/* ช่องคอมเมนต์ */}
-        <div>
-          <label className="text-sm text-gray-600">หมายเหตุของหัวหน้าสาขา</label>
+      <div className="space-y-6">
+        <div className="flex flex-col gap-2">
+          <label className="text-sm font-medium text-gray-700 leading-tight">
+            หมายเลขอ้างอิงประกาศผลการพิจารณา
+            <br /><span className="text-xs font-normal text-gray-600">Announcement Ref.</span>
+          </label>
+          <div
+            className="rounded-lg border bg-white shadow-sm transition border-gray-300 hover:border-blue-300 focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-500"
+          >
+            <input
+              type="text"
+              className="w-full rounded-lg border-0 bg-transparent p-3 outline-none"
+              placeholder="เช่น 123/2568"
+              value={announceRef}
+              onChange={(e) => setAnnounceRef(e.target.value)}
+              disabled={saving || decisionPending}
+            />
+          </div>
+        </div>
+
+        <div className="flex flex-col gap-2">
+          <label className="text-sm font-medium text-gray-700 leading-tight">
+            หมายเหตุของหัวหน้าสาขา
+            <br /><span className="text-xs font-normal text-gray-600">Comment</span>
+          </label>
           <div
             className={[
-              'mt-1 rounded-lg border bg-white shadow-sm transition',
+              'rounded-lg border bg-white shadow-sm transition',
               'border-gray-300 hover:border-blue-300 focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-500',
               errors.comment ? 'border-red-400 focus-within:border-red-500 focus-within:ring-red-500/40' : '',
             ].join(' ')}
@@ -563,17 +616,20 @@ function DeptDecisionPanel({ submission, onApprove, onReject, onRequestRevision,
             />
           </div>
           {errors.comment ? (
-            <p className="mt-1 text-xs text-red-600 text-right">{errors.comment}</p>
+            <p className="text-xs text-red-600 text-right">{errors.comment}</p>
           ) : (
-            <p className="mt-1 text-xs text-gray-400 text-right">ใช้หมายเหตุนี้เมื่อขอข้อมูลเพิ่มเติม</p>
+            <p className="text-xs text-gray-400 text-right">ใช้หมายเหตุนี้เมื่อขอข้อมูลเพิ่มเติม</p>
           )}
         </div>
 
-        <div>
-          <label className="text-sm text-gray-600">ลายเซ็นหัวหน้าสาขา (พิมพ์ชื่อเต็ม)</label>
+        <div className="flex flex-col gap-2">
+          <label className="text-sm font-medium text-gray-700 leading-tight">
+            ลายเซ็นหัวหน้าสาขา (พิมพ์ชื่อเต็ม)
+            <br /><span className="text-xs font-normal text-gray-600">Head Signature</span>
+          </label>
           <input
             type="text"
-            className="w-full rounded-lg border border-gray-300 p-3 outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full rounded-lg border border-gray-300 p-3 outline-none transition focus:ring-2 focus:ring-blue-500"
             placeholder="พิมพ์ชื่อเต็มของหัวหน้าสาขา"
             value={headSignature}
             onChange={(e) => setHeadSignature(e.target.value)}
@@ -581,39 +637,41 @@ function DeptDecisionPanel({ submission, onApprove, onReject, onRequestRevision,
           />
         </div>
 
-        <div className="flex flex-col md:flex-row md:items-center gap-3">
-          <div className="flex flex-col gap-2 md:flex-row md:items-center md:gap-3">
-            <span className="text-sm font-medium text-gray-700">ดำเนินการ</span>
-            <DecisionDropdown
-              value={selectedAction}
-              onChange={(next) => {
-                setSelectedAction(next);
-                if (next !== 'revision') {
-                  setErrors((prev) => {
-                    if (!prev.comment) return prev;
-                    const updated = { ...prev };
-                    delete updated.comment;
-                    return updated;
-                  });
-                }
-              }}
-              disabled={saving || decisionPending}
-              className="md:min-w-[18rem]"
-            />
+        <div className="border-t border-gray-200 pt-4">
+          <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+            <div className="flex flex-col gap-2 md:flex-row md:items-center md:gap-3 md:max-w-[60%]">
+              <span className="text-sm font-medium text-gray-700">ดำเนินการ</span>
+              <DecisionDropdown
+                value={selectedAction}
+                onChange={(next) => {
+                  setSelectedAction(next);
+                  if (next !== 'revision') {
+                    setErrors((prev) => {
+                      if (!prev.comment) return prev;
+                      const updated = { ...prev };
+                      delete updated.comment;
+                      return updated;
+                    });
+                  }
+                }}
+                disabled={saving || decisionPending}
+                className="w-full md:min-w-[18rem]"
+              />
+            </div>
+            <div className="flex items-center justify-end gap-3 md:self-end">
+              {(saving || decisionPending) && (
+                <span className="text-sm text-gray-500">กำลังดำเนินการ…</span>
+              )}
+              <button
+                className="btn btn-primary min-w-[164px] justify-center gap-2 disabled:opacity-60"
+                onClick={handleDecisionSubmit}
+                disabled={saving || decisionPending}
+                title="บันทึกผลการพิจารณา"
+              >
+                บันทึกผล
+              </button>
+            </div>
           </div>
-
-          <button
-            className="btn btn-primary inline-flex items-center gap-2 disabled:opacity-60"
-            onClick={handleDecisionSubmit}
-            disabled={saving || decisionPending}
-            title="บันทึกผลการพิจารณา"
-          >
-            บันทึกผล
-          </button>
-
-          {(saving || decisionPending) && (
-            <span className="text-sm text-gray-500">กำลังดำเนินการ…</span>
-          )}
         </div>
       </div>
     </Card>
@@ -1057,7 +1115,7 @@ export default function GeneralSubmissionDetailsDept({ submissionId, onBack }) {
 
   // ===== Approve/Reject handlers (Dept) =====
   // รับ headComment จากแผง แล้วส่งไปกับ recommendSubmission
-  const approve = async (headComment, headSignature) => {
+  const approve = async (headComment, headSignature, announceReference) => {
     const body = {};
     if (headComment) {
       body.head_comment = headComment;
@@ -1065,6 +1123,11 @@ export default function GeneralSubmissionDetailsDept({ submissionId, onBack }) {
     }
     if (headSignature) {
       body.head_signature = headSignature;
+    }
+    const trimmedRef = typeof announceReference === 'string' ? announceReference.trim() : '';
+    if (trimmedRef) {
+      body.announce_reference_number = trimmedRef;
+      body.announce_reference = trimmedRef;
     }
     await deptHeadAPI.recommendSubmission(submission.submission_id, body);
     // refresh
@@ -1079,7 +1142,7 @@ export default function GeneralSubmissionDetailsDept({ submissionId, onBack }) {
   };
 
   // ส่งเหตุผลปฏิเสธ + (ถ้ามี) คอมเมนต์ของหัวหน้าสาขา
-  const reject = async (reason, headComment, headSignature) => {
+  const reject = async (reason, headComment, headSignature, announceReference) => {
     const payload = { rejection_reason: reason };
     if (headComment) {
       payload.head_comment = headComment;
@@ -1087,6 +1150,11 @@ export default function GeneralSubmissionDetailsDept({ submissionId, onBack }) {
     }
     if (headSignature) {
       payload.head_signature = headSignature;
+    }
+    const trimmedRef = typeof announceReference === 'string' ? announceReference.trim() : '';
+    if (trimmedRef) {
+      payload.announce_reference_number = trimmedRef;
+      payload.announce_reference = trimmedRef;
     }
     await deptHeadAPI.rejectSubmission(submission.submission_id, payload);
     // refresh
@@ -1100,11 +1168,12 @@ export default function GeneralSubmissionDetailsDept({ submissionId, onBack }) {
     setSubmission(data);
   };
 
-  const requestRevision = async ({ message, headComment, headSignature }) => {
+  const requestRevision = async ({ message, headComment, headSignature, announceReference }) => {
     const payload = {};
     const trimmedMessage = message?.trim();
     const trimmedComment = headComment?.trim();
     const trimmedSignature = headSignature?.trim();
+    const trimmedRef = typeof announceReference === 'string' ? announceReference.trim() : '';
 
     if (trimmedMessage) {
       payload.request_comment = trimmedMessage;
@@ -1117,6 +1186,10 @@ export default function GeneralSubmissionDetailsDept({ submissionId, onBack }) {
     }
     if (trimmedSignature) {
       payload.head_signature = trimmedSignature;
+    }
+    if (trimmedRef) {
+      payload.announce_reference_number = trimmedRef;
+      payload.announce_reference = trimmedRef;
     }
 
     await deptHeadAPI.requestRevision(submission.submission_id, payload);
