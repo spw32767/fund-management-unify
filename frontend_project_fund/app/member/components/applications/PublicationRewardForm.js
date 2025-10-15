@@ -3621,7 +3621,7 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
   };
 
   // ฟังก์ชันรวมไฟล์ทั้งหมดเพื่อแสดงผล
-  const getAllAttachedFiles = () => {
+  function getAllAttachedFiles() {
     const allFiles = [];
     const processedMain = new Set();
 
@@ -3719,7 +3719,7 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
     });
 
     return allFiles;
-  };
+  }
 
   const attachedFiles = useMemo(() => getAllAttachedFiles(), [attachmentSignature, documentTypes, externalFundings]);
   const previewUrl = previewState.blobUrl || previewState.signedUrl;
