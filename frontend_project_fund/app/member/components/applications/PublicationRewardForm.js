@@ -149,64 +149,156 @@ const parseIndexingFlags = (value) => {
 };
 
 const resolveUserNameParts = (user = {}) => {
-  const prefix = findFirstString([
+  const prefixCandidates = [
     user.prefix_name,
     user.prefix,
     user.user_prefix,
+    user.user_prefix_name,
+    user.userPrefixName,
+    user.userPrefix,
+    user.user_prefix_th,
+    user.prefix_name_th,
+    user.prefix_th,
+    user.prefixTH,
+    user.prefixName,
+    user.prefixNameTh,
+    user.PrefixName,
+    user.PrefixNameTh,
+    user.UserPrefix,
+    user.UserPrefixName,
     user.academic_prefix,
     user.title,
     user.Title,
     user.Prefix?.name,
     user.Prefix?.Name,
-    user.prefix_name_th,
-    user.prefixName,
-  ]) || '';
+    user.prefix?.name,
+    user.prefix?.Name,
+    user.user_prefix?.name,
+    user.user_prefix?.Name,
+  ];
 
-  const firstName = findFirstString([
+  let prefix = findFirstString(prefixCandidates) || '';
+
+  const firstNameCandidates = [
     user.user_fname,
     user.user_fname_th,
+    user.UserFname,
+    user.UserFName,
+    user.userFname,
+    user.userFName,
     user.fname_th,
     user.fname,
+    user.Fname,
+    user.FnameTh,
     user.first_name_th,
     user.first_name,
+    user.FirstName,
+    user.FirstNameTh,
     user.firstname,
+    user.firstname_th,
+    user.thai_first_name,
+    user.ThaiFirstName,
+    user.first_name_en,
+    user.FirstNameEn,
+    user.firstName,
+    user.firstNameTh,
     user.name_th ? user.name_th.split(' ')[0] : null,
     user.name ? user.name.split(' ')[0] : null,
     user.full_name ? user.full_name.split(' ')[0] : null,
     user.full_name_th ? user.full_name_th.split(' ')[0] : null,
-  ]) || '';
+    user.display_name ? user.display_name.split(' ')[0] : null,
+    user.DisplayName ? user.DisplayName.split(' ')[0] : null,
+  ];
 
-  const lastName = findFirstString([
+  let firstName = findFirstString(firstNameCandidates) || '';
+
+  const lastNameCandidates = [
     user.user_lname,
     user.user_lname_th,
+    user.UserLname,
+    user.UserLName,
+    user.userLname,
+    user.userLName,
     user.lname_th,
     user.lname,
+    user.Lname,
+    user.LnameTh,
     user.last_name_th,
     user.last_name,
+    user.LastName,
+    user.LastNameTh,
     user.lastname,
     user.surname,
-    user.full_name_th ? user.full_name_th.split(' ').slice(1).join(' ') : null,
-    user.full_name ? user.full_name.split(' ').slice(1).join(' ') : null,
+    user.thai_last_name,
+    user.ThaiLastName,
     user.name_th ? user.name_th.split(' ').slice(1).join(' ') : null,
     user.name ? user.name.split(' ').slice(1).join(' ') : null,
-  ]) || '';
+    user.full_name_th ? user.full_name_th.split(' ').slice(1).join(' ') : null,
+    user.full_name ? user.full_name.split(' ').slice(1).join(' ') : null,
+    user.display_name ? user.display_name.split(' ').slice(1).join(' ') : null,
+    user.DisplayName ? user.DisplayName.split(' ').slice(1).join(' ') : null,
+  ];
 
-  const combined = [prefix, firstName, lastName].filter(Boolean).join(' ').trim();
-  const displayName = findFirstString([
-    user.full_name_th,
-    user.fullname_th,
-    user.full_name,
-    user.fullname,
+  let lastName = findFirstString(lastNameCandidates) || '';
+
+  const displayNameCandidates = [
     user.display_name,
     user.DisplayName,
+    user.displayName,
+    user.full_name_th,
+    user.FullNameTh,
+    user.fullname_th,
+    user.FullnameTh,
+    user.full_name,
+    user.FullName,
+    user.fullname,
+    user.Fullname,
     user.user_fullname,
     user.user_fullname_th,
+    user.userFullname,
+    user.userFullName,
+    user.userFullnameTh,
+    user.userFullNameTh,
+    user.UserFullname,
+    user.UserFullName,
+    user.UserFullnameTh,
+    user.UserFullNameTh,
     user.name_th,
+    user.NameTh,
     user.name,
-    combined,
-  ]) || combined;
+    user.Name,
+    user.username,
+    user.Username,
+  ];
 
-  return { firstName, lastName, prefix, displayName };
+  let displayName = findFirstString(displayNameCandidates);
+
+  if (!displayName) {
+    const combinedFallback = [prefix, firstName, lastName].filter(Boolean).join(' ').trim();
+    displayName = combinedFallback || null;
+  }
+
+  if (displayName && (!firstName || !lastName)) {
+    const segments = displayName.split(/\s+/).filter(Boolean);
+    if (!lastName && segments.length > 0) {
+      lastName = segments[segments.length - 1] || '';
+    }
+    if (!firstName) {
+      if (segments.length > 1) {
+        firstName = segments[segments.length - 2] || '';
+      } else if (segments.length === 1) {
+        firstName = segments[0] || '';
+      }
+    }
+    if (!prefix && segments.length > 2) {
+      prefix = segments.slice(0, Math.max(segments.length - 2, 0)).join(' ');
+    }
+  }
+
+  const combined = [prefix, firstName, lastName].filter(Boolean).join(' ').trim();
+  const finalDisplayName = displayName || combined || firstName || lastName || '';
+
+  return { firstName, lastName, prefix, displayName: finalDisplayName };
 };
 
 const buildCoauthorFromSubmissionUser = (entry) => {
@@ -219,13 +311,16 @@ const buildCoauthorFromSubmissionUser = (entry) => {
 
   const { firstName, lastName, prefix, displayName } = resolveUserNameParts(user);
 
-  const resolvedFirstName = firstName || displayName || '';
+  const fallbackCombined = [prefix, firstName, lastName].filter(Boolean).join(' ').trim();
+  const finalDisplayName = displayName || fallbackCombined || firstName || lastName || '';
+  const resolvedFirstName = firstName || finalDisplayName || '';
   const resolvedLastName = lastName && lastName !== resolvedFirstName ? lastName : '';
-  const finalDisplayName = displayName || [prefix, firstName, lastName].filter(Boolean).join(' ').trim();
+  const composedFirst = [prefix, resolvedFirstName].filter(Boolean).join(' ').trim();
+  const safeFirstName = composedFirst || finalDisplayName || resolvedFirstName;
 
   return {
     user_id: userId,
-    user_fname: [prefix, resolvedFirstName].filter(Boolean).join(' ').trim() || resolvedFirstName,
+    user_fname: safeFirstName,
     user_lname: resolvedLastName,
     email: user?.email ?? entry?.email ?? null,
     display_name: finalDisplayName,
@@ -1720,35 +1815,61 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
         const normalizedFunds = externalFundsRaw.map((fund, index) => {
           const fundId = fund.external_fund_id ?? fund.ExternalFundID ?? null;
           const fundDocument = fund.document || fund.Document || fund.file || fund.File || {};
-          const documentId =
+          const nestedFile = fundDocument.file || fundDocument.File || {};
+
+          const rawDocumentId =
             fund.document_id ??
             fund.DocumentID ??
+            fund.DocumentId ??
             fundDocument.document_id ??
             fundDocument.DocumentID ??
+            fundDocument.documentId ??
+            fundDocument.Document?.document_id ??
+            fundDocument.Document?.DocumentID ??
             null;
+
+          const documentId = rawDocumentId != null ? String(rawDocumentId) : null;
+
           const documentName = findFirstString([
             fundDocument.original_name,
             fundDocument.original_filename,
             fundDocument.file_name,
             fundDocument.filename,
+            fundDocument.document_name,
+            fundDocument.DocumentName,
+            nestedFile.original_name,
+            nestedFile.original_filename,
+            nestedFile.file_name,
+            nestedFile.filename,
             fund.document_name,
             fund.DocumentName,
           ]);
-          const documentFileId =
+
+          const rawFileId =
             fund.file_id ??
             fund.FileID ??
             fundDocument.file_id ??
             fundDocument.FileID ??
+            fundDocument.fileId ??
+            fundDocument.FileId ??
+            nestedFile.file_id ??
+            nestedFile.FileID ??
+            nestedFile.fileId ??
+            nestedFile.FileId ??
             null;
+
+          const documentFileId = rawFileId != null ? String(rawFileId) : null;
+          const resolvedFileName = documentName || (documentId ? 'ไฟล์จากระบบ' : null);
+
           return {
             clientId: `server-${fundId ?? index}`,
             externalFundId: fundId,
             fundName: fund.fund_name ?? fund.FundName ?? '',
             amount: toNumberOrEmpty(fund.amount ?? fund.Amount ?? ''),
             file: null,
-            serverDocumentId: documentId ?? null,
-            serverFileName: documentName || null,
-            serverFileId: documentFileId != null ? String(documentFileId) : null,
+            serverDocumentId: documentId,
+            serverFileName: resolvedFileName,
+            serverFileId: documentFileId,
             serverDocumentPendingRemovalReason: null,
           };
         });
@@ -3200,10 +3321,15 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
       doc.FileSize ??
       null;
 
+    const resolvedDocumentTypeName =
+      documentTypeName ||
+      (documentTypeId != null ? getDocumentTypeName(documentTypeId) : null) ||
+      (documentTypeId === 12 ? 'เอกสารเบิกจ่ายภายนอก' : null);
+
     return {
       document_id: resolvedDocumentId,
       document_type_id: documentTypeId,
-      document_type_name: documentTypeName || (documentTypeId != null ? getDocumentTypeName(documentTypeId) : null),
+      document_type_name: resolvedDocumentTypeName,
       original_name: originalName || null,
       file_id: fileId,
       file_size: fileSize ?? null,
@@ -6511,7 +6637,7 @@ const showSubmissionConfirmation = async () => {
                                 }
                               );
                               const uploadInputId = `external-funding-upload-${funding.clientId || index}`;
-                              const pendingReason = funding.serverDocumentPendingRemovalReason || serverDoc?.pendingRemovalReason || null;
+                              const fundingPendingReason = funding.serverDocumentPendingRemovalReason || null;
 
                               const previewNewFile = () => {
                                 if (!funding.file) {
@@ -6527,19 +6653,32 @@ const showSubmissionConfirmation = async () => {
                                 }
                               };
 
-                              const replaceLabel = funding.file
-                                ? 'เปลี่ยนไฟล์'
-                                : serverDoc
-                                  ? 'แทนที่ไฟล์'
-                                  : 'แนบไฟล์';
+                              const effectiveDoc = serverDoc
+                                ? {
+                                    ...serverDoc,
+                                    pendingRemoval: serverDoc.pendingRemoval ?? Boolean(fundingPendingReason),
+                                    pendingRemovalReason:
+                                      serverDoc.pendingRemovalReason ?? fundingPendingReason ?? null,
+                                  }
+                                : {
+                                    document_id: funding.serverDocumentId ?? null,
+                                    file_id: funding.serverFileId ?? null,
+                                    original_name:
+                                      funding.serverFileName || (funding.serverDocumentId ? 'ไฟล์จากระบบ' : null),
+                                    document_type_id: 12,
+                                    document_type_name: 'เอกสารเบิกจ่ายภายนอก',
+                                    pendingRemoval: Boolean(fundingPendingReason && funding.serverDocumentId),
+                                    pendingRemovalReason: fundingPendingReason,
+                                    funding_client_id: funding.clientId ?? null,
+                                  };
 
-                              const fallbackDoc = serverDoc || {
-                                document_id: funding.serverDocumentId,
-                                file_id: funding.serverFileId,
-                                original_name: funding.serverFileName,
-                                document_type_name: 'เอกสารเบิกจ่ายภายนอก',
-                              };
+                              const hasServerFile = Boolean(
+                                effectiveDoc.document_id ||
+                                effectiveDoc.file_id ||
+                                effectiveDoc.original_name
+                              );
 
+                              const pendingReason = effectiveDoc.pendingRemovalReason ?? null;
                               const isPendingReplace = pendingReason === 'replace';
                               const isPendingRemove = pendingReason === 'remove';
                               const highlightClass = isPendingRemove
@@ -6551,7 +6690,14 @@ const showSubmissionConfirmation = async () => {
                                 ? 'ไฟล์นี้จะถูกแทนที่เมื่อบันทึก'
                                 : isPendingRemove
                                   ? 'ไฟล์นี้จะถูกลบเมื่อบันทึก'
-                                  : 'ไฟล์จากระบบ';
+                                  : hasServerFile
+                                    ? 'ไฟล์จากระบบ'
+                                    : 'ยังไม่มีไฟล์จากระบบ';
+                              const replaceLabel = funding.file
+                                ? 'เปลี่ยนไฟล์'
+                                : hasServerFile
+                                  ? 'แทนที่ไฟล์'
+                                  : 'แนบไฟล์';
 
                               return (
                                 <div className="space-y-3">
@@ -6629,24 +6775,28 @@ const showSubmissionConfirmation = async () => {
                                     </div>
                                   )}
 
-                                  {(fallbackDoc.document_id || fallbackDoc.original_name) && (
+                                  {hasServerFile ? (
                                     <div className={`flex flex-col gap-2 rounded border px-3 py-2 text-xs sm:flex-row sm:items-center sm:justify-between ${highlightClass}`}>
                                       <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:gap-3">
                                         <div className="flex items-center gap-2">
                                           <FileText className="h-3.5 w-3.5" />
-                                          <span>{fallbackDoc.original_name || fallbackDoc.document_type_name || 'ไฟล์จากระบบ'}</span>
+                                          <span>{effectiveDoc.original_name || effectiveDoc.document_type_name || 'ไฟล์จากระบบ'}</span>
                                         </div>
                                         <span className="text-xs font-medium">{statusMessage}</span>
                                       </div>
                                       <div className="flex flex-wrap items-center gap-2">
-                                        <button
-                                          type="button"
-                                          onClick={() => handleDownloadDocument(fallbackDoc)}
-                                          className="inline-flex items-center gap-1 rounded-full border border-blue-200 bg-white px-3 py-1 text-xs font-medium text-blue-600 transition hover:bg-blue-50"
-                                        >
-                                          <Download className="h-3.5 w-3.5" />
-                                          <span>ดาวน์โหลด</span>
-                                        </button>
+                                        {effectiveDoc.file_id ? (
+                                          <button
+                                            type="button"
+                                            onClick={() => handleDownloadDocument(effectiveDoc)}
+                                            className="inline-flex items-center gap-1 rounded-full border border-blue-200 bg-white px-3 py-1 text-xs font-medium text-blue-600 transition hover:bg-blue-50"
+                                          >
+                                            <Download className="h-3.5 w-3.5" />
+                                            <span>ดาวน์โหลด</span>
+                                          </button>
+                                        ) : (
+                                          <span className="text-xs text-gray-500">ไม่พบไฟล์ในระบบ</span>
+                                        )}
                                         {isPendingRemove ? (
                                           <button
                                             type="button"
@@ -6657,16 +6807,22 @@ const showSubmissionConfirmation = async () => {
                                             <span>ยกเลิก</span>
                                           </button>
                                         ) : (
-                                          <button
-                                            type="button"
-                                            onClick={() => handleRemoveExternalFundingFile(funding.clientId)}
-                                            className="inline-flex items-center gap-1 rounded-full border border-red-200 bg-red-50 px-3 py-1 text-xs font-medium text-red-600 transition hover:bg-red-100"
-                                          >
-                                            <Trash2 className="h-3.5 w-3.5" />
-                                            <span>ลบไฟล์เดิม</span>
-                                          </button>
+                                          effectiveDoc.document_id && (
+                                            <button
+                                              type="button"
+                                              onClick={() => handleRemoveExternalFundingFile(funding.clientId)}
+                                              className="inline-flex items-center gap-1 rounded-full border border-red-200 bg-red-50 px-3 py-1 text-xs font-medium text-red-600 transition hover:bg-red-100"
+                                            >
+                                              <Trash2 className="h-3.5 w-3.5" />
+                                              <span>ลบไฟล์เดิม</span>
+                                            </button>
+                                          )
                                         )}
                                       </div>
+                                    </div>
+                                  ) : (
+                                    <div className="rounded border border-dashed border-gray-300 px-3 py-2 text-xs text-gray-500">
+                                      <span>ยังไม่มีไฟล์จากระบบ</span>
                                     </div>
                                   )}
                                 </div>
