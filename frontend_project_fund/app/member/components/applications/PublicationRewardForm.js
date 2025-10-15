@@ -1552,15 +1552,26 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
       const pairs = [];
       const rateMap = {};
       const budgetMap = {};
+      const pairKeySet = new Set();
+
+      const pushPair = (status, quartile) => {
+        const normalizedStatus = typeof status === 'string' ? status.trim() : '';
+        const normalizedQuartile = typeof quartile === 'string' ? quartile.trim() : '';
+        if (!normalizedStatus || !normalizedQuartile) {
+          return null;
+        }
+        const normalizedKey = `${normalizedStatus}|${normalizedQuartile}`;
+        if (!pairKeySet.has(normalizedKey)) {
+          pairKeySet.add(normalizedKey);
+          pairs.push({ author_status: normalizedStatus, journal_quartile: normalizedQuartile });
+        }
+        return normalizedKey;
+      };
 
       options.forEach(opt => {
         if (!opt) return;
-        const author_status = opt.author_status;
-        const journal_quartile = opt.journal_quartile;
-        if (!author_status || !journal_quartile) return;
-
-        const key = `${author_status}|${journal_quartile}`;
-        pairs.push({ author_status, journal_quartile });
+        const key = pushPair(opt.author_status, opt.journal_quartile);
+        if (!key) return;
 
         const rewardAmount = parseNumberOrNull(opt.reward_amount);
         if (rewardAmount !== null) {
@@ -1578,15 +1589,22 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
         };
       });
 
-      if (pairs.length === 0 && fallbackRateMap && Object.keys(fallbackRateMap).length > 0) {
-        Object.entries(fallbackRateMap).forEach(([key, amount]) => {
-          const [authorStatus, quartile] = key.split('|');
-          if (!authorStatus || !quartile) return;
+      if (fallbackRateMap && Object.keys(fallbackRateMap).length > 0) {
+        Object.entries(fallbackRateMap).forEach(([rawKey, rawAmount]) => {
+          if (!rawKey) return;
+          const [rawStatus, rawQuartile] = rawKey.split('|');
+          const normalizedKey = pushPair(rawStatus, rawQuartile);
+          if (!normalizedKey) return;
 
-          pairs.push({ author_status: authorStatus, journal_quartile: quartile });
+          if (!Object.prototype.hasOwnProperty.call(rateMap, normalizedKey)) {
+            const fallbackAmount = parseNumberOrNull(rawAmount);
+            if (fallbackAmount !== null) {
+              rateMap[normalizedKey] = fallbackAmount;
+            }
+          }
 
-          if (!Object.prototype.hasOwnProperty.call(rateMap, key)) {
-            rateMap[key] = amount;
+          if (!Object.prototype.hasOwnProperty.call(budgetMap, normalizedKey)) {
+            budgetMap[normalizedKey] = budgetMap[normalizedKey] ?? {};
           }
         });
       }
