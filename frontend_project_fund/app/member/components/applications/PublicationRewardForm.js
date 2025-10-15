@@ -1581,7 +1581,14 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
         budgetMap[key] = {
           subcategory_id: opt.subcategory_id ?? null,
           subcategory_budget_id: opt.subcategory_budget_id ?? null,
+          fund_name: opt.fund_name ?? opt.fund_title ?? null,
+          fund_title: opt.fund_title ?? null,
           fund_description: opt.fund_description || '',
+          subcategory_name: opt.subcategory_name ?? null,
+          subcategory_name_th: opt.subcategory_name_th ?? null,
+          subcategory_description: opt.subcategory_description ?? null,
+          author_status_label: opt.author_status_label ?? opt.author_status_name ?? opt.author_status_display ?? null,
+          journal_quartile_label: opt.journal_quartile_label ?? null,
           overall_subcategory_budget_id: opt.overall_subcategory_budget_id ?? null,
           max_amount_per_year: parseNumberOrNull(opt.max_amount_per_year),
           max_grants: parseIntegerOrNull(opt.max_grants),
@@ -1730,6 +1737,72 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
     resolvedSubcategoryName,
     lockedFundSummary,
   ]);
+
+  const authorStatusLabelMap = useMemo(() => {
+    const labelMap = {};
+    if (budgetOptionMap && typeof budgetOptionMap === 'object') {
+      Object.entries(budgetOptionMap).forEach(([key, option]) => {
+        if (!key) return;
+        const [rawStatus] = key.split('|');
+        const status = rawStatus ? rawStatus.trim() : '';
+        if (!status || labelMap[status]) {
+          return;
+        }
+
+        const resolvedLabel = findFirstString([
+          option?.author_status_label,
+          option?.fund_name,
+          option?.fund_title,
+          option?.fund_description,
+          option?.subcategory_name,
+          option?.subcategory_name_th,
+          AUTHOR_STATUS_MAP[status],
+          status,
+        ]);
+
+        if (resolvedLabel) {
+          labelMap[status] = resolvedLabel;
+        }
+      });
+    }
+
+    if (formData.author_status && !labelMap[formData.author_status]) {
+      const fallbackLabel = findFirstString([
+        lockedFundSummary?.description,
+        lockedFundSummary?.name,
+        lockedFundSummary?.detail,
+        AUTHOR_STATUS_MAP[formData.author_status],
+        formData.author_status,
+      ]);
+
+      if (fallbackLabel) {
+        labelMap[formData.author_status] = fallbackLabel;
+      }
+    }
+
+    return labelMap;
+  }, [budgetOptionMap, lockedFundSummary, formData.author_status]);
+
+  const authorStatusOptions = useMemo(() => {
+    const seen = new Set();
+    const options = [];
+
+    const pushOption = (status) => {
+      if (!status || seen.has(status)) {
+        return;
+      }
+      seen.add(status);
+      const label = authorStatusLabelMap[status] || AUTHOR_STATUS_MAP[status] || status;
+      options.push({ value: status, label });
+    };
+
+    availableAuthorStatuses.forEach(pushOption);
+    if (formData.author_status) {
+      pushOption(formData.author_status);
+    }
+
+    return options;
+  }, [availableAuthorStatuses, authorStatusLabelMap, formData.author_status]);
 
   useEffect(() => {
     const editingDraft = prefilledSubmissionId && currentSubmissionStatus === 'draft' && !isReadOnly;
@@ -5999,15 +6072,15 @@ const showSubmissionConfirmation = async () => {
   // =================================================================
 
   const editingExistingSubmission = Boolean(prefilledSubmissionId);
-  const selectionLocked =
-    editingExistingSubmission &&
-    !isReadOnly &&
-    currentSubmissionStatus != null &&
-    !EDITABLE_STATUS_CODES.has(currentSubmissionStatus);
+  const selectionLocked = editingExistingSubmission && !isReadOnly;
   const selectedFundName = selectedFundSummary?.name || '';
   const selectedFundDescription = selectedFundSummary?.description || '';
   const selectedFundDetail = selectedFundSummary?.detail || '';
-  const bannerPrimaryDescription = selectedFundDescription || selectedFundName || '';
+  const fallbackAuthorStatusDescription = formData.author_status
+    ? authorStatusLabelMap[formData.author_status] || ''
+    : '';
+  const bannerPrimaryDescription =
+    selectedFundDescription || selectedFundName || fallbackAuthorStatusDescription || '';
   const bannerSecondaryDescription = selectedFundDetail && selectedFundDetail !== bannerPrimaryDescription
     ? selectedFundDetail
     : '';
@@ -6015,7 +6088,7 @@ const showSubmissionConfirmation = async () => {
     (editingExistingSubmission || lockedFundSummary) && (bannerPrimaryDescription || bannerSecondaryDescription)
   );
   const enforceBudgetYearReadOnly = Boolean(lockedBudgetYearId) || editingExistingSubmission || isReadOnly;
-  const disableAuthorStatusSelect = selectionLocked || availableAuthorStatuses.length === 0;
+  const disableAuthorStatusSelect = selectionLocked || authorStatusOptions.length === 0;
   const disableQuartileSelect = selectionLocked || availableQuartiles.length === 0;
   const disableJournalNameInput = (availableQuartiles.length === 0 && !editingExistingSubmission);
   const displayResolutionError = selectionLocked ? '' : resolutionError;
@@ -6208,12 +6281,11 @@ const showSubmissionConfirmation = async () => {
                 <option value="" disabled={formData.author_status !== ''} hidden={formData.author_status !== ''}>
                   เลือกประเภทผู้ประพันธ์ (Select Author Type)
                 </option>
-                {availableAuthorStatuses
-                  .filter(status => status !== 'co_author')
-                  .map(status => (
-                    <option key={status} value={status}>
-                      {status === 'first_author' ? 'ผู้ประพันธ์ชื่อแรก (First Author)' :
-                      status === 'corresponding_author' ? 'ผู้ประพันธ์บรรณกิจ (Corresponding Author)' : status}
+                {authorStatusOptions
+                  .filter(option => option.value !== 'co_author')
+                  .map(option => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
                     </option>
                   ))}
               </select>
