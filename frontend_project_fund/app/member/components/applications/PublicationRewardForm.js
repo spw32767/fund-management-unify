@@ -3,7 +3,27 @@
 
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { Award, Upload, Users, FileText, Plus, X, Save, Send, AlertCircle, Calculator, Search, Eye, Signature, ArrowLeft, Info } from "lucide-react";
+import {
+  Award,
+  Upload,
+  Users,
+  FileText,
+  Plus,
+  X,
+  Save,
+  Send,
+  AlertCircle,
+  Calculator,
+  Search,
+  Eye,
+  Signature,
+  ArrowLeft,
+  Info,
+  Download,
+  RefreshCw,
+  Trash2,
+  Undo2,
+} from "lucide-react";
 import PageLayout from "../common/PageLayout";
 import SimpleCard from "../common/SimpleCard";
 import apiClient, { systemAPI, authAPI } from '../../../lib/api';
@@ -129,27 +149,64 @@ const parseIndexingFlags = (value) => {
 };
 
 const resolveUserNameParts = (user = {}) => {
+  const prefix = findFirstString([
+    user.prefix_name,
+    user.prefix,
+    user.user_prefix,
+    user.academic_prefix,
+    user.title,
+    user.Title,
+    user.Prefix?.name,
+    user.Prefix?.Name,
+    user.prefix_name_th,
+    user.prefixName,
+  ]) || '';
+
   const firstName = findFirstString([
     user.user_fname,
+    user.user_fname_th,
+    user.fname_th,
     user.fname,
+    user.first_name_th,
     user.first_name,
     user.firstname,
-    user.name_th,
-    user.full_name ? user.full_name.split(' ')[0] : null,
+    user.name_th ? user.name_th.split(' ')[0] : null,
     user.name ? user.name.split(' ')[0] : null,
+    user.full_name ? user.full_name.split(' ')[0] : null,
+    user.full_name_th ? user.full_name_th.split(' ')[0] : null,
   ]) || '';
 
   const lastName = findFirstString([
     user.user_lname,
+    user.user_lname_th,
+    user.lname_th,
     user.lname,
+    user.last_name_th,
     user.last_name,
     user.lastname,
     user.surname,
+    user.full_name_th ? user.full_name_th.split(' ').slice(1).join(' ') : null,
     user.full_name ? user.full_name.split(' ').slice(1).join(' ') : null,
+    user.name_th ? user.name_th.split(' ').slice(1).join(' ') : null,
     user.name ? user.name.split(' ').slice(1).join(' ') : null,
   ]) || '';
 
-  return { firstName, lastName };
+  const combined = [prefix, firstName, lastName].filter(Boolean).join(' ').trim();
+  const displayName = findFirstString([
+    user.full_name_th,
+    user.fullname_th,
+    user.full_name,
+    user.fullname,
+    user.display_name,
+    user.DisplayName,
+    user.user_fullname,
+    user.user_fullname_th,
+    user.name_th,
+    user.name,
+    combined,
+  ]) || combined;
+
+  return { firstName, lastName, prefix, displayName };
 };
 
 const buildCoauthorFromSubmissionUser = (entry) => {
@@ -160,13 +217,18 @@ const buildCoauthorFromSubmissionUser = (entry) => {
     return null;
   }
 
-  const { firstName, lastName } = resolveUserNameParts(user);
+  const { firstName, lastName, prefix, displayName } = resolveUserNameParts(user);
+
+  const resolvedFirstName = firstName || displayName || '';
+  const resolvedLastName = lastName && lastName !== resolvedFirstName ? lastName : '';
+  const finalDisplayName = displayName || [prefix, firstName, lastName].filter(Boolean).join(' ').trim();
 
   return {
     user_id: userId,
-    user_fname: firstName,
-    user_lname: lastName,
+    user_fname: [prefix, resolvedFirstName].filter(Boolean).join(' ').trim() || resolvedFirstName,
+    user_lname: resolvedLastName,
     email: user?.email ?? entry?.email ?? null,
+    display_name: finalDisplayName,
   };
 };
 
@@ -626,9 +688,25 @@ const QUARTILE_MAP = {
 // FILE UPLOAD COMPONENT
 // =================================================================
 
-const FileUpload = ({ onFileSelect, accept, multiple = false, error, label }) => {
+const FileUpload = ({
+  onFileSelect,
+  accept,
+  multiple = false,
+  error,
+  label,
+  existingFile = null,
+  onDownloadExisting,
+  onRemoveExisting,
+  onRestoreExisting,
+}) => {
   const [isDragging, setIsDragging] = useState(false);
   const [selectedFiles, setSelectedFiles] = useState([]);
+  const inputId = useMemo(() => {
+    if (label) {
+      return `file-input-${label}`;
+    }
+    return `file-input-${Math.random().toString(16).slice(2)}`;
+  }, [label]);
 
   const handleDragOver = (e) => {
     e.preventDefault();
@@ -642,19 +720,23 @@ const FileUpload = ({ onFileSelect, accept, multiple = false, error, label }) =>
   const handleDrop = (e) => {
     e.preventDefault();
     setIsDragging(false);
-    
-    const files = Array.from(e.dataTransfer.files);
+
+    const files = Array.from(e.dataTransfer.files || []);
     handleFileSelection(files);
   };
 
   const handleFileSelection = (files) => {
+    if (!files || files.length === 0) {
+      setSelectedFiles([]);
+      onFileSelect([]);
+      return;
+    }
+
     if (multiple) {
-      // For multiple files, add to existing list
       const newFiles = [...selectedFiles, ...files];
       setSelectedFiles(newFiles);
       onFileSelect(newFiles);
     } else {
-      // For single file
       const validFiles = files.slice(0, 1);
       setSelectedFiles(validFiles);
       onFileSelect(validFiles);
@@ -662,127 +744,232 @@ const FileUpload = ({ onFileSelect, accept, multiple = false, error, label }) =>
   };
 
   const handleFileInput = (e) => {
-    const files = Array.from(e.target.files);
+    const files = Array.from(e.target.files || []);
     handleFileSelection(files);
   };
 
   const removeFile = (index) => {
-    const newFiles = selectedFiles.filter((_, i) => i !== index);
-    setSelectedFiles(newFiles);
-    onFileSelect(newFiles);
+    if (multiple) {
+      const newFiles = selectedFiles.filter((_, i) => i !== index);
+      setSelectedFiles(newFiles);
+      onFileSelect(newFiles);
+    } else {
+      setSelectedFiles([]);
+      onFileSelect([]);
+    }
   };
 
   const viewFile = (file) => {
+    if (!file) {
+      return;
+    }
     const url = URL.createObjectURL(file);
     window.open(url, '_blank');
   };
 
-  // Display selected file for single file mode
-  if (!multiple && selectedFiles.length > 0) {
+  const triggerFileDialog = () => {
+    const input = document.getElementById(inputId);
+    if (input) {
+      input.click();
+    }
+  };
+
+  const renderExistingFile = () => {
+    if (multiple || !existingFile) {
+      return null;
+    }
+
+    const pendingReason = existingFile.pendingRemovalReason || existingFile.serverDocumentPendingRemovalReason || null;
+    const isPendingReplace = pendingReason === 'replace';
+    const isPendingRemove = pendingReason === 'remove';
+    const highlightClass = isPendingRemove
+      ? 'border-red-200 bg-red-50 text-red-700'
+      : isPendingReplace
+        ? 'border-amber-200 bg-amber-50 text-amber-700'
+        : 'border-blue-200 bg-blue-50 text-blue-800';
+    const statusMessage = isPendingReplace
+      ? 'ไฟล์นี้จะถูกแทนที่เมื่อบันทึก'
+      : isPendingRemove
+        ? 'ไฟล์นี้จะถูกลบเมื่อบันทึก'
+        : 'ไฟล์จากระบบ';
+
+    const fileName = existingFile.original_name || existingFile.name || existingFile.serverFileName || 'ไฟล์จากระบบ';
+
     return (
-      <div className="space-y-2">
-        <div className="flex items-center justify-between bg-green-50 border border-green-200 rounded-lg p-3">
-          <div className="flex items-center gap-3">
-            <FileText className="h-5 w-5 text-green-600" />
+      <div className={`flex flex-col gap-3 rounded-lg border ${highlightClass} p-4`}
+        role="status"
+        aria-live="polite"
+      >
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-start gap-3">
+            <FileText className="mt-0.5 h-5 w-5 flex-shrink-0" />
             <div>
-              <p className="text-sm font-medium text-green-800">{selectedFiles[0].name}</p>
-              <p className="text-xs text-green-600">
-                {(selectedFiles[0].size / 1024 / 1024).toFixed(2)} MB
-              </p>
+              <p className="text-sm font-medium">{fileName}</p>
+              <p className="text-xs font-medium">{statusMessage}</p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
-              onClick={() => viewFile(selectedFiles[0])}
-              className="text-blue-500 hover:text-blue-700"
-              title="ดูไฟล์"
+              onClick={() => onDownloadExisting?.(existingFile)}
+              className="inline-flex items-center gap-1 rounded-full border border-blue-200 bg-white px-3 py-1 text-xs font-medium text-blue-600 transition hover:bg-blue-50"
             >
-              <Eye className="h-4 w-4" />
+              <Download className="h-3.5 w-3.5" />
+              <span>ดาวน์โหลด</span>
+            </button>
+            {!isPendingRemove && (
+              <button
+                type="button"
+                onClick={triggerFileDialog}
+                className="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-medium text-amber-700 transition hover:bg-amber-100"
+              >
+                <RefreshCw className="h-3.5 w-3.5" />
+                <span>แทนที่</span>
+              </button>
+            )}
+            {isPendingRemove ? (
+              <button
+                type="button"
+                onClick={() => onRestoreExisting?.(existingFile)}
+                className="inline-flex items-center gap-1 rounded-full border border-gray-200 bg-white px-3 py-1 text-xs font-medium text-gray-600 transition hover:bg-gray-50"
+              >
+                <Undo2 className="h-3.5 w-3.5" />
+                <span>ยกเลิก</span>
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => onRemoveExisting?.(existingFile)}
+                className="inline-flex items-center gap-1 rounded-full border border-red-200 bg-red-50 px-3 py-1 text-xs font-medium text-red-600 transition hover:bg-red-100"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                <span>ลบ</span>
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const renderSelectedFile = () => {
+    if (multiple || selectedFiles.length === 0) {
+      return null;
+    }
+
+    const [file] = selectedFiles;
+
+    return (
+      <div className="flex flex-col gap-3 rounded-lg border border-green-200 bg-green-50 p-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-start gap-3">
+            <FileText className="mt-0.5 h-5 w-5 text-green-600" />
+            <div>
+              <p className="text-sm font-medium text-green-800">{file.name}</p>
+              <p className="text-xs text-green-700">{(file.size / 1024 / 1024).toFixed(2)} MB • ไฟล์ใหม่ (รออัปโหลด)</p>
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => viewFile(file)}
+              className="inline-flex items-center gap-1 rounded-full border border-blue-200 bg-white px-3 py-1 text-xs font-medium text-blue-600 transition hover:bg-blue-50"
+            >
+              <Eye className="h-3.5 w-3.5" />
+              <span>ดูไฟล์</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => triggerFileDialog()}
+              className="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-medium text-amber-700 transition hover:bg-amber-100"
+            >
+              <RefreshCw className="h-3.5 w-3.5" />
+              <span>แทนที่</span>
             </button>
             <button
               type="button"
               onClick={() => removeFile(0)}
-              className="text-red-500 hover:text-red-700"
-              title="ลบไฟล์"
+              className="inline-flex items-center gap-1 rounded-full border border-red-200 bg-red-50 px-3 py-1 text-xs font-medium text-red-600 transition hover:bg-red-100"
             >
-              <X className="h-4 w-4" />
+              <Trash2 className="h-3.5 w-3.5" />
+              <span>ลบไฟล์ใหม่</span>
             </button>
           </div>
         </div>
-        {error && (
-          <p className="text-red-500 text-sm mt-1 flex items-center gap-1">
-            <AlertCircle className="h-4 w-4" />
-            {error}
-          </p>
-        )}
       </div>
     );
-  }
+  };
 
-  // File drop zone for multiple files or no files selected
-  return (
-    <div className="space-y-2">
-      <div
-        className={`border-2 border-dashed rounded-lg p-4 text-center cursor-pointer transition-colors ${
-          isDragging 
-            ? 'border-blue-400 bg-blue-50' 
-            : error 
-            ? 'border-red-300 bg-red-50' 
+  const renderDropZone = () => (
+    <div
+      className={`border-2 border-dashed rounded-lg p-4 text-center transition-colors ${
+        isDragging
+          ? 'border-blue-400 bg-blue-50'
+          : error
+            ? 'border-red-300 bg-red-50'
             : 'border-gray-300 hover:border-gray-400'
-        }`}
-        onDragOver={handleDragOver}
-        onDragLeave={handleDragLeave}
-        onDrop={handleDrop}
-        onClick={() => document.getElementById(`file-input-${label}`).click()}
-      >
-        <Upload className="mx-auto h-6 w-6 text-gray-400 mb-2" />
-        <p className="text-sm text-gray-600">
-          {multiple ? 
-            'คลิกหรือลากไฟล์มาวางที่นี่ (สามารถเลือกได้หลายไฟล์)' : 
-            'คลิกหรือลากไฟล์มาวางที่นี่'
-          }
-        </p>
-        <p className="text-xs text-gray-500 mt-1">
-          {accept || 'PDF, DOC, DOCX, JPG, PNG (ไม่เกิน 10MB)'}
-        </p>
-        <input
-          id={`file-input-${label}`}
-          type="file"
-          accept={accept}
-          multiple={multiple}
-          onChange={handleFileInput}
-          className="hidden"
-        />
-      </div>
+      }`}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+      onClick={triggerFileDialog}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          triggerFileDialog();
+        }
+      }}
+    >
+      <Upload className="mx-auto h-6 w-6 text-gray-400 mb-2" />
+      <p className="text-sm text-gray-600">
+        {multiple
+          ? 'คลิกหรือลากไฟล์มาวางที่นี่ (สามารถเลือกได้หลายไฟล์)'
+          : 'คลิกหรือลากไฟล์มาวางที่นี่'}
+      </p>
+      <p className="text-xs text-gray-500 mt-1">{accept || 'PDF, DOC, DOCX, JPG, PNG (ไม่เกิน 10MB)'}</p>
+    </div>
+  );
 
-      {/* Display selected files for multiple selection */}
+  return (
+    <div className="space-y-3">
+      {(!multiple && selectedFiles.length > 0) ? (
+        renderSelectedFile()
+      ) : (
+        <>
+          {renderExistingFile()}
+          {renderDropZone()}
+        </>
+      )}
+
       {multiple && selectedFiles.length > 0 && (
-        <div className="mt-3 space-y-2">
+        <div className="space-y-2">
           <p className="text-sm font-medium text-gray-700">ไฟล์ที่เลือก:</p>
           <div className="space-y-2">
             {selectedFiles.map((file, index) => (
-              <div key={index} className="flex items-center justify-between bg-gray-50 rounded-lg p-3">
-                <div className="flex items-center gap-3">
-                  <FileText className="h-5 w-5 text-gray-400" />
+              <div
+                key={`${file.name}-${index}`}
+                className="flex items-center justify-between rounded-lg border border-gray-200 bg-gray-50 p-3"
+              >
+                <div className="flex items-start gap-3">
+                  <FileText className="mt-0.5 h-5 w-5 text-gray-500" />
                   <div>
                     <p className="text-sm font-medium text-gray-700">{file.name}</p>
-                    <p className="text-xs text-gray-500">
-                      {(file.size / 1024 / 1024).toFixed(2)} MB
-                    </p>
+                    <p className="text-xs text-gray-500">{(file.size / 1024 / 1024).toFixed(2)} MB</p>
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <button
                     type="button"
                     onClick={(e) => {
                       e.stopPropagation();
                       viewFile(file);
                     }}
-                    className="text-blue-500 hover:text-blue-700"
-                    title="ดูไฟล์"
+                    className="inline-flex items-center gap-1 rounded-full border border-blue-200 bg-white px-3 py-1 text-xs font-medium text-blue-600 transition hover:bg-blue-50"
                   >
-                    <Eye className="h-4 w-4" />
+                    <Eye className="h-3.5 w-3.5" />
+                    <span>ดูไฟล์</span>
                   </button>
                   <button
                     type="button"
@@ -790,10 +977,10 @@ const FileUpload = ({ onFileSelect, accept, multiple = false, error, label }) =>
                       e.stopPropagation();
                       removeFile(index);
                     }}
-                    className="text-red-500 hover:text-red-700"
-                    title="ลบไฟล์"
+                    className="inline-flex items-center gap-1 rounded-full border border-red-200 bg-red-50 px-3 py-1 text-xs font-medium text-red-600 transition hover:bg-red-100"
                   >
-                    <X className="h-4 w-4" />
+                    <Trash2 className="h-3.5 w-3.5" />
+                    <span>ลบ</span>
                   </button>
                 </div>
               </div>
@@ -803,11 +990,20 @@ const FileUpload = ({ onFileSelect, accept, multiple = false, error, label }) =>
       )}
 
       {error && (
-        <p className="text-red-500 text-sm mt-1 flex items-center gap-1">
+        <p className="mt-1 flex items-center gap-1 text-sm text-red-500">
           <AlertCircle className="h-4 w-4" />
           {error}
         </p>
       )}
+
+      <input
+        id={inputId}
+        type="file"
+        accept={accept}
+        multiple={multiple}
+        onChange={handleFileInput}
+        className="hidden"
+      />
     </div>
   );
 };
@@ -1267,7 +1463,7 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
 
   const coauthorSignature = useMemo(() => {
     return (coauthors || [])
-      .map((coauthor) => `${coauthor.user_id || ''}:${coauthor.user_fname || ''}:${coauthor.user_lname || ''}`)
+      .map((coauthor) => `${coauthor.user_id || ''}:${coauthor.user_fname || ''}:${coauthor.user_lname || ''}:${coauthor.display_name || ''}`)
       .join('|');
   }, [coauthors]);
 
@@ -1523,15 +1719,36 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
         const externalFundsRaw = detail.external_fundings || detail.ExternalFunds || [];
         const normalizedFunds = externalFundsRaw.map((fund, index) => {
           const fundId = fund.external_fund_id ?? fund.ExternalFundID ?? null;
+          const fundDocument = fund.document || fund.Document || fund.file || fund.File || {};
+          const documentId =
+            fund.document_id ??
+            fund.DocumentID ??
+            fundDocument.document_id ??
+            fundDocument.DocumentID ??
+            null;
+          const documentName = findFirstString([
+            fundDocument.original_name,
+            fundDocument.original_filename,
+            fundDocument.file_name,
+            fundDocument.filename,
+            fund.document_name,
+            fund.DocumentName,
+          ]);
+          const documentFileId =
+            fund.file_id ??
+            fund.FileID ??
+            fundDocument.file_id ??
+            fundDocument.FileID ??
+            null;
           return {
             clientId: `server-${fundId ?? index}`,
             externalFundId: fundId,
             fundName: fund.fund_name ?? fund.FundName ?? '',
             amount: toNumberOrEmpty(fund.amount ?? fund.Amount ?? ''),
             file: null,
-            serverDocumentId: null,
-            serverFileName: null,
-            serverFileId: null,
+            serverDocumentId: documentId ?? null,
+            serverFileName: documentName || null,
+            serverFileId: documentFileId != null ? String(documentFileId) : null,
             serverDocumentPendingRemovalReason: null,
           };
         });
@@ -2870,16 +3087,25 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
 
   // Handle co-author addition
   const handleAddCoauthor = (user) => {
-    if (!coauthors.find(c => c.user_id === user.user_id)) {
-      setCoauthors(prev => [...prev, user]);
+    const normalized = buildCoauthorFromSubmissionUser(user);
+    if (!normalized) {
+      return;
+    }
+
+    if (!coauthors.find(c => c.user_id === normalized.user_id)) {
+      setCoauthors(prev => [...prev, normalized]);
     }
   };
 
   // Handle co-author removal
   const handleRemoveCoauthor = async (index) => {
+    const target = coauthors[index];
+    const fallbackName = `${target?.user_fname || ''} ${target?.user_lname || ''}`.trim();
+    const displayName = (target?.display_name || fallbackName || 'ผู้แต่งร่วม').trim();
+
     const result = await Swal.fire({
       title: 'ยืนยันการลบผู้แต่งร่วม?',
-      text: `ต้องการลบ ${coauthors[index].user_fname} ${coauthors[index].user_lname} ออกจากรายชื่อผู้แต่งร่วมหรือไม่?`,
+      text: `ต้องการลบ ${displayName} ออกจากรายชื่อผู้แต่งร่วมหรือไม่?`,
       icon: 'warning',
       showCancelButton: true,
       confirmButtonColor: '#d33',
@@ -3030,7 +3256,8 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
         const nextExternalDocs = [];
 
         normalized.forEach((doc) => {
-          if (doc.document_type_id === 12) {
+          const isExternalDocument = doc.document_type_id === 12 || doc.external_funding_id != null;
+          if (isExternalDocument) {
             let matchedFunding = null;
             if (doc.external_funding_id != null) {
               matchedFunding = externalLookup.get(String(doc.external_funding_id)) || null;
@@ -5392,7 +5619,7 @@ const showSubmissionConfirmation = async () => {
     ? selectedFundDetail
     : '';
   const shouldShowDraftBanner = Boolean(
-    draftLockedSelections && (bannerPrimaryDescription || bannerSecondaryDescription)
+    (editingExistingSubmission || lockedFundSummary) && (bannerPrimaryDescription || bannerSecondaryDescription)
   );
   const enforceBudgetYearReadOnly = Boolean(lockedBudgetYearId) || editingExistingSubmission || isReadOnly;
   const disableAuthorStatusSelect = draftLockedSelections || availableAuthorStatuses.length === 0;
@@ -5440,9 +5667,11 @@ const showSubmissionConfirmation = async () => {
                     {bannerSecondaryDescription}
                   </p>
                 )}
-                <p className="text-xs text-blue-700 sm:text-sm">
-                  หากต้องการเปลี่ยนให้ลบร่าง แล้วสร้างใหม่อีกครั้ง
-                </p>
+                {draftLockedSelections && (
+                  <p className="text-xs text-blue-700 sm:text-sm">
+                    หากต้องการเปลี่ยนให้ลบร่าง แล้วสร้างใหม่อีกครั้ง
+                  </p>
+                )}
               </div>
             </div>
           </div>
@@ -5972,14 +6201,20 @@ const showSubmissionConfirmation = async () => {
                     }
                     return true;
                   })
-                  .map(user => (
-                    <option 
-                      key={user.user_id} 
-                      value={user.user_id}
-                    >
-                      {user.user_fname} {user.user_lname} ({user.email})
-                    </option>
-                  ))}
+                  .map(user => {
+                    const nameParts = resolveUserNameParts(user);
+                    const fallbackName = `${nameParts.firstName || ''} ${nameParts.lastName || ''}`.trim();
+                    const labelName = nameParts.displayName || fallbackName;
+                    const optionLabel = labelName || user.user_fname || user.user_lname || 'ไม่ทราบชื่อ';
+                    return (
+                      <option
+                        key={user.user_id}
+                        value={user.user_id}
+                      >
+                        {optionLabel}{user.email ? ` (${user.email})` : ''}
+                      </option>
+                    );
+                  })}
               </select>
             </div>
 
@@ -6009,7 +6244,7 @@ const showSubmissionConfirmation = async () => {
                         </span>
                         <div>
                           <p className="text-sm font-medium text-gray-900">
-                            {coauthor.user_fname} {coauthor.user_lname}
+                            {coauthor.display_name || `${coauthor.user_fname || ''} ${coauthor.user_lname || ''}`.trim()}
                           </p>
                           <p className="text-xs text-gray-500">
                             {coauthor.email}
@@ -6257,22 +6492,26 @@ const showSubmissionConfirmation = async () => {
                           <td className="border-r border-blue-200 px-3 py-2 text-sm">
                             {(() => {
                               const serverDoc = serverExternalFundingFiles.find(
-                                (doc) => String(doc.document_id) === String(funding.serverDocumentId)
+                                (doc) => {
+                                  if (!doc) return false;
+                                  if (funding.serverDocumentId) {
+                                    if (String(doc.document_id) === String(funding.serverDocumentId)) {
+                                      return true;
+                                    }
+                                  }
+                                  if (doc.funding_client_id && funding.clientId) {
+                                    if (String(doc.funding_client_id) === String(funding.clientId)) {
+                                      return true;
+                                    }
+                                  }
+                                  if (doc.external_funding_id != null && funding.externalFundId != null) {
+                                    return String(doc.external_funding_id) === String(funding.externalFundId);
+                                  }
+                                  return false;
+                                }
                               );
                               const uploadInputId = `external-funding-upload-${funding.clientId || index}`;
-                              const pendingState = serverDoc?.pendingRemoval
-                                ? serverDoc.pendingRemovalReason
-                                : funding.serverDocumentPendingRemovalReason;
-
-                              let pendingLabel = 'ไฟล์จากระบบ';
-                              let pendingClass = 'text-blue-600';
-                              if (pendingState === 'replace') {
-                                pendingLabel = 'ไฟล์นี้จะถูกแทนที่เมื่อบันทึก';
-                                pendingClass = 'text-orange-600';
-                              } else if (pendingState === 'remove') {
-                                pendingLabel = 'ไฟล์นี้จะถูกลบเมื่อบันทึก';
-                                pendingClass = 'text-red-600';
-                              }
+                              const pendingReason = funding.serverDocumentPendingRemovalReason || serverDoc?.pendingRemovalReason || null;
 
                               const previewNewFile = () => {
                                 if (!funding.file) {
@@ -6293,6 +6532,26 @@ const showSubmissionConfirmation = async () => {
                                 : serverDoc
                                   ? 'แทนที่ไฟล์'
                                   : 'แนบไฟล์';
+
+                              const fallbackDoc = serverDoc || {
+                                document_id: funding.serverDocumentId,
+                                file_id: funding.serverFileId,
+                                original_name: funding.serverFileName,
+                                document_type_name: 'เอกสารเบิกจ่ายภายนอก',
+                              };
+
+                              const isPendingReplace = pendingReason === 'replace';
+                              const isPendingRemove = pendingReason === 'remove';
+                              const highlightClass = isPendingRemove
+                                ? 'border-red-200 bg-red-50 text-red-700'
+                                : isPendingReplace
+                                  ? 'border-amber-200 bg-amber-50 text-amber-700'
+                                  : 'border-blue-200 bg-blue-50 text-blue-800';
+                              const statusMessage = isPendingReplace
+                                ? 'ไฟล์นี้จะถูกแทนที่เมื่อบันทึก'
+                                : isPendingRemove
+                                  ? 'ไฟล์นี้จะถูกลบเมื่อบันทึก'
+                                  : 'ไฟล์จากระบบ';
 
                               return (
                                 <div className="space-y-3">
@@ -6370,40 +6629,41 @@ const showSubmissionConfirmation = async () => {
                                     </div>
                                   )}
 
-                                  {serverDoc && (
-                                    <div className="flex flex-col gap-2 rounded border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-800 sm:flex-row sm:items-center sm:justify-between">
+                                  {(fallbackDoc.document_id || fallbackDoc.original_name) && (
+                                    <div className={`flex flex-col gap-2 rounded border px-3 py-2 text-xs sm:flex-row sm:items-center sm:justify-between ${highlightClass}`}>
                                       <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:gap-3">
                                         <div className="flex items-center gap-2">
-                                          <FileText className="h-3 w-3" />
-                                          <span>{serverDoc.original_name || funding.serverFileName || 'ไฟล์จากระบบ'}</span>
+                                          <FileText className="h-3.5 w-3.5" />
+                                          <span>{fallbackDoc.original_name || fallbackDoc.document_type_name || 'ไฟล์จากระบบ'}</span>
                                         </div>
-                                        <span className={`text-xs font-medium ${pendingClass}`}>
-                                          {pendingLabel}
-                                        </span>
+                                        <span className="text-xs font-medium">{statusMessage}</span>
                                       </div>
                                       <div className="flex flex-wrap items-center gap-2">
                                         <button
                                           type="button"
-                                          onClick={() => handleDownloadDocument(serverDoc)}
-                                          className="text-blue-600 hover:text-blue-800"
+                                          onClick={() => handleDownloadDocument(fallbackDoc)}
+                                          className="inline-flex items-center gap-1 rounded-full border border-blue-200 bg-white px-3 py-1 text-xs font-medium text-blue-600 transition hover:bg-blue-50"
                                         >
-                                          ดาวน์โหลด
+                                          <Download className="h-3.5 w-3.5" />
+                                          <span>ดาวน์โหลด</span>
                                         </button>
-                                        {pendingState ? (
+                                        {isPendingRemove ? (
                                           <button
                                             type="button"
                                             onClick={() => handleRestoreExternalFundingFile(funding.clientId)}
-                                            className="text-gray-600 hover:text-gray-800"
+                                            className="inline-flex items-center gap-1 rounded-full border border-gray-200 bg-white px-3 py-1 text-xs font-medium text-gray-600 transition hover:bg-gray-50"
                                           >
-                                            ยกเลิกการลบ
+                                            <Undo2 className="h-3.5 w-3.5" />
+                                            <span>ยกเลิก</span>
                                           </button>
                                         ) : (
                                           <button
                                             type="button"
                                             onClick={() => handleRemoveExternalFundingFile(funding.clientId)}
-                                            className="text-red-500 hover:text-red-700"
+                                            className="inline-flex items-center gap-1 rounded-full border border-red-200 bg-red-50 px-3 py-1 text-xs font-medium text-red-600 transition hover:bg-red-100"
                                           >
-                                            ลบไฟล์เดิม
+                                            <Trash2 className="h-3.5 w-3.5" />
+                                            <span>ลบไฟล์เดิม</span>
                                           </button>
                                         )}
                                       </div>
@@ -6743,6 +7003,10 @@ const showSubmissionConfirmation = async () => {
                   const serverDocsForType = (serverDocuments || []).filter(
                     (doc) => doc.document_type_id === parseIntegerOrNull(docType.id)
                   );
+                  const primaryServerDoc = serverDocsForType.find((doc) => !doc.pendingRemoval) || serverDocsForType[0] || null;
+                  const remainingServerDocs = primaryServerDoc
+                    ? serverDocsForType.filter((doc) => doc !== primaryServerDoc)
+                    : [];
 
                   // Regular document types
                   return (
@@ -6752,82 +7016,84 @@ const showSubmissionConfirmation = async () => {
                         {docType.required && <span className="text-red-500 ml-1">*</span>}
                       </label>
 
-                      {serverDocsForType.length > 0 && (
-                        <div className="mb-3 space-y-2">
-                          {serverDocsForType.map((doc) => {
-                            const inputId = `replace-doc-${doc.document_id}`;
-                            const pendingMessage =
-                              doc.pendingRemovalReason === 'replace'
-                                ? 'ไฟล์นี้จะถูกแทนที่เมื่อบันทึก'
-                                : 'ไฟล์นี้จะถูกลบเมื่อบันทึก';
-                            return (
-                              <div
-                                key={doc.document_id}
-                                className="flex items-center justify-between rounded-lg border border-gray-200 bg-gray-50 p-3"
-                              >
-                                <div>
-                                  <p className="text-sm font-medium text-gray-700">
-                                    {doc.original_name || doc.document_type_name || 'ไฟล์จากระบบ'}
-                                  </p>
-                                  <p className={`text-xs mt-1 ${doc.pendingRemoval ? 'text-red-600' : 'text-gray-500'}`}>
-                                    {doc.pendingRemoval ? pendingMessage : 'ไฟล์จากระบบ'}
-                                  </p>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                  <button
-                                    type="button"
-                                    onClick={() => handleDownloadDocument(doc)}
-                                    className="text-blue-600 hover:text-blue-800"
-                                  >
-                                    ดาวน์โหลด
-                                  </button>
-                                  {!doc.pendingRemoval ? (
-                                    <>
-                                      <label htmlFor={inputId} className="cursor-pointer text-indigo-600 hover:text-indigo-800">
-                                        แทนที่
-                                        <input
-                                          id={inputId}
-                                          type="file"
-                                          className="hidden"
-                                          accept=".pdf"
-                                          onChange={(e) => {
-                                            const selected = Array.from(e.target.files || []);
-                                            handleFileUpload(docType.id, selected);
-                                            e.target.value = '';
-                                          }}
-                                        />
-                                      </label>
-                                      <button
-                                        type="button"
-                                        onClick={() => markDocumentForRemoval(doc.document_id, 'remove')}
-                                        className="text-red-500 hover:text-red-700"
-                                      >
-                                        ลบ
-                                      </button>
-                                    </>
-                                  ) : (
-                                    <button
-                                      type="button"
-                                      onClick={() => unmarkDocumentRemoval(doc.document_id)}
-                                      className="text-gray-600 hover:text-gray-800"
-                                    >
-                                      ยกเลิก
-                                    </button>
-                                  )}
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      )}
-
                       <FileUpload
                         onFileSelect={(files) => handleFileUpload(docType.id, files)}
                         accept=".pdf"
                         multiple={false}
                         error={errors[`file_${docType.id}`]}
                         label={`doc_${docType.id}`}
+                        existingFile={primaryServerDoc}
+                        onDownloadExisting={handleDownloadDocument}
+                        onRemoveExisting={(doc) => markDocumentForRemoval(doc.document_id, 'remove')}
+                        onRestoreExisting={(doc) => unmarkDocumentRemoval(doc.document_id)}
                       />
+
+                      {remainingServerDocs.length > 0 && (
+                        <div className="mt-3 space-y-2">
+                          {remainingServerDocs.map((doc) => {
+                            const pendingReason = doc.pendingRemovalReason || null;
+                            const isPendingReplace = pendingReason === 'replace';
+                            const isPendingRemove = pendingReason === 'remove';
+                            const highlightClass = isPendingRemove
+                              ? 'border-red-200 bg-red-50 text-red-700'
+                              : isPendingReplace
+                                ? 'border-amber-200 bg-amber-50 text-amber-700'
+                                : 'border-blue-200 bg-blue-50 text-blue-800';
+                            const statusMessage = isPendingReplace
+                              ? 'ไฟล์นี้จะถูกแทนที่เมื่อบันทึก'
+                              : isPendingRemove
+                                ? 'ไฟล์นี้จะถูกลบเมื่อบันทึก'
+                                : 'ไฟล์จากระบบ';
+                            return (
+                              <div
+                                key={doc.document_id}
+                                className={`flex flex-col gap-3 rounded-lg border ${highlightClass} p-4`}
+                              >
+                                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                                  <div className="flex items-start gap-3">
+                                    <FileText className="mt-0.5 h-5 w-5 flex-shrink-0" />
+                                    <div>
+                                      <p className="text-sm font-medium">
+                                        {doc.original_name || doc.document_type_name || 'ไฟล์จากระบบ'}
+                                      </p>
+                                      <p className="text-xs font-medium">{statusMessage}</p>
+                                    </div>
+                                  </div>
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <button
+                                      type="button"
+                                      onClick={() => handleDownloadDocument(doc)}
+                                      className="inline-flex items-center gap-1 rounded-full border border-blue-200 bg-white px-3 py-1 text-xs font-medium text-blue-600 transition hover:bg-blue-50"
+                                    >
+                                      <Download className="h-3.5 w-3.5" />
+                                      <span>ดาวน์โหลด</span>
+                                    </button>
+                                    {isPendingRemove ? (
+                                      <button
+                                        type="button"
+                                        onClick={() => unmarkDocumentRemoval(doc.document_id)}
+                                        className="inline-flex items-center gap-1 rounded-full border border-gray-200 bg-white px-3 py-1 text-xs font-medium text-gray-600 transition hover:bg-gray-50"
+                                      >
+                                        <Undo2 className="h-3.5 w-3.5" />
+                                        <span>ยกเลิก</span>
+                                      </button>
+                                    ) : (
+                                      <button
+                                        type="button"
+                                        onClick={() => markDocumentForRemoval(doc.document_id, 'remove')}
+                                        className="inline-flex items-center gap-1 rounded-full border border-red-200 bg-red-50 px-3 py-1 text-xs font-medium text-red-600 transition hover:bg-red-100"
+                                      >
+                                        <Trash2 className="h-3.5 w-3.5" />
+                                        <span>ลบ</span>
+                                      </button>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
                     </div>
                   );
                 })}
