@@ -2,7 +2,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { FileText, Upload, Save, Send, X, Eye, ArrowLeft, AlertCircle, DollarSign } from "lucide-react";
+import { FileText, Upload, Save, Send, X, Eye, ArrowLeft, AlertCircle, DollarSign, Download } from "lucide-react";
 import Swal from "sweetalert2";
 import PageLayout from "../common/PageLayout";
 import SimpleCard from "../common/SimpleCard";
@@ -22,6 +22,8 @@ const DEPT_HEAD_PENDING_STATUS_NAME_HINT = 'อยู่ระหว่างก
 
 const DRAFT_KEY = 'generic_fund_application_draft';
 const DRAFT_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
+
+const EDITABLE_STATUS_CODES = new Set(['draft', 'needs_more_info']);
 
 const buildResolvedStatus = (status) => {
   if (!status || typeof status !== 'object') {
@@ -269,18 +271,29 @@ const deleteDraftFromLocal = () => {
 // =================================================================
 // FILE UPLOAD COMPONENT
 // =================================================================
-function FileUpload({ onFileSelect, accept, multiple = false, error, compact = false }) {
+function FileUpload({ onFileSelect, accept, multiple = false, error, compact = false, disabled = false }) {
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef(null);
 
   const handleDragOver = (e) => {
+    if (disabled) {
+      return;
+    }
     e.preventDefault();
     setIsDragging(true);
   };
 
-  const handleDragLeave = () => setIsDragging(false);
+  const handleDragLeave = () => {
+    if (disabled) {
+      return;
+    }
+    setIsDragging(false);
+  };
 
   const handleDrop = (e) => {
+    if (disabled) {
+      return;
+    }
     e.preventDefault();
     setIsDragging(false);
     const files = Array.from(e.dataTransfer.files);
@@ -306,6 +319,9 @@ function FileUpload({ onFileSelect, accept, multiple = false, error, compact = f
   };
 
   const handleFileInput = (e) => {
+    if (disabled) {
+      return;
+    }
     const files = Array.from(e.target.files);
     if (files.length === 0) {
       return;
@@ -333,28 +349,40 @@ function FileUpload({ onFileSelect, accept, multiple = false, error, compact = f
   return (
     <div className="space-y-1">
       <div
-        className={`border-2 border-dashed rounded-lg ${compact ? "p-2" : "p-6"} text-center cursor-pointer transition-colors ${
+        className={`border-2 border-dashed rounded-lg ${compact ? "p-2" : "p-6"} text-center transition-colors ${
           isDragging
             ? "border-blue-400 bg-blue-50"
             : error
             ? "border-red-400 bg-red-50"
             : "border-gray-300 hover:border-gray-400"
-        }`}
+        } ${disabled ? "cursor-not-allowed opacity-60" : "cursor-pointer"}`}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
-        onClick={() => fileInputRef.current?.click()}
+        onClick={() => {
+          if (disabled) {
+            return;
+          }
+          fileInputRef.current?.click();
+        }}
+        aria-disabled={disabled}
       >
         <Upload
-          className={`mx-auto mb-2 ${compact ? "h-5 w-5" : "h-8 w-8"} ${error ? "text-red-400" : "text-gray-400"}`}
+          className={`mx-auto mb-2 ${compact ? "h-5 w-5" : "h-8 w-8"} ${
+            disabled ? "text-gray-300" : error ? "text-red-400" : "text-gray-400"
+          }`}
         />
         <p
-          className={`${compact ? "text-xs" : "text-sm"} ${error ? "text-red-600" : "text-gray-600"}`}
+          className={`${compact ? "text-xs" : "text-sm"} ${
+            disabled ? "text-gray-400" : error ? "text-red-600" : "text-gray-600"
+          }`}
         >
           {compact ? "แนบไฟล์ (PDF)" : "คลิกหรือลากไฟล์มาวางที่นี่ (เฉพาะไฟล์ PDF)"}
         </p>
         {!compact && (
-          <p className="text-xs text-gray-500 mt-1">ขนาดไฟล์สูงสุด 10MB</p>
+          <p className={`text-xs mt-1 ${disabled ? "text-gray-400" : "text-gray-500"}`}>
+            ขนาดไฟล์สูงสุด 10MB
+          </p>
         )}
         <input
           ref={fileInputRef}
@@ -363,6 +391,7 @@ function FileUpload({ onFileSelect, accept, multiple = false, error, compact = f
           multiple={multiple}
           onChange={handleFileInput}
           className="hidden"
+          disabled={disabled}
         />
       </div>
       {error && (
@@ -400,6 +429,230 @@ const formatFileSize = (bytes) => {
   return `${value.toFixed(i === 0 ? 0 : 2)} ${sizes[i]}`;
 };
 
+const normalizePhoneValue = (value) => {
+  if (value == null) {
+    return '';
+  }
+  const digits = String(value).replace(/\D/g, '');
+  if (!digits) {
+    return '';
+  }
+  return formatPhoneNumber(digits);
+};
+
+const normalizeStatusCodeValue = (value) => {
+  if (value == null) {
+    return null;
+  }
+
+  if (typeof value === 'object') {
+    if (value.status_code != null) {
+      return normalizeStatusCodeValue(value.status_code);
+    }
+    if (value.code != null) {
+      return normalizeStatusCodeValue(value.code);
+    }
+    if (value.status != null) {
+      return normalizeStatusCodeValue(value.status);
+    }
+    if (value.name != null) {
+      return normalizeStatusCodeValue(value.name);
+    }
+    if (value.status_name != null) {
+      return normalizeStatusCodeValue(value.status_name);
+    }
+  }
+
+  const text = String(value).trim();
+  if (!text) {
+    return null;
+  }
+
+  const normalized = text
+    .toLowerCase()
+    .replace(/\s+/g, '_')
+    .replace(/-+/g, '_');
+
+  switch (normalized) {
+    case '3':
+    case 'revision':
+    case 'needs_more_info':
+    case 'need_more_info':
+    case 'needs_more_information':
+    case 'returned':
+    case 'return':
+    case 'resubmit':
+    case 'resubmission_requested':
+    case 'resubmission_required':
+    case 'pending_revision':
+    case 'pending_review_revision':
+      return 'needs_more_info';
+    case '4':
+    case 'draft':
+    case 'ร่าง':
+      return 'draft';
+    default:
+      return normalized;
+  }
+};
+
+const getSubmissionStatusCode = (submission) => {
+  if (!submission || typeof submission !== 'object') {
+    return null;
+  }
+
+  const candidates = [
+    submission.status_code,
+    submission.application_status_code,
+    submission.status,
+    submission.application_status,
+    submission.submission_status,
+    submission.status_name,
+    submission.statusName,
+    submission.application_status_name,
+    submission.status_label,
+    submission.status_text,
+    submission.statusText,
+    submission.status_value,
+    submission.Status,
+    submission.ApplicationStatus,
+    submission.status_id,
+    submission.application_status_id,
+  ];
+
+  for (const candidate of candidates) {
+    const normalized = normalizeStatusCodeValue(candidate);
+    if (normalized) {
+      return normalized;
+    }
+  }
+
+  return null;
+};
+
+const extractDocumentsFromResponse = (payload) => {
+  const candidates = [
+    payload?.documents,
+    payload?.data?.documents,
+    payload?.data?.documents?.data,
+    payload?.data?.documents?.items,
+    payload?.data?.documents?.results,
+    payload?.data?.items,
+    payload?.data?.results,
+    payload?.data,
+    payload?.items,
+    payload?.results,
+    payload?.documents?.data,
+    payload?.documents?.items,
+    payload?.documents?.results,
+    Array.isArray(payload) ? payload : null,
+  ];
+
+  for (const candidate of candidates) {
+    if (Array.isArray(candidate)) {
+      return candidate;
+    }
+  }
+
+  return [];
+};
+
+const normalizeServerDocumentEntry = (document) => {
+  if (!document || typeof document !== 'object') {
+    return null;
+  }
+
+  const documentId =
+    document.document_id ??
+    document.submission_document_id ??
+    document.SubmissionDocumentID ??
+    document.id ??
+    null;
+
+  const docTypeCandidate =
+    document.document_type_id ??
+    document.DocumentTypeID ??
+    document.doc_type_id ??
+    document.document_type?.document_type_id ??
+    document.document_type?.id ??
+    document.DocumentType?.document_type_id ??
+    document.DocumentType?.id ??
+    null;
+
+  if (docTypeCandidate == null) {
+    return null;
+  }
+
+  const numericDocType = Number(docTypeCandidate);
+  const documentTypeId = Number.isNaN(numericDocType) ? docTypeCandidate : numericDocType;
+
+  const fileSource = document.file || document.File || document.file_data || document.DocumentFile || {};
+  const fileId = document.file_id ?? fileSource.file_id ?? fileSource.id ?? null;
+  const originalNameRaw =
+    document.original_name ??
+    fileSource.original_name ??
+    document.file_name ??
+    fileSource.file_name ??
+    '';
+  const fileNameRaw = fileSource.file_name ?? document.file_name ?? originalNameRaw ?? '';
+  const fileSize = document.file_size ?? fileSource.file_size ?? null;
+  const description = document.description ?? document.DocumentDescription ?? '';
+
+  const original_name = typeof originalNameRaw === 'string' ? originalNameRaw.trim() : '';
+  const file_name = typeof fileNameRaw === 'string' ? fileNameRaw.trim() : '';
+
+  return {
+    document_id: documentId,
+    document_type_id: documentTypeId,
+    file_id: fileId,
+    original_name: original_name || file_name || '',
+    file_name: file_name || original_name || '',
+    file_size: Number.isFinite(fileSize) ? fileSize : null,
+    description,
+    raw: document,
+  };
+};
+
+const extractUploadedFilePayload = (response) => {
+  if (!response) {
+    return {};
+  }
+
+  const candidates = [
+    response.file,
+    response?.data?.file,
+    response?.data,
+  ];
+
+  for (const candidate of candidates) {
+    if (candidate && typeof candidate === 'object' && (candidate.file_id != null || candidate.id != null)) {
+      return candidate;
+    }
+  }
+
+  const listCandidates = [response.files, response?.data?.files];
+  for (const list of listCandidates) {
+    if (Array.isArray(list) && list.length > 0) {
+      return list[0];
+    }
+  }
+
+  return typeof response === 'object' ? response : {};
+};
+
+const firstNonEmptyString = (...values) => {
+  for (const value of values) {
+    if (value == null) {
+      continue;
+    }
+    const text = String(value).trim();
+    if (text) {
+      return text;
+    }
+  }
+  return '';
+};
+
 // =================================================================
 // MAIN COMPONENT
 // =================================================================
@@ -427,6 +680,8 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
   // Document requirements and uploaded files
   const [documentRequirements, setDocumentRequirements] = useState([]);
   const [uploadedFiles, setUploadedFiles] = useState({});
+  const [serverDocuments, setServerDocuments] = useState({});
+  const [documentsToDetach, setDocumentsToDetach] = useState(() => new Set());
   const [attachmentsPreviewState, setAttachmentsPreviewState] = useState({
     loading: false,
     error: null,
@@ -437,6 +692,10 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
   // Current user data
   const [currentUser, setCurrentUser] = useState(null);
   const [pendingStatus, setPendingStatus] = useState(null);
+  const [submissionStatusCode, setSubmissionStatusCode] = useState(null);
+  const [isEditable, setIsEditable] = useState(true);
+  const [isNeedsMoreInfo, setIsNeedsMoreInfo] = useState(false);
+  const [reviewerComments, setReviewerComments] = useState({ admin: '', head: '' });
   const [announcementLock, setAnnouncementLock] = useState({
     main_annoucement: null,
     activity_support_announcement: null,
@@ -455,6 +714,14 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
       setLoading(true);
       setErrors({});
       setPendingStatus(null);
+      setServerDocuments({});
+      setUploadedFiles({});
+      setDocumentsToDetach(() => new Set());
+      setAttachmentsPreviewState({ loading: false, error: null, hasPreviewed: false });
+      setSubmissionStatusCode(null);
+      setIsEditable(true);
+      setIsNeedsMoreInfo(false);
+      setReviewerComments({ admin: '', head: '' });
 
       // Load user data and document requirements in parallel
       const [userData, docRequirements, statusInfo] = await Promise.all([
@@ -495,6 +762,38 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
     }
   };
 
+  const refreshServerDocuments = async (submissionId) => {
+    if (!submissionId) {
+      setServerDocuments({});
+      return {};
+    }
+
+    try {
+      const response = await documentAPI.getSubmissionDocuments(submissionId);
+      const rawDocuments = extractDocumentsFromResponse(response);
+      const normalizedDocuments = Array.isArray(rawDocuments)
+        ? rawDocuments.map(normalizeServerDocumentEntry).filter(Boolean)
+        : [];
+
+      const documentMap = {};
+      normalizedDocuments.forEach((doc) => {
+        const docTypeKey = doc?.document_type_id ?? doc?.raw?.document_type_id;
+        if (docTypeKey == null) {
+          return;
+        }
+        const key = String(docTypeKey);
+        documentMap[key] = doc;
+      });
+
+      setServerDocuments(documentMap);
+      return documentMap;
+    } catch (error) {
+      console.error('Failed to load submission documents:', error);
+      setServerDocuments({});
+      return {};
+    }
+  };
+
   const loadExistingSubmission = async (submissionId) => {
     try {
       const response = await submissionAPI.getSubmission(submissionId);
@@ -505,25 +804,105 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
 
       setCurrentSubmissionId(submissionId);
 
+      const statusCode = getSubmissionStatusCode(submission);
+      setSubmissionStatusCode(statusCode);
+      const editable = !statusCode || EDITABLE_STATUS_CODES.has(statusCode);
+      setIsEditable(editable);
+      setIsNeedsMoreInfo(statusCode === 'needs_more_info');
+
+      const adminComment = firstNonEmptyString(
+        submission.admin_comment,
+        submission.approval_comment,
+        submission.comment,
+        submission.AdminComment,
+        submission.ApprovalComment,
+        submission.reviewer_comment
+      );
+      const headComment = firstNonEmptyString(
+        submission.head_comment,
+        submission.HeadComment,
+        submission.headComment,
+        submission.dept_head_comment,
+        submission.department_head_comment,
+        submission.HeadCommentText
+      );
+      setReviewerComments({
+        admin: adminComment,
+        head: headComment,
+      });
+
       const detail =
         submission.fund_application_detail ||
         submission.FundApplicationDetail ||
         submission.fundApplicationDetail ||
         null;
 
-      if (detail) {
-        setFormData(prev => ({
-          ...prev,
-          project_title: detail.project_title ?? detail.ProjectTitle ?? "",
-          project_description: detail.project_description ?? detail.ProjectDescription ?? "",
-          requested_amount:
-            detail.requested_amount != null
-              ? String(detail.requested_amount)
-              : detail.RequestedAmount != null
-              ? String(detail.RequestedAmount)
-              : "",
-        }));
+      const applicantUser =
+        submission.applicant_user ||
+        submission.user ||
+        submission.applicant ||
+        submission.Applicant ||
+        submission.SubmissionUser ||
+        submission.submission_user ||
+        null;
 
+      const resolvedName = firstNonEmptyString(
+        buildApplicantDisplayName(applicantUser),
+        submission.applicant_name,
+        submission.applicant_full_name,
+        submission.user_name,
+        submission.UserName
+      );
+
+      const phoneCandidate = firstNonEmptyString(
+        detail?.contact_phone,
+        detail?.phone_number,
+        detail?.phone,
+        detail?.contact_number,
+        submission.contact_phone,
+        submission.phone_number,
+        submission.phone,
+        submission.user?.phone_number,
+        submission.user?.phone
+      );
+      const normalizedPhone = normalizePhoneValue(phoneCandidate);
+
+      const projectTitle = firstNonEmptyString(
+        detail?.project_title,
+        detail?.ProjectTitle,
+        submission.project_title,
+        submission.ProjectTitle
+      );
+
+      const projectDescription = firstNonEmptyString(
+        detail?.project_description,
+        detail?.ProjectDescription,
+        submission.project_description,
+        submission.ProjectDescription
+      );
+
+      const requestedAmountRaw =
+        detail?.requested_amount ??
+        detail?.RequestedAmount ??
+        submission.requested_amount ??
+        submission.RequestedAmount ??
+        submission.amount ??
+        null;
+      const requestedAmount =
+        requestedAmountRaw != null && requestedAmountRaw !== ''
+          ? String(requestedAmountRaw)
+          : '';
+
+      setFormData(prev => ({
+        ...prev,
+        name: resolvedName || prev.name || '',
+        phone: normalizedPhone || prev.phone || '',
+        project_title: projectTitle || prev.project_title || '',
+        project_description: projectDescription || prev.project_description || '',
+        requested_amount: requestedAmount || prev.requested_amount || '',
+      }));
+
+      if (detail) {
         const mainAnn =
           detail.main_annoucement ??
           detail.MainAnnoucement ??
@@ -537,6 +916,11 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
           activity_support_announcement: supportAnn,
         });
       }
+
+      await refreshServerDocuments(submissionId);
+      setDocumentsToDetach(() => new Set());
+      setUploadedFiles({});
+      resetAttachmentsPreview();
 
       setHasDraft(true);
     } catch (error) {
@@ -681,10 +1065,39 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
     });
   };
 
+  const markServerDocumentForDetach = (documentTypeId) => {
+    if (documentTypeId == null) {
+      return;
+    }
+
+    const key = String(documentTypeId);
+    setServerDocuments(prev => {
+      const existing = prev?.[key];
+      if (!existing) {
+        return prev;
+      }
+
+      if (existing.document_id != null) {
+        setDocumentsToDetach(prevSet => {
+          const updated = new Set(prevSet);
+          updated.add(existing.document_id);
+          return updated;
+        });
+      }
+
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
+  };
+
   const handleFileUpload = (documentTypeId, files) => {
+    if (!isEditable || saving || submitting) {
+      return;
+    }
     if (files && files.length > 0) {
       const file = files[0];
-      
+
       // Validate file type
       if (file.type !== 'application/pdf') {
         setErrors(prev => ({ 
@@ -703,6 +1116,8 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
         return;
       }
 
+      markServerDocumentForDetach(documentTypeId);
+
       setUploadedFiles(prev => ({
         ...prev,
         [documentTypeId]: file
@@ -718,13 +1133,98 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
   };
 
   const handleRemoveFile = (documentTypeId) => {
+    if (!isEditable || saving || submitting) {
+      return;
+    }
     setUploadedFiles(prev => {
+      if (!prev || prev[documentTypeId] == null) {
+        return prev;
+      }
       const newFiles = { ...prev };
       delete newFiles[documentTypeId];
       return newFiles;
     });
 
+    const requirement = documentRequirements.find(
+      (doc) => String(doc?.document_type_id) === String(documentTypeId)
+    );
+    if (requirement?.required) {
+      setErrors(prev => ({
+        ...prev,
+        [`file_${requirement.document_type_id}`]: `กรุณาแนบ${requirement.document_type_name}`,
+      }));
+    }
+
     resetAttachmentsPreview();
+  };
+
+  const handleRemoveServerDocument = (documentTypeId) => {
+    if (!isEditable || saving || submitting) {
+      return;
+    }
+
+    const key = String(documentTypeId);
+    if (!serverDocuments?.[key]) {
+      return;
+    }
+
+    markServerDocumentForDetach(documentTypeId);
+
+    const requirement = documentRequirements.find(
+      (doc) => String(doc?.document_type_id) === key
+    );
+    if (requirement?.required) {
+      setErrors(prev => ({
+        ...prev,
+        [`file_${requirement.document_type_id}`]: `กรุณาแนบ${requirement.document_type_name}`,
+      }));
+    }
+
+    resetAttachmentsPreview();
+  };
+
+  const handleDownloadServerFile = async (documentTypeId) => {
+    const key = String(documentTypeId);
+    const documentEntry = serverDocuments?.[key];
+
+    if (!documentEntry) {
+      Swal.fire({
+        icon: 'warning',
+        title: 'ไม่พบไฟล์',
+        text: 'ไม่พบไฟล์บนเซิร์ฟเวอร์สำหรับเอกสารนี้',
+        confirmButtonColor: '#3085d6',
+      });
+      return;
+    }
+
+    if (!documentEntry.file_id) {
+      Swal.fire({
+        icon: 'error',
+        title: 'ดาวน์โหลดไม่สำเร็จ',
+        text: 'ไม่พบข้อมูลไฟล์สำหรับดาวน์โหลด',
+        confirmButtonColor: '#d33',
+      });
+      return;
+    }
+
+    try {
+      const downloadName =
+        documentEntry.original_name ||
+        documentEntry.file_name ||
+        `document-${documentEntry.document_id || documentEntry.file_id}`;
+      await apiClient.downloadFile(
+        `/files/managed/${documentEntry.file_id}/download`,
+        downloadName || 'document.pdf'
+      );
+    } catch (error) {
+      console.error('Failed to download document:', error);
+      Swal.fire({
+        icon: 'error',
+        title: 'ดาวน์โหลดไม่สำเร็จ',
+        text: error?.message || 'ไม่สามารถดาวน์โหลดไฟล์ได้',
+        confirmButtonColor: '#d33',
+      });
+    }
   };
 
   const viewFile = (documentTypeId) => {
@@ -1022,13 +1522,77 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
 
     // Validate required documents
     documentRequirements.forEach(docType => {
-      if (docType.required && !uploadedFiles[docType.document_type_id]) {
+      const key = docType.document_type_id;
+      const hasUploaded = Boolean(uploadedFiles[key]);
+      const hasServerDocument = Boolean(serverDocuments?.[String(key)]);
+      if (docType.required && !hasUploaded && !hasServerDocument) {
         newErrors[`file_${docType.document_type_id}`] = `กรุณาแนบ${docType.document_type_name}`;
       }
     });
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
+  };
+
+  const syncSubmissionDocuments = async (submissionId) => {
+    if (!submissionId) {
+      return;
+    }
+
+    const detachIds = Array.from(documentsToDetach);
+    const uploadEntries = Object.entries(uploadedFiles);
+
+    if (detachIds.length === 0 && uploadEntries.length === 0) {
+      return;
+    }
+
+    if (detachIds.length > 0) {
+      await Promise.all(
+        detachIds.map((documentId) =>
+          documentAPI.detachDocument(submissionId, documentId)
+        )
+      );
+    }
+
+    if (uploadEntries.length > 0) {
+      for (let index = 0; index < uploadEntries.length; index += 1) {
+        const [docTypeId, file] = uploadEntries[index];
+        if (!file) {
+          continue;
+        }
+
+        const uploadRes = await fileAPI.uploadFile(file);
+        const payload = extractUploadedFilePayload(uploadRes);
+        const fileId = payload?.file_id ?? payload?.id;
+        if (!fileId) {
+          throw new Error('ไม่สามารถอัปโหลดไฟล์ได้');
+        }
+
+        const originalName =
+          payload?.original_name ??
+          payload?.file_name ??
+          file.name ??
+          `document-${fileId}`;
+
+        const numericDocType = Number(docTypeId);
+        const documentTypeIdValue = Number.isNaN(numericDocType)
+          ? docTypeId
+          : numericDocType;
+
+        await documentAPI.attachDocument(submissionId, {
+          file_id: fileId,
+          document_type_id: documentTypeIdValue,
+          description: file.name,
+          display_order: index + 1,
+          original_name: originalName,
+        });
+      }
+    }
+
+    await refreshServerDocuments(submissionId);
+    setUploadedFiles({});
+    setDocumentsToDetach(() => new Set());
+    resetAttachmentsPreview();
   };
 
   // =================================================================
@@ -1091,6 +1655,15 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
 
       await apiClient.post(`/submissions/${submissionId}/fund-details`, fundDetailsPayload);
 
+      const hasAttachmentChanges =
+        documentsToDetach.size > 0 || Object.keys(uploadedFiles).length > 0;
+      if (hasAttachmentChanges) {
+        Swal.update({
+          title: 'กำลังอัปเดตไฟล์แนบ...',
+        });
+      }
+      await syncSubmissionDocuments(submissionId);
+
       Swal.close();
       setHasDraft(true);
       Swal.fire({
@@ -1147,6 +1720,14 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
       requested_amount: '',
     }));
     setErrors(prev => ({ ...prev, phone: '', project_title: '', project_description: '', requested_amount: '' }));
+    setServerDocuments({});
+    setUploadedFiles({});
+    setDocumentsToDetach(() => new Set());
+    setSubmissionStatusCode(null);
+    setIsEditable(true);
+    setIsNeedsMoreInfo(false);
+    setReviewerComments({ admin: '', head: '' });
+    resetAttachmentsPreview();
     setHasDraft(false);
 
     Swal.fire({
@@ -1231,19 +1812,17 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
         await apiClient.post(`/submissions/${submissionId}/fund-details`, fundDetailsPayload);
       }
 
-      // Step 3: Upload files and attach to submission
-      const uploadPromises = Object.entries(uploadedFiles).map(async ([docTypeId, file], index) => {
-        const uploadRes = await fileAPI.uploadFile(file);
-        const originalName = uploadRes?.file?.original_name ?? file.name ?? '';
-        return documentAPI.attachDocument(submissionId, {
-          file_id: uploadRes?.file?.file_id,
-          document_type_id: parseInt(docTypeId),
-          description: file.name,
-          display_order: index + 1,
-          original_name: originalName
-        });
-      });
-      await Promise.all(uploadPromises);
+      // Step 3: Sync attachments with server (detach removed files, upload new ones)
+      if (submissionId) {
+        const hasAttachmentChanges =
+          documentsToDetach.size > 0 || Object.keys(uploadedFiles).length > 0;
+        if (hasAttachmentChanges) {
+          Swal.update({
+            title: 'กำลังอัปเดตไฟล์แนบ...',
+          });
+        }
+        await syncSubmissionDocuments(submissionId);
+      }
 
       // Step 4: Submit the submission
       if (submissionId) {
@@ -1363,6 +1942,9 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
   const pendingStatusCode = pendingStatus?.code ?? '—';
   const formattedRequestedAmount = formatCurrency(formData.requested_amount || 0);
   const requiredDocumentCount = documentRequirements.filter((doc) => doc.required).length;
+  const adminComment = (reviewerComments.admin || '').trim();
+  const headComment = (reviewerComments.head || '').trim();
+  const hasReviewerNotes = Boolean(adminComment || headComment);
 
   return (
     <PageLayout
@@ -1389,6 +1971,36 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
               <div>
                 <p className="font-semibold">ไม่สามารถดำเนินการได้</p>
                 <p className="mt-1 leading-relaxed">{errors.general}</p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {isNeedsMoreInfo && (
+          <div className="rounded-lg border border-yellow-200 bg-yellow-50 p-4 text-sm text-yellow-800 shadow-sm">
+            <div className="flex items-start gap-3">
+              <AlertCircle className="h-5 w-5 flex-shrink-0 text-yellow-500" />
+              <div>
+                <p className="font-semibold text-yellow-900">คำร้องต้องการข้อมูลเพิ่มเติม</p>
+                <p className="mt-1 leading-relaxed">
+                  กรุณาตรวจสอบและแก้ไขข้อมูลตามข้อเสนอแนะก่อนส่งคำร้องอีกครั้ง
+                </p>
+                {hasReviewerNotes ? (
+                  <>
+                    {headComment && (
+                      <p className="mt-2 whitespace-pre-wrap leading-relaxed">
+                        <span className="font-medium text-yellow-900">ความคิดเห็นจากหัวหน้าสาขา:</span> {headComment}
+                      </p>
+                    )}
+                    {adminComment && (
+                      <p className="mt-2 whitespace-pre-wrap leading-relaxed">
+                        <span className="font-medium text-yellow-900">ความคิดเห็นจากเจ้าหน้าที่:</span> {adminComment}
+                      </p>
+                    )}
+                  </>
+                ) : (
+                  <p className="mt-2 leading-relaxed">ไม่มีความคิดเห็นเพิ่มเติมจากผู้ประเมินในรอบนี้</p>
+                )}
               </div>
             </div>
           </div>
@@ -1430,7 +2042,8 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
                     onChange={(e) => handleInputChange('phone', formatPhoneNumber(e.target.value))}
                     placeholder="081-234-5678"
                     maxLength={12}
-                    className={`w-full rounded-lg border px-4 py-2.5 text-gray-700 shadow-sm transition focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200 ${
+                    disabled={!isEditable}
+                    className={`w-full rounded-lg border px-4 py-2.5 text-gray-700 shadow-sm transition focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 ${
                       errors.phone ? 'border-red-400 focus:border-red-500 focus:ring-red-100' : 'border-gray-300'
                     }`}
                   />
@@ -1454,7 +2067,8 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
                     value={formData.project_title}
                     onChange={(e) => handleInputChange('project_title', e.target.value)}
                     placeholder="ระบุชื่อโครงการหรือกิจกรรมที่ต้องการขอรับการสนับสนุน"
-                    className={`w-full rounded-lg border px-4 py-2.5 text-gray-700 shadow-sm transition focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200 ${
+                    disabled={!isEditable}
+                    className={`w-full rounded-lg border px-4 py-2.5 text-gray-700 shadow-sm transition focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 ${
                       errors.project_title ? 'border-red-400 focus:border-red-500 focus:ring-red-100' : 'border-gray-300'
                     }`}
                   />
@@ -1478,7 +2092,8 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
                     onChange={(e) => handleInputChange('project_description', e.target.value)}
                     placeholder="อธิบายวัตถุประสงค์หรือรายละเอียดสำคัญของโครงการ"
                     rows={4}
-                    className={`w-full rounded-lg border px-4 py-3 text-gray-700 shadow-sm transition focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200 ${
+                    disabled={!isEditable}
+                    className={`w-full rounded-lg border px-4 py-3 text-gray-700 shadow-sm transition focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 ${
                       errors.project_description ? 'border-red-400 focus:border-red-500 focus:ring-red-100' : 'border-gray-300'
                     }`}
                   />
@@ -1511,7 +2126,8 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
                     value={formData.requested_amount}
                     onChange={(e) => handleInputChange('requested_amount', e.target.value)}
                     placeholder="0.00"
-                    className={`w-full rounded-lg border bg-gray-50 px-4 py-3 text-2xl font-semibold text-gray-800 shadow-sm transition focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200 ${
+                    disabled={!isEditable}
+                    className={`w-full rounded-lg border bg-gray-50 px-4 py-3 text-2xl font-semibold text-gray-800 shadow-sm transition focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 ${
                       errors.requested_amount ? 'border-red-400 focus:border-red-500 focus:ring-red-100' : 'border-gray-200'
                     }`}
                   />
@@ -1568,44 +2184,97 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
                               </div>
                             </td>
                             <td className="px-3 py-2">
-                              {uploadedFiles[docType.document_type_id] ? (
-                                <div className="flex items-center justify-between gap-3 rounded-md border border-green-200 bg-green-50 p-3">
-                                  <div className="flex min-w-0 items-center gap-3">
-                                    <FileText className="h-5 w-5 flex-shrink-0 text-green-600" />
-                                    <div className="min-w-0">
-                                      <p className="truncate text-sm font-medium text-green-800" title={uploadedFiles[docType.document_type_id].name}>
-                                        {uploadedFiles[docType.document_type_id].name}
-                                      </p>
-                                      <p className="text-xs text-green-700">{formatFileSize(uploadedFiles[docType.document_type_id].size)}</p>
+                              {(() => {
+                                const docTypeId = docType.document_type_id;
+                                const docKey = String(docTypeId);
+                                const uploadedFile = uploadedFiles[docTypeId];
+                                const serverDoc = serverDocuments?.[docKey];
+
+                                if (uploadedFile) {
+                                  return (
+                                    <div className="flex items-center justify-between gap-3 rounded-md border border-green-200 bg-green-50 p-3">
+                                      <div className="flex min-w-0 items-center gap-3">
+                                        <FileText className="h-5 w-5 flex-shrink-0 text-green-600" />
+                                        <div className="min-w-0">
+                                          <p className="truncate text-sm font-medium text-green-800" title={uploadedFile.name}>
+                                            {uploadedFile.name}
+                                          </p>
+                                          <p className="text-xs text-green-700">{formatFileSize(uploadedFile.size)}</p>
+                                          <p className="text-xs text-green-600">ไฟล์ใหม่ที่ยังไม่บันทึก</p>
+                                        </div>
+                                      </div>
+                                      <div className="flex flex-shrink-0 items-center gap-2">
+                                        <button
+                                          type="button"
+                                          onClick={() => viewFile(docTypeId)}
+                                          className="inline-flex items-center justify-center rounded-md border border-transparent bg-white px-2 py-1 text-xs font-medium text-blue-600 shadow-sm transition hover:border-blue-100 hover:bg-blue-50"
+                                        >
+                                          <Eye className="h-4 w-4" />
+                                          <span className="ml-1 hidden sm:inline">ดูไฟล์</span>
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => handleRemoveFile(docTypeId)}
+                                          disabled={!isEditable || saving || submitting}
+                                          className="inline-flex items-center justify-center rounded-md border border-transparent bg-white px-2 py-1 text-xs font-medium text-red-600 shadow-sm transition hover:border-red-100 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
+                                        >
+                                          <X className="h-4 w-4" />
+                                          <span className="ml-1 hidden sm:inline">ลบ</span>
+                                        </button>
+                                      </div>
                                     </div>
-                                  </div>
-                                  <div className="flex flex-shrink-0 items-center gap-2">
-                                    <button
-                                      type="button"
-                                      onClick={() => viewFile(docType.document_type_id)}
-                                      className="inline-flex items-center justify-center rounded-md border border-transparent bg-white px-2 py-1 text-xs font-medium text-blue-600 shadow-sm transition hover:border-blue-100 hover:bg-blue-50"
-                                    >
-                                      <Eye className="h-4 w-4" />
-                                      <span className="ml-1 hidden sm:inline">ดูไฟล์</span>
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => handleRemoveFile(docType.document_type_id)}
-                                      className="inline-flex items-center justify-center rounded-md border border-transparent bg-white px-2 py-1 text-xs font-medium text-red-600 shadow-sm transition hover:border-red-100 hover:bg-red-50"
-                                    >
-                                      <X className="h-4 w-4" />
-                                      <span className="ml-1 hidden sm:inline">ลบ</span>
-                                    </button>
-                                  </div>
-                                </div>
-                              ) : (
-                                <FileUpload
-                                  onFileSelect={(files) => handleFileUpload(docType.document_type_id, files)}
-                                  accept=".pdf"
-                                  error={errors[`file_${docType.document_type_id}`]}
-                                  compact
-                                />
-                              )}
+                                  );
+                                }
+
+                                if (serverDoc) {
+                                  return (
+                                    <div className="flex items-center justify-between gap-3 rounded-md border border-blue-200 bg-blue-50 p-3">
+                                      <div className="flex min-w-0 items-center gap-3">
+                                        <FileText className="h-5 w-5 flex-shrink-0 text-blue-600" />
+                                        <div className="min-w-0">
+                                          <p className="truncate text-sm font-medium text-blue-900" title={serverDoc.original_name || serverDoc.file_name}>
+                                            {serverDoc.original_name || serverDoc.file_name || `ไฟล์ #${serverDoc.document_id || docTypeId}`}
+                                          </p>
+                                          {serverDoc.file_size != null && (
+                                            <p className="text-xs text-blue-700">{formatFileSize(serverDoc.file_size)}</p>
+                                          )}
+                                          <p className="text-xs text-blue-600">ไฟล์ที่เคยส่งไว้ก่อนหน้า</p>
+                                        </div>
+                                      </div>
+                                      <div className="flex flex-shrink-0 items-center gap-2">
+                                        <button
+                                          type="button"
+                                          onClick={() => handleDownloadServerFile(docTypeId)}
+                                          disabled={!serverDoc.file_id}
+                                          className="inline-flex items-center justify-center rounded-md border border-transparent bg-white px-2 py-1 text-xs font-medium text-blue-600 shadow-sm transition hover:border-blue-100 hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-60"
+                                        >
+                                          <Download className="h-4 w-4" />
+                                          <span className="ml-1 hidden sm:inline">ดาวน์โหลด</span>
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => handleRemoveServerDocument(docTypeId)}
+                                          disabled={!isEditable || saving || submitting}
+                                          className="inline-flex items-center justify-center rounded-md border border-transparent bg-white px-2 py-1 text-xs font-medium text-red-600 shadow-sm transition hover:border-red-100 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
+                                        >
+                                          <X className="h-4 w-4" />
+                                          <span className="ml-1 hidden sm:inline">ลบ</span>
+                                        </button>
+                                      </div>
+                                    </div>
+                                  );
+                                }
+
+                                return (
+                                  <FileUpload
+                                    onFileSelect={(files) => handleFileUpload(docTypeId, files)}
+                                    accept=".pdf"
+                                    error={errors[`file_${docType.document_type_id}`]}
+                                    compact
+                                    disabled={!isEditable || saving || submitting}
+                                  />
+                                );
+                              })()}
                               {errors[`file_${docType.document_type_id}`] && (
                                 <p className="mt-2 text-xs text-red-500">{errors[`file_${docType.document_type_id}`]}</p>
                               )}
@@ -1637,7 +2306,7 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
                 <button
                   type="button"
                   onClick={saveDraft}
-                  disabled={saving || submitting}
+                  disabled={!isEditable || saving || submitting}
                   className="w-full sm:flex-1 flex items-center justify-center gap-2 rounded-lg bg-gray-600 px-6 py-3 text-sm font-medium text-white shadow-sm transition hover:bg-gray-700 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {saving ? (
@@ -1650,7 +2319,7 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
                 <button
                   type="button"
                   onClick={submitApplication}
-                  disabled={saving || submitting}
+                  disabled={!isEditable || saving || submitting}
                   className="w-full sm:flex-1 flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-6 py-3 text-sm font-medium text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {submitting ? (

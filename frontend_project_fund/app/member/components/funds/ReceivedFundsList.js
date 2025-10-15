@@ -1,12 +1,13 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Search, Eye, Download, Gift, RefreshCcw } from "lucide-react";
+import { Search, Eye, Gift, RefreshCcw } from "lucide-react";
 import { submissionAPI, teacherAPI } from "@/app/lib/member_api";
 import { systemAPI } from "@/app/lib/api";
 import { systemConfigAPI } from "@/app/lib/system_config_api";
 import { statusService } from "@/app/lib/status_service";
 import { useStatusMap } from "@/app/hooks/useStatusMap";
+import { isApprovedStatus } from "../utils/status";
 import PageLayout from "../common/PageLayout";
 import Card from "../common/Card";
 import DataTable from "../common/DataTable";
@@ -211,7 +212,7 @@ export default function ReceivedFundsList({ onNavigate }) {
           };
         });
 
-        const approvedOrClosed = transformed.filter((item) => {
+        const approvedFunds = transformed.filter((item) => {
           const statusId = item.status_id ?? item._original?.status_id;
           const statusCode = item.status_code ?? item._original?.status?.status_code;
           const statusName =
@@ -220,18 +221,18 @@ export default function ReceivedFundsList({ onNavigate }) {
             item._original?.Status?.status_name ||
             "";
 
-          return isApprovedOrClosedStatus(statusId, statusCode, statusName);
+          return isApprovedStatus(statusId, statusCode, statusName);
         });
 
-        approvedOrClosed.sort(
+        approvedFunds.sort(
           (a, b) =>
             new Date(b._original?.created_at || b._original?.create_at || 0) -
             new Date(a._original?.created_at || a._original?.create_at || 0)
         );
 
         if (latestFundsRequestRef.current === requestId) {
-          setFunds(approvedOrClosed);
-          setFilteredFunds(approvedOrClosed);
+          setFunds(approvedFunds);
+          setFilteredFunds(approvedFunds);
         }
       } else if (latestFundsRequestRef.current === requestId) {
         setFunds([]);
@@ -286,10 +287,10 @@ export default function ReceivedFundsList({ onNavigate }) {
     }
   };
 
-  const statusFilterOptions = useMemo(() => {
+  const approvedStatusOptions = useMemo(() => {
     if (!Array.isArray(statusOptions)) return [];
     return statusOptions.filter((status) =>
-      isApprovedOrClosedStatus(
+      isApprovedStatus(
         status.application_status_id,
         status.status_code,
         status.status_name
@@ -416,18 +417,17 @@ export default function ReceivedFundsList({ onNavigate }) {
             className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
-            disabled={statusLoading && !statusOptions}
+            disabled={statusLoading && !approvedStatusOptions.length}
           >
-            <option value="all">สถานะทั้งหมด</option>
-            {Array.isArray(statusOptions) &&
-              statusOptions.map((status) => (
-                <option
-                  key={status.application_status_id}
-                  value={status.application_status_id}
-                >
-                  {status.status_name}
-                </option>
-              ))}
+            <option value="all">สถานะการอนุมัติทั้งหมด</option>
+            {approvedStatusOptions.map((status) => (
+              <option
+                key={status.application_status_id}
+                value={status.application_status_id}
+              >
+                {status.status_name}
+              </option>
+            ))}
           </select>
 
           <select
@@ -487,31 +487,6 @@ export default function ReceivedFundsList({ onNavigate }) {
       </Card>
     </PageLayout>
   );
-}
-
-function isApprovedOrClosedStatus(statusId, statusCode, statusName) {
-  const normalizedId = statusId != null ? Number(statusId) : null;
-  const normalizedCode = statusCode != null ? String(statusCode).toLowerCase() : "";
-  const normalizedName = statusName ? String(statusName).toLowerCase() : "";
-
-  const isApprovedLike =
-    normalizedId === 2 ||
-    normalizedCode === "approved" ||
-    normalizedCode === "1" ||
-    normalizedCode === "2" ||
-    normalizedName.includes("อนุมัติ") ||
-    normalizedName.includes("approve");
-
-  const isClosedLike =
-    normalizedCode === "closed" ||
-    normalizedCode === "close" ||
-    normalizedCode === "3" ||
-    normalizedName.includes("ปิดทุน") ||
-    normalizedName.includes("ปิดโครงการ") ||
-    normalizedName.includes("ปิด") ||
-    normalizedName.includes("close");
-
-  return isApprovedLike || isClosedLike;
 }
 
 function getProjectTitle(submission) {
