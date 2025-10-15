@@ -793,7 +793,7 @@ func RequestSubmissionRevision(c *gin.Context) {
 	desc := fmt.Sprintf("Admin requested revision: %s", message)
 	audit := models.AuditLog{
 		UserID:       adminID,
-		Action:       "request_revision",
+		Action:       "review",
 		EntityType:   "submission",
 		EntityID:     &submission.SubmissionID,
 		EntityNumber: &submission.SubmissionNumber,
