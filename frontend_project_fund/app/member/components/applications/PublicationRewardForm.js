@@ -551,6 +551,8 @@ const buildFundSummaryFromPayload = (submission = {}, detail = {}) => {
     subcategory?.detail,
     fund?.description,
     fund?.Description,
+    subcategoryBudget?.fund_description,
+    subcategoryBudget?.FundDescription,
     subcategoryBudget?.description,
     subcategoryBudget?.Description,
   ];
@@ -565,6 +567,8 @@ const buildFundSummaryFromPayload = (submission = {}, detail = {}) => {
     detail?.SubcategoryDescription,
     detail?.subcategory_name,
     detail?.subcategory_name_th,
+    subcategoryBudget?.fund_description,
+    subcategoryBudget?.FundDescription,
     combinedSummary || null,
   ]);
 
@@ -851,6 +855,16 @@ const resolveQuartileSuffix = (quartile, overrideDescription = '') => {
   }
 
   return `ควอร์ไทล์ (Quartile) ${normalized}`;
+};
+
+const formatReviewerComment = (value) => {
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (trimmed) {
+      return value;
+    }
+  }
+  return '-';
 };
 
 const QUARTILE_MAP = {
@@ -2264,9 +2278,7 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
           payload.admin_comment,
           payload.adminComment,
           payload.status?.admin_comment,
-          payload.status?.comment,
           payload.Status?.admin_comment,
-          payload.comment,
         ]);
 
         const headComment = findFirstString([
@@ -6323,9 +6335,9 @@ const showSubmissionConfirmation = async () => {
   const allowExternalFunding = Boolean(
     formData.journal_quartile && (feeLimits.total > 0 || selectionLocked)
   );
-  const shouldShowReviewerComments =
-    currentSubmissionStatus === 'needs_more_info' &&
-    ((reviewComments.admin && reviewComments.admin.trim()) || (reviewComments.head && reviewComments.head.trim()));
+  const shouldShowReviewerComments = currentSubmissionStatus === 'needs_more_info';
+  const adminCommentDisplay = formatReviewerComment(reviewComments.admin);
+  const headCommentDisplay = formatReviewerComment(reviewComments.head);
 
   return (
     <PageLayout
@@ -6376,18 +6388,14 @@ const showSubmissionConfirmation = async () => {
               <AlertCircle className="h-5 w-5 text-orange-500" aria-hidden="true" />
               <div className="space-y-3">
                 <p className="font-semibold text-orange-800">คำแนะนำจากผู้ตรวจสอบ</p>
-                {reviewComments.admin && reviewComments.admin.trim() && (
-                  <div>
-                    <p className="text-xs uppercase tracking-wide text-orange-600">เจ้าหน้าที่</p>
-                    <p className="whitespace-pre-wrap text-sm">{reviewComments.admin}</p>
-                  </div>
-                )}
-                {reviewComments.head && reviewComments.head.trim() && (
-                  <div>
-                    <p className="text-xs uppercase tracking-wide text-orange-600">หัวหน้าภาค/ผู้บังคับบัญชา</p>
-                    <p className="whitespace-pre-wrap text-sm">{reviewComments.head}</p>
-                  </div>
-                )}
+                <div>
+                  <p className="text-xs uppercase tracking-wide text-orange-600">เจ้าหน้าที่</p>
+                  <p className="whitespace-pre-wrap text-sm">{adminCommentDisplay}</p>
+                </div>
+                <div>
+                  <p className="text-xs uppercase tracking-wide text-orange-600">หัวหน้าภาค/ผู้บังคับบัญชา</p>
+                  <p className="whitespace-pre-wrap text-sm">{headCommentDisplay}</p>
+                </div>
               </div>
             </div>
           </div>
