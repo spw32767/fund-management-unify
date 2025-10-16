@@ -16,6 +16,7 @@ export default function AnnouncementPage() {
   const [systemConfigAnnouncementIds, setSystemConfigAnnouncementIds] = useState([]);
   const [announcementVisibilityFilter, setAnnouncementVisibilityFilter] = useState("current");
   const [selectedYearId, setSelectedYearId] = useState("all");
+  const [selectedFormYearId, setSelectedFormYearId] = useState("all");
   const [years, setYears] = useState([]);
   const [yearsLoading, setYearsLoading] = useState(false);
   const [currentYearLabel, setCurrentYearLabel] = useState(null);
@@ -70,7 +71,29 @@ export default function AnnouncementPage() {
       setLoadingForms(true);
       const response = await fundFormAPI.getFundForms({ active_only: true });
       if (response.success) {
-        setFundForms(response.data || []);
+        const normalizedFundForms = (response.data || []).map((item) => {
+          const yearLabel =
+            item?.year?.year ??
+            item?.Year?.year ??
+            item?.year ??
+            item?.Year ??
+            null;
+
+          const yearId =
+            item?.year?.year_id ??
+            item?.Year?.year_id ??
+            item?.year_id ??
+            item?.YearId ??
+            null;
+
+          return {
+            ...item,
+            year: yearLabel ?? null,
+            year_id: yearId != null ? String(yearId) : null,
+          };
+        });
+
+        setFundForms(normalizedFundForms);
       } else {
         setFundForms([]);
       }
@@ -203,6 +226,7 @@ export default function AnnouncementPage() {
         if (matchingYear?.year_id != null) {
           const matchingYearId = String(matchingYear.year_id);
           setSelectedYearId((prev) => (prev === "all" ? matchingYearId : prev));
+          setSelectedFormYearId((prev) => (prev === "all" ? matchingYearId : prev));
         }
       }
     } catch (error) {
@@ -214,7 +238,7 @@ export default function AnnouncementPage() {
   };
 
   useEffect(() => {
-    if (!currentYearLabel || selectedYearId !== "all") {
+    if (!currentYearLabel || (selectedYearId !== "all" && selectedFormYearId !== "all")) {
       return;
     }
 
@@ -228,8 +252,9 @@ export default function AnnouncementPage() {
     if (matchedYear?.year_id != null) {
       const matchedYearId = String(matchedYear.year_id);
       setSelectedYearId((prev) => (prev === "all" ? matchedYearId : prev));
+      setSelectedFormYearId((prev) => (prev === "all" ? matchedYearId : prev));
     }
-  }, [years, currentYearLabel, selectedYearId]);
+  }, [years, currentYearLabel, selectedYearId, selectedFormYearId]);
 
   const handleViewFile = (filePath) => {
     if (!filePath) return;
@@ -323,6 +348,29 @@ export default function AnnouncementPage() {
     selectedYearId,
     systemConfigAnnouncementIds,
   ]);
+
+  const filteredFundForms = useMemo(() => {
+    if (selectedFormYearId === "all") {
+      return fundForms;
+    }
+
+    return fundForms.filter((form) => {
+      const candidateYearIds = [
+        form?.year_id,
+        form?.YearId,
+        form?.year?.year_id,
+        form?.Year?.year_id,
+      ]
+        .map((value) => (value != null && value !== "" ? String(value) : null))
+        .filter(Boolean);
+
+      if (candidateYearIds.length === 0) {
+        return false;
+      }
+
+      return candidateYearIds.some((yearId) => yearId === selectedFormYearId);
+    });
+  }, [fundForms, selectedFormYearId]);
 
   const sortedYears = useMemo(() => {
     const yearsCopy = Array.isArray(years) ? [...years] : [];
@@ -645,8 +693,30 @@ export default function AnnouncementPage() {
               </div>
             </div>
           </div>
-          
+
           <div className="p-6">
+            <div className="mb-4 flex flex-wrap items-center gap-3">
+              <div className="flex items-center gap-2">
+                <label htmlFor="fund-form-year-filter" className="text-sm font-medium text-gray-700">
+                  ปี
+                </label>
+                <select
+                  id="fund-form-year-filter"
+                  value={selectedFormYearId}
+                  onChange={(event) => setSelectedFormYearId(event.target.value)}
+                  disabled={yearsLoading}
+                  className="block rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 shadow-sm focus:border-green-500 focus:outline-none focus:ring-2 focus:ring-green-500 disabled:cursor-not-allowed disabled:bg-gray-100"
+                >
+                  <option value="all">ทั้งหมด</option>
+                  {sortedYears.map((year) => (
+                    <option key={year.year_id} value={year.year_id}>
+                      {year.year}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
             {loadingForms ? (
               <div className="flex items-center justify-center py-8">
                 <div className="w-8 h-8 border-4 border-green-200 border-t-green-600 rounded-full animate-spin"></div>
@@ -655,7 +725,7 @@ export default function AnnouncementPage() {
             ) : (
               <DataTable
                 columns={fundFormColumns}
-                data={fundForms}
+                data={filteredFundForms}
                 emptyMessage="ไม่มีแบบฟอร์มในขณะนี้"
               />
             )}

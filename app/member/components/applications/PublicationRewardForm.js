@@ -327,6 +327,31 @@ const buildCoauthorFromSubmissionUser = (entry) => {
   };
 };
 
+const getNormalizedUserId = (entry) => {
+  if (!entry) {
+    return null;
+  }
+  const candidates = [
+    entry.user_id,
+    entry.UserID,
+    entry.userId,
+    entry.UserId,
+    entry.id,
+    entry.Id,
+  ];
+  for (const candidate of candidates) {
+    if (candidate === null || candidate === undefined) {
+      continue;
+    }
+    const normalized = String(candidate).trim();
+    if (!normalized) {
+      continue;
+    }
+    return normalized;
+  }
+  return null;
+};
+
 const toNumberOrEmpty = (value) => {
   if (value === null || value === undefined) {
     return '';
@@ -526,6 +551,8 @@ const buildFundSummaryFromPayload = (submission = {}, detail = {}) => {
     subcategory?.detail,
     fund?.description,
     fund?.Description,
+    subcategoryBudget?.fund_description,
+    subcategoryBudget?.FundDescription,
     subcategoryBudget?.description,
     subcategoryBudget?.Description,
   ];
@@ -540,6 +567,8 @@ const buildFundSummaryFromPayload = (submission = {}, detail = {}) => {
     detail?.SubcategoryDescription,
     detail?.subcategory_name,
     detail?.subcategory_name_th,
+    subcategoryBudget?.fund_description,
+    subcategoryBudget?.FundDescription,
     combinedSummary || null,
   ]);
 
@@ -760,11 +789,86 @@ const getDocumentTypeName = (documentTypeId) => {
 // =================================================================
 
 // Mapping for author status and quartile to human-readable descriptions
+const AUTHOR_STATUS_SHORT_LABEL_MAP = {
+  first_author: 'ผู้แต่งชื่อแรก (First Author)',
+  corresponding_author: 'ผู้ประพันธ์บรรณกิจ (Corresponding Author)',
+};
+
 const AUTHOR_STATUS_MAP = {
   first_author:
     'เงินรางวัลการตีพิมพ์เผยแพร่ผลงานวิจัยที่ได้รับการตีพิมพ์ในสาขาวิทยาศาสตร์และเทคโนโลยี (กรณีเป็นผู้แต่งชื่อแรก)',
   corresponding_author:
     'เงินรางวัลการตีพิมพ์เผยแพร่ผลงานวิจัยที่ได้รับการตีพิมพ์ในสาขาวิทยาศาสตร์และเทคโนโลยี (กรณีเป็นผู้ประพันธ์บรรณกิจ)',
+};
+
+const resolveAuthorStatusShortLabel = (status, label) => {
+  if (status && AUTHOR_STATUS_SHORT_LABEL_MAP[status]) {
+    return AUTHOR_STATUS_SHORT_LABEL_MAP[status];
+  }
+
+  if (typeof label === 'string' && label.trim()) {
+    const normalized = label.trim();
+    if (/กรณีเป็นผู้แต่งชื่อแรก/.test(normalized) || /first author/i.test(normalized)) {
+      return AUTHOR_STATUS_SHORT_LABEL_MAP.first_author;
+    }
+    if (/กรณีเป็นผู้ประพันธ์บรรณกิจ/.test(normalized) || /corresponding author/i.test(normalized)) {
+      return AUTHOR_STATUS_SHORT_LABEL_MAP.corresponding_author;
+    }
+  }
+
+  return label;
+};
+
+const resolveQuartileSuffix = (quartile, overrideDescription = '') => {
+  const normalizedOverride = typeof overrideDescription === 'string'
+    ? overrideDescription.trim()
+    : '';
+
+  if (normalizedOverride) {
+    return normalizedOverride;
+  }
+
+  if (quartile === null || quartile === undefined) {
+    return '';
+  }
+
+  const normalized = String(quartile).trim().toUpperCase();
+  if (!normalized) {
+    return '';
+  }
+
+  if (QUARTILE_MAP[normalized]) {
+    return QUARTILE_MAP[normalized];
+  }
+
+  if (/^Q\d+/.test(normalized)) {
+    const numeric = normalized.replace(/^Q/, '') || normalized;
+    return `ควอร์ไทล์ (Quartile) ${numeric}`;
+  }
+
+  if (normalized === 'T5') {
+    return 'ควอร์ไทล์ (Quartile) Top 5%';
+  }
+
+  if (normalized === 'T10') {
+    return 'ควอร์ไทล์ (Quartile) Top 10%';
+  }
+
+  if (normalized === 'TCI') {
+    return 'ควอร์ไทล์ (Quartile) TCI';
+  }
+
+  return `ควอร์ไทล์ (Quartile) ${normalized}`;
+};
+
+const formatReviewerComment = (value) => {
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (trimmed) {
+      return value;
+    }
+  }
+  return '-';
 };
 
 const QUARTILE_MAP = {
@@ -1162,6 +1266,76 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
   const [lockedFundSummary, setLockedFundSummary] = useState(null);
   const [, setPolicyContext] = useState(null);
 
+  const userLookupById = useMemo(() => {
+    const map = new Map();
+    users.forEach((user) => {
+      const key = getNormalizedUserId(user);
+      if (!key || map.has(key)) {
+        return;
+      }
+      map.set(key, user);
+    });
+    return map;
+  }, [users]);
+
+  const getCoauthorDisplayInfo = useCallback(
+    (coauthor) => {
+      if (!coauthor) {
+        return { name: '', email: '' };
+      }
+
+      const combinedName = [coauthor.user_fname, coauthor.user_lname]
+        .filter(Boolean)
+        .join(' ')
+        .trim();
+
+      let name = findFirstString([
+        coauthor.display_name,
+        combinedName || null,
+        coauthor.user_fname,
+        coauthor.user_lname,
+      ]) || '';
+
+      let email = findFirstString([
+        coauthor.email,
+        coauthor.user_email,
+        coauthor.UserEmail,
+      ]) || '';
+
+      const lookupKey = getNormalizedUserId(coauthor);
+
+      if (lookupKey && userLookupById.has(lookupKey)) {
+        const user = userLookupById.get(lookupKey);
+        if (user) {
+          if (!name) {
+            const parts = resolveUserNameParts(user);
+            const composed = [parts.prefix, parts.firstName, parts.lastName]
+              .filter(Boolean)
+              .join(' ')
+              .trim();
+            name = parts.displayName || composed || name;
+          }
+          if (!email) {
+            email =
+              findFirstString([
+                user.email,
+                user.Email,
+                user.user_email,
+                user.userEmail,
+                user.UserEmail,
+              ]) || '';
+          }
+        }
+      }
+
+      return {
+        name: name || '',
+        email: email || '',
+      };
+    },
+    [userLookupById],
+  );
+
   // Form data state
   const normalizedInitialYearId = typeof yearId === 'string'
     ? (Number(yearId) || yearId)
@@ -1243,6 +1417,9 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
 
   const [baseReadOnly, setBaseReadOnly] = useState(false);
   const [isReadOnly, setIsReadOnly] = useState(false);
+
+  const editingExistingSubmission = Boolean(prefilledSubmissionId);
+  const selectionLocked = editingExistingSubmission && !isReadOnly;
 
   const [announcementLock, setAnnouncementLock] = useState({
     main_annoucement: null,
@@ -1454,28 +1631,88 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
     try {
       const resp = await publicationBudgetAPI.getValidOptions(category_id, year_id);
       const options = resp.options || resp.data || [];
+
+      if (process.env.NODE_ENV !== 'production') {
+        console.log('[PublicationRewardForm] publication budget options API response:', resp);
+        console.log('[PublicationRewardForm] publication budget options list:', options);
+      }
       const pairs = [];
       const rateMap = {};
       const budgetMap = {};
+      const pairKeySet = new Set();
+
+      const pushPair = (status, quartile) => {
+        const normalizedStatus = typeof status === 'string' ? status.trim() : '';
+        const normalizedQuartile = typeof quartile === 'string' ? quartile.trim() : '';
+        if (!normalizedStatus || !normalizedQuartile) {
+          return null;
+        }
+        const normalizedKey = `${normalizedStatus}|${normalizedQuartile}`;
+        if (!pairKeySet.has(normalizedKey)) {
+          pairKeySet.add(normalizedKey);
+          pairs.push({ author_status: normalizedStatus, journal_quartile: normalizedQuartile });
+        }
+        return normalizedKey;
+      };
 
       options.forEach(opt => {
         if (!opt) return;
-        const author_status = opt.author_status;
-        const journal_quartile = opt.journal_quartile;
-        if (!author_status || !journal_quartile) return;
+        const key = pushPair(opt.author_status, opt.journal_quartile);
+        if (!key) return;
 
-        const key = `${author_status}|${journal_quartile}`;
-        pairs.push({ author_status, journal_quartile });
+        const [, rawQuartileCode] = key.split('|');
+        const normalizedQuartileCode = rawQuartileCode ? rawQuartileCode.trim().toUpperCase() : '';
 
         const rewardAmount = parseNumberOrNull(opt.reward_amount);
         if (rewardAmount !== null) {
           rateMap[key] = rewardAmount;
         }
 
+        const subcategoryBudget =
+          opt.subcategory_budget ??
+          opt.SubcategoryBudget ??
+          null;
+
+        const normalizedQuartileLabel = findFirstString([
+          opt.journal_quartile_label,
+          opt.journal_quartile_name,
+          opt.journal_quartile_display,
+          QUARTILE_MAP[normalizedQuartileCode],
+        ]) || '';
+
+        const resolvedFundDescription = findFirstString([
+          opt.fund_description,
+          opt.fundDescription,
+          opt.fund_detail,
+          opt.FundDescription,
+          subcategoryBudget?.fund_description,
+          subcategoryBudget?.FundDescription,
+          subcategoryBudget?.description,
+          subcategoryBudget?.Description,
+          normalizedQuartileLabel,
+        ]) || '';
+
+        if (process.env.NODE_ENV !== 'production') {
+          console.log('[PublicationRewardForm] normalized budget option entry:', {
+            key,
+            raw: opt,
+            resolvedFundDescription,
+            normalizedQuartileLabel,
+          });
+        }
+
         budgetMap[key] = {
           subcategory_id: opt.subcategory_id ?? null,
           subcategory_budget_id: opt.subcategory_budget_id ?? null,
-          fund_description: opt.fund_description || '',
+          fund_name: opt.fund_name ?? opt.fund_title ?? null,
+          fund_title: opt.fund_title ?? null,
+          fund_description: resolvedFundDescription,
+          subcategory_name: opt.subcategory_name ?? null,
+          subcategory_name_th: opt.subcategory_name_th ?? null,
+          subcategory_description: opt.subcategory_description ?? null,
+          author_status_label: opt.author_status_label ?? opt.author_status_name ?? opt.author_status_display ?? null,
+          journal_quartile_label: normalizedQuartileLabel || null,
+          journal_quartile_code: normalizedQuartileCode || null,
           overall_subcategory_budget_id: opt.overall_subcategory_budget_id ?? null,
           max_amount_per_year: parseNumberOrNull(opt.max_amount_per_year),
           max_grants: parseIntegerOrNull(opt.max_grants),
@@ -1483,15 +1720,39 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
         };
       });
 
-      if (pairs.length === 0 && fallbackRateMap && Object.keys(fallbackRateMap).length > 0) {
-        Object.entries(fallbackRateMap).forEach(([key, amount]) => {
-          const [authorStatus, quartile] = key.split('|');
-          if (!authorStatus || !quartile) return;
+      if (fallbackRateMap && Object.keys(fallbackRateMap).length > 0) {
+        Object.entries(fallbackRateMap).forEach(([rawKey, rawAmount]) => {
+          if (!rawKey) return;
+          const [rawStatus, rawQuartile] = rawKey.split('|');
+          const normalizedKey = pushPair(rawStatus, rawQuartile);
+          if (!normalizedKey) return;
 
-          pairs.push({ author_status: authorStatus, journal_quartile: quartile });
+          if (!Object.prototype.hasOwnProperty.call(rateMap, normalizedKey)) {
+            const fallbackAmount = parseNumberOrNull(rawAmount);
+            if (fallbackAmount !== null) {
+              rateMap[normalizedKey] = fallbackAmount;
+            }
+          }
 
-          if (!Object.prototype.hasOwnProperty.call(rateMap, key)) {
-            rateMap[key] = amount;
+          if (!Object.prototype.hasOwnProperty.call(budgetMap, normalizedKey)) {
+            budgetMap[normalizedKey] = budgetMap[normalizedKey] ?? {};
+          }
+
+          const [, fallbackQuartileCodeRaw] = normalizedKey.split('|');
+          const fallbackQuartileCode = fallbackQuartileCodeRaw
+            ? fallbackQuartileCodeRaw.trim().toUpperCase()
+            : '';
+
+          if (fallbackQuartileCode && !budgetMap[normalizedKey].journal_quartile_code) {
+            budgetMap[normalizedKey].journal_quartile_code = fallbackQuartileCode;
+          }
+
+          if (
+            fallbackQuartileCode &&
+            !budgetMap[normalizedKey].journal_quartile_label &&
+            QUARTILE_MAP[fallbackQuartileCode]
+          ) {
+            budgetMap[normalizedKey].journal_quartile_label = QUARTILE_MAP[fallbackQuartileCode];
           }
         });
       }
@@ -1617,6 +1878,99 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
     resolvedSubcategoryName,
     lockedFundSummary,
   ]);
+
+  const authorStatusLabelMap = useMemo(() => {
+    const labelMap = {};
+    if (budgetOptionMap && typeof budgetOptionMap === 'object') {
+      Object.entries(budgetOptionMap).forEach(([key, option]) => {
+        if (!key) return;
+        const [rawStatus] = key.split('|');
+        const status = rawStatus ? rawStatus.trim() : '';
+        if (!status || labelMap[status]) {
+          return;
+        }
+
+        const resolvedLabel = resolveAuthorStatusShortLabel(status, findFirstString([
+          option?.author_status_label,
+          option?.author_status_name,
+          option?.author_status_display,
+          AUTHOR_STATUS_MAP[status],
+          status,
+        ]));
+
+        if (resolvedLabel) {
+          labelMap[status] = resolvedLabel;
+        }
+      });
+    }
+
+    if (formData.author_status && !labelMap[formData.author_status]) {
+      const fallbackLabel = resolveAuthorStatusShortLabel(
+        formData.author_status,
+        findFirstString([
+          AUTHOR_STATUS_MAP[formData.author_status],
+          formData.author_status,
+        ])
+      );
+
+      if (fallbackLabel) {
+        labelMap[formData.author_status] = fallbackLabel;
+      }
+    }
+
+    return labelMap;
+  }, [budgetOptionMap, formData.author_status]);
+
+  const authorStatusOptions = useMemo(() => {
+    const seen = new Set();
+    const options = [];
+
+    const pushOption = (status) => {
+      if (!status || seen.has(status)) {
+        return;
+      }
+      seen.add(status);
+      const label = resolveAuthorStatusShortLabel(
+        status,
+        authorStatusLabelMap[status] || AUTHOR_STATUS_MAP[status] || status
+      );
+      options.push({ value: status, label });
+    };
+
+    availableAuthorStatuses.forEach(pushOption);
+    if (formData.author_status) {
+      pushOption(formData.author_status);
+    }
+
+    const editingExistingSubmission = Boolean(prefilledSubmissionId);
+    if (!editingExistingSubmission) {
+      return options;
+    }
+
+    const allowedStatuses = new Set(['first_author', 'corresponding_author']);
+    const filteredOptions = options.filter((option) => allowedStatuses.has(option.value));
+
+    if (
+      formData.author_status &&
+      !allowedStatuses.has(formData.author_status) &&
+      !filteredOptions.some((option) => option.value === formData.author_status)
+    ) {
+      const existingOption = options.find((option) => option.value === formData.author_status);
+      if (existingOption) {
+        filteredOptions.unshift(existingOption);
+      }
+    }
+
+    return filteredOptions;
+  }, [availableAuthorStatuses, authorStatusLabelMap, formData.author_status, prefilledSubmissionId]);
+
+  const editingNeedsMoreInfoSubmission = Boolean(
+    prefilledSubmissionId &&
+    currentSubmissionStatus === 'needs_more_info' &&
+    !isReadOnly
+  );
+
+  const showDraftActions = !editingNeedsMoreInfoSubmission;
 
   useEffect(() => {
     const editingDraft = prefilledSubmissionId && currentSubmissionStatus === 'draft' && !isReadOnly;
@@ -1995,9 +2349,7 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
           payload.admin_comment,
           payload.adminComment,
           payload.status?.admin_comment,
-          payload.status?.comment,
           payload.Status?.admin_comment,
-          payload.comment,
         ]);
 
         const headComment = findFirstString([
@@ -3213,7 +3565,8 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
       return;
     }
 
-    if (!coauthors.find(c => c.user_id === normalized.user_id)) {
+    const targetId = getNormalizedUserId(normalized);
+    if (!coauthors.some((c) => getNormalizedUserId(c) === targetId)) {
       setCoauthors(prev => [...prev, normalized]);
     }
   };
@@ -3222,7 +3575,8 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
   const handleRemoveCoauthor = async (index) => {
     const target = coauthors[index];
     const fallbackName = `${target?.user_fname || ''} ${target?.user_lname || ''}`.trim();
-    const displayName = (target?.display_name || fallbackName || 'ผู้แต่งร่วม').trim();
+    const { name: resolvedDisplayName } = getCoauthorDisplayInfo(target);
+    const displayName = (resolvedDisplayName || fallbackName || 'ผู้แต่งร่วม').trim();
 
     const result = await Swal.fire({
       title: 'ยืนยันการลบผู้แต่งร่วม?',
@@ -3761,8 +4115,15 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
       const detachIds = [...detachedDocumentIds];
       const pendingExternalUploads = new Map();
 
+      const uploadableFiles = [];
       filesToUpload.forEach((doc) => {
-        if (!doc || doc.document_type_id !== 12 || !doc.file) {
+        if (!doc?.file) {
+          return;
+        }
+
+        uploadableFiles.push(doc);
+
+        if (doc.document_type_id !== 12) {
           return;
         }
 
@@ -3816,9 +4177,9 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
       }
 
       let uploadedCount = 0;
-      if (filesToUpload.length > 0) {
-        for (let index = 0; index < filesToUpload.length; index += 1) {
-          const fileData = filesToUpload[index];
+      if (uploadableFiles.length > 0) {
+        for (let index = 0; index < uploadableFiles.length; index += 1) {
+          const fileData = uploadableFiles[index];
 
           try {
             const uploadResponse = await fileAPI.uploadFile(fileData.file);
@@ -3840,7 +4201,7 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
             await documentAPI.attachDocument(submissionId, attachPayload);
             uploadedCount += 1;
             if (onProgress) {
-              onProgress({ type: 'upload', completed: uploadedCount, totalUpload: filesToUpload.length });
+              onProgress({ type: 'upload', completed: uploadedCount, totalUpload: uploadableFiles.length });
             }
           } catch (error) {
             console.error('Failed to upload or attach document:', fileData, error);
@@ -4164,6 +4525,71 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
       return Number.isNaN(numericId) ? '' : getDocumentTypeName(numericId);
     };
 
+    const pushServerDocument = (doc) => {
+      if (!doc || doc.pendingRemoval) {
+        return;
+      }
+
+      const docTypeId = doc.document_type_id != null ? Number(doc.document_type_id) : null;
+      const typeName = doc.document_type_name || resolveDocumentTypeName(docTypeId) || 'เอกสาร';
+      const sizeValue = doc.file_size != null ? Number(doc.file_size) : 0;
+
+      allFiles.push({
+        id: `server-${doc.document_id}`,
+        name: doc.original_name || typeName || 'ไฟล์จากระบบ',
+        type: typeName,
+        size: Number.isFinite(sizeValue) ? sizeValue : 0,
+        file: null,
+        source: 'server',
+        canDelete: false,
+        document_type_id: docTypeId,
+        document_type_name: typeName,
+        document_id: doc.document_id,
+      });
+    };
+
+    const pushServerExternalDocument = (doc) => {
+      if (!doc || doc.pendingRemoval) {
+        return;
+      }
+
+      const typeName = resolveDocumentTypeName(12) || doc.document_type_name || 'เอกสารเบิกจ่ายภายนอก';
+      const matchFunding = externalFundings.find((funding) => {
+        if (!funding) return false;
+        const matchesClient =
+          doc.funding_client_id != null &&
+          funding.clientId &&
+          String(doc.funding_client_id) === String(funding.clientId);
+        const matchesExternal =
+          doc.external_funding_id != null &&
+          funding.externalFundId != null &&
+          String(doc.external_funding_id) === String(funding.externalFundId);
+        const matchesDocument =
+          doc.document_id != null &&
+          funding.serverDocumentId != null &&
+          String(doc.document_id) === String(funding.serverDocumentId);
+        return matchesClient || matchesExternal || matchesDocument;
+      });
+
+      const fundLabel = matchFunding?.fundName ? String(matchFunding.fundName).trim() : '';
+      const sizeValue = doc.file_size != null ? Number(doc.file_size) : 0;
+
+      allFiles.push({
+        id: `server-external-${doc.document_id}`,
+        name: doc.original_name || doc.document_type_name || fundLabel || 'ไฟล์จากระบบ',
+        type: `${typeName}${fundLabel ? ` - ${fundLabel}` : ''}`,
+        size: Number.isFinite(sizeValue) ? sizeValue : 0,
+        file: null,
+        source: 'server',
+        canDelete: false,
+        document_type_id: 12,
+        document_type_name: typeName,
+        document_id: doc.document_id,
+        external_funding_id: doc.external_funding_id ?? null,
+        external_funding_client_id: doc.funding_client_id ?? matchFunding?.clientId ?? null,
+      });
+    };
+
     if (Array.isArray(documentTypes) && documentTypes.length > 0) {
       documentTypes.forEach((docType) => {
         if (!docType) return;
@@ -4225,6 +4651,14 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
       });
     });
 
+    (serverDocuments || []).forEach((doc) => {
+      pushServerDocument(doc);
+    });
+
+    (serverExternalFundingFiles || []).forEach((doc) => {
+      pushServerExternalDocument(doc);
+    });
+
     (externalFundingFiles || []).forEach((doc) => {
       if (!doc?.file) return;
       const funding = externalFundings.find(f => f.clientId === doc.funding_client_id);
@@ -4248,7 +4682,16 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
     return allFiles;
   }
 
-  const attachedFiles = useMemo(() => getAllAttachedFiles(), [attachmentSignature, documentTypes, externalFundings]);
+  const attachedFiles = useMemo(
+    () => getAllAttachedFiles(),
+    [
+      attachmentSignature,
+      documentTypes,
+      externalFundings,
+      serverDocuments,
+      serverExternalFundingFiles,
+    ]
+  );
   const previewUrl = previewState.blobUrl || previewState.signedUrl;
 
   const buildPublicationDate = () => {
@@ -4619,6 +5062,10 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
           return;
         }
 
+        if (fieldKey === 'journal_quartile' && selectionLocked) {
+          return;
+        }
+
         let isValid = true;
         if (typeof element.checkValidity === 'function') {
           isValid = element.checkValidity();
@@ -4733,7 +5180,7 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
     let resolutionMessage = '';
     const lockedDraft = Boolean(prefilledSubmissionId && currentSubmissionStatus === 'draft' && !isReadOnly);
 
-    if (!lockedDraft && formData.author_status && formData.journal_quartile) {
+    if (!lockedDraft && !selectionLocked && formData.author_status && formData.journal_quartile) {
       if (!formData.subcategory_id || !formData.subcategory_budget_id) {
         resolutionMessage = resolutionError || 'ไม่พบทุนสำหรับปี/สถานะ/ควอร์ไทล์ที่เลือก';
       } else if (resolutionError && resolutionError.length > 0) {
@@ -5883,29 +6330,86 @@ const showSubmissionConfirmation = async () => {
   // MAIN RENDER
   // =================================================================
 
-  const editingExistingSubmission = Boolean(prefilledSubmissionId);
-  const draftLockedSelections = editingExistingSubmission && currentSubmissionStatus === 'draft' && !isReadOnly;
-  const selectedFundName = selectedFundSummary?.name || '';
-  const selectedFundDescription = selectedFundSummary?.description || '';
-  const selectedFundDetail = selectedFundSummary?.detail || '';
-  const bannerPrimaryDescription = selectedFundDescription || selectedFundName || '';
-  const bannerSecondaryDescription = selectedFundDetail && selectedFundDetail !== bannerPrimaryDescription
-    ? selectedFundDetail
+  const fallbackAuthorStatusDescription = formData.author_status
+    ? authorStatusLabelMap[formData.author_status] || ''
     : '';
+  const bannerFundFullName = findFirstString([
+    selectedFundSummary?.name,
+    lockedFundSummary?.name,
+    selectedFundSummary?.description,
+    lockedFundSummary?.description,
+    formData.author_status ? AUTHOR_STATUS_MAP[formData.author_status] : null,
+    fallbackAuthorStatusDescription,
+    selectedFundSummary?.detail,
+    lockedFundSummary?.detail,
+  ]);
+  const normalizedFundName = typeof bannerFundFullName === 'string' ? bannerFundFullName.trim() : '';
+  const resolvedQuartileDescription = (() => {
+    const optionKey =
+      formData.author_status && formData.journal_quartile
+        ? `${formData.author_status}|${formData.journal_quartile}`
+        : null;
+
+    const optionContext = optionKey ? budgetOptionMap[optionKey] : null;
+
+    const candidates = [
+      optionContext?.fund_description,
+      optionContext?.subcategory_description,
+      optionContext?.journal_quartile_label,
+      optionContext?.journal_quartile_code ? QUARTILE_MAP[optionContext.journal_quartile_code] : null,
+      selectedFundSummary?.detail,
+      lockedFundSummary?.detail,
+    ];
+
+    for (const candidate of candidates) {
+      if (typeof candidate !== 'string') {
+        continue;
+      }
+      const trimmed = candidate.trim();
+      if (!trimmed) {
+        continue;
+      }
+      if (normalizedFundName && trimmed === normalizedFundName) {
+        continue;
+      }
+      return trimmed;
+    }
+
+    return '';
+  })();
+  const bannerQuartileSuffix = resolveQuartileSuffix(
+    formData.journal_quartile,
+    resolvedQuartileDescription
+  );
+  const bannerPrimaryDescription = bannerFundFullName
+    ? `${bannerFundFullName}${bannerQuartileSuffix ? ` ${bannerQuartileSuffix}` : ''}`
+    : bannerQuartileSuffix;
+  const bannerSecondaryDescription = (() => {
+    const candidateValues = [
+      selectedFundSummary?.name,
+      selectedFundSummary?.description,
+      selectedFundSummary?.detail,
+    ]
+      .map((value) => (typeof value === 'string' ? value.trim() : ''))
+      .filter((value) => value && value !== bannerFundFullName);
+
+    const firstCandidate = candidateValues.find((value) => value && value !== bannerPrimaryDescription);
+    return firstCandidate || '';
+  })();
   const shouldShowDraftBanner = Boolean(
     (editingExistingSubmission || lockedFundSummary) && (bannerPrimaryDescription || bannerSecondaryDescription)
   );
   const enforceBudgetYearReadOnly = Boolean(lockedBudgetYearId) || editingExistingSubmission || isReadOnly;
-  const disableAuthorStatusSelect = draftLockedSelections || availableAuthorStatuses.length === 0;
-  const disableQuartileSelect = draftLockedSelections || availableQuartiles.length === 0;
+  const disableAuthorStatusSelect = selectionLocked || authorStatusOptions.length === 0;
+  const disableQuartileSelect = selectionLocked || availableQuartiles.length === 0;
   const disableJournalNameInput = (availableQuartiles.length === 0 && !editingExistingSubmission);
-  const displayResolutionError = draftLockedSelections ? '' : resolutionError;
+  const displayResolutionError = selectionLocked ? '' : resolutionError;
   const allowExternalFunding = Boolean(
-    formData.journal_quartile && (feeLimits.total > 0 || draftLockedSelections)
+    formData.journal_quartile && (feeLimits.total > 0 || selectionLocked)
   );
-  const shouldShowReviewerComments =
-    currentSubmissionStatus === 'needs_more_info' &&
-    ((reviewComments.admin && reviewComments.admin.trim()) || (reviewComments.head && reviewComments.head.trim()));
+  const shouldShowReviewerComments = currentSubmissionStatus === 'needs_more_info';
+  const adminCommentDisplay = formatReviewerComment(reviewComments.admin);
+  const headCommentDisplay = formatReviewerComment(reviewComments.head);
 
   return (
     <PageLayout
@@ -5941,9 +6445,9 @@ const showSubmissionConfirmation = async () => {
                     {bannerSecondaryDescription}
                   </p>
                 )}
-                {draftLockedSelections && (
+                {selectionLocked && (
                   <p className="text-xs text-blue-700 sm:text-sm">
-                    หากต้องการเปลี่ยนให้ลบร่าง แล้วสร้างใหม่อีกครั้ง
+                    ไม่สามารถเปลี่ยนทุนสำหรับคำร้องได้ กรุณาสร้างคำร้องใหม่หากจำเป็น
                   </p>
                 )}
               </div>
@@ -5956,18 +6460,14 @@ const showSubmissionConfirmation = async () => {
               <AlertCircle className="h-5 w-5 text-orange-500" aria-hidden="true" />
               <div className="space-y-3">
                 <p className="font-semibold text-orange-800">คำแนะนำจากผู้ตรวจสอบ</p>
-                {reviewComments.admin && reviewComments.admin.trim() && (
-                  <div>
-                    <p className="text-xs uppercase tracking-wide text-orange-600">เจ้าหน้าที่</p>
-                    <p className="whitespace-pre-wrap text-sm">{reviewComments.admin}</p>
-                  </div>
-                )}
-                {reviewComments.head && reviewComments.head.trim() && (
-                  <div>
-                    <p className="text-xs uppercase tracking-wide text-orange-600">หัวหน้าภาค/ผู้บังคับบัญชา</p>
-                    <p className="whitespace-pre-wrap text-sm">{reviewComments.head}</p>
-                  </div>
-                )}
+                <div>
+                  <p className="text-xs uppercase tracking-wide text-orange-600">เจ้าหน้าที่</p>
+                  <p className="whitespace-pre-wrap text-sm">{adminCommentDisplay}</p>
+                </div>
+                <div>
+                  <p className="text-xs uppercase tracking-wide text-orange-600">หัวหน้าภาค/ผู้บังคับบัญชา</p>
+                  <p className="whitespace-pre-wrap text-sm">{headCommentDisplay}</p>
+                </div>
               </div>
             </div>
           </div>
@@ -6089,12 +6589,11 @@ const showSubmissionConfirmation = async () => {
                 <option value="" disabled={formData.author_status !== ''} hidden={formData.author_status !== ''}>
                   เลือกประเภทผู้ประพันธ์ (Select Author Type)
                 </option>
-                {availableAuthorStatuses
-                  .filter(status => status !== 'co_author')
-                  .map(status => (
-                    <option key={status} value={status}>
-                      {status === 'first_author' ? 'ผู้ประพันธ์ชื่อแรก (First Author)' :
-                      status === 'corresponding_author' ? 'ผู้ประพันธ์บรรณกิจ (Corresponding Author)' : status}
+                {authorStatusOptions
+                  .filter(option => option.value !== 'co_author')
+                  .map(option => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
                     </option>
                   ))}
               </select>
@@ -6218,7 +6717,7 @@ const showSubmissionConfirmation = async () => {
                   value={formData.journal_quartile}
                   onChange={handleInputChange}
                   disabled={disableQuartileSelect}
-                  required
+                  required={!selectionLocked}
                   aria-required="true"
                   aria-invalid={errors.journal_quartile ? 'true' : 'false'}
                   aria-describedby={[
@@ -6452,12 +6951,15 @@ const showSubmissionConfirmation = async () => {
               <select
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                 onChange={(e) => {
-                  const userId = parseInt(e.target.value);
-                  if (userId) {
-                    const user = users.find(u => u.user_id === userId);
+                  const selectedId = e.target.value;
+                  if (selectedId) {
+                    const user = users.find((candidate) => {
+                      const candidateId = getNormalizedUserId(candidate);
+                      return candidateId != null && candidateId === selectedId;
+                    });
                     if (user) {
                       handleAddCoauthor(user);
-                      e.target.value = ''; // Reset dropdown
+                      e.target.value = '';
                     }
                   }
                 }}
@@ -6465,25 +6967,33 @@ const showSubmissionConfirmation = async () => {
                 <option value="">เลือกผู้ร่วมวิจัย... (Select Co-Author...)</option>
                 {users
                   .filter(user => {
-                    // Filter out current user
-                    if (currentUser && user.user_id === currentUser.user_id) {
+                    const normalizedUserId = getNormalizedUserId(user);
+                    if (!normalizedUserId) {
                       return false;
                     }
-                    // Filter out already selected co-authors
-                    if (coauthors.some(c => c.user_id === user.user_id)) {
-                      return false;
+
+                    if (currentUser) {
+                      const currentUserId = getNormalizedUserId(currentUser);
+                      if (currentUserId && currentUserId === normalizedUserId) {
+                        return false;
+                      }
                     }
-                    return true;
+
+                    return !coauthors.some((coauthor) => {
+                      const coauthorId = getNormalizedUserId(coauthor);
+                      return coauthorId && coauthorId === normalizedUserId;
+                    });
                   })
                   .map(user => {
+                    const normalizedUserId = getNormalizedUserId(user);
                     const nameParts = resolveUserNameParts(user);
                     const fallbackName = `${nameParts.firstName || ''} ${nameParts.lastName || ''}`.trim();
                     const labelName = nameParts.displayName || fallbackName;
                     const optionLabel = labelName || user.user_fname || user.user_lname || 'ไม่ทราบชื่อ';
                     return (
                       <option
-                        key={user.user_id}
-                        value={user.user_id}
+                        key={normalizedUserId || `user-${user.user_id}`}
+                        value={normalizedUserId || ''}
                       >
                         {optionLabel}{user.email ? ` (${user.email})` : ''}
                       </option>
@@ -6494,10 +7004,24 @@ const showSubmissionConfirmation = async () => {
 
             {/* Available co-authors count */}
             <p className="text-xs text-gray-500">
-              สามารถเลือกได้ (Available): {users.filter(u => 
-                (!currentUser || u.user_id !== currentUser.user_id) && 
-                !coauthors.some(c => c.user_id === u.user_id)
-              ).length} คน (persons)
+              สามารถเลือกได้ (Available): {users.filter((u) => {
+                const normalizedUserId = getNormalizedUserId(u);
+                if (!normalizedUserId) {
+                  return false;
+                }
+
+                if (currentUser) {
+                  const currentUserId = getNormalizedUserId(currentUser);
+                  if (currentUserId && currentUserId === normalizedUserId) {
+                    return false;
+                  }
+                }
+
+                return !coauthors.some((c) => {
+                  const coauthorId = getNormalizedUserId(c);
+                  return coauthorId && coauthorId === normalizedUserId;
+                });
+              }).length} คน (persons)
             </p>
 
             {/* Selected co-authors list */}
@@ -6507,33 +7031,40 @@ const showSubmissionConfirmation = async () => {
                   ผู้ร่วมวิจัยที่เลือก (Selected Co-researchers) ({coauthors.length} คน/persons)
                 </label>
                 <div className="space-y-2">
-                  {coauthors.map((coauthor, index) => (
-                    <div
-                      key={coauthor.user_id}
-                      className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
-                    >
-                      <div className="flex items-center space-x-3">
-                        <span className="text-sm font-medium text-gray-600">
-                          {index + 1}.
-                        </span>
-                        <div>
-                          <p className="text-sm font-medium text-gray-900">
-                            {coauthor.display_name || `${coauthor.user_fname || ''} ${coauthor.user_lname || ''}`.trim()}
-                          </p>
-                          <p className="text-xs text-gray-500">
-                            {coauthor.email}
-                          </p>
-                        </div>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveCoauthor(index)}
-                        className="text-red-500 hover:text-red-700"
+                  {coauthors.map((coauthor, index) => {
+                    const { name, email } = getCoauthorDisplayInfo(coauthor);
+                    const resolvedName = name || `${coauthor.user_fname || ''} ${coauthor.user_lname || ''}`.trim() || 'ไม่ทราบชื่อ';
+
+                    return (
+                      <div
+                        key={getNormalizedUserId(coauthor) || coauthor.user_id || `coauthor-${index}`}
+                        className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
                       >
-                        <X className="h-4 w-4" />
-                      </button>
-                    </div>
-                  ))}
+                        <div className="flex items-center space-x-3">
+                          <span className="text-sm font-medium text-gray-600">
+                            {index + 1}.
+                          </span>
+                          <div>
+                            <p className="text-sm font-medium text-gray-900">
+                              {resolvedName}
+                            </p>
+                            {email && (
+                              <p className="text-xs text-gray-500">
+                                {email}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveCoauthor(index)}
+                          className="text-red-500 hover:text-red-700"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             )}
@@ -7645,28 +8176,32 @@ const showSubmissionConfirmation = async () => {
         // ACTION BUTTONS
         // ================================================================= */}
         <div className="flex flex-col sm:flex-row gap-4 pt-6 border-t">
-          <button
-            type="button"
-            onClick={deleteDraft}
-            className="px-4 py-2 text-red-600 border border-red-300 rounded-md hover:bg-red-50"
-          >
-            <X className="h-4 w-4 inline mr-2" />
-            ลบร่าง
-          </button>
+          {showDraftActions && (
+            <button
+              type="button"
+              onClick={deleteDraft}
+              className="px-4 py-2 text-red-600 border border-red-300 rounded-md hover:bg-red-50"
+            >
+              <X className="h-4 w-4 inline mr-2" />
+              ลบร่าง
+            </button>
+          )}
 
-          <button
-            type="button"
-            onClick={saveDraft}
-            disabled={saving || loading}
-            className="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-gray-600 text-white rounded-lg hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-          >
-            {saving ? (
-              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-            ) : (
-              <Save className="h-4 w-4" />
-            )}
-            {saving ? 'กำลังบันทึก...' : 'บันทึกร่าง'}
-          </button>
+          {showDraftActions && (
+            <button
+              type="button"
+              onClick={saveDraft}
+              disabled={saving || loading}
+              className="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-gray-600 text-white rounded-lg hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              {saving ? (
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+              ) : (
+                <Save className="h-4 w-4" />
+              )}
+              {saving ? 'กำลังบันทึก...' : 'บันทึกร่าง'}
+            </button>
+          )}
 
           <button
             type="button"
