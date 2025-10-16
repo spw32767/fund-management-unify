@@ -1362,6 +1362,9 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
   const [baseReadOnly, setBaseReadOnly] = useState(false);
   const [isReadOnly, setIsReadOnly] = useState(false);
 
+  const editingExistingSubmission = Boolean(prefilledSubmissionId);
+  const selectionLocked = editingExistingSubmission && !isReadOnly;
+
   const [announcementLock, setAnnouncementLock] = useState({
     main_annoucement: null,
     reward_announcement: null,
@@ -4849,6 +4852,10 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
           return;
         }
 
+        if (fieldKey === 'journal_quartile' && selectionLocked) {
+          return;
+        }
+
         let isValid = true;
         if (typeof element.checkValidity === 'function') {
           isValid = element.checkValidity();
@@ -4963,7 +4970,7 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
     let resolutionMessage = '';
     const lockedDraft = Boolean(prefilledSubmissionId && currentSubmissionStatus === 'draft' && !isReadOnly);
 
-    if (!lockedDraft && formData.author_status && formData.journal_quartile) {
+    if (!lockedDraft && !selectionLocked && formData.author_status && formData.journal_quartile) {
       if (!formData.subcategory_id || !formData.subcategory_budget_id) {
         resolutionMessage = resolutionError || 'ไม่พบทุนสำหรับปี/สถานะ/ควอร์ไทล์ที่เลือก';
       } else if (resolutionError && resolutionError.length > 0) {
@@ -6113,8 +6120,6 @@ const showSubmissionConfirmation = async () => {
   // MAIN RENDER
   // =================================================================
 
-  const editingExistingSubmission = Boolean(prefilledSubmissionId);
-  const selectionLocked = editingExistingSubmission && !isReadOnly;
   const selectedFundName = selectedFundSummary?.name || '';
   const selectedFundDescription = selectedFundSummary?.description || '';
   const selectedFundDetail = selectedFundSummary?.detail || '';
@@ -6451,7 +6456,7 @@ const showSubmissionConfirmation = async () => {
                   value={formData.journal_quartile}
                   onChange={handleInputChange}
                   disabled={disableQuartileSelect}
-                  required
+                  required={!selectionLocked}
                   aria-required="true"
                   aria-invalid={errors.journal_quartile ? 'true' : 'false'}
                   aria-describedby={[
