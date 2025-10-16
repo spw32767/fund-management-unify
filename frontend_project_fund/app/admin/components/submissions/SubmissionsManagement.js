@@ -13,7 +13,7 @@ import { toast } from 'react-hot-toast';
 import systemConfigAPI from '../../../lib/system_config_api';
 import { useStatusMap } from '@/app/hooks/useStatusMap';
 import SubmissionExportModal from './SubmissionExportModal';
-import { downloadXlsx } from '../../utils/xlsxExporter';
+import { downloadXlsx } from '@/app/admin/utils/xlsxExporter';
 
 // ----------- CONFIG -----------
 const PAGE_SIZE  = 10;        // how many rows to show at a time
