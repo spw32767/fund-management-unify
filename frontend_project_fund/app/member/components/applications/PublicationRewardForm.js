@@ -815,6 +815,36 @@ const resolveAuthorStatusShortLabel = (status, label) => {
   return label;
 };
 
+const resolveQuartileSuffix = (quartile) => {
+  if (quartile === null || quartile === undefined) {
+    return '';
+  }
+
+  const normalized = String(quartile).trim().toUpperCase();
+  if (!normalized) {
+    return '';
+  }
+
+  if (/^Q\d+/.test(normalized)) {
+    const numeric = normalized.replace(/^Q/, '') || normalized;
+    return `ควอร์ไทล์ (Quartile) ${numeric}`;
+  }
+
+  if (normalized === 'T5') {
+    return 'ควอร์ไทล์ (Quartile) Top 5%';
+  }
+
+  if (normalized === 'T10') {
+    return 'ควอร์ไทล์ (Quartile) Top 10%';
+  }
+
+  if (normalized === 'TCI') {
+    return 'ควอร์ไทล์ (Quartile) TCI';
+  }
+
+  return `ควอร์ไทล์ (Quartile) ${normalized}`;
+};
+
 const QUARTILE_MAP = {
   T5: 'วารสารระดับนานาชาติในฐานข้อมูล WOS หรือ ISI หรือ SCOPUS (ลําดับ 5% แรก)',
   T10: 'วารสารระดับนานาชาติในฐานข้อมูล WOS หรือ ISI หรือ SCOPUS (ลําดับ 10% แรก)',
@@ -3994,8 +4024,15 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
       const detachIds = [...detachedDocumentIds];
       const pendingExternalUploads = new Map();
 
+      const uploadableFiles = [];
       filesToUpload.forEach((doc) => {
-        if (!doc || doc.document_type_id !== 12 || !doc.file) {
+        if (!doc?.file) {
+          return;
+        }
+
+        uploadableFiles.push(doc);
+
+        if (doc.document_type_id !== 12) {
           return;
         }
 
@@ -4049,9 +4086,9 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
       }
 
       let uploadedCount = 0;
-      if (filesToUpload.length > 0) {
-        for (let index = 0; index < filesToUpload.length; index += 1) {
-          const fileData = filesToUpload[index];
+      if (uploadableFiles.length > 0) {
+        for (let index = 0; index < uploadableFiles.length; index += 1) {
+          const fileData = uploadableFiles[index];
 
           try {
             const uploadResponse = await fileAPI.uploadFile(fileData.file);
@@ -4073,7 +4110,7 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
             await documentAPI.attachDocument(submissionId, attachPayload);
             uploadedCount += 1;
             if (onProgress) {
-              onProgress({ type: 'upload', completed: uploadedCount, totalUpload: filesToUpload.length });
+              onProgress({ type: 'upload', completed: uploadedCount, totalUpload: uploadableFiles.length });
             }
           } catch (error) {
             console.error('Failed to upload or attach document:', fileData, error);
@@ -4397,6 +4434,71 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
       return Number.isNaN(numericId) ? '' : getDocumentTypeName(numericId);
     };
 
+    const pushServerDocument = (doc) => {
+      if (!doc || doc.pendingRemoval) {
+        return;
+      }
+
+      const docTypeId = doc.document_type_id != null ? Number(doc.document_type_id) : null;
+      const typeName = doc.document_type_name || resolveDocumentTypeName(docTypeId) || 'เอกสาร';
+      const sizeValue = doc.file_size != null ? Number(doc.file_size) : 0;
+
+      allFiles.push({
+        id: `server-${doc.document_id}`,
+        name: doc.original_name || typeName || 'ไฟล์จากระบบ',
+        type: typeName,
+        size: Number.isFinite(sizeValue) ? sizeValue : 0,
+        file: null,
+        source: 'server',
+        canDelete: false,
+        document_type_id: docTypeId,
+        document_type_name: typeName,
+        document_id: doc.document_id,
+      });
+    };
+
+    const pushServerExternalDocument = (doc) => {
+      if (!doc || doc.pendingRemoval) {
+        return;
+      }
+
+      const typeName = resolveDocumentTypeName(12) || doc.document_type_name || 'เอกสารเบิกจ่ายภายนอก';
+      const matchFunding = externalFundings.find((funding) => {
+        if (!funding) return false;
+        const matchesClient =
+          doc.funding_client_id != null &&
+          funding.clientId &&
+          String(doc.funding_client_id) === String(funding.clientId);
+        const matchesExternal =
+          doc.external_funding_id != null &&
+          funding.externalFundId != null &&
+          String(doc.external_funding_id) === String(funding.externalFundId);
+        const matchesDocument =
+          doc.document_id != null &&
+          funding.serverDocumentId != null &&
+          String(doc.document_id) === String(funding.serverDocumentId);
+        return matchesClient || matchesExternal || matchesDocument;
+      });
+
+      const fundLabel = matchFunding?.fundName ? String(matchFunding.fundName).trim() : '';
+      const sizeValue = doc.file_size != null ? Number(doc.file_size) : 0;
+
+      allFiles.push({
+        id: `server-external-${doc.document_id}`,
+        name: doc.original_name || doc.document_type_name || fundLabel || 'ไฟล์จากระบบ',
+        type: `${typeName}${fundLabel ? ` - ${fundLabel}` : ''}`,
+        size: Number.isFinite(sizeValue) ? sizeValue : 0,
+        file: null,
+        source: 'server',
+        canDelete: false,
+        document_type_id: 12,
+        document_type_name: typeName,
+        document_id: doc.document_id,
+        external_funding_id: doc.external_funding_id ?? null,
+        external_funding_client_id: doc.funding_client_id ?? matchFunding?.clientId ?? null,
+      });
+    };
+
     if (Array.isArray(documentTypes) && documentTypes.length > 0) {
       documentTypes.forEach((docType) => {
         if (!docType) return;
@@ -4458,6 +4560,14 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
       });
     });
 
+    (serverDocuments || []).forEach((doc) => {
+      pushServerDocument(doc);
+    });
+
+    (serverExternalFundingFiles || []).forEach((doc) => {
+      pushServerExternalDocument(doc);
+    });
+
     (externalFundingFiles || []).forEach((doc) => {
       if (!doc?.file) return;
       const funding = externalFundings.find(f => f.clientId === doc.funding_client_id);
@@ -4481,7 +4591,16 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
     return allFiles;
   }
 
-  const attachedFiles = useMemo(() => getAllAttachedFiles(), [attachmentSignature, documentTypes, externalFundings]);
+  const attachedFiles = useMemo(
+    () => getAllAttachedFiles(),
+    [
+      attachmentSignature,
+      documentTypes,
+      externalFundings,
+      serverDocuments,
+      serverExternalFundingFiles,
+    ]
+  );
   const previewUrl = previewState.blobUrl || previewState.signedUrl;
 
   const buildPublicationDate = () => {
@@ -6120,17 +6239,32 @@ const showSubmissionConfirmation = async () => {
   // MAIN RENDER
   // =================================================================
 
-  const selectedFundName = selectedFundSummary?.name || '';
-  const selectedFundDescription = selectedFundSummary?.description || '';
-  const selectedFundDetail = selectedFundSummary?.detail || '';
   const fallbackAuthorStatusDescription = formData.author_status
     ? authorStatusLabelMap[formData.author_status] || ''
     : '';
-  const bannerPrimaryDescription =
-    selectedFundDescription || selectedFundName || fallbackAuthorStatusDescription || '';
-  const bannerSecondaryDescription = selectedFundDetail && selectedFundDetail !== bannerPrimaryDescription
-    ? selectedFundDetail
-    : '';
+  const bannerFundFullName = findFirstString([
+    selectedFundSummary?.detail,
+    selectedFundSummary?.description,
+    selectedFundSummary?.name,
+    formData.author_status ? AUTHOR_STATUS_MAP[formData.author_status] : null,
+    fallbackAuthorStatusDescription,
+  ]);
+  const bannerQuartileSuffix = resolveQuartileSuffix(formData.journal_quartile);
+  const bannerPrimaryDescription = bannerFundFullName
+    ? `${bannerFundFullName}${bannerQuartileSuffix ? ` ${bannerQuartileSuffix}` : ''}`
+    : bannerQuartileSuffix;
+  const bannerSecondaryDescription = (() => {
+    const candidateValues = [
+      selectedFundSummary?.name,
+      selectedFundSummary?.description,
+      selectedFundSummary?.detail,
+    ]
+      .map((value) => (typeof value === 'string' ? value.trim() : ''))
+      .filter((value) => value && value !== bannerFundFullName);
+
+    const firstCandidate = candidateValues.find((value) => value && value !== bannerPrimaryDescription);
+    return firstCandidate || '';
+  })();
   const shouldShowDraftBanner = Boolean(
     (editingExistingSubmission || lockedFundSummary) && (bannerPrimaryDescription || bannerSecondaryDescription)
   );
