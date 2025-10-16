@@ -169,15 +169,17 @@ const deriveRequestedSummary = (pubDetail = {}, submission = {}) => {
   const publication = publicationRaw ?? 0;
   const external = externalRaw ?? 0;
 
-  const total = Math.max(0, (baseTotal ?? 0) - external);
+  const grossTotal = Math.max(0, baseTotal ?? 0);
+  const netTotal = Math.max(0, grossTotal - external);
 
   return {
     reward,
     revision,
     publication,
     external,
-    baseTotal: baseTotal ?? 0,
-    total,
+    baseTotal: grossTotal,
+    total: grossTotal,
+    netTotal,
     hasBreakdown,
   };
 };
@@ -220,7 +222,8 @@ const deriveApprovedSummary = (pubDetail = {}, submission = {}, requestedSummary
     parseAmount(pubDetail?.external_funding_amount ?? submission?.external_funding_amount) ??
     0;
 
-  const total = Math.max(0, (baseTotal ?? 0) - external);
+  const grossTotal = Math.max(0, baseTotal ?? 0);
+  const netTotal = Math.max(0, grossTotal - external);
 
   return {
     reward: rewardRaw ?? (requestedSummary?.reward ?? 0),
@@ -230,8 +233,9 @@ const deriveApprovedSummary = (pubDetail = {}, submission = {}, requestedSummary
     publication: publicationRaw ?? (requestedSummary?.publication ?? 0),
     publicationRaw,
     external,
-    baseTotal: baseTotal ?? 0,
-    total,
+    baseTotal: grossTotal,
+    total: grossTotal,
+    netTotal,
     hasBreakdown,
   };
 };
@@ -707,7 +711,7 @@ function ApprovalPanel({ submission, pubDetail, requestedSummary, approvedSummar
   const approvedPublicationDefault = approvedSummary?.publicationRaw != null 
     ? approvedSummary.publicationRaw 
     : requestedPublication;
-  const approvedTotalDefault = approvedSummary?.total ?? Math.max(0, requestedBaseTotal - extFunding);
+  const approvedTotalDefault = approvedSummary?.total ?? Math.max(0, requestedBaseTotal);
 
   // Approved values
   const [rewardApprove, setRewardApprove] = useState(approvedRewardDefault);
@@ -838,9 +842,9 @@ function ApprovalPanel({ submission, pubDetail, requestedSummary, approvedSummar
   // รวมอัตโนมัติ (Total อ่านอย่างเดียว)
   useEffect(() => {
     const sum = Number(rewardApprove || 0) + Number(revisionApprove || 0) + Number(publicationApprove || 0);
-    const net = Math.max(0, sum - Number(extFunding || 0));
+    const net = Math.max(0, sum);
     setTotalApprove(net);
-  }, [rewardApprove, revisionApprove, publicationApprove, extFunding]);
+  }, [rewardApprove, revisionApprove, publicationApprove]);
 
   // Clamp helper สำหรับวงเงินร่วม (Revision+Publication)
   const clampShared = (val, other) => {
@@ -1979,7 +1983,6 @@ export default function PublicationSubmissionDetails({ submissionId, onBack }) {
     const payload = {};
     const trimmed = (adminCommentOverride ?? message)?.trim();
     if (trimmed) {
-      payload.comment = trimmed;
       payload.request_comment = trimmed;
       payload.revision_comment = trimmed;
       payload.reason = trimmed;
@@ -2280,14 +2283,14 @@ export default function PublicationSubmissionDetails({ submissionId, onBack }) {
         {/* Amounts (คอลัมน์ขวา) */}
         <div className="text-right">
           <div className="text-2xl font-bold text-blue-600">
-            {formatCurrency(requestedSummary?.total || 0)}
+            {formatCurrency(requestedSummary?.netTotal ?? requestedSummary?.total ?? 0)}
           </div>
           <div className="text-sm text-gray-500">จำนวนเงินที่ขอ</div>
 
           {submission?.status_id === 2 && (
             <div className="mt-2">
               <div className="text-lg font-bold text-green-600">
-                {formatCurrency(approvedSummary?.total || 0)}
+                {formatCurrency(approvedSummary?.netTotal ?? approvedSummary?.total ?? 0)}
               </div>
               <div className="text-sm text-gray-500">จำนวนเงินที่อนุมัติ</div>
             </div>
@@ -2546,11 +2549,11 @@ export default function PublicationSubmissionDetails({ submissionId, onBack }) {
                   <span className="text-xs font-normal text-gray-600">Total Requested to CP-KKU</span>
                 </label>
                 <span className="text-right font-bold text-blue-600">
-                  ฿{formatCurrency(requestedSummary?.total || 0)}
+                  ฿{formatCurrency(requestedSummary?.netTotal ?? requestedSummary?.total ?? 0)}
                 </span>
                 {submission?.status_id === 2 && (
                   <span className="text-right font-bold text-green-600">
-                    ฿{formatCurrency(approvedSummary?.total || 0)}
+                    ฿{formatCurrency(approvedSummary?.netTotal ?? approvedSummary?.total ?? 0)}
                   </span>
                 )}
               </div>
