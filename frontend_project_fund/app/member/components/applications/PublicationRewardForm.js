@@ -815,7 +815,15 @@ const resolveAuthorStatusShortLabel = (status, label) => {
   return label;
 };
 
-const resolveQuartileSuffix = (quartile) => {
+const resolveQuartileSuffix = (quartile, overrideDescription = '') => {
+  const normalizedOverride = typeof overrideDescription === 'string'
+    ? overrideDescription.trim()
+    : '';
+
+  if (normalizedOverride) {
+    return normalizedOverride;
+  }
+
   if (quartile === null || quartile === undefined) {
     return '';
   }
@@ -6243,13 +6251,52 @@ const showSubmissionConfirmation = async () => {
     ? authorStatusLabelMap[formData.author_status] || ''
     : '';
   const bannerFundFullName = findFirstString([
-    selectedFundSummary?.detail,
-    selectedFundSummary?.description,
     selectedFundSummary?.name,
+    lockedFundSummary?.name,
+    selectedFundSummary?.description,
+    lockedFundSummary?.description,
     formData.author_status ? AUTHOR_STATUS_MAP[formData.author_status] : null,
     fallbackAuthorStatusDescription,
+    selectedFundSummary?.detail,
+    lockedFundSummary?.detail,
   ]);
-  const bannerQuartileSuffix = resolveQuartileSuffix(formData.journal_quartile);
+  const normalizedFundName = typeof bannerFundFullName === 'string' ? bannerFundFullName.trim() : '';
+  const resolvedQuartileDescription = (() => {
+    const optionKey =
+      formData.author_status && formData.journal_quartile
+        ? `${formData.author_status}|${formData.journal_quartile}`
+        : null;
+
+    const optionContext = optionKey ? budgetOptionMap[optionKey] : null;
+
+    const candidates = [
+      optionContext?.fund_description,
+      optionContext?.subcategory_description,
+      optionContext?.journal_quartile_label,
+      selectedFundSummary?.detail,
+      lockedFundSummary?.detail,
+    ];
+
+    for (const candidate of candidates) {
+      if (typeof candidate !== 'string') {
+        continue;
+      }
+      const trimmed = candidate.trim();
+      if (!trimmed) {
+        continue;
+      }
+      if (normalizedFundName && trimmed === normalizedFundName) {
+        continue;
+      }
+      return trimmed;
+    }
+
+    return '';
+  })();
+  const bannerQuartileSuffix = resolveQuartileSuffix(
+    formData.journal_quartile,
+    resolvedQuartileDescription
+  );
   const bannerPrimaryDescription = bannerFundFullName
     ? `${bannerFundFullName}${bannerQuartileSuffix ? ` ${bannerQuartileSuffix}` : ''}`
     : bannerQuartileSuffix;
