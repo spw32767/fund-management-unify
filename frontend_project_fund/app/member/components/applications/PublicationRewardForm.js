@@ -785,11 +785,34 @@ const getDocumentTypeName = (documentTypeId) => {
 // =================================================================
 
 // Mapping for author status and quartile to human-readable descriptions
+const AUTHOR_STATUS_SHORT_LABEL_MAP = {
+  first_author: 'ผู้แต่งชื่อแรก (First Author)',
+  corresponding_author: 'ผู้ประพันธ์บรรณกิจ (Corresponding Author)',
+};
+
 const AUTHOR_STATUS_MAP = {
   first_author:
     'เงินรางวัลการตีพิมพ์เผยแพร่ผลงานวิจัยที่ได้รับการตีพิมพ์ในสาขาวิทยาศาสตร์และเทคโนโลยี (กรณีเป็นผู้แต่งชื่อแรก)',
   corresponding_author:
     'เงินรางวัลการตีพิมพ์เผยแพร่ผลงานวิจัยที่ได้รับการตีพิมพ์ในสาขาวิทยาศาสตร์และเทคโนโลยี (กรณีเป็นผู้ประพันธ์บรรณกิจ)',
+};
+
+const resolveAuthorStatusShortLabel = (status, label) => {
+  if (status && AUTHOR_STATUS_SHORT_LABEL_MAP[status]) {
+    return AUTHOR_STATUS_SHORT_LABEL_MAP[status];
+  }
+
+  if (typeof label === 'string' && label.trim()) {
+    const normalized = label.trim();
+    if (/กรณีเป็นผู้แต่งชื่อแรก/.test(normalized) || /first author/i.test(normalized)) {
+      return AUTHOR_STATUS_SHORT_LABEL_MAP.first_author;
+    }
+    if (/กรณีเป็นผู้ประพันธ์บรรณกิจ/.test(normalized) || /corresponding author/i.test(normalized)) {
+      return AUTHOR_STATUS_SHORT_LABEL_MAP.corresponding_author;
+    }
+  }
+
+  return label;
 };
 
 const QUARTILE_MAP = {
@@ -1749,13 +1772,13 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
           return;
         }
 
-        const resolvedLabel = findFirstString([
+        const resolvedLabel = resolveAuthorStatusShortLabel(status, findFirstString([
           option?.author_status_label,
           option?.author_status_name,
           option?.author_status_display,
           AUTHOR_STATUS_MAP[status],
           status,
-        ]);
+        ]));
 
         if (resolvedLabel) {
           labelMap[status] = resolvedLabel;
@@ -1764,10 +1787,13 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
     }
 
     if (formData.author_status && !labelMap[formData.author_status]) {
-      const fallbackLabel = findFirstString([
-        AUTHOR_STATUS_MAP[formData.author_status],
+      const fallbackLabel = resolveAuthorStatusShortLabel(
         formData.author_status,
-      ]);
+        findFirstString([
+          AUTHOR_STATUS_MAP[formData.author_status],
+          formData.author_status,
+        ])
+      );
 
       if (fallbackLabel) {
         labelMap[formData.author_status] = fallbackLabel;
@@ -1786,7 +1812,10 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
         return;
       }
       seen.add(status);
-      const label = authorStatusLabelMap[status] || AUTHOR_STATUS_MAP[status] || status;
+      const label = resolveAuthorStatusShortLabel(
+        status,
+        authorStatusLabelMap[status] || AUTHOR_STATUS_MAP[status] || status
+      );
       options.push({ value: status, label });
     };
 
