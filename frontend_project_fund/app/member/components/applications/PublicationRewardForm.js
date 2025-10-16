@@ -837,6 +837,10 @@ const resolveQuartileSuffix = (quartile, overrideDescription = '') => {
     return '';
   }
 
+  if (QUARTILE_MAP[normalized]) {
+    return QUARTILE_MAP[normalized];
+  }
+
   if (/^Q\d+/.test(normalized)) {
     const numeric = normalized.replace(/^Q/, '') || normalized;
     return `ควอร์ไทล์ (Quartile) ${numeric}`;
@@ -1656,6 +1660,9 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
         const key = pushPair(opt.author_status, opt.journal_quartile);
         if (!key) return;
 
+        const [, rawQuartileCode] = key.split('|');
+        const normalizedQuartileCode = rawQuartileCode ? rawQuartileCode.trim().toUpperCase() : '';
+
         const rewardAmount = parseNumberOrNull(opt.reward_amount);
         if (rewardAmount !== null) {
           rateMap[key] = rewardAmount;
@@ -1666,6 +1673,13 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
           opt.SubcategoryBudget ??
           null;
 
+        const normalizedQuartileLabel = findFirstString([
+          opt.journal_quartile_label,
+          opt.journal_quartile_name,
+          opt.journal_quartile_display,
+          QUARTILE_MAP[normalizedQuartileCode],
+        ]) || '';
+
         const resolvedFundDescription = findFirstString([
           opt.fund_description,
           opt.fundDescription,
@@ -1675,7 +1689,7 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
           subcategoryBudget?.FundDescription,
           subcategoryBudget?.description,
           subcategoryBudget?.Description,
-          opt.journal_quartile_label,
+          normalizedQuartileLabel,
         ]) || '';
 
         if (process.env.NODE_ENV !== 'production') {
@@ -1683,6 +1697,7 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
             key,
             raw: opt,
             resolvedFundDescription,
+            normalizedQuartileLabel,
           });
         }
 
@@ -1696,7 +1711,8 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
           subcategory_name_th: opt.subcategory_name_th ?? null,
           subcategory_description: opt.subcategory_description ?? null,
           author_status_label: opt.author_status_label ?? opt.author_status_name ?? opt.author_status_display ?? null,
-          journal_quartile_label: opt.journal_quartile_label ?? null,
+          journal_quartile_label: normalizedQuartileLabel || null,
+          journal_quartile_code: normalizedQuartileCode || null,
           overall_subcategory_budget_id: opt.overall_subcategory_budget_id ?? null,
           max_amount_per_year: parseNumberOrNull(opt.max_amount_per_year),
           max_grants: parseIntegerOrNull(opt.max_grants),
@@ -1720,6 +1736,23 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
 
           if (!Object.prototype.hasOwnProperty.call(budgetMap, normalizedKey)) {
             budgetMap[normalizedKey] = budgetMap[normalizedKey] ?? {};
+          }
+
+          const [, fallbackQuartileCodeRaw] = normalizedKey.split('|');
+          const fallbackQuartileCode = fallbackQuartileCodeRaw
+            ? fallbackQuartileCodeRaw.trim().toUpperCase()
+            : '';
+
+          if (fallbackQuartileCode && !budgetMap[normalizedKey].journal_quartile_code) {
+            budgetMap[normalizedKey].journal_quartile_code = fallbackQuartileCode;
+          }
+
+          if (
+            fallbackQuartileCode &&
+            !budgetMap[normalizedKey].journal_quartile_label &&
+            QUARTILE_MAP[fallbackQuartileCode]
+          ) {
+            budgetMap[normalizedKey].journal_quartile_label = QUARTILE_MAP[fallbackQuartileCode];
           }
         });
       }
@@ -6315,6 +6348,7 @@ const showSubmissionConfirmation = async () => {
       optionContext?.fund_description,
       optionContext?.subcategory_description,
       optionContext?.journal_quartile_label,
+      optionContext?.journal_quartile_code ? QUARTILE_MAP[optionContext.journal_quartile_code] : null,
       selectedFundSummary?.detail,
       lockedFundSummary?.detail,
     ];
