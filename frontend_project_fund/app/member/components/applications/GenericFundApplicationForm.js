@@ -2,7 +2,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { FileText, Upload, Save, Send, X, Eye, ArrowLeft, AlertCircle, DollarSign, Download } from "lucide-react";
+import { FileText, Upload, Save, Send, X, Eye, ArrowLeft, AlertCircle, DollarSign, Download, Info } from "lucide-react";
 import Swal from "sweetalert2";
 import PageLayout from "../common/PageLayout";
 import SimpleCard from "../common/SimpleCard";
@@ -651,6 +651,16 @@ const firstNonEmptyString = (...values) => {
     }
   }
   return '';
+};
+
+const formatReviewerComment = (value) => {
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (trimmed) {
+      return value;
+    }
+  }
+  return '-';
 };
 
 // =================================================================
@@ -1942,9 +1952,25 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
   const pendingStatusCode = pendingStatus?.code ?? '—';
   const formattedRequestedAmount = formatCurrency(formData.requested_amount || 0);
   const requiredDocumentCount = documentRequirements.filter((doc) => doc.required).length;
-  const adminComment = (reviewerComments.admin || '').trim();
-  const headComment = (reviewerComments.head || '').trim();
-  const hasReviewerNotes = Boolean(adminComment || headComment);
+  const editingExistingSubmission = Boolean(currentSubmissionId || subcategoryData?.submissionId);
+  const bannerPrimaryDescription = firstNonEmptyString(
+    subcategoryData?.subcategory?.fund_full_name,
+    subcategoryData?.subcategory?.fund_name,
+    subcategoryData?.subcategory?.subcategory_name,
+    subcategoryData?.subcategory_name
+  );
+  const bannerSecondaryDescription = firstNonEmptyString(
+    subcategoryData?.subcategory?.fund_description,
+    subcategoryData?.subcategory?.subcategory_description,
+    subcategoryData?.subcategory?.fund_condition,
+    subcategoryData?.fund_description,
+    subcategoryData?.subcategory_description
+  );
+  const shouldShowFundBanner = Boolean(bannerPrimaryDescription || bannerSecondaryDescription);
+  const selectionLocked = Boolean(editingExistingSubmission);
+  const shouldShowReviewerComments = isNeedsMoreInfo;
+  const adminCommentDisplay = formatReviewerComment(reviewerComments.admin);
+  const headCommentDisplay = formatReviewerComment(reviewerComments.head);
 
   return (
     <PageLayout
@@ -1976,31 +2002,48 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
           </div>
         )}
 
-        {isNeedsMoreInfo && (
-          <div className="rounded-lg border border-yellow-200 bg-yellow-50 p-4 text-sm text-yellow-800 shadow-sm">
+        {shouldShowFundBanner && (
+          <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 text-sm text-blue-800">
             <div className="flex items-start gap-3">
-              <AlertCircle className="h-5 w-5 flex-shrink-0 text-yellow-500" />
-              <div>
-                <p className="font-semibold text-yellow-900">คำร้องต้องการข้อมูลเพิ่มเติม</p>
-                <p className="mt-1 leading-relaxed">
-                  กรุณาตรวจสอบและแก้ไขข้อมูลตามข้อเสนอแนะก่อนส่งคำร้องอีกครั้ง
+              <Info className="h-5 w-5 flex-shrink-0 text-blue-500" aria-hidden="true" />
+              <div className="space-y-2">
+                <p className="font-medium text-blue-900">
+                  แบบฟอร์มนี้กำลังใช้ทุน {bannerPrimaryDescription || 'ไม่ทราบชื่อทุน'}
                 </p>
-                {hasReviewerNotes ? (
-                  <>
-                    {headComment && (
-                      <p className="mt-2 whitespace-pre-wrap leading-relaxed">
-                        <span className="font-medium text-yellow-900">ความคิดเห็นจากหัวหน้าสาขา:</span> {headComment}
-                      </p>
-                    )}
-                    {adminComment && (
-                      <p className="mt-2 whitespace-pre-wrap leading-relaxed">
-                        <span className="font-medium text-yellow-900">ความคิดเห็นจากเจ้าหน้าที่:</span> {adminComment}
-                      </p>
-                    )}
-                  </>
-                ) : (
-                  <p className="mt-2 leading-relaxed">ไม่มีความคิดเห็นเพิ่มเติมจากผู้ประเมินในรอบนี้</p>
+                {bannerSecondaryDescription && (
+                  <p className="text-xs text-blue-700 sm:text-sm">
+                    {bannerSecondaryDescription}
+                  </p>
                 )}
+                {selectionLocked && (
+                  <p className="text-xs text-blue-700 sm:text-sm">
+                    ไม่สามารถเปลี่ยนทุนสำหรับคำร้องนี้ได้ กรุณาสร้างคำร้องใหม่หากต้องการเลือกทุนอื่น
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {shouldShowReviewerComments && (
+          <div className="rounded-lg border border-orange-200 bg-orange-50 p-4 text-sm text-orange-900">
+            <div className="flex items-start gap-3">
+              <AlertCircle className="h-5 w-5 text-orange-500" aria-hidden="true" />
+              <div className="space-y-3">
+                <div className="space-y-1">
+                  <p className="font-semibold text-orange-800">คำร้องต้องการข้อมูลเพิ่มเติม</p>
+                  <p className="text-sm text-orange-700">
+                    กรุณาตรวจสอบและแก้ไขข้อมูลตามคำแนะนำก่อนส่งคำร้องอีกครั้ง
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs uppercase tracking-wide text-orange-600">เจ้าหน้าที่</p>
+                  <p className="whitespace-pre-wrap text-sm">{adminCommentDisplay}</p>
+                </div>
+                <div>
+                  <p className="text-xs uppercase tracking-wide text-orange-600">หัวหน้าภาค/ผู้บังคับบัญชา</p>
+                  <p className="whitespace-pre-wrap text-sm">{headCommentDisplay}</p>
+                </div>
               </div>
             </div>
           </div>
@@ -2291,31 +2334,39 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
             <div className="flex flex-col gap-4 rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
               <div className="space-y-1">
                 <p className="text-sm font-medium text-gray-800">ดำเนินการกับแบบคำร้อง</p>
-                <p className="text-xs text-gray-500">คุณสามารถบันทึกเป็นร่างเพื่อแก้ไขภายหลัง หรือส่งคำร้องเพื่อเข้าสู่การพิจารณา</p>
+                <p className="text-xs text-gray-500">
+                  {isNeedsMoreInfo
+                    ? 'กรุณาแก้ไขข้อมูลตามคำแนะนำและกดส่งคำร้องอีกครั้ง'
+                    : 'คุณสามารถบันทึกเป็นร่างเพื่อแก้ไขภายหลัง หรือส่งคำร้องเพื่อเข้าสู่การพิจารณา'}
+                </p>
               </div>
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-end">
-                <button
-                  type="button"
-                  onClick={deleteDraft}
-                  disabled={!hasDraft || saving || submitting}
-                  className="w-full sm:w-auto flex items-center justify-center gap-2 rounded-lg border border-red-300 px-6 py-3 text-sm font-medium text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  <X className="h-4 w-4" />
-                  ลบร่าง
-                </button>
-                <button
-                  type="button"
-                  onClick={saveDraft}
-                  disabled={!isEditable || saving || submitting}
-                  className="w-full sm:flex-1 flex items-center justify-center gap-2 rounded-lg bg-gray-600 px-6 py-3 text-sm font-medium text-white shadow-sm transition hover:bg-gray-700 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  {saving ? (
-                    <div className="h-4 w-4 animate-spin rounded-full border-b-2 border-white"></div>
-                  ) : (
-                    <Save className="h-4 w-4" />
-                  )}
-                  {saving ? 'กำลังบันทึก...' : 'บันทึกร่าง'}
-                </button>
+                {!isNeedsMoreInfo && (
+                  <button
+                    type="button"
+                    onClick={deleteDraft}
+                    disabled={!hasDraft || saving || submitting}
+                    className="w-full sm:w-auto flex items-center justify-center gap-2 rounded-lg border border-red-300 px-6 py-3 text-sm font-medium text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <X className="h-4 w-4" />
+                    ลบร่าง
+                  </button>
+                )}
+                {!isNeedsMoreInfo && (
+                  <button
+                    type="button"
+                    onClick={saveDraft}
+                    disabled={!isEditable || saving || submitting}
+                    className="w-full sm:flex-1 flex items-center justify-center gap-2 rounded-lg bg-gray-600 px-6 py-3 text-sm font-medium text-white shadow-sm transition hover:bg-gray-700 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {saving ? (
+                      <div className="h-4 w-4 animate-spin rounded-full border-b-2 border-white"></div>
+                    ) : (
+                      <Save className="h-4 w-4" />
+                    )}
+                    {saving ? 'กำลังบันทึก...' : 'บันทึกร่าง'}
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={submitApplication}
