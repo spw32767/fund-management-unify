@@ -1876,7 +1876,6 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
     const payload = {};
     const trimmed = (adminCommentOverride ?? message)?.trim();
     if (trimmed) {
-      payload.comment = trimmed;
       payload.request_comment = trimmed;
       payload.revision_comment = trimmed;
       payload.reason = trimmed;

@@ -5700,7 +5700,28 @@ const showSubmissionConfirmation = async () => {
                 previewBtn.className = originalClass;
 
                 try {
-                  await generatePreview({ openWindow: true });
+                  const urlToOpen =
+                    previewState?.blobUrl ||
+                    previewState?.signedUrl ||
+                    previewUrlRef.current ||
+                    previewUrl;
+
+                  if (!urlToOpen) {
+                    throw new Error('ไม่พบไฟล์ตัวอย่าง');
+                  }
+
+                  const openedWindow = window.open(urlToOpen, '_blank', 'noopener,noreferrer');
+
+                  if (!openedWindow) {
+                    throw new Error('โปรดอนุญาตให้เบราว์เซอร์เปิดหน้าต่างใหม่เพื่อดูไฟล์');
+                  }
+
+                  try {
+                    openedWindow.focus();
+                  } catch (focusError) {
+                    console.warn('Unable to focus preview window:', focusError);
+                  }
+
                   previewViewed = true;
                   setPreviewAcknowledged(true);
 
@@ -5716,25 +5737,16 @@ const showSubmissionConfirmation = async () => {
                     validationMessage.style.display = 'none';
                   }
 
-                  if (!previewState.hasPreviewed) {
-                    setPreviewState((prev) => ({
-                      ...prev,
-                      hasPreviewed: true,
-                    }));
-                  }
+                  setPreviewState((prev) => ({
+                    ...prev,
+                    hasPreviewed: true,
+                    blobUrl: prev.blobUrl || (urlToOpen.startsWith('blob:') ? urlToOpen : prev.blobUrl),
+                    signedUrl: prev.signedUrl || (!urlToOpen.startsWith('blob:') ? urlToOpen : prev.signedUrl),
+                    timestamp: prev.timestamp || new Date().toISOString(),
+                  }));
 
-                  if (!previewState.blobUrl && previewUrlRef.current) {
-                    setPreviewState((prev) => ({
-                      ...prev,
-                      blobUrl: previewUrlRef.current,
-                    }));
-                  }
-
-                  if (!previewState.timestamp) {
-                    setPreviewState((prev) => ({
-                      ...prev,
-                      timestamp: new Date().toISOString(),
-                    }));
+                  if (!previewUrlRef.current && urlToOpen.startsWith('blob:')) {
+                    previewUrlRef.current = urlToOpen;
                   }
                 } catch (error) {
                   const message = error?.message || 'ไม่สามารถเปิดเอกสารได้';
