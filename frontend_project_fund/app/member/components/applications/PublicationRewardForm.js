@@ -1627,6 +1627,11 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
     try {
       const resp = await publicationBudgetAPI.getValidOptions(category_id, year_id);
       const options = resp.options || resp.data || [];
+
+      if (process.env.NODE_ENV !== 'production') {
+        console.log('[PublicationRewardForm] publication budget options API response:', resp);
+        console.log('[PublicationRewardForm] publication budget options list:', options);
+      }
       const pairs = [];
       const rateMap = {};
       const budgetMap = {};
@@ -1656,12 +1661,37 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
           rateMap[key] = rewardAmount;
         }
 
+        const subcategoryBudget =
+          opt.subcategory_budget ??
+          opt.SubcategoryBudget ??
+          null;
+
+        const resolvedFundDescription = findFirstString([
+          opt.fund_description,
+          opt.fundDescription,
+          opt.fund_detail,
+          opt.FundDescription,
+          subcategoryBudget?.fund_description,
+          subcategoryBudget?.FundDescription,
+          subcategoryBudget?.description,
+          subcategoryBudget?.Description,
+          opt.journal_quartile_label,
+        ]) || '';
+
+        if (process.env.NODE_ENV !== 'production') {
+          console.log('[PublicationRewardForm] normalized budget option entry:', {
+            key,
+            raw: opt,
+            resolvedFundDescription,
+          });
+        }
+
         budgetMap[key] = {
           subcategory_id: opt.subcategory_id ?? null,
           subcategory_budget_id: opt.subcategory_budget_id ?? null,
           fund_name: opt.fund_name ?? opt.fund_title ?? null,
           fund_title: opt.fund_title ?? null,
-          fund_description: opt.fund_description || '',
+          fund_description: resolvedFundDescription,
           subcategory_name: opt.subcategory_name ?? null,
           subcategory_name_th: opt.subcategory_name_th ?? null,
           subcategory_description: opt.subcategory_description ?? null,
