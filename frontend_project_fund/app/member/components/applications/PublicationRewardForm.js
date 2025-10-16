@@ -1964,6 +1964,14 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
     return filteredOptions;
   }, [availableAuthorStatuses, authorStatusLabelMap, formData.author_status, prefilledSubmissionId]);
 
+  const editingNeedsMoreInfoSubmission = Boolean(
+    prefilledSubmissionId &&
+    currentSubmissionStatus === 'needs_more_info' &&
+    !isReadOnly
+  );
+
+  const showDraftActions = !editingNeedsMoreInfoSubmission;
+
   useEffect(() => {
     const editingDraft = prefilledSubmissionId && currentSubmissionStatus === 'draft' && !isReadOnly;
     if (!editingDraft) {
@@ -8168,28 +8176,32 @@ const showSubmissionConfirmation = async () => {
         // ACTION BUTTONS
         // ================================================================= */}
         <div className="flex flex-col sm:flex-row gap-4 pt-6 border-t">
-          <button
-            type="button"
-            onClick={deleteDraft}
-            className="px-4 py-2 text-red-600 border border-red-300 rounded-md hover:bg-red-50"
-          >
-            <X className="h-4 w-4 inline mr-2" />
-            ลบร่าง
-          </button>
+          {showDraftActions && (
+            <button
+              type="button"
+              onClick={deleteDraft}
+              className="px-4 py-2 text-red-600 border border-red-300 rounded-md hover:bg-red-50"
+            >
+              <X className="h-4 w-4 inline mr-2" />
+              ลบร่าง
+            </button>
+          )}
 
-          <button
-            type="button"
-            onClick={saveDraft}
-            disabled={saving || loading}
-            className="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-gray-600 text-white rounded-lg hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-          >
-            {saving ? (
-              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-            ) : (
-              <Save className="h-4 w-4" />
-            )}
-            {saving ? 'กำลังบันทึก...' : 'บันทึกร่าง'}
-          </button>
+          {showDraftActions && (
+            <button
+              type="button"
+              onClick={saveDraft}
+              disabled={saving || loading}
+              className="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-gray-600 text-white rounded-lg hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              {saving ? (
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+              ) : (
+                <Save className="h-4 w-4" />
+              )}
+              {saving ? 'กำลังบันทึก...' : 'บันทึกร่าง'}
+            </button>
+          )}
 
           <button
             type="button"
