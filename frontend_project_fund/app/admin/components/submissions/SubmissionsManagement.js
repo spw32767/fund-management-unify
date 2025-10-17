@@ -30,8 +30,8 @@ const EXPORT_COLUMNS = [
   { key: 'applicantName', header: 'ชื่อผู้ยื่น', width: 26 },
   { key: 'applicantEmail', header: 'อีเมลผู้ยื่น', width: 28 },
   { key: 'coAuthors', header: 'รายชื่อผู้ร่วม', width: 36 },
-  { key: 'requestedAmount', header: 'ยอดที่ขอ (บาท)', width: 16 },
-  { key: 'approvedAmount', header: 'ยอดที่อนุมัติ (บาท)', width: 18 },
+  { key: 'requestedAmount', header: 'ยอดขอ (บาท)', width: 16 },
+  { key: 'approvedAmount', header: 'ยอดอนุมัติ (บาท)', width: 18 },
   { key: 'netAmount', header: 'ยอดสุทธิ (บาท)', width: 18 },
   { key: 'statusLabel', header: 'สถานะ', width: 18 },
   { key: 'createdAt', header: 'สร้างเมื่อ', width: 20 },
@@ -490,17 +490,63 @@ export default function SubmissionsManagement() {
     return (display || `${first} ${last}`.trim()).trim() || email || username;
   };
 
-  const emailFromUser = (u) => {
-    if (!u) return '';
-    return (
-      u.email ||
-      u.user_email ||
-      u.Email ||
-      u.UserEmail ||
-      u.contact_email ||
-      u.ContactEmail ||
-      ''
+  const emailFromUser = (u, visited = new Set()) => {
+    if (!u || visited.has(u)) return '';
+
+    if (typeof u === 'string') {
+      return /@/.test(u) ? u : '';
+    }
+
+    if (typeof u !== 'object') return '';
+
+    visited.add(u);
+
+    const directEmail = pickFirst(
+      u.email,
+      u.user_email,
+      u.Email,
+      u.UserEmail,
+      u.contact_email,
+      u.ContactEmail,
+      u.primary_email,
+      u.PrimaryEmail
     );
+    if (directEmail) return directEmail;
+
+    const nestedKeys = [
+      'user',
+      'User',
+      'profile',
+      'Profile',
+      'contact',
+      'Contact',
+      'applicant',
+      'Applicant'
+    ];
+
+    for (const key of nestedKeys) {
+      const nestedValue = u[key];
+      if (!nestedValue) continue;
+      if (Array.isArray(nestedValue)) {
+        for (const nested of nestedValue) {
+          const nestedEmail = emailFromUser(nested, visited);
+          if (nestedEmail) return nestedEmail;
+        }
+      } else {
+        const nestedEmail = emailFromUser(nestedValue, visited);
+        if (nestedEmail) return nestedEmail;
+      }
+    }
+
+    if (typeof u.toJSON === 'function') {
+      const json = u.toJSON();
+      if (json && json !== u) {
+        const jsonEmail = emailFromUser(json, visited);
+        if (jsonEmail) return jsonEmail;
+      }
+    }
+
+    return '';
   };
 
   const buildExportRow = useCallback(
@@ -594,11 +640,14 @@ export default function SubmissionsManagement() {
 
       const applicantObj =
         detailPayload?.applicant ||
-        submissionObj?.applicant ||
-        submissionObj?.User ||
+        detailPayload?.user ||
         detailPayload?.User ||
-        row?.User ||
+        submissionObj?.applicant ||
+        submissionObj?.user ||
+        submissionObj?.User ||
         row?.applicant ||
+        row?.user ||
+        row?.User ||
         null;
 
       const applicantName =
@@ -608,8 +657,21 @@ export default function SubmissionsManagement() {
 
       const applicantEmail =
         emailFromUser(applicantObj) ||
+        emailFromUser(applicantObj?.User) ||
+        emailFromUser(applicantObj?.user) ||
+        emailFromUser(detailPayload?.user) ||
+        emailFromUser(detailPayload?.User) ||
+        emailFromUser(submissionObj?.user) ||
         emailFromUser(submissionObj?.User) ||
+        emailFromUser(row?.user) ||
+        emailFromUser(row?.User) ||
+        emailFromUser(row?.applicant) ||
         row?.User?.email ||
+        row?.User?.user_email ||
+        row?.user?.email ||
+        row?.user?.user_email ||
+        row?.applicant?.email ||
+        row?.applicant?.user_email ||
         '';
 
       const coAuthorCandidates =
