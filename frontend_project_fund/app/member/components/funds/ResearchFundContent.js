@@ -490,6 +490,12 @@ export default function ResearchFundContent({ onNavigate }) {
   };
 
   const handleApplyForm = (subcategory) => {
+    if (!isWithinApplicationPeriod) {
+      if (typeof window !== "undefined") {
+        window.alert("หมดเวลาการยื่นขอทุนแล้ว");
+      }
+      return;
+    }
     // ไม่ปิดปุ่มยื่นขอในหน้านี้แล้ว ให้ระบบไปตรวจสอบในฟอร์มด้วย table view ใหม่
     // ล้าง readonly เพื่อให้กรอกได้
     try {
@@ -639,8 +645,14 @@ export default function ResearchFundContent({ onNavigate }) {
 
             <button
               onClick={() => handleApplyForm(fund)}
-              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg bg-blue-600 text-white hover:bg-blue-700"
-              title="ยื่นขอทุน"
+              className={`inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
+                isWithinApplicationPeriod
+                  ? "bg-blue-600 text-white hover:bg-blue-700"
+                  : "bg-gray-300 text-gray-500 cursor-not-allowed"
+              }`}
+              title={isWithinApplicationPeriod ? "ยื่นขอทุน" : "หมดเวลาการยื่นขอทุน"}
+              disabled={!isWithinApplicationPeriod}
+              aria-disabled={!isWithinApplicationPeriod}
             >
               <FileText size={16} />
               ยื่นขอทุน
