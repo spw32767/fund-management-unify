@@ -174,8 +174,24 @@ const RewardConfigManager = () => {
         setRewardRates(Array.isArray(ratesData) ? ratesData : []);
       } else {
         const response = await adminAPI.getRewardConfigs(selectedYear);
-        const configsData = response?.data ?? response?.configs ?? [];
-        setRewardConfigs(Array.isArray(configsData) ? configsData : []);
+        const configsPayload = response?.data ?? response?.configs ?? [];
+        const configsArray = Array.isArray(configsPayload)
+          ? configsPayload
+          : Array.isArray(response?.data?.data)
+            ? response.data.data
+            : [];
+
+        const filteredConfigs = configsArray.filter((config) => {
+          const configYear =
+            config?.year != null
+              ? String(config.year)
+              : config?.year_id != null
+                ? String(config.year_id)
+                : null;
+          return configYear === String(selectedYear);
+        });
+
+        setRewardConfigs(filteredConfigs);
       }
     } catch {
       Swal.fire('Error', 'ไม่สามารถโหลดข้อมูลได้', 'error');
