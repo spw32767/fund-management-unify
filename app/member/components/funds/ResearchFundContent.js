@@ -474,17 +474,51 @@ export default function ResearchFundContent({ onNavigate }) {
     return y?.year_id ?? yearId ?? null;
   };
 
+  const findParentCategoryId = (subcategoryId) => {
+    if (!subcategoryId) {
+      return null;
+    }
+
+    const normalizedId = Number(subcategoryId);
+    const parentCategory = fundCategories.find((category) =>
+      category?.subcategories?.some((sub) => {
+        const currentId = sub?.subcategory_id ?? sub?.subcategorie_id;
+        return Number(currentId) === normalizedId;
+      })
+    );
+
+    return parentCategory?.category_id ?? parentCategory?.categoryId ?? null;
+  };
+
   const handleViewDetails = (subcategory) => {
-    // อ่านอย่างเดียวเสมอ (เหมือน Promotion) แต่คง route เดิม
+    const formType = subcategory?.form_type || "download";
+    const formConfig = FORM_TYPE_CONFIG[formType] || {};
+
+    if (!formConfig.isOnlineForm) {
+      const docUrl = subcategory?.form_url || "/documents/default-fund-form.docx";
+      if (typeof window !== "undefined") {
+        window.open(docUrl, "_blank");
+      }
+      return;
+    }
+
     try {
       sessionStorage.setItem("fund_form_readonly", "1");
     } catch {}
+
     if (onNavigate) {
-      onNavigate("generic-fund-application", {
-        subcategory_id: subcategory.subcategory_id || subcategory.subcategorie_id,
-        subcategory_name: subcategory.subcategory_name || subcategory.subcategorie_name,
+      const resolvedSubcategoryId =
+        subcategory?.subcategory_id || subcategory?.subcategorie_id || null;
+      const resolvedSubcategoryName =
+        subcategory?.subcategory_name || subcategory?.subcategorie_name || "";
+
+      onNavigate(formConfig.route || "generic-fund-application", {
+        category_id: findParentCategoryId(resolvedSubcategoryId),
         year_id: yearIdFromSelectedYear(),
         subcategory,
+        subcategory_id: resolvedSubcategoryId,
+        subcategory_name: resolvedSubcategoryName,
+        originPage: "research-fund",
       });
     }
   };
@@ -496,17 +530,34 @@ export default function ResearchFundContent({ onNavigate }) {
       }
       return;
     }
-    // ไม่ปิดปุ่มยื่นขอในหน้านี้แล้ว ให้ระบบไปตรวจสอบในฟอร์มด้วย table view ใหม่
-    // ล้าง readonly เพื่อให้กรอกได้
+    const formType = subcategory?.form_type || "download";
+    const formConfig = FORM_TYPE_CONFIG[formType] || {};
+
+    if (!formConfig.isOnlineForm) {
+      const docUrl = subcategory?.form_url || "/documents/default-fund-form.docx";
+      if (typeof window !== "undefined") {
+        window.open(docUrl, "_blank");
+      }
+      return;
+    }
+
     try {
       sessionStorage.removeItem("fund_form_readonly");
     } catch {}
+
     if (onNavigate) {
-      onNavigate("generic-fund-application", {
-        subcategory_id: subcategory.subcategory_id || subcategory.subcategorie_id,
-        subcategory_name: subcategory.subcategory_name || subcategory.subcategorie_name,
+      const resolvedSubcategoryId =
+        subcategory?.subcategory_id || subcategory?.subcategorie_id || null;
+      const resolvedSubcategoryName =
+        subcategory?.subcategory_name || subcategory?.subcategorie_name || "";
+
+      onNavigate(formConfig.route || "generic-fund-application", {
+        category_id: findParentCategoryId(resolvedSubcategoryId),
         year_id: yearIdFromSelectedYear(),
         subcategory,
+        subcategory_id: resolvedSubcategoryId,
+        subcategory_name: resolvedSubcategoryName,
+        originPage: "research-fund",
       });
     }
   };
@@ -602,7 +653,18 @@ export default function ResearchFundContent({ onNavigate }) {
 
   const renderFundRow = (fund) => {
     const fundName = fund.subcategorie_name || fund.subcategory_name || "ไม่ระบุ";
-    // remaining_budget / used_amount / remaining_grant ไม่ได้ใช้ที่นี่แล้ว ให้ดึงจาก table view แทน
+    const formType = fund.form_type || "download";
+    const formConfig = FORM_TYPE_CONFIG[formType] || {};
+    const ButtonIcon = formConfig.icon || FileText;
+    const isOnlineForm = !!formConfig.isOnlineForm;
+
+    const handleDownload = () => {
+      const docUrl = fund.form_url || "/documents/default-fund-form.docx";
+      if (typeof window !== "undefined") {
+        window.open(docUrl, "_blank");
+      }
+    };
+
     return (
       <tr key={fund.subcategory_id || fund.subcategorie_id} className={!isWithinApplicationPeriod ? "bg-gray-50" : ""}>
         <td className="px-6 py-4 align-top">
@@ -633,31 +695,42 @@ export default function ResearchFundContent({ onNavigate }) {
         </td>
 
         <td className="px-6 py-4 text-center">
-          <div className="inline-flex items-center gap-3">
-            <button
-              onClick={() => handleViewDetails(fund)}
-              className="inline-flex items-center gap-2 px-1 py-2 text-sm font-medium text-blue-600 hover:text-blue-700"
-              title="เปิดดูรายละเอียด (อ่านอย่างเดียว)"
-            >
-              <Search size={16} />
-              ดูรายละเอียด
-            </button>
+          {isOnlineForm ? (
+            <div className="inline-flex items-center gap-3">
+              <button
+                onClick={() => handleViewDetails(fund)}
+                className="inline-flex items-center gap-2 px-1 py-2 text-sm font-medium text-blue-600 hover:text-blue-700"
+                title="เปิดดูรายละเอียด (อ่านอย่างเดียว)"
+              >
+                <Search size={16} />
+                ดูรายละเอียด
+              </button>
 
+              <button
+                onClick={() => handleApplyForm(fund)}
+                className={`inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
+                  isWithinApplicationPeriod
+                    ? "bg-blue-600 text-white hover:bg-blue-700"
+                    : "bg-gray-300 text-gray-500 cursor-not-allowed"
+                }`}
+                title={isWithinApplicationPeriod ? "ยื่นขอทุน" : "หมดเวลาการยื่นขอทุน"}
+                disabled={!isWithinApplicationPeriod}
+                aria-disabled={!isWithinApplicationPeriod}
+              >
+                <ButtonIcon size={16} />
+                ยื่นขอทุน
+              </button>
+            </div>
+          ) : (
             <button
-              onClick={() => handleApplyForm(fund)}
-              className={`inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
-                isWithinApplicationPeriod
-                  ? "bg-blue-600 text-white hover:bg-blue-700"
-                  : "bg-gray-300 text-gray-500 cursor-not-allowed"
-              }`}
-              title={isWithinApplicationPeriod ? "ยื่นขอทุน" : "หมดเวลาการยื่นขอทุน"}
-              disabled={!isWithinApplicationPeriod}
-              aria-disabled={!isWithinApplicationPeriod}
+              onClick={handleDownload}
+              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-blue-600 hover:text-blue-700"
+              title="ดาวน์โหลดแบบฟอร์ม"
             >
-              <FileText size={16} />
-              ยื่นขอทุน
+              <Download size={16} />
+              ดาวน์โหลด
             </button>
-          </div>
+          )}
         </td>
       </tr>
     );

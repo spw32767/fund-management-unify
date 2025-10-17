@@ -847,24 +847,68 @@ export const adminAPI = {
   // Copy rates to new year - ยังไม่มี API นี้ใน docs แต่เราสามารถทำได้ด้วย bulk create
   async copyPublicationRewardRates(fromYear, toYear) {
     try {
-      // ดึงข้อมูลปีเก่า
-      const oldRates = await apiClient.get('/publication-rewards/rates', { year: fromYear });
-      
-      // สร้างข้อมูลใหม่สำหรับปีใหม่
-      const newRates = oldRates.rates.map(rate => ({
-        year: toYear,
-        author_status: rate.author_status,
-        journal_quartile: rate.journal_quartile,
-        reward_amount: rate.reward_amount
-      }));
-      
-      // สร้างทีละรายการ (หรือใช้ bulk ถ้ามี)
-      const promises = newRates.map(rate => 
-        apiClient.post('/publication-rewards/rates', rate)
-      );
-      
-      await Promise.all(promises);
-      return { success: true, message: `Copied ${newRates.length} rates to year ${toYear}` };
+      const response = await this.getPublicationRewardRates(fromYear);
+      const rates = Array.isArray(response?.rates)
+        ? response.rates
+        : Array.isArray(response?.data)
+        ? response.data
+        : [];
+
+      if (!rates.length) {
+        return { success: true, message: `No reward rates to copy from year ${fromYear}` };
+      }
+
+      const extractId = (payload) => {
+        if (!payload || typeof payload !== 'object') return null;
+        if (payload.rate_id != null) return payload.rate_id;
+        if (payload.id != null) return payload.id;
+        if (payload.data) {
+          if (payload.data.rate_id != null) return payload.data.rate_id;
+          if (payload.data.id != null) return payload.data.id;
+          if (payload.data.rate && payload.data.rate.rate_id != null) return payload.data.rate.rate_id;
+        }
+        if (payload.rate && payload.rate.rate_id != null) return payload.rate.rate_id;
+        if (payload.result && payload.result.rate_id != null) return payload.result.rate_id;
+        return null;
+      };
+
+      const isActiveValue = (value) => {
+        if (value === undefined || value === null) return true;
+        if (typeof value === 'boolean') return value;
+        if (typeof value === 'number') return value !== 0;
+        if (typeof value === 'string') {
+          const normalized = value.trim().toLowerCase();
+          if (normalized === 'false' || normalized === '0' || normalized === 'inactive') return false;
+          return normalized !== '';
+        }
+        return Boolean(value);
+      };
+
+      let copiedCount = 0;
+      for (const rate of rates) {
+        const payload = {
+          year: toYear,
+          author_status: rate.author_status,
+          journal_quartile: rate.journal_quartile,
+          reward_amount: rate.reward_amount,
+        };
+
+        const created = await apiClient.post('/publication-rewards/rates', payload);
+        copiedCount += 1;
+
+        if (!isActiveValue(rate?.is_active)) {
+          const newId = extractId(created);
+          if (newId) {
+            try {
+              await apiClient.post(`/publication-rewards/rates/${newId}/toggle`);
+            } catch (toggleError) {
+              console.error('Error toggling copied reward rate status:', toggleError);
+            }
+          }
+        }
+      }
+
+      return { success: true, message: `Copied ${copiedCount} rates to year ${toYear}` };
     } catch (error) {
       console.error('Error copying rates:', error);
       throw error;
@@ -969,24 +1013,70 @@ export const adminAPI = {
   // Copy configs to new year - implement ด้วยการดึงและสร้างใหม่
   async copyRewardConfigs(fromYear, toYear) {
     try {
-      // ดึงข้อมูลปีเก่า
-      const oldConfigs = await apiClient.get('/reward-config', { year: fromYear });
-      
-      // สร้างข้อมูลใหม่สำหรับปีใหม่
-      const newConfigs = oldConfigs.data.map(config => ({
-        year: toYear,
-        journal_quartile: config.journal_quartile,
-        max_amount: config.max_amount,
-        condition_description: config.condition_description
-      }));
-      
-      // สร้างทีละรายการ
-      const promises = newConfigs.map(config => 
-        apiClient.post('/admin/reward-config', config)
-      );
-      
-      await Promise.all(promises);
-      return { success: true, message: `Copied ${newConfigs.length} configs to year ${toYear}` };
+      const response = await this.getRewardConfigs(fromYear);
+      const configs = Array.isArray(response?.data)
+        ? response.data
+        : Array.isArray(response?.configs)
+        ? response.configs
+        : [];
+
+      if (!configs.length) {
+        return { success: true, message: `No reward configs to copy from year ${fromYear}` };
+      }
+
+      const extractConfigId = (payload) => {
+        if (!payload || typeof payload !== 'object') return null;
+        if (payload.config_id != null) return payload.config_id;
+        if (payload.id != null) return payload.id;
+        if (payload.data) {
+          if (payload.data.config_id != null) return payload.data.config_id;
+          if (payload.data.id != null) return payload.data.id;
+          if (payload.data.config && payload.data.config.config_id != null) {
+            return payload.data.config.config_id;
+          }
+        }
+        if (payload.config && payload.config.config_id != null) return payload.config.config_id;
+        if (payload.result && payload.result.config_id != null) return payload.result.config_id;
+        return null;
+      };
+
+      const isActiveValue = (value) => {
+        if (value === undefined || value === null) return true;
+        if (typeof value === 'boolean') return value;
+        if (typeof value === 'number') return value !== 0;
+        if (typeof value === 'string') {
+          const normalized = value.trim().toLowerCase();
+          if (normalized === 'false' || normalized === '0' || normalized === 'inactive') return false;
+          return normalized !== '';
+        }
+        return Boolean(value);
+      };
+
+      let copiedCount = 0;
+      for (const config of configs) {
+        const payload = {
+          year: toYear,
+          journal_quartile: config.journal_quartile,
+          max_amount: config.max_amount,
+          condition_description: config.condition_description,
+        };
+
+        const created = await apiClient.post('/admin/reward-config', payload);
+        copiedCount += 1;
+
+        if (!isActiveValue(config?.is_active)) {
+          const newId = extractConfigId(created);
+          if (newId) {
+            try {
+              await apiClient.post(`/admin/reward-config/${newId}/toggle`);
+            } catch (toggleError) {
+              console.error('Error toggling copied reward config status:', toggleError);
+            }
+          }
+        }
+      }
+
+      return { success: true, message: `Copied ${copiedCount} configs to year ${toYear}` };
     } catch (error) {
       console.error('Error copying configs:', error);
       throw error;

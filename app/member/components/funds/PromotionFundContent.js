@@ -718,7 +718,7 @@ export default function PromotionFundContent({ onNavigate }) {
               title="ดาวน์โหลดแบบฟอร์ม"
             >
               <Download size={16} />
-              ดาวน์โหลดฟอร์ม
+              ดาวน์โหลด
             </button>
           )}
         </td>

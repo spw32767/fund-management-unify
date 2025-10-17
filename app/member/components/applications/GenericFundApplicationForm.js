@@ -1,7 +1,7 @@
 // app/teacher/components/applications/GenericFundApplicationForm.js
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { FileText, Upload, Save, Send, X, Eye, ArrowLeft, AlertCircle, DollarSign, Download, Info } from "lucide-react";
 import Swal from "sweetalert2";
 import PageLayout from "../common/PageLayout";
@@ -9,6 +9,7 @@ import SimpleCard from "../common/SimpleCard";
 import { authAPI, systemAPI, documentTypesAPI } from '../../../lib/api';
 import { fundInstallmentAPI } from '../../../lib/fund_installment_api';
 import { PDFDocument } from "pdf-lib";
+import { useRouter } from "next/navigation";
 
 // เพิ่ม apiClient สำหรับเรียก API โดยตรง
 import apiClient from '../../../lib/api';
@@ -667,6 +668,7 @@ const formatReviewerComment = (value) => {
 // MAIN COMPONENT
 // =================================================================
 export default function GenericFundApplicationForm({ onNavigate, subcategoryData }) {
+  const router = useRouter();
   // =================================================================
   // STATE MANAGEMENT
   // =================================================================
@@ -711,6 +713,21 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
     activity_support_announcement: null,
   });
   const [hasDraft, setHasDraft] = useState(false);
+
+  const originPage = subcategoryData?.originPage || null;
+  const editingExistingSubmission = useMemo(
+    () => Boolean(currentSubmissionId || subcategoryData?.submissionId),
+    [currentSubmissionId, subcategoryData?.submissionId]
+  );
+  const navigationTarget = useMemo(() => {
+    if (originPage) {
+      return originPage;
+    }
+    if (editingExistingSubmission) {
+      return "applications";
+    }
+    return "research-fund";
+  }, [originPage, editingExistingSubmission]);
 
   // =================================================================
   // INITIAL DATA LOADING
@@ -1876,7 +1893,7 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
 
       // Navigate back to research fund page
       if (onNavigate) {
-        onNavigate('research-fund');
+        onNavigate(navigationTarget || 'research-fund');
       }
 
     } catch (error) {
@@ -1897,8 +1914,15 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
   // RENDER FUNCTIONS
   // =================================================================
   const handleBack = () => {
-    if (onNavigate) {
-      onNavigate('research-fund');
+    if (onNavigate && navigationTarget) {
+      onNavigate(navigationTarget);
+      return;
+    }
+
+    if (typeof window !== "undefined" && window.history.length > 1) {
+      router.back();
+    } else {
+      router.push("/member");
     }
   };
 
@@ -1952,7 +1976,6 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
   const pendingStatusCode = pendingStatus?.code ?? '—';
   const formattedRequestedAmount = formatCurrency(formData.requested_amount || 0);
   const requiredDocumentCount = documentRequirements.filter((doc) => doc.required).length;
-  const editingExistingSubmission = Boolean(currentSubmissionId || subcategoryData?.submissionId);
   const bannerPrimaryDescription = firstNonEmptyString(
     subcategoryData?.subcategory?.fund_full_name,
     subcategoryData?.subcategory?.fund_name,
