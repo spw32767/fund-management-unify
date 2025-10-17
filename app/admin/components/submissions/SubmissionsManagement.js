@@ -1,8 +1,8 @@
 // app/admin/components/submissions/SubmissionsManagement.js
 'use client';
 
-import { useState, useEffect, useMemo, useRef } from 'react';
-import { FileText } from 'lucide-react';
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import { Download, FileText } from 'lucide-react';
 import PageLayout from '../common/PageLayout';
 import SubmissionTable from './SubmissionTable';
 import SubmissionFilters from './SubmissionFilters';
@@ -12,12 +12,63 @@ import { submissionsListingAPI, adminSubmissionAPI, commonAPI } from '../../../l
 import { toast } from 'react-hot-toast';
 import systemConfigAPI from '../../../lib/system_config_api';
 import { useStatusMap } from '@/app/hooks/useStatusMap';
+import SubmissionExportModal from './SubmissionExportModal';
+import { downloadXlsx } from '@/app/admin/utils/xlsxExporter';
 
 // ----------- CONFIG -----------
 const PAGE_SIZE  = 10;        // how many rows to show at a time
 
+const EXPORT_COLUMNS = [
+  { key: 'submissionNumber', header: 'เลขที่คำร้อง', width: 18 },
+  { key: 'submissionId', header: 'Submission ID', width: 14 },
+  { key: 'formType', header: 'ประเภทแบบฟอร์ม', width: 18 },
+  { key: 'fiscalYear', header: 'ปีงบประมาณ', width: 14 },
+  { key: 'categoryName', header: 'หมวดทุน', width: 22 },
+  { key: 'subcategoryName', header: 'ประเภททุน', width: 22 },
+  { key: 'fundDescription', header: 'รายละเอียดทุน', width: 26 },
+  { key: 'title', header: 'ชื่อโครงการ/บทความ', width: 40 },
+  { key: 'applicantName', header: 'ชื่อผู้ยื่น', width: 26 },
+  { key: 'applicantEmail', header: 'อีเมลผู้ยื่น', width: 28 },
+  { key: 'coAuthors', header: 'รายชื่อผู้ร่วม', width: 36 },
+  { key: 'requestedAmount', header: 'ยอดขอ (บาท)', width: 16 },
+  { key: 'approvedAmount', header: 'ยอดอนุมัติ (บาท)', width: 18 },
+  { key: 'netAmount', header: 'ยอดสุทธิ (บาท)', width: 18 },
+  { key: 'statusLabel', header: 'สถานะ', width: 18 },
+  { key: 'createdAt', header: 'สร้างเมื่อ', width: 20 },
+  { key: 'submittedAt', header: 'ยื่นเมื่อ', width: 20 },
+  { key: 'approvedAt', header: 'อนุมัติเมื่อ', width: 20 },
+  { key: 'adminComment', header: 'หมายเหตุผู้ดูแล', width: 30 },
+  { key: 'deptComment', header: 'หมายเหตุหัวหน้าสาขา', width: 30 },
+  { key: 'announcementRef', header: 'เลขประกาศ/อ้างอิง', width: 24 },
+  { key: 'journalInfo', header: 'วารสาร / แหล่งตีพิมพ์', width: 32 },
+  { key: 'publicationDate', header: 'วันที่เผยแพร่', width: 20 },
+];
+
+const pickFirst = (...values) => {
+  for (const value of values) {
+    if (value !== undefined && value !== null && value !== '') {
+      return value;
+    }
+  }
+  return undefined;
+};
+
+const toNumberOrNull = (value) => {
+  if (value === undefined || value === null || value === '') return null;
+  const num = Number(value);
+  return Number.isFinite(num) ? num : null;
+};
+
+const formatDateTime = (value) => {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  const pad = (n) => String(Math.abs(Math.trunc(n))).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
+};
+
 export default function SubmissionsManagement() {
-  const { getLabelById } = useStatusMap();
+  const { statuses, isLoading: statusLoading, getLabelById } = useStatusMap();
   // Views
   const [currentView, setCurrentView] = useState('list');
   const [selectedSubmissionId, setSelectedSubmissionId] = useState(null);
@@ -37,6 +88,17 @@ export default function SubmissionsManagement() {
     sort_by: 'created_at',
     sort_order: 'desc',
   });
+
+  const [isExportModalOpen, setIsExportModalOpen] = useState(false);
+  const [pendingExportFilters, setPendingExportFilters] = useState({
+    category: '',
+    subcategory: '',
+    status: '',
+    search: '',
+    sort_by: 'created_at',
+    sort_order: 'desc',
+  });
+  const [exporting, setExporting] = useState(false);
 
   // UI state
   const [loading, setLoading] = useState(true);
@@ -237,122 +299,140 @@ export default function SubmissionsManagement() {
   };
 
   // ---------- CLIENT FILTER + SORT + SEARCH ----------
-  const filteredAndSorted = useMemo(() => {
-    let arr = allSubmissions;
+  const filterAndSortSubmissions = useCallback(
+    (source, activeFilters, options = {}) => {
+      if (!Array.isArray(source)) return [];
 
-    // filter by dropdowns
-    if (filters.category) {
-      arr = arr.filter(s => String(s.category_id) === String(filters.category));
-    }
-    if (filters.subcategory) {
-      arr = arr.filter(s => String(s.subcategory_id) === String(filters.subcategory));
-    }
-    if (filters.status) {
-      arr = arr.filter(s => String(s.status_id) === String(filters.status));
-    }
+      const detailLookup = options.details || detailsMap;
+      const f = activeFilters || {};
+      let arr = source;
 
-    // --- SEARCH across key columns ---
-    if (filters.search?.trim()) {
-      const q = filters.search.trim().toLowerCase();
+      if (f.category) {
+        arr = arr.filter((s) => String(s.category_id) === String(f.category));
+      }
+      if (f.subcategory) {
+        arr = arr.filter((s) => String(s.subcategory_id) === String(f.subcategory));
+      }
+      if (f.status) {
+        arr = arr.filter((s) => String(s.status_id) === String(f.status));
+      }
 
-      const statusText = (sid) => getLabelById(sid) || '';
+      if (f.search?.trim()) {
+        const q = f.search.trim().toLowerCase();
+        const statusText = (sid) => getLabelById(sid) || '';
+        const norm = (v) => (v ?? '').toString().toLowerCase();
 
-      const norm = (v) => (v ?? '').toString().toLowerCase();
+        arr = arr.filter((s) => {
+          const subno = norm(s.submission_number);
+          const catName =
+            s?.Category?.category_name ||
+            (s?.category_id != null ? catMap[String(s.category_id)] : undefined) ||
+            s?.category_name || '';
 
-      arr = arr.filter(s => {
-        // submission_number
-        const subno = norm(s.submission_number);
+          const dp = detailLookup?.[s.submission_id];
+          const dpo = dp?.details?.data || dp?.data || dp || {};
+          const article =
+            s?.FundApplicationDetail?.project_title ||
+            s?.PublicationRewardDetail?.paper_title ||
+            dpo?.project_title ||
+            dpo?.paper_title ||
+            s?.title || '';
 
-        // category / subcategory names via maps (with row fallbacks)
-        const catName =
-          s?.Category?.category_name ||
-          (s?.category_id != null ? catMap[String(s.category_id)] : undefined) ||
-          s?.category_name || '';
+          const subName =
+            s?.Subcategory?.subcategory_name ||
+            (s?.subcategory_id != null ? subMap[String(s.subcategory_id)] : undefined) ||
+            s?.FundApplicationDetail?.Subcategory?.subcategory_name ||
+            dpo?.Subcategory?.subcategory_name ||
+            s?.subcategory_name || '';
 
-        // article title (row detail if present; detailsMap for visible rows; row title fallback)
-        const dp = detailsMap[s.submission_id];
-        const dpo = dp?.details?.data || dp?.data || dp || {};
-        const article =
-          s?.FundApplicationDetail?.project_title ||
-          s?.PublicationRewardDetail?.paper_title ||
-          dpo?.project_title ||
-          dpo?.paper_title ||
-          s?.title || '';
+          const listAuthor =
+            s?.User?.user_fname && s?.User?.user_lname
+              ? `${s.User.user_fname} ${s.User.user_lname}`
+              : s?.User?.email || '';
+          const authorFromMap = s?.user_id ? userMap[String(s.user_id)] : '';
+          const author = authorFromMap || listAuthor || '';
 
-        const subName =
-          s?.Subcategory?.subcategory_name ||
-          (s?.subcategory_id != null ? subMap[String(s.subcategory_id)] : undefined) ||
-          s?.FundApplicationDetail?.Subcategory?.subcategory_name ||
-          dpo?.Subcategory?.subcategory_name ||
-          s?.subcategory_name || '';
+          const rawAmt = Number(
+            (dpo?.total_amount ??
+              dpo?.total_reward_amount ??
+              dpo?.net_amount ??
+              dpo?.requested_amount ??
+              dpo?.approved_amount ??
+              ((dpo?.reward_amount || 0) +
+                (dpo?.revision_fee || 0) +
+                (dpo?.publication_fee || 0) -
+                (dpo?.external_funding_amount || 0))) ||
+              (s?.approved_amount ?? s?.requested_amount ?? s?.amount ?? 0)
+          );
+          const amtStr = Number.isFinite(rawAmt) ? rawAmt.toString() : '';
+          const amtFmt = Number.isFinite(rawAmt) ? rawAmt.toLocaleString() : '';
 
-        // author display (userMap then row)
-        const listAuthor =
-          (s?.User?.user_fname && s?.User?.user_lname)
-            ? `${s.User.user_fname} ${s.User.user_lname}`
-            : (s?.User?.email || '');
-        const authorFromMap = s?.user_id ? userMap[String(s.user_id)] : '';
-        const author = authorFromMap || listAuthor || '';
+          const statusStr = norm(s.display_status || s.status?.status_name || statusText(s.status_id));
 
-        // amount as plain and formatted string
-        const rawAmt = Number(
-          (dpo?.total_amount ?? dpo?.total_reward_amount ?? dpo?.net_amount ??
-           dpo?.requested_amount ?? dpo?.approved_amount ??
-            ((dpo?.reward_amount || 0) + (dpo?.revision_fee || 0) + (dpo?.publication_fee || 0) - (dpo?.external_funding_amount || 0))) ||
-          (s?.approved_amount ?? s?.requested_amount ?? s?.amount ?? 0)
-        );
-        const amtStr = isFinite(rawAmt) ? rawAmt.toString() : '';
-        const amtFmt = isFinite(rawAmt) ? rawAmt.toLocaleString() : '';
+          const dateVal =
+            s?.display_date || s?.submitted_at || s?.created_at || s?.approved_at || '';
+          const dateStr = dateVal ? new Date(dateVal).toLocaleDateString('th-TH') : '';
 
-        // status
-        const statusStr = norm(s.display_status || s.status?.status_name || statusText(s.status_id));
+          const fields = [
+            subno,
+            norm(catName),
+            norm(subName),
+            norm(article),
+            norm(author),
+            amtStr,
+            amtFmt,
+            statusStr,
+            norm(dateStr),
+          ];
 
-        // date string
-        const dateVal = s?.display_date || s?.submitted_at || s?.created_at ||  s?.approved_at || '';
-        const dateStr = dateVal ? new Date(dateVal).toLocaleDateString('th-TH') : '';
+          return fields.some((field) => field && field.includes(q));
+        });
+      }
 
-        const fields = [
-          subno,
-          norm(catName),
-          norm(subName),
-          norm(article),
-          norm(author),
-          amtStr, amtFmt,
-          statusStr,
-          norm(dateStr),
-        ];
+      if (options.skipSort) {
+        return [...arr];
+      }
 
-        return fields.some(f => f && f.includes(q));
+      const order = (f.sort_order || 'desc').toLowerCase();
+      const sortBy = f.sort_by || 'created_at';
+
+      const val = (s) => {
+        switch (sortBy) {
+          case 'updated_at':
+            return new Date(s.updated_at || s.update_at || 0).getTime();
+          case 'submitted_at':
+            return new Date(s.submitted_at || 0).getTime();
+          case 'approved_at':
+            return new Date(s.approved_at || 0).getTime();
+          case 'submission_number':
+            return (s.submission_number || '').toString();
+          case 'status_id':
+            return Number(s.status_id) || 0;
+          case 'created_at':
+          default:
+            return new Date(s.created_at || s.create_at || 0).getTime();
+        }
+      };
+
+      const arrCopy = [...arr].sort((a, b) => {
+        const A = val(a);
+        const B = val(b);
+        if (typeof A === 'string' || typeof B === 'string') {
+          return order === 'asc'
+            ? String(A).localeCompare(String(B))
+            : String(B).localeCompare(String(A));
+        }
+        return order === 'asc' ? A - B : B - A;
       });
-    }
 
-    // sort (client side)
-    const order = (filters.sort_order || 'desc').toLowerCase();
-    const sortBy = filters.sort_by || 'created_at';
+      return arrCopy;
+    },
+    [catMap, subMap, userMap, detailsMap, getLabelById]
+  );
 
-    const val = (s) => {
-      switch (sortBy) {
-        case 'updated_at': return new Date(s.updated_at || s.update_at || 0).getTime();
-        case 'submitted_at': return new Date(s.submitted_at || 0).getTime();
-        case 'approved_at': return new Date(s.approved_at || 0).getTime();
-        case 'submission_number': return (s.submission_number || '').toString();
-        case 'status_id': return Number(s.status_id) || 0;
-        case 'created_at':
-        default: return new Date(s.created_at || s.create_at || 0).getTime();
-      }
-    };
-
-    const arrCopy = [...arr].sort((a, b) => {
-      const A = val(a), B = val(b);
-      if (typeof A === 'string' || typeof B === 'string') {
-        return order === 'asc' ? String(A).localeCompare(String(B)) : String(B).localeCompare(String(A));
-      }
-      return order === 'asc' ? A - B : B - A;
-    });
-
-    return arrCopy;
-  // include maps and details so search updates when they arrive
-  }, [allSubmissions, filters, catMap, subMap, userMap, detailsMap]);
+  const filteredAndSorted = useMemo(() => {
+    return filterAndSortSubmissions(allSubmissions, filters);
+  }, [allSubmissions, filters, filterAndSortSubmissions]);
 
   // ---------- helper: build display name from mixed casing ----------
   const nameFromUser = (u) => {
@@ -371,6 +451,330 @@ export default function SubmissionsManagement() {
     const username = u.username || u.UserName || '';
     return (display || `${first} ${last}`.trim()).trim() || email || username;
   };
+
+  const emailFromUser = (u) => {
+    if (!u) return '';
+    return (
+      u.email ||
+      u.user_email ||
+      u.Email ||
+      u.UserEmail ||
+      u.contact_email ||
+      u.ContactEmail ||
+      ''
+    );
+  };
+
+  const buildExportRow = useCallback(
+    (row, detailLookup) => {
+      const lookup = detailLookup || detailsMap;
+      const detailWrapper = lookup?.[row.submission_id];
+      const detailPayload =
+        detailWrapper?.details?.data ||
+        detailWrapper?.data ||
+        detailWrapper?.payload ||
+        detailWrapper ||
+        {};
+
+      const submissionObj =
+        detailWrapper?.submission ||
+        detailWrapper?.Submission ||
+        detailPayload?.submission ||
+        detailPayload?.Submission ||
+        row ||
+        {};
+
+      const rawType =
+        (detailWrapper?.details?.type ||
+          detailPayload?.type ||
+          row?.form_type ||
+          row?.submission_type ||
+          submissionObj?.form_type ||
+          submissionObj?.submission_type ||
+          '')
+          .toString()
+          .toLowerCase();
+
+      const formTypeLabel = (() => {
+        if (!rawType) return '';
+        if (rawType === 'publication_reward') return 'Publication Reward';
+        if (rawType === 'fund_application') return 'Fund Application';
+        return rawType.replace(/_/g, ' ');
+      })();
+
+      const categoryName =
+        row?.Category?.category_name ||
+        submissionObj?.Category?.category_name ||
+        detailPayload?.Category?.category_name ||
+        (row?.category_id != null
+          ? catMap[String(row.category_id)]
+          : submissionObj?.category_id != null
+          ? catMap[String(submissionObj.category_id)]
+          : undefined) ||
+        row?.category_name ||
+        submissionObj?.category_name ||
+        '';
+
+      const subcategoryId = pickFirst(
+        row?.subcategory_id,
+        submissionObj?.subcategory_id,
+        detailPayload?.subcategory_id,
+        detailPayload?.Subcategory?.subcategory_id,
+        detailPayload?.FundApplicationDetail?.subcategory_id
+      );
+
+      const subcategoryName =
+        row?.Subcategory?.subcategory_name ||
+        submissionObj?.Subcategory?.subcategory_name ||
+        detailPayload?.Subcategory?.subcategory_name ||
+        detailPayload?.FundApplicationDetail?.Subcategory?.subcategory_name ||
+        (subcategoryId != null ? subMap[String(subcategoryId)] : undefined) ||
+        row?.subcategory_name ||
+        submissionObj?.subcategory_name ||
+        '';
+
+      const fundDescription =
+        (row?.subcategory_budget_id != null
+          ? budgetMap[String(row.subcategory_budget_id)]
+          : undefined) ||
+        (subcategoryId != null ? subBudgetDescMap[String(subcategoryId)] : undefined) ||
+        detailPayload?.fund_description ||
+        submissionObj?.fund_description ||
+        '';
+
+      const title =
+        detailPayload?.project_title ||
+        detailPayload?.paper_title ||
+        detailPayload?.FundApplicationDetail?.project_title ||
+        detailPayload?.PublicationRewardDetail?.paper_title ||
+        row?.FundApplicationDetail?.project_title ||
+        row?.PublicationRewardDetail?.paper_title ||
+        submissionObj?.project_title ||
+        submissionObj?.paper_title ||
+        row?.title ||
+        '';
+
+      const applicantObj =
+        detailPayload?.applicant ||
+        submissionObj?.applicant ||
+        submissionObj?.User ||
+        detailPayload?.User ||
+        row?.User ||
+        row?.applicant ||
+        null;
+
+      const applicantName =
+        (applicantObj && nameFromUser(applicantObj)) ||
+        (row?.user_id ? userMap[String(row.user_id)] : '') ||
+        '';
+
+      const applicantEmail =
+        emailFromUser(applicantObj) ||
+        emailFromUser(submissionObj?.User) ||
+        row?.User?.email ||
+        '';
+
+      const coAuthorCandidates =
+        detailPayload?.co_authors ||
+        detailPayload?.CoAuthors ||
+        detailPayload?.coAuthors ||
+        detailPayload?.authors ||
+        submissionObj?.co_authors ||
+        [];
+
+      const coAuthors = (() => {
+        if (Array.isArray(coAuthorCandidates)) {
+          const mapped = coAuthorCandidates
+            .map((person) => {
+              if (!person) return '';
+              if (typeof person === 'string') return person.trim();
+              const name = nameFromUser(person);
+              const email = emailFromUser(person);
+              if (name && email) return `${name} <${email}>`;
+              return name || email || '';
+            })
+            .filter(Boolean);
+          return mapped.join('; ');
+        }
+        if (typeof coAuthorCandidates === 'string') {
+          return coAuthorCandidates;
+        }
+        return '';
+      })();
+
+      const requestedAmount =
+        toNumberOrNull(
+          pickFirst(
+            detailPayload?.requested_amount,
+            detailPayload?.total_amount,
+            detailPayload?.FundApplicationDetail?.requested_amount,
+            detailPayload?.PublicationRewardDetail?.requested_amount,
+            submissionObj?.requested_amount,
+            row?.requested_amount
+          )
+        ) ?? undefined;
+
+      const approvedAmount =
+        toNumberOrNull(
+          pickFirst(
+            detailPayload?.approved_amount,
+            detailPayload?.total_approved_amount,
+            detailPayload?.FundApplicationDetail?.approved_amount,
+            detailPayload?.PublicationRewardDetail?.approved_amount,
+            submissionObj?.approved_amount,
+            row?.approved_amount
+          )
+        ) ?? undefined;
+
+      const netAmount =
+        toNumberOrNull(
+          pickFirst(
+            detailPayload?.net_amount,
+            detailPayload?.total_reward_amount,
+            detailPayload?.total_requested_amount,
+            (requestedAmount != null && approvedAmount != null
+              ? Math.max(approvedAmount, requestedAmount)
+              : null),
+            submissionObj?.net_amount,
+            row?.net_amount
+          )
+        ) ?? undefined;
+
+      const statusLabel =
+        row?.display_status ||
+        row?.status?.status_name ||
+        submissionObj?.status?.status_name ||
+        getLabelById(row?.status_id) ||
+        getLabelById(submissionObj?.status_id) ||
+        '';
+
+      const createdAt = formatDateTime(
+        pickFirst(row?.created_at, row?.create_at, submissionObj?.created_at)
+      );
+      const submittedAt = formatDateTime(
+        pickFirst(
+          row?.submitted_at,
+          submissionObj?.submitted_at,
+          detailPayload?.submitted_at
+        )
+      );
+      const approvedAt = formatDateTime(
+        pickFirst(row?.approved_at, submissionObj?.approved_at, detailPayload?.approved_at)
+      );
+
+      const adminComment =
+        pickFirst(
+          detailPayload?.admin_comment,
+          detailPayload?.admin_note,
+          submissionObj?.admin_comment,
+          submissionObj?.admin_note,
+          row?.admin_comment
+        ) || '';
+
+      const deptComment =
+        pickFirst(
+          detailPayload?.dept_head_comment,
+          detailPayload?.department_comment,
+          detailPayload?.DepartmentComment,
+          submissionObj?.dept_head_comment,
+          row?.dept_head_comment
+        ) || '';
+
+      const announcementRef =
+        pickFirst(
+          detailPayload?.announcement_reference_number,
+          detailPayload?.announcement_number,
+          submissionObj?.announcement_reference_number,
+          submissionObj?.announcement_number,
+          row?.announcement_reference_number
+        ) || '';
+
+      const publicationDetail =
+        detailPayload?.PublicationRewardDetail || detailPayload?.publication || detailPayload;
+
+      const journalParts = [];
+      const journalName = pickFirst(
+        publicationDetail?.journal_name,
+        publicationDetail?.journal,
+        publicationDetail?.journal_title
+      );
+      if (journalName) journalParts.push(journalName);
+      const volume = pickFirst(publicationDetail?.volume, publicationDetail?.volume_no);
+      if (volume) journalParts.push(`Vol. ${volume}`);
+      const issue = pickFirst(publicationDetail?.issue, publicationDetail?.issue_no);
+      if (issue) journalParts.push(`No. ${issue}`);
+      const pages = pickFirst(
+        publicationDetail?.page_range,
+        publicationDetail?.pages,
+        publicationDetail?.page_start && publicationDetail?.page_end
+          ? `${publicationDetail.page_start}-${publicationDetail.page_end}`
+          : null
+      );
+      if (pages) journalParts.push(`pp. ${pages}`);
+      const indexing = pickFirst(publicationDetail?.indexing, publicationDetail?.database);
+      if (indexing) journalParts.push(indexing);
+      const quartile = pickFirst(publicationDetail?.quartile, publicationDetail?.quartile_level);
+      if (quartile) journalParts.push(`Quartile ${quartile}`);
+
+      const publicationRawDate = pickFirst(
+        publicationDetail?.publication_date,
+        publicationDetail?.published_at,
+        publicationDetail?.accept_date
+      );
+      const publicationDate =
+        formatDateTime(publicationRawDate) ||
+        pickFirst(
+          publicationDetail?.publication_year,
+          publicationDetail?.published_year,
+          publicationDetail?.publish_year,
+          publicationDetail?.year
+        ) ||
+        '';
+
+      const fiscalYear = pickFirst(
+        row?.Year?.year,
+        submissionObj?.Year?.year,
+        row?.year,
+        submissionObj?.year,
+        detailPayload?.year
+      );
+
+      return {
+        submissionNumber: row?.submission_number || submissionObj?.submission_number || '',
+        submissionId: row?.submission_id || submissionObj?.submission_id || row?.id || '',
+        formType: formTypeLabel,
+        fiscalYear: fiscalYear || '',
+        categoryName,
+        subcategoryName,
+        fundDescription,
+        title,
+        applicantName,
+        applicantEmail,
+        coAuthors,
+        requestedAmount,
+        approvedAmount,
+        netAmount,
+        statusLabel,
+        createdAt,
+        submittedAt,
+        approvedAt,
+        adminComment,
+        deptComment,
+        announcementRef,
+        journalInfo: journalParts.join(' | '),
+        publicationDate,
+      };
+    },
+    [
+      budgetMap,
+      catMap,
+      subBudgetDescMap,
+      subMap,
+      userMap,
+      detailsMap,
+      getLabelById,
+    ]
+  );
 
   // When year changes → fetch all for that year; reset window
   useEffect(() => {
@@ -551,16 +955,89 @@ export default function SubmissionsManagement() {
     // We already have all data locally; no refetch needed
   };
 
-  const handleExport = async (format) => {
-    try {
-      // You can export the currently filtered set
-      toast.success(`เตรียมข้อมูล export เรียบร้อย (${filteredAndSorted.length} รายการ)`);
-      // TODO: send filtered params or data to your backend exporter if needed
-    } catch (error) {
-      console.error('Error exporting:', error);
-      toast.error('ไม่สามารถ export ข้อมูลได้');
+  const handleOpenExportModal = () => {
+    setPendingExportFilters({ ...filters });
+    setIsExportModalOpen(true);
+  };
+
+  const handleCloseExportModal = () => {
+    if (!exporting) {
+      setIsExportModalOpen(false);
     }
   };
+
+  const getSelectedYearInfo = useCallback(() => {
+    if (!selectedYear) return { year: 'ทั้งหมด', budget: 0 };
+    const y = years.find(y => String(y.year_id) === String(selectedYear));
+    return y || { year: selectedYear, budget: 0 };
+  }, [selectedYear, years]);
+
+  const handleExportConfirm = useCallback(
+    async (selectedFilters) => {
+      setIsExportModalOpen(false);
+      setExporting(true);
+
+      try {
+        const effectiveFilters = {
+          ...filters,
+          ...selectedFilters,
+          sort_by: selectedFilters.sort_by || filters.sort_by,
+          sort_order: selectedFilters.sort_order || filters.sort_order,
+        };
+        setPendingExportFilters(effectiveFilters);
+
+        const rows = filterAndSortSubmissions(allSubmissions, effectiveFilters);
+        if (!rows.length) {
+          toast.error('ไม่พบข้อมูลตามตัวกรองที่เลือก');
+          return;
+        }
+
+        const needDetails = rows.filter((s) => !detailsMap[s.submission_id]);
+        let fetchedDetails = {};
+        if (needDetails.length) {
+          const results = await Promise.allSettled(
+            needDetails.map((item) =>
+              adminSubmissionAPI.getSubmissionDetails(item.submission_id)
+            )
+          );
+          results.forEach((result, index) => {
+            if (result.status === 'fulfilled') {
+              fetchedDetails[needDetails[index].submission_id] = result.value;
+            }
+          });
+
+          if (Object.keys(fetchedDetails).length) {
+            setDetailsMap((prev) => ({ ...prev, ...fetchedDetails }));
+          }
+        }
+
+        const detailLookup = { ...detailsMap, ...fetchedDetails };
+        const dataset = rows.map((row) => buildExportRow(row, detailLookup));
+
+        const yearInfo = getSelectedYearInfo();
+        const timestamp = new Date().toISOString().replace(/[:T]/g, '-').split('.')[0];
+        const filename = `submissions_${yearInfo.year || 'all'}_${timestamp}.xlsx`;
+        downloadXlsx(EXPORT_COLUMNS, dataset, {
+          sheetName: 'Submissions',
+          filename,
+        });
+        toast.success(`ส่งออก ${dataset.length} รายการเรียบร้อยแล้ว`);
+      } catch (error) {
+        console.error('Error exporting submissions:', error);
+        toast.error('ไม่สามารถ export ข้อมูลได้');
+      } finally {
+        setExporting(false);
+      }
+    },
+    [
+      filters,
+      filterAndSortSubmissions,
+      allSubmissions,
+      detailsMap,
+      buildExportRow,
+      getSelectedYearInfo,
+    ]
+  );
 
   // สร้างรายการปุ่มหน้า: [1, '...', 4, 5, 6, '...', total]
   const getPageItems = (current, total) => {
@@ -589,12 +1066,6 @@ export default function SubmissionsManagement() {
     return rangeWithDots;
   };
 
-
-  const getSelectedYearInfo = () => {
-    if (!selectedYear) return { year: 'ทั้งหมด', budget: 0 };
-    const y = years.find(y => String(y.year_id) === String(selectedYear));
-    return y || { year: selectedYear, budget: 0 };
-  };
 
   // ---------- Views ----------
   if (currentView === 'details' && selectedSubmissionId) {
@@ -643,6 +1114,17 @@ export default function SubmissionsManagement() {
                   </option>
                 ))}
               </select>
+            </div>
+            <div className="mt-4 sm:mt-0">
+              <button
+                type="button"
+                onClick={handleOpenExportModal}
+                disabled={loading || exporting}
+                className="inline-flex items-center px-4 py-2 rounded-lg border border-indigo-500 text-indigo-600 font-semibold bg-white hover:bg-indigo-50 disabled:opacity-50 disabled:cursor-not-allowed gap-2"
+              >
+                <Download className="h-5 w-5" />
+                {exporting ? 'กำลังเตรียมไฟล์...' : 'ส่งออกเป็น Excel'}
+              </button>
             </div>
           </div>
         </div>
@@ -731,6 +1213,17 @@ export default function SubmissionsManagement() {
           </div>
         )}
       </div>
+
+      <SubmissionExportModal
+        open={isExportModalOpen}
+        onClose={handleCloseExportModal}
+        onConfirm={handleExportConfirm}
+        initialFilters={pendingExportFilters}
+        selectedYear={selectedYear}
+        statuses={statuses}
+        statusLoading={statusLoading}
+        isExporting={exporting}
+      />
     </PageLayout>
   );
 }

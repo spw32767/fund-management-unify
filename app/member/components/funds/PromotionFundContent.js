@@ -510,6 +510,12 @@ export default function PromotionFundContent({ onNavigate }) {
 
   // REPLACE: handleApplyForm — ล้าง read-only เพื่อให้กรอกได้
   const handleApplyForm = (subcategory) => {
+    if (!isWithinApplicationPeriod) {
+      if (typeof window !== 'undefined') {
+        window.alert('หมดเวลาการยื่นขอทุนแล้ว');
+      }
+      return;
+    }
     const formType = subcategory.form_type || 'download';
     const formConfig = FORM_TYPE_CONFIG[formType] || {};
     if (!formConfig.isOnlineForm) {
@@ -689,8 +695,14 @@ export default function PromotionFundContent({ onNavigate }) {
 
               <button
                 onClick={() => handleApplyForm(fund)}
-                className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg bg-blue-600 text-white hover:bg-blue-700"
-                title="ยื่นขอทุน"
+                className={`inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
+                  isWithinApplicationPeriod
+                    ? 'bg-blue-600 text-white hover:bg-blue-700'
+                    : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                }`}
+                title={isWithinApplicationPeriod ? 'ยื่นขอทุน' : 'หมดเวลาการยื่นขอทุน'}
+                disabled={!isWithinApplicationPeriod}
+                aria-disabled={!isWithinApplicationPeriod}
               >
                 <ButtonIcon size={16} />
                 ยื่นขอทุน
