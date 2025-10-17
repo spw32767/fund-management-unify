@@ -770,10 +770,20 @@ export default function SubmissionsManagement() {
         '';
 
       const fiscalYear = pickFirst(
+        row?.Year?.year_th,
         row?.Year?.year,
-        submissionObj?.Year?.year,
+        row?.Year,
+        row?.year_th,
         row?.year,
+        submissionObj?.Year?.year_th,
+        submissionObj?.Year?.year,
+        submissionObj?.Year,
+        submissionObj?.year_th,
         submissionObj?.year,
+        detailPayload?.Year?.year_th,
+        detailPayload?.Year?.year,
+        detailPayload?.Year,
+        detailPayload?.year_th,
         detailPayload?.year
       );
 
