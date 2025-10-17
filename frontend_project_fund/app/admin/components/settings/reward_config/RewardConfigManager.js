@@ -240,6 +240,22 @@ const RewardConfigManager = () => {
     });
   }, [rewardConfigs, configSort]);
 
+  const hasRewardRateData = rewardRates.length > 0;
+  const hasFeeLimitData = rewardConfigs.length > 0;
+
+  const copyDisabledReason = useMemo(() => {
+    if (!selectedYear) {
+      return 'กรุณาเลือกปีงบประมาณก่อน';
+    }
+    if (activeSubTab === 'rates' && !hasRewardRateData) {
+      return 'ปีที่เลือกยังไม่มีข้อมูลอัตราเงินรางวัล';
+    }
+    if (activeSubTab === 'configs' && !hasFeeLimitData) {
+      return 'ปีที่เลือกยังไม่มีข้อมูลวงเงินค่าธรรมเนียม';
+    }
+    return null;
+  }, [activeSubTab, hasFeeLimitData, hasRewardRateData, selectedYear]);
+
   // ====== Toggle / Delete ======
   const toggleStatus = async (id, currentStatus, type) => {
     const result = await Swal.fire({
@@ -331,8 +347,8 @@ const RewardConfigManager = () => {
 
   // ====== Copy to New Year ======
   const copyToNewYear = async () => {
-    if (!selectedYear) {
-      await Swal.fire('แจ้งเตือน', 'กรุณาเลือกปีที่ต้องการคัดลอกก่อน', 'warning');
+    if (copyDisabledReason) {
+      await Swal.fire('แจ้งเตือน', copyDisabledReason, 'warning');
       return;
     }
 
@@ -487,7 +503,8 @@ const RewardConfigManager = () => {
         years.length > 0 ? (
           <button
             onClick={copyToNewYear}
-            disabled={!selectedYear || copying}
+            disabled={Boolean(copyDisabledReason) || copying}
+            title={copyDisabledReason || undefined}
             className="inline-flex items-center gap-2 rounded-lg border border-blue-200 px-4 py-2 text-sm font-medium text-blue-600 transition hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-60"
           >
             <Copy size={16} />
