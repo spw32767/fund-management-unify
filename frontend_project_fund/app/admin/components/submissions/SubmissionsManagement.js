@@ -54,7 +54,15 @@ const pickFirst = (...values) => {
 };
 
 const toNumberOrNull = (value) => {
-  if (value === undefined || value === null || value === '') return null;
+  if (value === undefined || value === null) return null;
+
+  if (typeof value === 'string') {
+    const cleaned = value.replace(/,/g, '').trim();
+    if (cleaned === '') return null;
+    const num = Number(cleaned);
+    return Number.isFinite(num) ? num : null;
+  }
+
   const num = Number(value);
   return Number.isFinite(num) ? num : null;
 };
