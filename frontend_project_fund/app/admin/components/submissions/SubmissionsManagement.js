@@ -787,11 +787,44 @@ export default function SubmissionsManagement() {
         detailPayload?.year
       );
 
+      const yearIdCandidate = pickFirst(
+        row?.year_id,
+        row?.Year?.year_id,
+        submissionObj?.year_id,
+        submissionObj?.Year?.year_id,
+        detailPayload?.year_id,
+        detailPayload?.Year?.year_id,
+        selectedYear
+      );
+
+      const normalizedFiscalYear = normalizeYearValue(fiscalYear);
+
+      let fiscalYearLabel = normalizedFiscalYear;
+      if (!fiscalYearLabel && yearIdCandidate != null) {
+        const yearMatch = years.find(
+          (item) => String(item?.year_id) === String(yearIdCandidate)
+        );
+        if (yearMatch) {
+          fiscalYearLabel =
+            normalizeYearValue(yearMatch) ||
+            normalizeYearValue(yearMatch?.year) ||
+            String(yearMatch.year ?? yearMatch.year_id);
+        }
+      }
+
+      if (!fiscalYearLabel && fiscalYear != null && fiscalYear !== '') {
+        fiscalYearLabel = String(fiscalYear);
+      }
+
+      if (!fiscalYearLabel && yearIdCandidate != null) {
+        fiscalYearLabel = String(yearIdCandidate);
+      }
+
       return {
         submissionNumber: row?.submission_number || submissionObj?.submission_number || '',
         submissionId: row?.submission_id || submissionObj?.submission_id || row?.id || '',
         formType: formTypeLabel,
-        fiscalYear: normalizeYearValue(fiscalYear),
+        fiscalYear: fiscalYearLabel,
         categoryName,
         subcategoryName,
         fundDescription,
@@ -821,6 +854,8 @@ export default function SubmissionsManagement() {
       userMap,
       detailsMap,
       getLabelById,
+      years,
+      selectedYear,
     ]
   );
 
