@@ -77,7 +77,13 @@ const RewardConfigManager = () => {
   // ====== Load Years ======
   const loadAvailableYears = async () => {
     try {
-      const [ratesResponse, configsResponse, currentYearResponse] = await Promise.all([
+      const [
+        adminYearsResponse,
+        ratesResponse,
+        configsResponse,
+        currentYearResponse
+      ] = await Promise.all([
+        adminAPI.getYears().catch(() => []),
         adminAPI.getPublicationRewardRatesYears().catch(() => ({ years: [] })),
         adminAPI.getRewardConfigYears().catch(() => ({ years: [] })),
         systemConfigAPI.getCurrentYear().catch(() => null)
@@ -102,12 +108,13 @@ const RewardConfigManager = () => {
           .filter((val) => val);
       };
 
+      const adminYears = toYearStrings(adminYearsResponse);
       const rateYears = toYearStrings(ratesResponse?.years ?? ratesResponse?.data?.years ?? []);
       const configYears = toYearStrings(configsResponse?.years ?? configsResponse?.data?.years ?? []);
       const systemYearCandidateRaw =
         currentYearResponse?.current_year ?? currentYearResponse?.data?.current_year ?? null;
 
-      const mergedYears = [...rateYears, ...configYears];
+      const mergedYears = [...adminYears, ...rateYears, ...configYears];
       if (systemYearCandidateRaw != null) {
         mergedYears.push(String(systemYearCandidateRaw));
       }
@@ -117,10 +124,18 @@ const RewardConfigManager = () => {
 
       if (uniqueYears.length > 0) {
         setYears(uniqueYears);
-        const desiredYear = systemYearCandidateRaw != null ? String(systemYearCandidateRaw) : uniqueYears[0];
-        if (desiredYear) {
-          setSelectedYear(desiredYear);
-        }
+        setSelectedYear((prev) => {
+          if (prev && uniqueYears.includes(prev)) {
+            return prev;
+          }
+          if (systemYearCandidateRaw != null) {
+            const systemYearString = String(systemYearCandidateRaw);
+            if (uniqueYears.includes(systemYearString)) {
+              return systemYearString;
+            }
+          }
+          return uniqueYears[0] || prev || '';
+        });
       } else {
         const fallbackYear =
           systemYearCandidateRaw != null
@@ -155,13 +170,36 @@ const RewardConfigManager = () => {
     try {
       if (activeSubTab === 'rates') {
         const response = await adminAPI.getPublicationRewardRates(selectedYear);
-        setRewardRates(response.rates || []);
+        const ratesData = response?.rates ?? response?.data ?? [];
+        setRewardRates(Array.isArray(ratesData) ? ratesData : []);
       } else {
         const response = await adminAPI.getRewardConfigs(selectedYear);
-        setRewardConfigs(response.data || []);
+        const configsPayload = response?.data ?? response?.configs ?? [];
+        const configsArray = Array.isArray(configsPayload)
+          ? configsPayload
+          : Array.isArray(response?.data?.data)
+            ? response.data.data
+            : [];
+
+        const filteredConfigs = configsArray.filter((config) => {
+          const configYear =
+            config?.year != null
+              ? String(config.year)
+              : config?.year_id != null
+                ? String(config.year_id)
+                : null;
+          return configYear === String(selectedYear);
+        });
+
+        setRewardConfigs(filteredConfigs);
       }
     } catch {
       Swal.fire('Error', 'ไม่สามารถโหลดข้อมูลได้', 'error');
+      if (activeSubTab === 'rates') {
+        setRewardRates([]);
+      } else {
+        setRewardConfigs([]);
+      }
     }
     setLoading(false);
   };
@@ -330,9 +368,31 @@ const RewardConfigManager = () => {
   };
 
   // ====== Copy to New Year ======
+  const copyTargetLabel = useMemo(
+    () => (activeSubTab === 'rates'
+      ? 'อัตราเงินรางวัล (Reward Rates)'
+      : 'วงเงินค่าธรรมเนียม (Fee Limits)'),
+    [activeSubTab]
+  );
+
+  const hasCopyableData = useMemo(() => {
+    if (!selectedYear) return false;
+    const dataset = activeSubTab === 'rates' ? rewardRates : rewardConfigs;
+    return Array.isArray(dataset) && dataset.length > 0;
+  }, [activeSubTab, rewardRates, rewardConfigs, selectedYear]);
+
   const copyToNewYear = async () => {
     if (!selectedYear) {
       await Swal.fire('แจ้งเตือน', 'กรุณาเลือกปีที่ต้องการคัดลอกก่อน', 'warning');
+      return;
+    }
+
+    if (!hasCopyableData) {
+      await Swal.fire(
+        'แจ้งเตือน',
+        `ไม่มีข้อมูล ${copyTargetLabel} สำหรับปี พ.ศ. ${selectedYear} ให้คัดลอก`,
+        'warning'
+      );
       return;
     }
 
@@ -372,7 +432,7 @@ const RewardConfigManager = () => {
     `;
 
     const { value, isConfirmed } = await Swal.fire({
-      title: `คัดลอกข้อมูลจากปี ${selectedYear}`,
+      title: `คัดลอก ${copyTargetLabel} จากปี ${selectedYear}`,
       html: dialogHtml,
       focusConfirm: false,
       showCancelButton: true,
@@ -466,9 +526,9 @@ const RewardConfigManager = () => {
       } else {
         await adminAPI.copyRewardConfigs(selectedYear, targetYear);
       }
-      await Swal.fire('สำเร็จ', `คัดลอกข้อมูลไปยังปี ${targetYear} เรียบร้อย`, 'success');
+      await Swal.fire('สำเร็จ', `คัดลอก ${copyTargetLabel} ไปยังปี ${targetYear} เรียบร้อย`, 'success');
       await loadAvailableYears();
-      setSelectedYear(targetYear);
+      setSelectedYear(String(targetYear));
     } catch (error) {
       Swal.fire('Error', error?.response?.data?.message || 'ไม่สามารถคัดลอกข้อมูลได้', 'error');
     } finally {
@@ -487,11 +547,11 @@ const RewardConfigManager = () => {
         years.length > 0 ? (
           <button
             onClick={copyToNewYear}
-            disabled={!selectedYear || copying}
+            disabled={!selectedYear || copying || loading || !hasCopyableData}
             className="inline-flex items-center gap-2 rounded-lg border border-blue-200 px-4 py-2 text-sm font-medium text-blue-600 transition hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-60"
           >
             <Copy size={16} />
-            {copying ? 'กำลังคัดลอก...' : 'คัดลอกไปยังปีอื่น'}
+            {copying ? `กำลังก็อป ${copyTargetLabel}...` : 'คัดลอกไปยังปีอื่น'}
           </button>
         ) : null
       }
@@ -602,52 +662,60 @@ const RewardConfigManager = () => {
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-100">
-                {sortedRates.map((rate) => (
-                  <tr key={rate.rate_id}>
-                    <td className="px-3 py-3 text-center text-sm font-medium text-gray-900 whitespace-nowrap">
-                      {authorLabel(rate.author_status)}
-                    </td>
-                    <td className="px-3 py-3 text-center text-sm text-gray-700 whitespace-nowrap">
-                      {quartileOptions.find(q => q.value === rate.journal_quartile)?.label || rate.journal_quartile}
-                    </td>
-                    <td className="px-3 py-3 text-center text-sm font-semibold text-gray-900 whitespace-nowrap">
-                      {new Intl.NumberFormat('th-TH').format(rate.reward_amount)} บาท
-                    </td>
-                    <td className="px-3 py-3 whitespace-nowrap text-center">
-                      <StatusBadge
-                        status={!!rate.is_active}
-                        interactive
-                        confirm={false}
-                        onChange={() => toggleStatus(rate.rate_id, rate.is_active, 'rate')}
-                      />
-                    </td>
-                    <td className="flex justify-center gap-2 px-3 py-3 whitespace-nowrap text-sm font-medium">
-                      <button
-                        onClick={() => {
-                          setEditingRate(rate);
-                          setRateFormData({
-                            year: rate.year,
-                            author_status: rate.author_status,
-                            journal_quartile: rate.journal_quartile,
-                            reward_amount: rate.reward_amount
-                          });
-                          setShowRateForm(true);
-                        }}
-                        className="inline-flex items-center gap-1 rounded-lg border border-blue-200 px-3 py-1 text-xs font-medium text-blue-600 transition hover:bg-blue-50"
-                        title="แก้ไข"
-                      >
-                        <Edit size={16} /> แก้ไข
-                      </button>
-                      <button
-                        onClick={() => deleteItem(rate.rate_id, 'rate')}
-                        className="inline-flex items-center gap-1 rounded-lg border border-red-200 px-3 py-1 text-xs font-medium text-red-600 transition hover:bg-red-50"
-                        title="ลบ"
-                      >
-                        <Trash2 size={16} /> ลบ
-                      </button>
+                {sortedRates.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="px-4 py-6 text-center text-sm text-gray-500">
+                      ไม่พบอัตราเงินรางวัลสำหรับปี พ.ศ. {selectedYear}
                     </td>
                   </tr>
-                ))}
+                ) : (
+                  sortedRates.map((rate) => (
+                    <tr key={rate.rate_id}>
+                      <td className="px-3 py-3 text-center text-sm font-medium text-gray-900 whitespace-nowrap">
+                        {authorLabel(rate.author_status)}
+                      </td>
+                      <td className="px-3 py-3 text-center text-sm text-gray-700 whitespace-nowrap">
+                        {quartileOptions.find(q => q.value === rate.journal_quartile)?.label || rate.journal_quartile}
+                      </td>
+                      <td className="px-3 py-3 text-center text-sm font-semibold text-gray-900 whitespace-nowrap">
+                        {new Intl.NumberFormat('th-TH').format(rate.reward_amount)} บาท
+                      </td>
+                      <td className="px-3 py-3 whitespace-nowrap text-center">
+                        <StatusBadge
+                          status={!!rate.is_active}
+                          interactive
+                          confirm={false}
+                          onChange={() => toggleStatus(rate.rate_id, rate.is_active, 'rate')}
+                        />
+                      </td>
+                      <td className="flex justify-center gap-2 px-3 py-3 whitespace-nowrap text-sm font-medium">
+                        <button
+                          onClick={() => {
+                            setEditingRate(rate);
+                            setRateFormData({
+                              year: rate.year,
+                              author_status: rate.author_status,
+                              journal_quartile: rate.journal_quartile,
+                              reward_amount: rate.reward_amount
+                            });
+                            setShowRateForm(true);
+                          }}
+                          className="inline-flex items-center gap-1 rounded-lg border border-blue-200 px-3 py-1 text-xs font-medium text-blue-600 transition hover:bg-blue-50"
+                          title="แก้ไข"
+                        >
+                          <Edit size={16} /> แก้ไข
+                        </button>
+                        <button
+                          onClick={() => deleteItem(rate.rate_id, 'rate')}
+                          className="inline-flex items-center gap-1 rounded-lg border border-red-200 px-3 py-1 text-xs font-medium text-red-600 transition hover:bg-red-50"
+                          title="ลบ"
+                        >
+                          <Trash2 size={16} /> ลบ
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>
@@ -714,54 +782,62 @@ const RewardConfigManager = () => {
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-100">
-                {sortedConfigs.map((config) => (
-                  <tr key={config.config_id}>
-                    <td className="px-4 py-3 text-center text-sm font-medium text-gray-900 whitespace-nowrap">
-                      {quartileOptions.find(q => q.value === config.journal_quartile)?.label || config.journal_quartile}
-                    </td>
-                    <td className="px-4 py-3 text-center text-sm font-semibold text-gray-900 whitespace-nowrap">
-                      {config.max_amount > 0
-                        ? `${new Intl.NumberFormat('th-TH').format(config.max_amount)} บาท`
-                        : 'ไม่สนับสนุน'}
-                    </td>
-                    <td className="px-4 py-3 text-center text-sm text-gray-700">
-                      {config.condition_description || '-'}
-                    </td>
-                    <td className="px-4 py-3 whitespace-nowrap text-center">
-                      <StatusBadge
-                        status={!!config.is_active}
-                        interactive
-                        confirm={false}
-                        onChange={() => toggleStatus(config.config_id, config.is_active, 'config')}
-                      />
-                    </td>
-                    <td className="flex justify-center gap-2 px-3 py-3 whitespace-nowrap text-sm font-medium">
-                      <button
-                        onClick={() => {
-                          setEditingConfig(config);
-                          setConfigFormData({
-                            year: config.year,
-                            journal_quartile: config.journal_quartile,
-                            max_amount: config.max_amount,
-                            condition_description: config.condition_description || ''
-                          });
-                          setShowConfigForm(true);
-                        }}
-                        className="inline-flex items-center gap-1 rounded-lg border border-blue-200 px-3 py-1 text-xs font-medium text-blue-600 transition hover:bg-blue-50"
-                        title="แก้ไข"
-                      >
-                        <Edit size={16} /> แก้ไข
-                      </button>
-                      <button
-                        onClick={() => deleteItem(config.config_id, 'config')}
-                        className="inline-flex items-center gap-1 rounded-lg border border-red-200 px-3 py-1 text-xs font-medium text-red-600 transition hover:bg-red-50"
-                        title="ลบ"
-                      >
-                        <Trash2 size={16} /> ลบ
-                      </button>
+                {sortedConfigs.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="px-4 py-6 text-center text-sm text-gray-500">
+                      ไม่พบวงเงินค่าธรรมเนียมสำหรับปี พ.ศ. {selectedYear}
                     </td>
                   </tr>
-                ))}
+                ) : (
+                  sortedConfigs.map((config) => (
+                    <tr key={config.config_id}>
+                      <td className="px-4 py-3 text-center text-sm font-medium text-gray-900 whitespace-nowrap">
+                        {quartileOptions.find(q => q.value === config.journal_quartile)?.label || config.journal_quartile}
+                      </td>
+                      <td className="px-4 py-3 text-center text-sm font-semibold text-gray-900 whitespace-nowrap">
+                        {config.max_amount > 0
+                          ? `${new Intl.NumberFormat('th-TH').format(config.max_amount)} บาท`
+                          : 'ไม่สนับสนุน'}
+                      </td>
+                      <td className="px-4 py-3 text-center text-sm text-gray-700">
+                        {config.condition_description || '-'}
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap text-center">
+                        <StatusBadge
+                          status={!!config.is_active}
+                          interactive
+                          confirm={false}
+                          onChange={() => toggleStatus(config.config_id, config.is_active, 'config')}
+                        />
+                      </td>
+                      <td className="flex justify-center gap-2 px-3 py-3 whitespace-nowrap text-sm font-medium">
+                        <button
+                          onClick={() => {
+                            setEditingConfig(config);
+                            setConfigFormData({
+                              year: config.year,
+                              journal_quartile: config.journal_quartile,
+                              max_amount: config.max_amount,
+                              condition_description: config.condition_description || ''
+                            });
+                            setShowConfigForm(true);
+                          }}
+                          className="inline-flex items-center gap-1 rounded-lg border border-blue-200 px-3 py-1 text-xs font-medium text-blue-600 transition hover:bg-blue-50"
+                          title="แก้ไข"
+                        >
+                          <Edit size={16} /> แก้ไข
+                        </button>
+                        <button
+                          onClick={() => deleteItem(config.config_id, 'config')}
+                          className="inline-flex items-center gap-1 rounded-lg border border-red-200 px-3 py-1 text-xs font-medium text-red-600 transition hover:bg-red-50"
+                          title="ลบ"
+                        >
+                          <Trash2 size={16} /> ลบ
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>
