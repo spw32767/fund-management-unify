@@ -1005,10 +1005,25 @@ export default function SubmissionsManagement() {
   };
 
   const getSelectedYearInfo = useCallback(() => {
-    if (!selectedYear) return { year: 'ทั้งหมด', budget: 0 };
-    const y = years.find(y => String(y.year_id) === String(selectedYear));
-    return y || { year: selectedYear, budget: 0 };
+    if (!selectedYear) {
+      return { year: 'ทั้งหมด', budget: 0, label: 'ทั้งหมด' };
+    }
+
+    const match = years.find((y) => String(y.year_id) === String(selectedYear));
+    if (match) {
+      const labelCandidate = normalizeYearValue(match);
+      const label = labelCandidate || String(match.year ?? match.year_id ?? selectedYear);
+      return { ...match, label };
+    }
+
+    const fallbackLabel = normalizeYearValue(selectedYear) || String(selectedYear);
+    return { year: selectedYear, budget: 0, label: fallbackLabel };
   }, [selectedYear, years]);
+
+  const selectedYearLabel = useMemo(() => {
+    const info = getSelectedYearInfo();
+    return info?.label || (selectedYear ? String(selectedYear) : 'ทั้งหมด');
+  }, [getSelectedYearInfo, selectedYear]);
 
   const handleExportConfirm = useCallback(
     async (selectedFilters) => {
@@ -1258,6 +1273,7 @@ export default function SubmissionsManagement() {
         onConfirm={handleExportConfirm}
         initialFilters={pendingExportFilters}
         selectedYear={selectedYear}
+        selectedYearLabel={selectedYearLabel}
         statuses={statuses}
         statusLoading={statusLoading}
         isExporting={exporting}

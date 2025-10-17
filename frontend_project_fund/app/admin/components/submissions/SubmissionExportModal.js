@@ -83,6 +83,7 @@ export default function SubmissionExportModal({
   onConfirm,
   initialFilters,
   selectedYear,
+  selectedYearLabel,
   statuses = [],
   statusLoading = false,
   isExporting = false,
@@ -303,7 +304,8 @@ export default function SubmissionExportModal({
 
           <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-gray-600">
             <div>
-              ปีงบประมาณที่เลือก: {selectedYear ? `#${selectedYear}` : "ทุกปี"}
+              ปีงบประมาณที่เลือก:{' '}
+              {selectedYearLabel || (selectedYear ? String(selectedYear) : "ทุกปี")}
             </div>
             <div className="text-xs text-gray-400">
               หมายเหตุ: ใช้การกรองแบบเดียวกับหน้ารายการ เพื่อส่งออกเฉพาะคำร้องที่ต้องการ
