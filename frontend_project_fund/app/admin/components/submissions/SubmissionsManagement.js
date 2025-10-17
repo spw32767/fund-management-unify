@@ -67,6 +67,44 @@ const formatDateTime = (value) => {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
 };
 
+const normalizeYearValue = (value) => {
+  if (value === undefined || value === null) return '';
+  if (typeof value === 'number' || typeof value === 'string') {
+    return String(value);
+  }
+  if (typeof value === 'object') {
+    const candidates = [
+      value.year,
+      value.year_th,
+      value.year_en,
+      value.fiscal_year,
+      value.year_name,
+      value.name,
+      value.label,
+    ];
+
+    for (const candidate of candidates) {
+      if (candidate !== undefined && candidate !== null && candidate !== '') {
+        return normalizeYearValue(candidate);
+      }
+    }
+
+    if (value.year && typeof value.year === 'object') {
+      return normalizeYearValue(value.year);
+    }
+
+    if (value.Year && typeof value.Year === 'object') {
+      return normalizeYearValue(value.Year);
+    }
+
+    const str = value.toString?.();
+    if (str && str !== '[object Object]') {
+      return str;
+    }
+  }
+  return '';
+};
+
 export default function SubmissionsManagement() {
   const { statuses, isLoading: statusLoading, getLabelById } = useStatusMap();
   // Views
@@ -743,7 +781,7 @@ export default function SubmissionsManagement() {
         submissionNumber: row?.submission_number || submissionObj?.submission_number || '',
         submissionId: row?.submission_id || submissionObj?.submission_id || row?.id || '',
         formType: formTypeLabel,
-        fiscalYear: fiscalYear || '',
+        fiscalYear: normalizeYearValue(fiscalYear),
         categoryName,
         subcategoryName,
         fundDescription,
