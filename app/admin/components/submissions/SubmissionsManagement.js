@@ -30,8 +30,8 @@ const EXPORT_COLUMNS = [
   { key: 'applicantName', header: 'ชื่อผู้ยื่น', width: 26 },
   { key: 'applicantEmail', header: 'อีเมลผู้ยื่น', width: 28 },
   { key: 'coAuthors', header: 'รายชื่อผู้ร่วม', width: 36 },
-  { key: 'requestedAmount', header: 'ยอดขอ (บาท)', width: 16 },
-  { key: 'approvedAmount', header: 'ยอดอนุมัติ (บาท)', width: 18 },
+  { key: 'requestedAmount', header: 'ยอดที่ขอ (บาท)', width: 16 },
+  { key: 'approvedAmount', header: 'ยอดที่อนุมัติ (บาท)', width: 18 },
   { key: 'netAmount', header: 'ยอดสุทธิ (บาท)', width: 18 },
   { key: 'statusLabel', header: 'สถานะ', width: 18 },
   { key: 'createdAt', header: 'สร้างเมื่อ', width: 20 },
@@ -65,6 +65,44 @@ const formatDateTime = (value) => {
   if (Number.isNaN(date.getTime())) return '';
   const pad = (n) => String(Math.abs(Math.trunc(n))).padStart(2, '0');
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
+};
+
+const normalizeYearValue = (value) => {
+  if (value === undefined || value === null) return '';
+  if (typeof value === 'number' || typeof value === 'string') {
+    return String(value);
+  }
+  if (typeof value === 'object') {
+    const candidates = [
+      value.year,
+      value.year_th,
+      value.year_en,
+      value.fiscal_year,
+      value.year_name,
+      value.name,
+      value.label,
+    ];
+
+    for (const candidate of candidates) {
+      if (candidate !== undefined && candidate !== null && candidate !== '') {
+        return normalizeYearValue(candidate);
+      }
+    }
+
+    if (value.year && typeof value.year === 'object') {
+      return normalizeYearValue(value.year);
+    }
+
+    if (value.Year && typeof value.Year === 'object') {
+      return normalizeYearValue(value.Year);
+    }
+
+    const str = value.toString?.();
+    if (str && str !== '[object Object]') {
+      return str;
+    }
+  }
+  return '';
 };
 
 export default function SubmissionsManagement() {
@@ -732,18 +770,61 @@ export default function SubmissionsManagement() {
         '';
 
       const fiscalYear = pickFirst(
+        row?.Year?.year_th,
         row?.Year?.year,
-        submissionObj?.Year?.year,
+        row?.Year,
+        row?.year_th,
         row?.year,
+        submissionObj?.Year?.year_th,
+        submissionObj?.Year?.year,
+        submissionObj?.Year,
+        submissionObj?.year_th,
         submissionObj?.year,
+        detailPayload?.Year?.year_th,
+        detailPayload?.Year?.year,
+        detailPayload?.Year,
+        detailPayload?.year_th,
         detailPayload?.year
       );
+
+      const yearIdCandidate = pickFirst(
+        row?.year_id,
+        row?.Year?.year_id,
+        submissionObj?.year_id,
+        submissionObj?.Year?.year_id,
+        detailPayload?.year_id,
+        detailPayload?.Year?.year_id,
+        selectedYear
+      );
+
+      const normalizedFiscalYear = normalizeYearValue(fiscalYear);
+
+      let fiscalYearLabel = normalizedFiscalYear;
+      if (!fiscalYearLabel && yearIdCandidate != null) {
+        const yearMatch = years.find(
+          (item) => String(item?.year_id) === String(yearIdCandidate)
+        );
+        if (yearMatch) {
+          fiscalYearLabel =
+            normalizeYearValue(yearMatch) ||
+            normalizeYearValue(yearMatch?.year) ||
+            String(yearMatch.year ?? yearMatch.year_id);
+        }
+      }
+
+      if (!fiscalYearLabel && fiscalYear != null && fiscalYear !== '') {
+        fiscalYearLabel = String(fiscalYear);
+      }
+
+      if (!fiscalYearLabel && yearIdCandidate != null) {
+        fiscalYearLabel = String(yearIdCandidate);
+      }
 
       return {
         submissionNumber: row?.submission_number || submissionObj?.submission_number || '',
         submissionId: row?.submission_id || submissionObj?.submission_id || row?.id || '',
         formType: formTypeLabel,
-        fiscalYear: fiscalYear || '',
+        fiscalYear: fiscalYearLabel,
         categoryName,
         subcategoryName,
         fundDescription,
@@ -773,6 +854,8 @@ export default function SubmissionsManagement() {
       userMap,
       detailsMap,
       getLabelById,
+      years,
+      selectedYear,
     ]
   );
 
@@ -967,10 +1050,25 @@ export default function SubmissionsManagement() {
   };
 
   const getSelectedYearInfo = useCallback(() => {
-    if (!selectedYear) return { year: 'ทั้งหมด', budget: 0 };
-    const y = years.find(y => String(y.year_id) === String(selectedYear));
-    return y || { year: selectedYear, budget: 0 };
+    if (!selectedYear) {
+      return { year: 'ทั้งหมด', budget: 0, label: 'ทั้งหมด' };
+    }
+
+    const match = years.find((y) => String(y.year_id) === String(selectedYear));
+    if (match) {
+      const labelCandidate = normalizeYearValue(match);
+      const label = labelCandidate || String(match.year ?? match.year_id ?? selectedYear);
+      return { ...match, label };
+    }
+
+    const fallbackLabel = normalizeYearValue(selectedYear) || String(selectedYear);
+    return { year: selectedYear, budget: 0, label: fallbackLabel };
   }, [selectedYear, years]);
+
+  const selectedYearLabel = useMemo(() => {
+    const info = getSelectedYearInfo();
+    return info?.label || (selectedYear ? String(selectedYear) : 'ทั้งหมด');
+  }, [getSelectedYearInfo, selectedYear]);
 
   const handleExportConfirm = useCallback(
     async (selectedFilters) => {
@@ -1220,6 +1318,7 @@ export default function SubmissionsManagement() {
         onConfirm={handleExportConfirm}
         initialFilters={pendingExportFilters}
         selectedYear={selectedYear}
+        selectedYearLabel={selectedYearLabel}
         statuses={statuses}
         statusLoading={statusLoading}
         isExporting={exporting}
