@@ -375,9 +375,24 @@ const RewardConfigManager = () => {
     [activeSubTab]
   );
 
+  const hasCopyableData = useMemo(() => {
+    if (!selectedYear) return false;
+    const dataset = activeSubTab === 'rates' ? rewardRates : rewardConfigs;
+    return Array.isArray(dataset) && dataset.length > 0;
+  }, [activeSubTab, rewardRates, rewardConfigs, selectedYear]);
+
   const copyToNewYear = async () => {
     if (!selectedYear) {
       await Swal.fire('แจ้งเตือน', 'กรุณาเลือกปีที่ต้องการคัดลอกก่อน', 'warning');
+      return;
+    }
+
+    if (!hasCopyableData) {
+      await Swal.fire(
+        'แจ้งเตือน',
+        `ไม่มีข้อมูล ${copyTargetLabel} สำหรับปี พ.ศ. ${selectedYear} ให้คัดลอก`,
+        'warning'
+      );
       return;
     }
 
@@ -532,7 +547,7 @@ const RewardConfigManager = () => {
         years.length > 0 ? (
           <button
             onClick={copyToNewYear}
-            disabled={!selectedYear || copying}
+            disabled={!selectedYear || copying || loading || !hasCopyableData}
             className="inline-flex items-center gap-2 rounded-lg border border-blue-200 px-4 py-2 text-sm font-medium text-blue-600 transition hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-60"
           >
             <Copy size={16} />
