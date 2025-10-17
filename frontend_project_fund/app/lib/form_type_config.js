@@ -8,15 +8,15 @@ export const FORM_TYPE_CONFIG = {
     isOnlineForm: true
   },
   'research_proposal': {
-    component: 'GenericFundApplicationForm', 
-    route: 'generic-fund-application-form',
+    component: 'GenericFundApplicationForm',
+    route: 'generic-fund-application',
     buttonText: 'กรอกแบบฟอร์ม',
     buttonIcon: 'FileText',
     isOnlineForm: true
   },
   'fund_application': {
     component: 'GenericFundApplicationForm',
-    route: 'generic-fund-application-form', 
+    route: 'generic-fund-application',
     buttonText: 'กรอกแบบฟอร์ม',
     buttonIcon: 'FileText',
     isOnlineForm: true
