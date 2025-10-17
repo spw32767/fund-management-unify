@@ -520,6 +520,7 @@ export default function ApplicationList({ onNavigate }) {
     } else {
       onNavigate('generic-fund-application', {
         ...payload,
+        originPage: 'applications',
       });
     }
   };
