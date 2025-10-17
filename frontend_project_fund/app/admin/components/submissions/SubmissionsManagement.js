@@ -568,6 +568,21 @@ export default function SubmissionsManagement() {
         row ||
         {};
 
+      const publicationRewardDetails =
+        detailPayload?.publication_reward_details ||
+        detailPayload?.PublicationRewardDetails ||
+        detailPayload?.publicationRewardDetails ||
+        detailPayload?.PublicationRewardDetail ||
+        submissionObj?.publication_reward_details ||
+        submissionObj?.PublicationRewardDetails ||
+        submissionObj?.publicationRewardDetails ||
+        submissionObj?.PublicationRewardDetail ||
+        row?.publication_reward_details ||
+        row?.PublicationRewardDetails ||
+        row?.publicationRewardDetails ||
+        row?.PublicationRewardDetail ||
+        null;
+
       const rawType =
         (detailWrapper?.details?.type ||
           detailPayload?.type ||
@@ -709,7 +724,11 @@ export default function SubmissionsManagement() {
             detailPayload?.total_amount,
             detailPayload?.FundApplicationDetail?.requested_amount,
             detailPayload?.PublicationRewardDetail?.requested_amount,
+            publicationRewardDetails?.requested_amount,
+            publicationRewardDetails?.total_requested_amount,
             submissionObj?.requested_amount,
+            submissionObj?.publication_reward_details?.requested_amount,
+            submissionObj?.publication_reward_details?.total_requested_amount,
             row?.requested_amount
           )
         ) ?? undefined;
@@ -721,7 +740,13 @@ export default function SubmissionsManagement() {
             detailPayload?.total_approved_amount,
             detailPayload?.FundApplicationDetail?.approved_amount,
             detailPayload?.PublicationRewardDetail?.approved_amount,
+            publicationRewardDetails?.approved_amount,
+            publicationRewardDetails?.total_approve_amount,
+            publicationRewardDetails?.total_approved_amount,
             submissionObj?.approved_amount,
+            submissionObj?.publication_reward_details?.approved_amount,
+            submissionObj?.publication_reward_details?.total_approve_amount,
+            submissionObj?.publication_reward_details?.total_approved_amount,
             row?.approved_amount
           )
         ) ?? undefined;
