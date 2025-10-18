@@ -42,9 +42,8 @@ const EXPORT_COLUMNS = [
   { key: 'deptComment', header: 'หมายเหตุหัวหน้าสาขา', width: 30 },
   { key: 'announcementRef', header: 'เลขประกาศ/อ้างอิง', width: 24 },
   { key: 'journalName', header: 'วารสาร / แหล่งตีพิมพ์', width: 28 },
-  { key: 'journalVolume', header: 'Volume No.', width: 14 },
-  { key: 'journalIssue', header: 'Issue No.', width: 14 },
-  { key: 'journalPages', header: 'Page Start/End', width: 18 },
+  { key: 'journalVolumeIssue', header: 'Volume/Issue', width: 18 },
+  { key: 'journalPages', header: 'page_numbers', width: 18 },
   { key: 'journalIndexing', header: 'ฐานข้อมูล Indexing', width: 22 },
   { key: 'journalQuartile', header: 'Quartile', width: 14 },
   { key: 'publicationDate', header: 'วันที่เผยแพร่', width: 20 },
@@ -816,6 +815,10 @@ export default function SubmissionsManagement() {
       );
       const volume = pickFirst(publicationDetail?.volume, publicationDetail?.volume_no);
       const issue = pickFirst(publicationDetail?.issue, publicationDetail?.issue_no);
+      const volumeIssue = pickFirst(
+        publicationDetail?.volume_issue,
+        volume || issue ? [volume, issue].filter(Boolean).join('/') : null
+      );
       const pageStart = pickFirst(
         publicationDetail?.page_start,
         publicationDetail?.pageStart,
@@ -827,6 +830,7 @@ export default function SubmissionsManagement() {
         detailPayload?.page_end
       );
       const pages = pickFirst(
+        publicationDetail?.page_numbers,
         publicationDetail?.page_range,
         publicationDetail?.pages,
         pageStart || pageEnd ? [pageStart, pageEnd].filter(Boolean).join('-') : null
@@ -924,8 +928,7 @@ export default function SubmissionsManagement() {
         deptComment,
         announcementRef,
         journalName: journalName || '',
-        journalVolume: volume || '',
-        journalIssue: issue || '',
+        journalVolumeIssue: volumeIssue || '',
         journalPages: pages || '',
         journalIndexing: indexing || '',
         journalQuartile: quartile || '',
