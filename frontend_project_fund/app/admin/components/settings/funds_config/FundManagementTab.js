@@ -481,15 +481,40 @@ const FundManagementTab = ({
   const confirmDeleteBudget = async (budget, subcategory) => {
     const scope = String(budget.record_scope || "").toLowerCase();
     const scopeName = scope === "overall" ? "นโยบายภาพรวม" : "กฎย่อย";
-    const label =
-      budget.fund_description ||
-      budget.level ||
-      (scope === "overall" ? "นโยบายภาพรวม" : `กฎย่อย #${budget.subcategory_budget_id}`);
+
+    const candidateLabels = [budget.fund_description, budget.level]
+      .map((value) => (typeof value === "string" ? value.trim() : ""))
+      .filter((value) => value && value !== "-" && !/undefined/i.test(value));
+
+    const fallbackLabel = scope === "overall"
+      ? "นโยบายภาพรวม"
+      : budget.subcategory_budget_id
+      ? `กฎย่อย #${budget.subcategory_budget_id}`
+      : "กฎย่อย";
+
+    const label = candidateLabels[0] || fallbackLabel;
+
+    const messageLines = [
+      `ต้องการลบ${scopeName} "<strong>${label}</strong>" หรือไม่?`,
+    ];
+
+    if (scope === "overall") {
+      const allocatedValue = budget.allocated_amount;
+      const allocatedDisplay =
+        allocatedValue === null ||
+        allocatedValue === undefined ||
+        allocatedValue === ""
+          ? "ยังไม่มีการจัดสรร"
+          : formatCurrency(allocatedValue);
+
+      messageLines.push(`งบประมาณที่จัดสรร: ${allocatedDisplay}`);
+    }
+
+    messageLines.push("การลบนี้ไม่สามารถย้อนกลับได้");
 
     const res = await Swal.fire({
       title: "ยืนยันการลบนโยบายงบประมาณ?",
-      html: `ต้องการลบ${scopeName} "<strong>${label}</strong>" หรือไม่?` +
-        "<br/>การลบนี้ไม่สามารถย้อนกลับได้",
+      html: messageLines.join("<br/>"),
       icon: "warning",
       showCancelButton: true,
       confirmButtonText: "ลบ",
