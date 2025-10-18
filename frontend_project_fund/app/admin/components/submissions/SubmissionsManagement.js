@@ -40,7 +40,9 @@ const EXPORT_COLUMNS = [
   { key: 'adminComment', header: 'หมายเหตุผู้ดูแล', width: 30 },
   { key: 'deptComment', header: 'หมายเหตุหัวหน้าสาขา', width: 30 },
   { key: 'announcementRef', header: 'เลขประกาศ/อ้างอิง', width: 24 },
-  { key: 'journalInfo', header: 'วารสาร / แหล่งตีพิมพ์', width: 32 },
+  { key: 'journalName', header: 'วารสาร / แหล่งตีพิมพ์', width: 28 },
+  { key: 'journalIndexing', header: 'ฐานข้อมูล Indexing', width: 22 },
+  { key: 'publicationRewardDetail', header: 'Publication Reward Detail', width: 36 },
   { key: 'publicationDate', header: 'วันที่เผยแพร่', width: 20 },
 ];
 
@@ -792,17 +794,13 @@ export default function SubmissionsManagement() {
       const publicationDetail =
         detailPayload?.PublicationRewardDetail || detailPayload?.publication || detailPayload;
 
-      const journalParts = [];
       const journalName = pickFirst(
         publicationDetail?.journal_name,
         publicationDetail?.journal,
         publicationDetail?.journal_title
       );
-      if (journalName) journalParts.push(journalName);
       const volume = pickFirst(publicationDetail?.volume, publicationDetail?.volume_no);
-      if (volume) journalParts.push(`Vol. ${volume}`);
       const issue = pickFirst(publicationDetail?.issue, publicationDetail?.issue_no);
-      if (issue) journalParts.push(`No. ${issue}`);
       const pages = pickFirst(
         publicationDetail?.page_range,
         publicationDetail?.pages,
@@ -810,11 +808,13 @@ export default function SubmissionsManagement() {
           ? `${publicationDetail.page_start}-${publicationDetail.page_end}`
           : null
       );
-      if (pages) journalParts.push(`pp. ${pages}`);
       const indexing = pickFirst(publicationDetail?.indexing, publicationDetail?.database);
-      if (indexing) journalParts.push(indexing);
       const quartile = pickFirst(publicationDetail?.quartile, publicationDetail?.quartile_level);
-      if (quartile) journalParts.push(`Quartile ${quartile}`);
+      const publicationRewardDetailParts = [];
+      if (volume) publicationRewardDetailParts.push(`Vol. ${volume}`);
+      if (issue) publicationRewardDetailParts.push(`No. ${issue}`);
+      if (pages) publicationRewardDetailParts.push(`pp. ${pages}`);
+      if (quartile) publicationRewardDetailParts.push(`Quartile ${quartile}`);
 
       const publicationRawDate = pickFirst(
         publicationDetail?.publication_date,
@@ -904,7 +904,9 @@ export default function SubmissionsManagement() {
         adminComment,
         deptComment,
         announcementRef,
-        journalInfo: journalParts.join(' | '),
+        journalName: journalName || '',
+        journalIndexing: indexing || '',
+        publicationRewardDetail: publicationRewardDetailParts.join(' | '),
         publicationDate,
       };
     },
