@@ -4781,7 +4781,20 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
       article_online_date: stringify(formData.article_online_date),
     };
 
+    const resolvedYearId = (() => {
+      const value = formData.year_id;
+      if (value === null || value === undefined || value === '') {
+        return null;
+      }
+      const numeric = Number(value);
+      if (Number.isFinite(numeric)) {
+        return numeric;
+      }
+      return null;
+    })();
+
     const payload = {
+      year_id: resolvedYearId,
       formData: normalizedFormData,
       applicant: currentUser
         ? {
