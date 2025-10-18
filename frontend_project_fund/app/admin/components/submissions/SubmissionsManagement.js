@@ -136,9 +136,6 @@ const getMergedDocumentExportValue = (...sources) => {
     const meta = extractMergedDocumentMeta(source);
     if (meta) {
       const url = resolveFileURL(meta.filePath);
-      if (meta.displayName && meta.displayName !== url) {
-        return `${meta.displayName} (${url})`;
-      }
       return url;
     }
   }
