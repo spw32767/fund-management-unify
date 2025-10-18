@@ -764,7 +764,33 @@ export default function SubmissionsManagement() {
         )
       );
       const approvedAt = formatDateTime(
-        pickFirst(row?.approved_at, submissionObj?.approved_at, detailPayload?.approved_at)
+        pickFirst(
+          row?.approved_at,
+          row?.approval_date,
+          row?.approve_date,
+          row?.approvalDate,
+          row?.approvedDate,
+          submissionObj?.approved_at,
+          submissionObj?.approval_date,
+          submissionObj?.approve_date,
+          submissionObj?.approvalDate,
+          submissionObj?.approvedDate,
+          detailPayload?.approved_at,
+          detailPayload?.approval_date,
+          detailPayload?.approve_date,
+          detailPayload?.approvalDate,
+          detailPayload?.approvedDate,
+          detailPayload?.FundApplicationDetail?.approved_at,
+          detailPayload?.FundApplicationDetail?.approval_date,
+          detailPayload?.FundApplicationDetail?.approve_date,
+          detailPayload?.FundApplicationDetail?.approvalDate,
+          detailPayload?.FundApplicationDetail?.approvedDate,
+          detailPayload?.PublicationRewardDetail?.approved_at,
+          detailPayload?.PublicationRewardDetail?.approval_date,
+          detailPayload?.PublicationRewardDetail?.approve_date,
+          detailPayload?.PublicationRewardDetail?.approvalDate,
+          detailPayload?.PublicationRewardDetail?.approvedDate
+        )
       );
 
       const adminComment =
