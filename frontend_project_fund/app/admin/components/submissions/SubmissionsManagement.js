@@ -724,10 +724,16 @@ export default function SubmissionsManagement() {
           pickFirst(
             detailPayload?.approved_amount,
             detailPayload?.total_approved_amount,
+            detailPayload?.total_approve_amount,
             detailPayload?.FundApplicationDetail?.approved_amount,
             detailPayload?.PublicationRewardDetail?.approved_amount,
+            detailPayload?.PublicationRewardDetail?.total_approve_amount,
             submissionObj?.approved_amount,
-            row?.approved_amount
+            submissionObj?.total_approved_amount,
+            submissionObj?.total_approve_amount,
+            row?.approved_amount,
+            row?.total_approved_amount,
+            row?.total_approve_amount
           )
         ) ?? undefined;
 
