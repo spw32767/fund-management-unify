@@ -27,6 +27,7 @@ const EXPORT_COLUMNS = [
   { key: 'subcategoryName', header: 'ประเภททุน', width: 22 },
   { key: 'fundDescription', header: 'รายละเอียดทุน', width: 26 },
   { key: 'title', header: 'ชื่อโครงการ/บทความ', width: 40 },
+  { key: 'paperTitle', header: 'Paper Title', width: 40 },
   { key: 'applicantName', header: 'ชื่อผู้ยื่น', width: 26 },
   { key: 'applicantEmail', header: 'อีเมลผู้ยื่น', width: 28 },
   { key: 'coAuthors', header: 'รายชื่อผู้ร่วม', width: 36 },
@@ -41,8 +42,11 @@ const EXPORT_COLUMNS = [
   { key: 'deptComment', header: 'หมายเหตุหัวหน้าสาขา', width: 30 },
   { key: 'announcementRef', header: 'เลขประกาศ/อ้างอิง', width: 24 },
   { key: 'journalName', header: 'วารสาร / แหล่งตีพิมพ์', width: 28 },
+  { key: 'journalVolume', header: 'Volume No.', width: 14 },
+  { key: 'journalIssue', header: 'Issue No.', width: 14 },
+  { key: 'journalPages', header: 'Page Start/End', width: 18 },
   { key: 'journalIndexing', header: 'ฐานข้อมูล Indexing', width: 22 },
-  { key: 'publicationRewardDetail', header: 'Publication Reward Detail', width: 36 },
+  { key: 'journalQuartile', header: 'Quartile', width: 14 },
   { key: 'publicationDate', header: 'วันที่เผยแพร่', width: 20 },
 ];
 
@@ -794,6 +798,17 @@ export default function SubmissionsManagement() {
       const publicationDetail =
         detailPayload?.PublicationRewardDetail || detailPayload?.publication || detailPayload;
 
+      const paperTitle =
+        pickFirst(
+          publicationDetail?.paper_title,
+          detailPayload?.paper_title,
+          detailPayload?.FundApplicationDetail?.paper_title,
+          detailPayload?.PublicationRewardDetail?.paper_title,
+          row?.PublicationRewardDetail?.paper_title,
+          submissionObj?.paper_title,
+          title
+        ) || '';
+
       const journalName = pickFirst(
         publicationDetail?.journal_name,
         publicationDetail?.journal,
@@ -801,20 +816,23 @@ export default function SubmissionsManagement() {
       );
       const volume = pickFirst(publicationDetail?.volume, publicationDetail?.volume_no);
       const issue = pickFirst(publicationDetail?.issue, publicationDetail?.issue_no);
+      const pageStart = pickFirst(
+        publicationDetail?.page_start,
+        publicationDetail?.pageStart,
+        detailPayload?.page_start
+      );
+      const pageEnd = pickFirst(
+        publicationDetail?.page_end,
+        publicationDetail?.pageEnd,
+        detailPayload?.page_end
+      );
       const pages = pickFirst(
         publicationDetail?.page_range,
         publicationDetail?.pages,
-        publicationDetail?.page_start && publicationDetail?.page_end
-          ? `${publicationDetail.page_start}-${publicationDetail.page_end}`
-          : null
+        pageStart || pageEnd ? [pageStart, pageEnd].filter(Boolean).join('-') : null
       );
       const indexing = pickFirst(publicationDetail?.indexing, publicationDetail?.database);
       const quartile = pickFirst(publicationDetail?.quartile, publicationDetail?.quartile_level);
-      const publicationRewardDetailParts = [];
-      if (volume) publicationRewardDetailParts.push(`Vol. ${volume}`);
-      if (issue) publicationRewardDetailParts.push(`No. ${issue}`);
-      if (pages) publicationRewardDetailParts.push(`pp. ${pages}`);
-      if (quartile) publicationRewardDetailParts.push(`Quartile ${quartile}`);
 
       const publicationRawDate = pickFirst(
         publicationDetail?.publication_date,
@@ -891,6 +909,7 @@ export default function SubmissionsManagement() {
         subcategoryName,
         fundDescription,
         title,
+        paperTitle,
         applicantName,
         applicantEmail,
         coAuthors,
@@ -905,8 +924,11 @@ export default function SubmissionsManagement() {
         deptComment,
         announcementRef,
         journalName: journalName || '',
+        journalVolume: volume || '',
+        journalIssue: issue || '',
+        journalPages: pages || '',
         journalIndexing: indexing || '',
-        publicationRewardDetail: publicationRewardDetailParts.join(' | '),
+        journalQuartile: quartile || '',
         publicationDate,
       };
     },
