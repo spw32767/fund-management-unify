@@ -1,28 +1,7 @@
 // app/admin/components/submissions/SubmissionTable.js
 'use client';
 
-import { ChevronDown, ChevronUp, Download, Eye } from 'lucide-react';
-import apiClient from '@/app/lib/api';
-
-const pickFirst = (...values) => {
-  for (const value of values) {
-    if (value !== undefined && value !== null && value !== '') {
-      return value;
-    }
-  }
-  return undefined;
-};
-
-function getFileURL(filePath) {
-  if (!filePath) return '#';
-  if (/^https?:\/\//i.test(filePath)) return filePath;
-  const base = apiClient.baseURL.replace(/\/?api\/v1$/, '');
-  try {
-    return new URL(filePath, base).href;
-  } catch {
-    return filePath;
-  }
-}
+import { ChevronDown, ChevronUp, Eye } from 'lucide-react';
 import StatusBadge from '../common/StatusBadge';
 
 export default function SubmissionTable({
@@ -36,7 +15,7 @@ export default function SubmissionTable({
   // lookups / enrichments
   catMap = {},
   subMap = {},
-  // we keep these to avoid breaking parent props, but we no longer use them for this column
+  // kept for compatibility with parent props
   budgetMap = {},
   subBudgetDescMap = {},
   detailsMap = {},
@@ -222,45 +201,6 @@ export default function SubmissionTable({
     return isFinite(requested) ? requested : 0;
   };
 
-  const getMergedDocumentMeta = (s) => {
-    const doc = s?.merged_document || s?.MergedDocument || null;
-    if (!doc) return null;
-
-    const file = doc?.file || doc?.File || null;
-    const filePath = pickFirst(
-      doc?.file_path,
-      doc?.stored_path,
-      doc?.StoredPath,
-      file?.stored_path,
-      file?.StoredPath,
-      file?.file_path,
-      file?.path,
-      file?.url,
-      doc?.FilePath,
-      doc?.File?.stored_path,
-    );
-
-    const displayName = pickFirst(
-      doc?.display_name,
-      doc?.DisplayName,
-      doc?.original_name,
-      doc?.OriginalName,
-      doc?.file_name,
-      doc?.FileName,
-      file?.original_name,
-      file?.OriginalName,
-      file?.file_name,
-      file?.FileName,
-    );
-
-    if (!filePath) return null;
-
-    return {
-      filePath,
-      displayName: displayName || 'merged_document.pdf',
-    };
-  };
-
   const getDisplayDate = (s) => s?.display_date || s?.submitted_at || s?.created_at;
 
   const makeRowKey = (s) => {
@@ -359,11 +299,6 @@ export default function SubmissionTable({
               </div>
             </th>
 
-            {/* Merge submissions PDF */}
-            <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-              Merge submissions PDF
-            </th>
-
             {/* การดำเนินการ */}
             <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
               จัดการ
@@ -379,8 +314,6 @@ export default function SubmissionTable({
             const subName = getSubcategoryName(s);
             const articleTitle = getArticleTitle(s);
             const author = getAuthorName(s);
-            const mergedDoc = getMergedDocumentMeta(s);
-
             return (
               <tr key={makeRowKey(s)} className="hover:bg-gray-50 transition-colors duration-150">
                 {/* เลขที่คำร้อง */}
@@ -428,26 +361,6 @@ export default function SubmissionTable({
                 {/* วันที่ส่งคำร้อง */}
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                   {formatDate(getDisplayDate(s))}
-                </td>
-
-                {/* Merge submissions PDF */}
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                  {mergedDoc ? (
-                    <a
-                      href={getFileURL(mergedDoc.filePath)}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex max-w-xs items-center gap-2 rounded-md bg-indigo-50 px-3 py-2 text-indigo-600 hover:bg-indigo-100 hover:text-indigo-900 transition-colors"
-                      title={mergedDoc.displayName}
-                    >
-                      <Download className="h-4 w-4" />
-                      <span className="truncate">
-                        {mergedDoc.displayName}
-                      </span>
-                    </a>
-                  ) : (
-                    <span className="text-gray-400">-</span>
-                  )}
                 </td>
 
                 {/* การดำเนินการ */}
