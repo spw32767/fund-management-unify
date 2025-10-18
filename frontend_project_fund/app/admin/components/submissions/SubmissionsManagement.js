@@ -23,6 +23,9 @@ const EXPORT_COLUMNS = [
   { key: 'submissionId', header: 'Submission ID', width: 14 },
   { key: 'formType', header: 'ประเภทแบบฟอร์ม', width: 18 },
   { key: 'fiscalYear', header: 'ปีงบประมาณ', width: 14 },
+  { key: 'fiscalYearRaw', header: 'ปีงบประมาณ (ค่าเดิม)', width: 18 },
+  { key: 'fiscalYearNormalized', header: 'ปีงบประมาณ (Normalized)', width: 22 },
+  { key: 'yearIdCandidate', header: 'รหัสปีงบประมาณ', width: 18 },
   { key: 'categoryName', header: 'หมวดทุน', width: 22 },
   { key: 'subcategoryName', header: 'ประเภททุน', width: 22 },
   { key: 'fundDescription', header: 'รายละเอียดทุน', width: 26 },
@@ -861,6 +864,18 @@ export default function SubmissionsManagement() {
 
       const normalizedFiscalYear = normalizeYearValue(fiscalYear);
 
+      const fiscalYearRaw =
+        fiscalYear == null
+          ? ''
+          : typeof fiscalYear === 'object'
+          ? JSON.stringify(fiscalYear)
+          : String(fiscalYear);
+
+      const stringYearId =
+        yearIdCandidate == null || yearIdCandidate === ''
+          ? ''
+          : String(yearIdCandidate);
+
       let fiscalYearLabel = normalizedFiscalYear;
       if (!fiscalYearLabel && yearIdCandidate != null) {
         const yearMatch = years.find(
@@ -887,6 +902,10 @@ export default function SubmissionsManagement() {
         submissionId: row?.submission_id || submissionObj?.submission_id || row?.id || '',
         formType: formTypeLabel,
         fiscalYear: fiscalYearLabel,
+        fiscalYearLabel,
+        fiscalYearRaw,
+        fiscalYearNormalized: normalizedFiscalYear,
+        yearIdCandidate: stringYearId,
         categoryName,
         subcategoryName,
         fundDescription,
