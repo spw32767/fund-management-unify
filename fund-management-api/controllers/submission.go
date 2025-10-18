@@ -29,9 +29,9 @@ import (
 const publicationRewardFormDocumentCode = "publication_reward_form_docx"
 const publicationRewardFormPdfDocumentCode = "publication_reward_form_pdf"
 
-// mergedSubmissionDocumentTypeID corresponds to the seeded document type
+// mergedSubmissionDocumentTypeCode corresponds to the seeded document type
 // "แบบฟอร์มคำร้องรวม (merged pdf)" which stores the generated merged PDF.
-const mergedSubmissionDocumentTypeID = 17
+const mergedSubmissionDocumentTypeCode = "แบบฟอร์มคำร้องรวม (merged pdf)"
 
 // ===================== SUBMISSION MANAGEMENT =====================
 
@@ -936,6 +936,16 @@ func MergeSubmissionDocuments(c *gin.Context) {
 		return
 	}
 
+	var mergedDocumentType models.DocumentType
+	if err := config.DB.Where("code = ? AND (delete_at IS NULL OR delete_at = '0000-00-00 00:00:00')", mergedSubmissionDocumentTypeCode).
+		First(&mergedDocumentType).Error; err != nil {
+		log.Printf("[MergeSubmissionDocuments] failed to resolve merged document type %q: %v", mergedSubmissionDocumentTypeCode, err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to locate merged document type"})
+		return
+	}
+
+	mergedDocumentTypeID := mergedDocumentType.DocumentTypeID
+
 	documents, err := fetchSubmissionDocuments(config.DB, submission.SubmissionID)
 	if err != nil {
 		log.Printf("[MergeSubmissionDocuments] failed to load documents for submission %d: %v", submission.SubmissionID, err)
@@ -950,7 +960,7 @@ func MergeSubmissionDocuments(c *gin.Context) {
 
 	pdfPaths := make([]string, 0, len(documents))
 	for _, doc := range documents {
-		if doc.DocumentTypeID == mergedSubmissionDocumentTypeID {
+		if doc.DocumentTypeID == mergedDocumentTypeID {
 			log.Printf("[MergeSubmissionDocuments] skipping document %d: merged pdf placeholder", doc.DocumentID)
 			continue
 		}
@@ -1058,7 +1068,7 @@ func MergeSubmissionDocuments(c *gin.Context) {
 
 	var mergedDocument models.SubmissionDocument
 	if err := config.DB.Preload("File").
-		Where("submission_id = ? AND document_type_id = ?", submission.SubmissionID, mergedSubmissionDocumentTypeID).
+		Where("submission_id = ? AND document_type_id = ?", submission.SubmissionID, mergedDocumentTypeID).
 		First(&mergedDocument).Error; err != nil {
 		if !errors.Is(err, gorm.ErrRecordNotFound) {
 			os.Remove(outputPath)
@@ -1071,7 +1081,7 @@ func MergeSubmissionDocuments(c *gin.Context) {
 			SubmissionID:   submission.SubmissionID,
 			FileID:         fileRecord.FileID,
 			OriginalName:   fileRecord.OriginalName,
-			DocumentTypeID: mergedSubmissionDocumentTypeID,
+			DocumentTypeID: mergedDocumentTypeID,
 			DisplayOrder:   nextDocumentDisplayOrder(documents),
 			IsRequired:     false,
 			IsVerified:     false,
