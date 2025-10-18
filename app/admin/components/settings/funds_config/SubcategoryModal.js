@@ -207,7 +207,7 @@ const SubcategoryModal = ({
             {editingSubcategory ? "แก้ไขทุนย่อย" : "เพิ่มทุนย่อยใหม่"}
           </h3>
           <p className="text-sm text-gray-500">
-            จัดการข้อมูลทุนย่อยและนโยบายภาพรวมให้ตรงกับหน้าแสดงผลหลักของระบบผู้ดูแล
+            จัดการข้อมูลทุนย่อยและเงื่อนไขหลักให้ตรงกับหน้าแสดงผลหลักของระบบผู้ดูแล
           </p>
         </div>
 
@@ -310,7 +310,7 @@ const SubcategoryModal = ({
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex items-center gap-2 text-gray-700">
                 <DollarSign size={18} className="text-emerald-600" />
-                <h4 className="text-base font-semibold">นโยบายภาพรวม</h4>
+                <h4 className="text-base font-semibold">เงื่อนไขหลัก</h4>
               </div>
               <label className="inline-flex items-center gap-2 text-sm text-gray-600 cursor-pointer">
                 <input
@@ -319,7 +319,7 @@ const SubcategoryModal = ({
                   onChange={(e) => setOverallPolicyEnabled(e.target.checked)}
                   className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
                 />
-                <span>{overallPolicyEnabled ? "กำลังตั้งค่านโยบายภาพรวม" : "ยังไม่ตั้งค่านโยบายภาพรวม"}</span>
+                <span>{overallPolicyEnabled ? "กำลังตั้งค่าเงื่อนไขหลัก" : "ยังไม่ตั้งค่าเงื่อนไขหลัก"}</span>
               </label>
             </div>
 
@@ -331,7 +331,7 @@ const SubcategoryModal = ({
                     <input
                       type="number"
                       min="0"
-                      step="0.01"
+                      step="1"
                       value={overallPolicyForm.allocated_amount}
                       onChange={(e) => handleOverallPolicyChange("allocated_amount", e.target.value)}
                       className="w-full text-gray-700 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
@@ -343,7 +343,7 @@ const SubcategoryModal = ({
                     <input
                       type="number"
                       min="0"
-                      step="0.01"
+                      step="1"
                       value={overallPolicyForm.max_amount_per_year}
                       onChange={(e) => handleOverallPolicyChange("max_amount_per_year", e.target.value)}
                       className="w-full text-gray-700 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
@@ -366,7 +366,7 @@ const SubcategoryModal = ({
                     <input
                       type="number"
                       min="0"
-                      step="0.01"
+                      step="1"
                       value={overallPolicyForm.max_amount_per_grant}
                       onChange={(e) => handleOverallPolicyChange("max_amount_per_grant", e.target.value)}
                       className="w-full text-gray-700 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
@@ -396,13 +396,13 @@ const SubcategoryModal = ({
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium mb-2 text-gray-700">คำอธิบายนโยบาย</label>
+                  <label className="block text-sm font-medium mb-2 text-gray-700">คำอธิบายเงื่อนไข</label>
                   <textarea
                     value={overallPolicyForm.fund_description}
                     onChange={(e) => handleOverallPolicyChange("fund_description", e.target.value)}
                     className="w-full text-gray-700 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
                     rows={3}
-                    placeholder="สรุปเงื่อนไขหรือรายละเอียดของนโยบายภาพรวม"
+                    placeholder="สรุปเงื่อนไขหรือรายละเอียดของเงื่อนไขหลัก"
                   />
                 </div>
 
@@ -418,7 +418,7 @@ const SubcategoryModal = ({
                 </div>
 
                 <div className="sm:w-60">
-                  <label className="block text-sm font-medium mb-2 text-gray-700">สถานะนโยบายภาพรวม</label>
+                  <label className="block text-sm font-medium mb-2 text-gray-700">สถานะเงื่อนไขหลัก</label>
                   <select
                     value={overallPolicyForm.status}
                     onChange={(e) => handleOverallPolicyChange("status", e.target.value)}
@@ -431,7 +431,7 @@ const SubcategoryModal = ({
               </div>
             ) : (
               <div className="p-4 border border-dashed border-gray-300 rounded-lg text-sm text-gray-600 bg-gray-50">
-                ยังไม่กำหนดนโยบายภาพรวม ระบบจะแสดงผลเฉพาะข้อมูลทุนย่อย โดยสามารถเปิดใช้งานภายหลังได้
+                ยังไม่กำหนดเงื่อนไขหลัก ระบบจะแสดงผลเฉพาะข้อมูลทุนย่อย โดยสามารถเปิดใช้งานภายหลังได้
               </div>
             )}
           </section>

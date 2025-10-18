@@ -400,34 +400,43 @@ const FundManagementTab = ({
   }, [categories, searchTerm]);
 
   const confirmDeleteCategory = async (category) => {
-    const subCount = Array.isArray(category.subcategories) ? category.subcategories.length : 0;
+    const subcategories = Array.isArray(category.subcategories)
+      ? category.subcategories
+      : [];
+    const subCount = subcategories.length;
+    const budgetCount = subcategories.reduce((total, sub) => {
+      const budgets = Array.isArray(sub.budgets) ? sub.budgets : [];
+      const visibleBudgets = budgets.filter((budget) => hasBudgetRecord(budget));
+      return total + visibleBudgets.length;
+    }, 0);
+
+    const messageLines = [
+      `ต้องการลบหมวดหมู่ "<strong>${category.category_name || "-"}</strong>" หรือไม่?`,
+    ];
+
     if (subCount > 0) {
-      await Swal.fire({
-        icon: "info",
-        title: "ลบหมวดหมู่ไม่ได้",
-        text: [
-          'หมวดหมู่ "',
-          category.category_name || '-',
-          '" ยังมีทุนย่อยอยู่ ',
-          subCount,
-          ' รายการ กรุณาลบทุนย่อยทั้งหมดก่อน'
-        ].join(''),
-      });
-      return;
+      messageLines.push(
+        `หมวดหมู่นี้มีทุนย่อย ${subCount.toLocaleString()} รายการ ระบบจะลบทุนย่อยที่เกี่ยวข้องทั้งหมดด้วย`
+      );
     }
+
+    if (budgetCount > 0) {
+      messageLines.push(
+        `เงื่อนไขงบประมาณจำนวน ${budgetCount.toLocaleString()} รายการจะถูกลบถาวร`
+      );
+    }
+
+    messageLines.push("การลบนี้ไม่สามารถย้อนกลับได้");
 
     const res = await Swal.fire({
       title: "ยืนยันการลบหมวดหมู่?",
-      text: [
-        'ต้องการลบหมวดหมู่ "',
-        category.category_name || '-',
-        '" หรือไม่?'
-      ].join(''),
+      html: messageLines.join("<br/>"),
       icon: "warning",
       showCancelButton: true,
       confirmButtonText: "ลบ",
       cancelButtonText: "ยกเลิก",
       confirmButtonColor: "#d33",
+      focusCancel: true,
     });
 
     if (res.isConfirmed && onDeleteCategory) {
@@ -438,42 +447,30 @@ const FundManagementTab = ({
   const confirmDeleteSubcategory = async (subcategory, category) => {
     const { overall, rules } = categorizeBudgets(subcategory?.budgets);
     const hasOverallBudget = hasBudgetRecord(overall);
-    const ruleBudgets = (Array.isArray(rules) ? rules : []).filter((budget) => hasBudgetRecord(budget));
+    const ruleBudgets = (Array.isArray(rules) ? rules : []).filter((budget) =>
+      hasBudgetRecord(budget)
+    );
     const budgetsCount = ruleBudgets.length + (hasOverallBudget ? 1 : 0);
 
+    const messageLines = [
+      `ต้องการลบทุนย่อย "<strong>${subcategory.subcategory_name || "-"}</strong>" หรือไม่?`,
+    ];
+
     if (budgetsCount > 0) {
-      const detailSegments = [];
-      if (hasOverallBudget) {
-        detailSegments.push("นโยบายภาพรวม");
-      }
-      if (ruleBudgets.length > 0) {
-        detailSegments.push(`${ruleBudgets.length} กฎย่อย`);
-      }
-
-      const remainingText = detailSegments.length > 0 ? detailSegments.join(" และ ") : "นโยบายงบประมาณ";
-      const displayName = subcategory?.subcategory_name || "-";
-      const message = `ทุนย่อย "${displayName}" ยังมี ${remainingText} อยู่ กรุณาลบข้อมูลงบประมาณทั้งหมดก่อน`;
-
-      await Swal.fire({
-        icon: "info",
-        title: "ลบทุนย่อยไม่ได้",
-        text: message,
-      });
-      return;
+      messageLines.push("ระบบจะลบเงื่อนไขหลักและเงื่อนไขรองทั้งหมดของทุนนี้ด้วย");
     }
+
+    messageLines.push("การลบนี้ไม่สามารถย้อนกลับได้");
 
     const res = await Swal.fire({
       title: "ยืนยันการลบทุนย่อย?",
-      text: [
-        'ต้องการลบทุนย่อย "',
-        subcategory.subcategory_name || '-',
-        '" หรือไม่?'
-      ].join(''),
+      html: messageLines.join("<br/>"),
       icon: "warning",
       showCancelButton: true,
       confirmButtonText: "ลบ",
       cancelButtonText: "ยกเลิก",
       confirmButtonColor: "#d33",
+      focusCancel: true,
     });
 
     if (res.isConfirmed && onDeleteSubcategory) {
@@ -483,16 +480,39 @@ const FundManagementTab = ({
 
   const confirmDeleteBudget = async (budget, subcategory) => {
     const scope = String(budget.record_scope || "").toLowerCase();
-    const scopeName = scope === "overall" ? "นโยบายภาพรวม" : "กฎย่อย";
-    const label =
-      budget.fund_description ||
-      budget.level ||
-      (scope === "overall" ? "นโยบายภาพรวม" : `กฎย่อย #${budget.subcategory_budget_id}`);
+
+    let messageLines = [];
+
+    if (scope === "overall") {
+      const fundName =
+        (typeof subcategory?.subcategory_name === "string"
+          ? subcategory.subcategory_name.trim()
+          : "") || "-";
+
+      messageLines = [
+        `ต้องการลบเงื่อนไขหลักของ "<strong>${fundName}</strong>" หรือไม่?`,
+        "การลบนี้ไม่สามารถย้อนกลับได้",
+      ];
+    } else {
+      const candidateLabels = [budget.fund_description, budget.level]
+        .map((value) => (typeof value === "string" ? value.trim() : ""))
+        .filter((value) => value && value !== "-" && !/undefined/i.test(value));
+
+      const fallbackLabel = budget.subcategory_budget_id
+        ? `เงื่อนไขรอง #${budget.subcategory_budget_id}`
+        : "เงื่อนไขรอง";
+
+      const label = candidateLabels[0] || fallbackLabel;
+
+      messageLines = [
+        `ต้องการลบเงื่อนไขรอง "<strong>${label}</strong>" หรือไม่?`,
+        "การลบนี้ไม่สามารถย้อนกลับได้",
+      ];
+    }
 
     const res = await Swal.fire({
-      title: "ยืนยันการลบนโยบายงบประมาณ?",
-      html: `ต้องการลบ${scopeName} "<strong>${label}</strong>" หรือไม่?` +
-        "<br/>การลบนี้ไม่สามารถย้อนกลับได้",
+      title: "ยืนยันการลบเงื่อนไขงบประมาณ?",
+      html: messageLines.join("<br/>"),
       icon: "warning",
       showCancelButton: true,
       confirmButtonText: "ลบ",
@@ -511,7 +531,7 @@ const FundManagementTab = ({
       iconBgClass="bg-indigo-100"
       iconColorClass="text-indigo-600"
       title="จัดการทุน"
-      description="เพิ่ม/แก้ไข หมวดหมู่ ทุนย่อย และนโยบายงบประมาณตามโครงสร้างใหม่"
+      description="เพิ่ม/แก้ไข หมวดหมู่ ทุนย่อย และเงื่อนไขงบประมาณตามโครงสร้างใหม่"
       actions={
         <>
           <button
@@ -664,6 +684,10 @@ const FundManagementTab = ({
                     {subcategories.map((subcategory) => {
                       const subExpanded = expandedSubcategories?.[subcategory.subcategory_id];
                       const { overall, rules } = categorizeBudgets(subcategory.budgets);
+                      const hasOverallBudget = hasBudgetRecord(overall);
+                      const visibleRules = (Array.isArray(rules) ? rules : []).filter((rule) =>
+                        hasBudgetRecord(rule)
+                      );
                       const targetRoleLabel = describeTargetRoles(subcategory.target_roles);
                       const normalizedTargetRoles = targetRoleLabel || "ทุกบทบาท";
                       const overallSummaryText = overall
@@ -692,15 +716,15 @@ const FundManagementTab = ({
                         `กลุ่มเป้าหมาย: ${normalizedTargetRoles}`,
                         overallSummaryText,
                         overallSecondarySummary,
-                        `มี ${rules.length.toLocaleString()} ระดับ`,
+                        `มี ${visibleRules.length.toLocaleString()} ระดับ`,
                       ].filter(Boolean);
 
                       return (
                         <div key={subcategory.subcategory_id} className="border border-gray-200 rounded-lg">
-                          <div className="flex flex-wrap gap-3 items-center px-4 py-3">
+                          <div className="flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:gap-4">
                             <button
                               type="button"
-                              className="flex items-center gap-3 text-left"
+                              className="flex items-center gap-3 text-left text-gray-900 sm:flex-1"
                               onClick={() => onToggleSubcategory?.(subcategory.subcategory_id)}
                             >
                               {subExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
@@ -708,7 +732,7 @@ const FundManagementTab = ({
                                 <p className="font-medium text-gray-900">{subcategory.subcategory_name}</p>
                               </div>
                             </button>
-                            <div className="flex flex-wrap items-center gap-2 ml-auto">
+                            <div className="flex flex-wrap items-center gap-2 sm:ml-auto sm:justify-end">
                               <StatusBadge
                                 status={subcategory.status}
                                 interactive
@@ -752,27 +776,97 @@ const FundManagementTab = ({
                                     </div>
                                   </div>
 
+                                  {hasOverallBudget && (
+                                    <div className="rounded-lg border border-indigo-200 bg-indigo-50/60 p-4">
+                                      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:gap-4">
+                                        <div className="flex flex-1 items-start gap-3">
+                                          <div className="rounded-lg bg-indigo-100 p-2 text-indigo-600">
+                                            <Layers size={18} />
+                                          </div>
+                                          <div>
+                                            <p className="font-semibold text-indigo-900">เงื่อนไขหลัก</p>
+                                            <p className="text-sm text-indigo-700 mt-0.5">
+                                              {overall.fund_description?.trim() || "ยังไม่มีคำอธิบายเงื่อนไข"}
+                                            </p>
+                                          </div>
+                                        </div>
+                                        <div className="flex flex-wrap items-center gap-2 sm:ml-auto sm:justify-end">
+                                          <StatusBadge
+                                            status={overall.status}
+                                            interactive
+                                            onChange={(next) =>
+                                              onToggleBudgetStatus?.(overall, subcategory, category, next)
+                                            }
+                                            activeLabel="เปิดใช้งาน"
+                                            inactiveLabel="ปิดใช้งาน"
+                                          />
+                                          <div className="flex items-center gap-2">
+                                            <button
+                                              type="button"
+                                              onClick={() => onEditBudget?.(overall, subcategory)}
+                                              className="inline-flex items-center gap-1 rounded-lg border border-blue-200 px-3 py-1 text-xs font-medium text-blue-600 transition hover:bg-blue-50"
+                                            >
+                                              <Edit size={14} className="inline mr-1" /> แก้ไข
+                                            </button>
+                                            <button
+                                              type="button"
+                                              onClick={() => confirmDeleteBudget(overall, subcategory)}
+                                              className="inline-flex items-center gap-1 rounded-lg border border-red-200 px-3 py-1 text-xs font-medium text-red-600 transition hover:bg-red-50"
+                                            >
+                                              <Trash2 size={14} className="inline mr-1" /> ลบ
+                                            </button>
+                                          </div>
+                                        </div>
+                                      </div>
+
+                                      <div className="mt-3 grid gap-3 text-sm text-gray-700 sm:grid-cols-2 lg:grid-cols-4">
+                                        <div>
+                                          <p className="text-xs text-gray-500">วงเงินรวมต่อปี</p>
+                                          <p className="font-medium">{formatCurrency(overall.max_amount_per_year)}</p>
+                                        </div>
+                                        <div>
+                                          <p className="text-xs text-gray-500">จำนวนครั้งรวม</p>
+                                          <p className="font-medium">{formatGrantCount(overall.max_grants)}</p>
+                                        </div>
+                                        <div>
+                                          <p className="text-xs text-gray-500">วงเงินต่อครั้งค่าเริ่มต้น</p>
+                                          <p className="font-medium">{formatCurrency(overall.max_amount_per_grant)}</p>
+                                        </div>
+                                        <div>
+                                          <p className="text-xs text-gray-500">งบประมาณที่จัดสรร</p>
+                                          <p className="font-medium">{formatAllocatedAmount(overall.allocated_amount)}</p>
+                                        </div>
+                                      </div>
+
+                                      {overall.comment && (
+                                        <p className="mt-3 text-sm text-gray-600">
+                                          <span className="font-medium text-gray-700">หมายเหตุ:</span> {overall.comment}
+                                        </p>
+                                      )}
+                                    </div>
+                                  )}
+
                                   <div className="flex justify-between items-center">
-                                    <h4 className="text-sm font-semibold text-gray-700">กฎย่อยของทุนย่อย</h4>
+                                    <h4 className="text-sm font-semibold text-gray-700">เงื่อนไขรองของทุนย่อย</h4>
                                     <button
                                       type="button"
                                       onClick={() => onAddBudget?.(subcategory, category)}
                                       className="flex items-center gap-2 px-3 py-1.5 text-sm bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-lg hover:bg-indigo-100"
                                     >
-                                      <Plus size={14} /> เพิ่มกฎย่อย
+                                      <Plus size={14} /> เพิ่มเงื่อนไขรอง
                                     </button>
                                   </div>
 
                                   <div className="space-y-3">
-                                    {rules.length > 0 ? (
-                                      rules.map((rule, ruleIndex) => {
+                                    {visibleRules.length > 0 ? (
+                                      visibleRules.map((rule, ruleIndex) => {
                                         const normalizedDescription = (rule.fund_description || "").trim();
                                         const normalizedLevel = (rule.level || "").trim();
                                         const fallbackIdentifier = rule.subcategory_budget_id
-                                          ? `กฎย่อย #${rule.subcategory_budget_id}`
+                                          ? `เงื่อนไขรอง #${rule.subcategory_budget_id}`
                                           : rule.order_index
-                                          ? `กฎย่อย #${rule.order_index}`
-                                          : `กฎย่อย #${ruleIndex + 1}`;
+                                          ? `เงื่อนไขรอง #${rule.order_index}`
+                                          : `เงื่อนไขรอง #${ruleIndex + 1}`;
                                         const ruleTitle = normalizedDescription || normalizedLevel || fallbackIdentifier;
                                         const showLevelSubtitle = Boolean(
                                           normalizedLevel && normalizedLevel !== ruleTitle
@@ -850,7 +944,7 @@ const FundManagementTab = ({
                                       })
                                     ) : (
                                       <div className="border border-dashed border-gray-300 rounded-lg p-4 text-sm text-gray-600">
-                                        ยังไม่มีกฎย่อย สามารถเพิ่มกฎเพื่อกำหนดเพดานต่อครั้งเฉพาะเงื่อนไขได้
+                                        ยังไม่มีเงื่อนไขรอง สามารถเพิ่มเงื่อนไขรองเพื่อกำหนดเพดานต่อครั้งเฉพาะเงื่อนไขได้
                                       </div>
                                     )}
                                   </div>

@@ -555,33 +555,21 @@ export default function FundSettingsContent({ onNavigate }) {
   };
 
   const handleDeleteCategory = async (category) => {
-    // บล็อกลบถ้ามี subcategory อยู่
-    const subCount = Array.isArray(category.subcategories) ? category.subcategories.length : 0;
-    if (subCount > 0) {
-      showWarning(
-        `ลบไม่ได้: หมวดหมู่ "${category.category_name}" ยังมีทุนย่อยอยู่ ${subCount} รายการ\nกรุณาลบทุนย่อยทั้งหมดก่อน`
-      );
-      return;
-    }
-
-    const confirmed = await showConfirm(
-      'ยืนยันการลบ',
-      `คุณต้องการลบหมวดหมู่ "${category.category_name}" ใช่หรือไม่?`,
-      'ลบ'
-    );
-    if (!confirmed) return;
-
     setLoading(true);
     try {
-      await adminAPI.deleteCategory(category.category_id);
+      const response = await adminAPI.deleteCategory(category.category_id);
       setCategories(prev => prev.filter(c => c.category_id !== category.category_id));
-      showSuccess("ลบหมวดหมู่เรียบร้อยแล้ว");
-    } catch (error) {
-      if (/Cannot delete category/i.test(error.message)) {
-        showWarning('ลบไม่ได้: หมวดหมู่ยังมีทุนย่อยอยู่ กรุณาลบทุนย่อยทั้งหมดก่อน');
-      } else {
-        showError(`เกิดข้อผิดพลาดในการลบ: ${error.message}`);
+
+      const deletedSubs = response?.deleted_subcategories ?? 0;
+      const deletedBudgets = response?.deleted_budgets ?? 0;
+      let message = "ลบหมวดหมู่เรียบร้อยแล้ว";
+      if (deletedSubs > 0 || deletedBudgets > 0) {
+        message = `${message} (ลบทุนย่อย ${deletedSubs.toLocaleString()} รายการ และเงื่อนไข ${deletedBudgets.toLocaleString()} รายการ)`;
       }
+      showSuccess(message);
+    } catch (error) {
+      console.error("Error deleting category:", error);
+      showError(`เกิดข้อผิดพลาดในการลบ: ${error.message}`);
     } finally {
       setLoading(false);
     }
@@ -675,36 +663,23 @@ export default function FundSettingsContent({ onNavigate }) {
   };
 
   const handleDeleteSubcategory = async (subcategory) => {
-    // บล็อกลบทันทีถ้ายังมี budget อยู่
-    if (Array.isArray(subcategory.budgets) && subcategory.budgets.length > 0) {
-      showWarning(
-        `ลบไม่ได้: ทุนย่อย "${subcategory.subcategory_name}" ยังมีงบประมาณอยู่ ${subcategory.budgets.length} รายการ\nกรุณาลบงบประมาณทั้งหมดก่อน`
-      );
-      return;
-    }
-
-    const confirmed = await showConfirm(
-      'ยืนยันการลบ',
-      `คุณต้องการลบทุนย่อย "${subcategory.subcategory_name}" ใช่หรือไม่?`,
-      'ลบ'
-    );
-    if (!confirmed) return;
-
     setLoading(true);
     try {
-      await adminAPI.deleteSubcategory(subcategory.subcategory_id);
+      const response = await adminAPI.deleteSubcategory(subcategory.subcategory_id);
       setCategories(prev => prev.map(cat => ({
         ...cat,
         subcategories: cat.subcategories.filter(sub => sub.subcategory_id !== subcategory.subcategory_id)
       })));
-      showSuccess("ลบทุนย่อยเรียบร้อยแล้ว");
+
+      const deletedBudgets = response?.deleted_budgets ?? 0;
+      const baseMessage = "ลบทุนย่อยเรียบร้อยแล้ว";
+      const message = deletedBudgets > 0
+        ? `${baseMessage} (ลบเงื่อนไข ${deletedBudgets.toLocaleString()} รายการด้วย)`
+        : baseMessage;
+      showSuccess(message);
     } catch (error) {
-      // map error เฉพาะให้เป็นข้อความที่เข้าใจง่าย
-      if (/Cannot delete subcategory/i.test(error.message)) {
-        showWarning('ลบไม่ได้: ทุนย่อยนี้ยังมีงบประมาณอยู่ กรุณาลบงบประมาณทั้งหมดก่อน');
-      } else {
-        showError(`เกิดข้อผิดพลาดในการลบ: ${error.message}`);
-      }
+      console.error("Error deleting subcategory:", error);
+      showError(`เกิดข้อผิดพลาดในการลบ: ${error.message}`);
     } finally {
       setLoading(false);
     }
@@ -874,7 +849,7 @@ export default function FundSettingsContent({ onNavigate }) {
   const handleDeleteBudget = async (budget) => {
     const confirmed = await showConfirm(
       'ยืนยันการลบ',
-      `คุณต้องการลบงบประมาณ "${budget.fund_description || 'งบประมาณ ' + budget.allocated_amount?.toLocaleString() + ' บาท'}" ใช่หรือไม่?`,
+      'ต้องการลบเงื่อนไขงบประมาณนี้หรือไม่?',
       'ลบ'
     );
     
@@ -890,7 +865,7 @@ export default function FundSettingsContent({ onNavigate }) {
           budgets: sub.budgets.filter(b => b.subcategory_budget_id !== budget.subcategory_budget_id)
         }))
       })));
-      showSuccess("ลบงบประมาณเรียบร้อยแล้ว");
+      showSuccess("ลบเงื่อนไขงบประมาณเรียบร้อยแล้ว");
     } catch (error) {
       console.error("Error deleting budget:", error);
       showError(`เกิดข้อผิดพลาดในการลบ: ${error.message}`);
@@ -975,7 +950,7 @@ export default function FundSettingsContent({ onNavigate }) {
       setEditingBudget(null);
       setSelectedSubcategoryForBudget(null);
       setSelectedCategoryForSub(null);
-      showSuccess(editingBudget ? "อัปเดตนโยบายงบประมาณเรียบร้อยแล้ว" : "สร้างนโยบายงบประมาณใหม่เรียบร้อยแล้ว");
+      showSuccess(editingBudget ? "อัปเดตเงื่อนไขงบประมาณเรียบร้อยแล้ว" : "สร้างเงื่อนไขงบประมาณใหม่เรียบร้อยแล้ว");
     } catch (error) {
       console.error("Error saving budget:", error);
       const message = error?.message || 'เกิดข้อผิดพลาดในการบันทึกงบประมาณ';
