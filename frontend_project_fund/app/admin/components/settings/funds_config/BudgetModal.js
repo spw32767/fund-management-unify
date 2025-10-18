@@ -136,13 +136,13 @@ const BudgetModal = ({
       <div
         role="dialog"
         aria-modal="true"
-        aria-label={editingBudget ? "แก้ไขกฎย่อย" : "เพิ่มกฎย่อยใหม่"}
+        aria-label={editingBudget ? "แก้ไขเงื่อนไขรอง" : "เพิ่มเงื่อนไขรองใหม่"}
         tabIndex={-1}
         className="bg-white rounded-xl p-6 w-full max-w-2xl shadow-2xl transform transition-all duration-300 scale-100 max-h-[90vh] overflow-y-auto"
       >
         <div className="flex flex-col gap-2 mb-6">
           <h3 className="text-xl font-semibold text-gray-900">
-            {editingBudget ? "แก้ไขกฎย่อย" : "เพิ่มกฎย่อยใหม่"}
+            {editingBudget ? "แก้ไขเงื่อนไขรอง" : "เพิ่มเงื่อนไขรองใหม่"}
           </h3>
           <p className="text-sm text-gray-500">
             ระบุเงื่อนไขการให้ทุนรายครั้งให้ชัดเจน โดยข้อมูลและคำศัพท์จะสอดคล้องกับหน้าหลักของการจัดการทุน
@@ -170,7 +170,7 @@ const BudgetModal = ({
         <form onSubmit={handleSubmit}>
           <div className="space-y-6">
             <div>
-              <label className="block text-sm font-medium mb-2 text-gray-700">คำอธิบายนโยบาย</label>
+              <label className="block text-sm font-medium mb-2 text-gray-700">คำอธิบายเงื่อนไข</label>
               <textarea
                 ref={firstFieldRef}
                 value={budgetForm.fund_description}
@@ -182,7 +182,7 @@ const BudgetModal = ({
                 }
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors resize-none"
                 rows={3}
-                placeholder="สรุปเงื่อนไขหรือรายละเอียดของกฎย่อยนี้"
+                placeholder="สรุปเงื่อนไขหรือรายละเอียดของเงื่อนไขรองนี้"
               />
               <p className="mt-1 text-xs text-gray-500">ข้อความนี้จะแสดงเป็นชื่อการ์ดในหน้าแสดงผล</p>
             </div>
@@ -193,7 +193,7 @@ const BudgetModal = ({
                 <input
                   type="number"
                   min="0"
-                  step="0.01"
+                  step="1"
                   required={!isEditingOverall}
                   value={budgetForm.max_amount_per_grant}
                   onChange={(e) =>
@@ -224,11 +224,11 @@ const BudgetModal = ({
                 <p className="text-xs text-gray-500 mt-1">ปล่อยว่างหากไม่จำกัดจำนวนครั้ง</p>
               </div>
               <div>
-                <label className="block text-sm font-medium mb-2 text-gray-700">วงเงินต่อปีสำหรับกฎนี้</label>
+                <label className="block text-sm font-medium mb-2 text-gray-700">วงเงินต่อปีสำหรับเงื่อนไขนี้</label>
                 <input
                   type="number"
                   min="0"
-                  step="0.01"
+                  step="1"
                   value={budgetForm.max_amount_per_year}
                   onChange={(e) =>
                     setBudgetForm((prev) => ({
@@ -276,7 +276,7 @@ const BudgetModal = ({
 
             {isEditingOverall && (
               <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-700">
-                กฎนี้เป็นนโยบายภาพรวมเดิมของระบบ หากต้องการแก้ไขรายละเอียดทั้งหมด กรุณาแก้ไขจากหน้าทุนย่อยโดยตรง
+                เงื่อนไขนี้เป็นเงื่อนไขหลักเดิมของระบบ หากต้องการแก้ไขรายละเอียดทั้งหมด กรุณาแก้ไขจากหน้าทุนย่อยโดยตรง
               </div>
             )}
           </div>
@@ -293,7 +293,7 @@ const BudgetModal = ({
               type="submit"
               className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors font-medium shadow"
             >
-              {editingBudget ? "บันทึกการแก้ไข" : "บันทึกกฎย่อย"}
+              {editingBudget ? "บันทึกการแก้ไข" : "บันทึกเงื่อนไขรอง"}
             </button>
           </div>
         </form>

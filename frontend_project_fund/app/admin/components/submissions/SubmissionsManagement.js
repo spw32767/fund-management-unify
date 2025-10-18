@@ -27,6 +27,7 @@ const EXPORT_COLUMNS = [
   { key: 'subcategoryName', header: 'ประเภททุน', width: 22 },
   { key: 'fundDescription', header: 'รายละเอียดทุน', width: 26 },
   { key: 'title', header: 'ชื่อโครงการ/บทความ', width: 40 },
+  { key: 'paperTitle', header: 'Paper Title', width: 40 },
   { key: 'applicantName', header: 'ชื่อผู้ยื่น', width: 26 },
   { key: 'applicantEmail', header: 'อีเมลผู้ยื่น', width: 28 },
   { key: 'coAuthors', header: 'รายชื่อผู้ร่วม', width: 36 },
@@ -40,7 +41,11 @@ const EXPORT_COLUMNS = [
   { key: 'adminComment', header: 'หมายเหตุผู้ดูแล', width: 30 },
   { key: 'deptComment', header: 'หมายเหตุหัวหน้าสาขา', width: 30 },
   { key: 'announcementRef', header: 'เลขประกาศ/อ้างอิง', width: 24 },
-  { key: 'journalInfo', header: 'วารสาร / แหล่งตีพิมพ์', width: 32 },
+  { key: 'journalName', header: 'วารสาร / แหล่งตีพิมพ์', width: 28 },
+  { key: 'journalVolumeIssue', header: 'Volume/Issue', width: 18 },
+  { key: 'journalPages', header: 'page_numbers', width: 18 },
+  { key: 'journalIndexing', header: 'ฐานข้อมูล Indexing', width: 22 },
+  { key: 'journalQuartile', header: 'Quartile', width: 14 },
   { key: 'publicationDate', header: 'วันที่เผยแพร่', width: 20 },
 ];
 
@@ -719,10 +724,16 @@ export default function SubmissionsManagement() {
           pickFirst(
             detailPayload?.approved_amount,
             detailPayload?.total_approved_amount,
+            detailPayload?.total_approve_amount,
             detailPayload?.FundApplicationDetail?.approved_amount,
             detailPayload?.PublicationRewardDetail?.approved_amount,
+            detailPayload?.PublicationRewardDetail?.total_approve_amount,
             submissionObj?.approved_amount,
-            row?.approved_amount
+            submissionObj?.total_approved_amount,
+            submissionObj?.total_approve_amount,
+            row?.approved_amount,
+            row?.total_approved_amount,
+            row?.total_approve_amount
           )
         ) ?? undefined;
 
@@ -758,8 +769,55 @@ export default function SubmissionsManagement() {
           detailPayload?.submitted_at
         )
       );
+      const timestampSources = [
+        submissionObj,
+        detailPayload,
+        detailPayload?.FundApplicationDetail,
+        detailPayload?.PublicationRewardDetail,
+        row,
+      ];
+
+      const readTimestamp = (fieldNames) => {
+        for (const source of timestampSources) {
+          if (!source || typeof source !== 'object') continue;
+          for (const field of fieldNames) {
+            const value = source[field];
+            if (value !== undefined && value !== null && value !== '') {
+              return value;
+            }
+          }
+        }
+        return undefined;
+      };
+
+      const adminApprovedRaw = readTimestamp([
+        'admin_approved_at',
+        'adminApprovedAt',
+      ]);
+      const approvedRaw = readTimestamp([
+        'approved_at',
+        'approvedAt',
+      ]);
+      const approvalDateRaw = readTimestamp([
+        'approval_date',
+        'approvalDate',
+        'approved_date',
+        'approvedDate',
+        'approve_date',
+        'approveDate',
+      ]);
+      const headApprovedRaw = readTimestamp([
+        'head_approved_at',
+        'headApprovedAt',
+      ]);
+
       const approvedAt = formatDateTime(
-        pickFirst(row?.approved_at, submissionObj?.approved_at, detailPayload?.approved_at)
+        pickFirst(
+          adminApprovedRaw,
+          approvedRaw,
+          approvalDateRaw,
+          headApprovedRaw
+        )
       );
 
       const adminComment =
@@ -792,29 +850,46 @@ export default function SubmissionsManagement() {
       const publicationDetail =
         detailPayload?.PublicationRewardDetail || detailPayload?.publication || detailPayload;
 
-      const journalParts = [];
+      const paperTitle =
+        pickFirst(
+          publicationDetail?.paper_title,
+          detailPayload?.paper_title,
+          detailPayload?.FundApplicationDetail?.paper_title,
+          detailPayload?.PublicationRewardDetail?.paper_title,
+          row?.PublicationRewardDetail?.paper_title,
+          submissionObj?.paper_title,
+          title
+        ) || '';
+
       const journalName = pickFirst(
         publicationDetail?.journal_name,
         publicationDetail?.journal,
         publicationDetail?.journal_title
       );
-      if (journalName) journalParts.push(journalName);
       const volume = pickFirst(publicationDetail?.volume, publicationDetail?.volume_no);
-      if (volume) journalParts.push(`Vol. ${volume}`);
       const issue = pickFirst(publicationDetail?.issue, publicationDetail?.issue_no);
-      if (issue) journalParts.push(`No. ${issue}`);
+      const volumeIssue = pickFirst(
+        publicationDetail?.volume_issue,
+        volume || issue ? [volume, issue].filter(Boolean).join('/') : null
+      );
+      const pageStart = pickFirst(
+        publicationDetail?.page_start,
+        publicationDetail?.pageStart,
+        detailPayload?.page_start
+      );
+      const pageEnd = pickFirst(
+        publicationDetail?.page_end,
+        publicationDetail?.pageEnd,
+        detailPayload?.page_end
+      );
       const pages = pickFirst(
+        publicationDetail?.page_numbers,
         publicationDetail?.page_range,
         publicationDetail?.pages,
-        publicationDetail?.page_start && publicationDetail?.page_end
-          ? `${publicationDetail.page_start}-${publicationDetail.page_end}`
-          : null
+        pageStart || pageEnd ? [pageStart, pageEnd].filter(Boolean).join('-') : null
       );
-      if (pages) journalParts.push(`pp. ${pages}`);
       const indexing = pickFirst(publicationDetail?.indexing, publicationDetail?.database);
-      if (indexing) journalParts.push(indexing);
       const quartile = pickFirst(publicationDetail?.quartile, publicationDetail?.quartile_level);
-      if (quartile) journalParts.push(`Quartile ${quartile}`);
 
       const publicationRawDate = pickFirst(
         publicationDetail?.publication_date,
@@ -891,6 +966,7 @@ export default function SubmissionsManagement() {
         subcategoryName,
         fundDescription,
         title,
+        paperTitle,
         applicantName,
         applicantEmail,
         coAuthors,
@@ -904,7 +980,11 @@ export default function SubmissionsManagement() {
         adminComment,
         deptComment,
         announcementRef,
-        journalInfo: journalParts.join(' | '),
+        journalName: journalName || '',
+        journalVolumeIssue: volumeIssue || '',
+        journalPages: pages || '',
+        journalIndexing: indexing || '',
+        journalQuartile: quartile || '',
         publicationDate,
       };
     },
