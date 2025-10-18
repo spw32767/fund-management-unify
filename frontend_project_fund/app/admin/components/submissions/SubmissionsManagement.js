@@ -231,7 +231,19 @@ export default function SubmissionsManagement() {
         if (reqId !== latestReq.current) return; // race protection
 
         const chunk = res?.submissions || res?.data || [];
-        aggregate.push(...chunk);
+        const normalizedChunk = Array.isArray(chunk)
+          ? chunk.map((item) => {
+              if (item && typeof item === 'object') {
+                if (item.merged_document && !item.mergedDocument) {
+                  item.mergedDocument = item.merged_document;
+                } else if (item.mergedDocument && !item.merged_document) {
+                  item.merged_document = item.mergedDocument;
+                }
+              }
+              return item;
+            })
+          : [];
+        aggregate.push(...normalizedChunk);
 
         // stop if last page or no pagination info
         const totalPages = res?.pagination?.total_pages || 0;
