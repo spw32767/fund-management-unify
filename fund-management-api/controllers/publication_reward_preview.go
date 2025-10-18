@@ -1310,8 +1310,8 @@ func aggregateDocumentLines(sources []documentLineSource) string {
 		seq      int
 	}
 
-	aggregated := make([]aggregatedLine, 0, len(sources))
-	index := make(map[string]int, len(sources))
+	groups := make(map[string]*aggregatedLine, len(sources))
+	order := make([]*aggregatedLine, 0, len(sources))
 
 	for _, src := range sources {
 		name := strings.TrimSpace(src.name)
@@ -1324,47 +1324,48 @@ func aggregateDocumentLines(sources []documentLineSource) string {
 			key = strings.ToLower(name)
 		}
 
-		if idx, ok := index[key]; ok {
-			aggregated[idx].count++
-			if src.hasOrder {
-				if !aggregated[idx].hasOrder || src.order < aggregated[idx].order {
-					aggregated[idx].order = src.order
-					aggregated[idx].hasOrder = true
-				}
+		group, exists := groups[key]
+		if !exists {
+			group = &aggregatedLine{
+				name:     name,
+				order:    src.order,
+				hasOrder: src.hasOrder,
+				seq:      len(order),
 			}
-			continue
+			groups[key] = group
+			order = append(order, group)
+		} else if strings.TrimSpace(group.name) == "" {
+			group.name = name
 		}
 
-		entry := aggregatedLine{
-			name:     name,
-			count:    1,
-			order:    src.order,
-			hasOrder: src.hasOrder,
-			seq:      len(aggregated),
+		group.count++
+		if src.hasOrder {
+			if !group.hasOrder || src.order < group.order {
+				group.order = src.order
+				group.hasOrder = true
+			}
 		}
-		aggregated = append(aggregated, entry)
-		index[key] = len(aggregated) - 1
 	}
 
-	if len(aggregated) == 0 {
+	if len(order) == 0 {
 		return ""
 	}
 
-	sort.SliceStable(aggregated, func(i, j int) bool {
-		if aggregated[i].hasOrder && aggregated[j].hasOrder {
-			if aggregated[i].order == aggregated[j].order {
-				return aggregated[i].seq < aggregated[j].seq
+	sort.SliceStable(order, func(i, j int) bool {
+		if order[i].hasOrder && order[j].hasOrder {
+			if order[i].order == order[j].order {
+				return order[i].seq < order[j].seq
 			}
-			return aggregated[i].order < aggregated[j].order
+			return order[i].order < order[j].order
 		}
-		if aggregated[i].hasOrder != aggregated[j].hasOrder {
-			return aggregated[i].hasOrder
+		if order[i].hasOrder != order[j].hasOrder {
+			return order[i].hasOrder
 		}
-		return aggregated[i].seq < aggregated[j].seq
+		return order[i].seq < order[j].seq
 	})
 
-	lines := make([]string, 0, len(aggregated))
-	for _, entry := range aggregated {
+	lines := make([]string, 0, len(order))
+	for _, entry := range order {
 		lines = append(lines, buildDocumentQuantityLine(entry.name, entry.count))
 	}
 
