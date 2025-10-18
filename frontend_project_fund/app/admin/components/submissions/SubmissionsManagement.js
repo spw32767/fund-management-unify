@@ -182,6 +182,98 @@ const normalizeYearValue = (value) => {
 
 export default function SubmissionsManagement() {
   const { statuses, isLoading: statusLoading, getLabelById } = useStatusMap();
+  const statusLookupByToken = useMemo(() => {
+    const map = {};
+    const push = (token, id) => {
+      if (!token) return;
+      const key = token.toString().trim().toLowerCase();
+      if (!key) return;
+      if (map[key] != null) return;
+      map[key] = id;
+    };
+
+    if (Array.isArray(statuses)) {
+      statuses.forEach((status) => {
+        const id = toNumberOrNull(
+          status?.application_status_id ??
+          status?.status_id ??
+          status?.id ??
+          status?.StatusID ??
+          status?.StatusId
+        );
+        if (id == null) {
+          return;
+        }
+
+        push(status?.status_code ?? status?.StatusCode ?? status?.code, id);
+        push(status?.status_name ?? status?.StatusName ?? status?.name, id);
+        push(`id:${id}`, id);
+      });
+    }
+
+    return map;
+  }, [statuses]);
+
+  const resolveStatusId = useCallback(
+    (record) => {
+      if (!record || typeof record !== 'object') return null;
+
+      const candidates = [
+        record.status_id,
+        record.Status?.status_id,
+        record.Status?.application_status_id,
+        record.status?.status_id,
+        record.status?.application_status_id,
+        record.application_status_id,
+        record.applicationStatusId,
+        record.application_status?.status_id,
+        record.application_status?.application_status_id,
+        record.applicationStatus?.status_id,
+        record.applicationStatus?.application_status_id,
+        record.display_status_id,
+        record.statusId,
+      ];
+
+      for (const candidate of candidates) {
+        const numeric = toNumberOrNull(candidate);
+        if (numeric != null) {
+          return numeric;
+        }
+
+        if (typeof candidate === 'string') {
+          const key = candidate.trim().toLowerCase();
+          if (key && statusLookupByToken[key] != null) {
+            return statusLookupByToken[key];
+          }
+        }
+      }
+
+      const textCandidates = [
+        record.display_status,
+        record.DisplayStatus,
+        record.status?.status_name,
+        record.status?.statusName,
+        record.Status?.status_name,
+        record.Status?.statusName,
+        record.application_status?.status_name,
+        record.application_status?.statusName,
+        record.applicationStatus?.status_name,
+        record.applicationStatus?.statusName,
+      ];
+
+      for (const text of textCandidates) {
+        if (typeof text !== 'string') continue;
+        const key = text.trim().toLowerCase();
+        if (!key) continue;
+        if (statusLookupByToken[key] != null) {
+          return statusLookupByToken[key];
+        }
+      }
+
+      return null;
+    },
+    [statusLookupByToken]
+  );
   // Views
   const [currentView, setCurrentView] = useState('list');
   const [selectedSubmissionId, setSelectedSubmissionId] = useState(null);
@@ -340,7 +432,7 @@ export default function SubmissionsManagement() {
 
       setAllSubmissions(uniq);
       // สถิติให้คำนวณจาก uniq เพื่อไม่ให้ “คำร้องทั้งหมด” เพี้ยน
-      const countBy = (id) => uniq.filter(r => Number(r.status_id) === id).length;
+      const countBy = (id) => uniq.filter(r => resolveStatusId(r) === id).length;
       setStatistics({
         total_submissions: uniq.length,
         dept_head_pending_count: countBy(5),
@@ -439,7 +531,7 @@ export default function SubmissionsManagement() {
         arr = arr.filter((s) => String(s.subcategory_id) === String(f.subcategory));
       }
       if (f.status) {
-        arr = arr.filter((s) => String(s.status_id) === String(f.status));
+        arr = arr.filter((s) => String(resolveStatusId(s)) === String(f.status));
       }
 
       if (f.search?.trim()) {
@@ -492,7 +584,12 @@ export default function SubmissionsManagement() {
           const amtStr = Number.isFinite(rawAmt) ? rawAmt.toString() : '';
           const amtFmt = Number.isFinite(rawAmt) ? rawAmt.toLocaleString() : '';
 
-          const statusStr = norm(s.display_status || s.status?.status_name || statusText(s.status_id));
+          const statusId = resolveStatusId(s);
+          const statusStr = norm(
+            s.display_status ||
+              s.status?.status_name ||
+              statusText(statusId)
+          );
 
           const dateVal =
             s?.display_date || s?.submitted_at || s?.created_at || s?.approved_at || '';
@@ -532,7 +629,7 @@ export default function SubmissionsManagement() {
           case 'submission_number':
             return (s.submission_number || '').toString();
           case 'status_id':
-            return Number(s.status_id) || 0;
+            return resolveStatusId(s) || 0;
           case 'created_at':
           default:
             return new Date(s.created_at || s.create_at || 0).getTime();
@@ -552,7 +649,7 @@ export default function SubmissionsManagement() {
 
       return arrCopy;
     },
-    [catMap, subMap, userMap, detailsMap, getLabelById]
+    [catMap, subMap, userMap, detailsMap, getLabelById, resolveStatusId]
   );
 
   const filteredAndSorted = useMemo(() => {
@@ -833,12 +930,16 @@ export default function SubmissionsManagement() {
           )
         ) ?? undefined;
 
+      const statusId =
+        resolveStatusId(row) ??
+        resolveStatusId(submissionObj) ??
+        null;
+
       const statusLabel =
         row?.display_status ||
         row?.status?.status_name ||
         submissionObj?.status?.status_name ||
-        getLabelById(row?.status_id) ||
-        getLabelById(submissionObj?.status_id) ||
+        (statusId != null ? getLabelById(statusId) : '') ||
         '';
 
       const createdAt = formatDateTime(
@@ -1083,6 +1184,7 @@ export default function SubmissionsManagement() {
       getLabelById,
       years,
       selectedYear,
+      resolveStatusId,
     ]
   );
 
