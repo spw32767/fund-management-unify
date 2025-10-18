@@ -763,33 +763,54 @@ export default function SubmissionsManagement() {
           detailPayload?.submitted_at
         )
       );
+      const timestampSources = [
+        submissionObj,
+        detailPayload,
+        detailPayload?.FundApplicationDetail,
+        detailPayload?.PublicationRewardDetail,
+        row,
+      ];
+
+      const readTimestamp = (fieldNames) => {
+        for (const source of timestampSources) {
+          if (!source || typeof source !== 'object') continue;
+          for (const field of fieldNames) {
+            const value = source[field];
+            if (value !== undefined && value !== null && value !== '') {
+              return value;
+            }
+          }
+        }
+        return undefined;
+      };
+
+      const adminApprovedRaw = readTimestamp([
+        'admin_approved_at',
+        'adminApprovedAt',
+      ]);
+      const approvedRaw = readTimestamp([
+        'approved_at',
+        'approvedAt',
+      ]);
+      const approvalDateRaw = readTimestamp([
+        'approval_date',
+        'approvalDate',
+        'approved_date',
+        'approvedDate',
+        'approve_date',
+        'approveDate',
+      ]);
+      const headApprovedRaw = readTimestamp([
+        'head_approved_at',
+        'headApprovedAt',
+      ]);
+
       const approvedAt = formatDateTime(
         pickFirst(
-          row?.approved_at,
-          row?.approval_date,
-          row?.approve_date,
-          row?.approvalDate,
-          row?.approvedDate,
-          submissionObj?.approved_at,
-          submissionObj?.approval_date,
-          submissionObj?.approve_date,
-          submissionObj?.approvalDate,
-          submissionObj?.approvedDate,
-          detailPayload?.approved_at,
-          detailPayload?.approval_date,
-          detailPayload?.approve_date,
-          detailPayload?.approvalDate,
-          detailPayload?.approvedDate,
-          detailPayload?.FundApplicationDetail?.approved_at,
-          detailPayload?.FundApplicationDetail?.approval_date,
-          detailPayload?.FundApplicationDetail?.approve_date,
-          detailPayload?.FundApplicationDetail?.approvalDate,
-          detailPayload?.FundApplicationDetail?.approvedDate,
-          detailPayload?.PublicationRewardDetail?.approved_at,
-          detailPayload?.PublicationRewardDetail?.approval_date,
-          detailPayload?.PublicationRewardDetail?.approve_date,
-          detailPayload?.PublicationRewardDetail?.approvalDate,
-          detailPayload?.PublicationRewardDetail?.approvedDate
+          adminApprovedRaw,
+          approvedRaw,
+          approvalDateRaw,
+          headApprovedRaw
         )
       );
 
