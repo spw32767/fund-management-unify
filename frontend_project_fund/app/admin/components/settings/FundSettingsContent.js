@@ -564,7 +564,7 @@ export default function FundSettingsContent({ onNavigate }) {
       const deletedBudgets = response?.deleted_budgets ?? 0;
       let message = "ลบหมวดหมู่เรียบร้อยแล้ว";
       if (deletedSubs > 0 || deletedBudgets > 0) {
-        message = `${message} (ลบทุนย่อย ${deletedSubs.toLocaleString()} รายการ และนโยบาย ${deletedBudgets.toLocaleString()} รายการ)`;
+        message = `${message} (ลบทุนย่อย ${deletedSubs.toLocaleString()} รายการ และเงื่อนไข ${deletedBudgets.toLocaleString()} รายการ)`;
       }
       showSuccess(message);
     } catch (error) {
@@ -674,7 +674,7 @@ export default function FundSettingsContent({ onNavigate }) {
       const deletedBudgets = response?.deleted_budgets ?? 0;
       const baseMessage = "ลบทุนย่อยเรียบร้อยแล้ว";
       const message = deletedBudgets > 0
-        ? `${baseMessage} (ลบนโยบาย ${deletedBudgets.toLocaleString()} รายการด้วย)`
+        ? `${baseMessage} (ลบเงื่อนไข ${deletedBudgets.toLocaleString()} รายการด้วย)`
         : baseMessage;
       showSuccess(message);
     } catch (error) {
@@ -849,7 +849,7 @@ export default function FundSettingsContent({ onNavigate }) {
   const handleDeleteBudget = async (budget) => {
     const confirmed = await showConfirm(
       'ยืนยันการลบ',
-      `คุณต้องการลบงบประมาณ "${budget.fund_description || 'งบประมาณ ' + budget.allocated_amount?.toLocaleString() + ' บาท'}" ใช่หรือไม่?`,
+      'ต้องการลบเงื่อนไขงบประมาณนี้หรือไม่?',
       'ลบ'
     );
     
@@ -865,7 +865,7 @@ export default function FundSettingsContent({ onNavigate }) {
           budgets: sub.budgets.filter(b => b.subcategory_budget_id !== budget.subcategory_budget_id)
         }))
       })));
-      showSuccess("ลบงบประมาณเรียบร้อยแล้ว");
+      showSuccess("ลบเงื่อนไขงบประมาณเรียบร้อยแล้ว");
     } catch (error) {
       console.error("Error deleting budget:", error);
       showError(`เกิดข้อผิดพลาดในการลบ: ${error.message}`);
@@ -950,7 +950,7 @@ export default function FundSettingsContent({ onNavigate }) {
       setEditingBudget(null);
       setSelectedSubcategoryForBudget(null);
       setSelectedCategoryForSub(null);
-      showSuccess(editingBudget ? "อัปเดตนโยบายงบประมาณเรียบร้อยแล้ว" : "สร้างนโยบายงบประมาณใหม่เรียบร้อยแล้ว");
+      showSuccess(editingBudget ? "อัปเดตเงื่อนไขงบประมาณเรียบร้อยแล้ว" : "สร้างเงื่อนไขงบประมาณใหม่เรียบร้อยแล้ว");
     } catch (error) {
       console.error("Error saving budget:", error);
       const message = error?.message || 'เกิดข้อผิดพลาดในการบันทึกงบประมาณ';

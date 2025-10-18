@@ -422,7 +422,7 @@ const FundManagementTab = ({
 
     if (budgetCount > 0) {
       messageLines.push(
-        `นโยบายงบประมาณจำนวน ${budgetCount.toLocaleString()} รายการจะถูกลบถาวร`
+        `เงื่อนไขงบประมาณจำนวน ${budgetCount.toLocaleString()} รายการจะถูกลบถาวร`
       );
     }
 
@@ -457,7 +457,7 @@ const FundManagementTab = ({
     ];
 
     if (budgetsCount > 0) {
-      messageLines.push("ระบบจะลบนโยบายภาพรวมและกฎย่อยทั้งหมดของทุนนี้ด้วย");
+      messageLines.push("ระบบจะลบเงื่อนไขหลักและเงื่อนไขรองทั้งหมดของทุนนี้ด้วย");
     }
 
     messageLines.push("การลบนี้ไม่สามารถย้อนกลับได้");
@@ -480,40 +480,38 @@ const FundManagementTab = ({
 
   const confirmDeleteBudget = async (budget, subcategory) => {
     const scope = String(budget.record_scope || "").toLowerCase();
-    const scopeName = scope === "overall" ? "นโยบายภาพรวม" : "กฎย่อย";
 
-    const candidateLabels = [budget.fund_description, budget.level]
-      .map((value) => (typeof value === "string" ? value.trim() : ""))
-      .filter((value) => value && value !== "-" && !/undefined/i.test(value));
-
-    const fallbackLabel = scope === "overall"
-      ? "นโยบายภาพรวม"
-      : budget.subcategory_budget_id
-      ? `กฎย่อย #${budget.subcategory_budget_id}`
-      : "กฎย่อย";
-
-    const label = candidateLabels[0] || fallbackLabel;
-
-    const messageLines = [
-      `ต้องการลบ${scopeName} "<strong>${label}</strong>" หรือไม่?`,
-    ];
+    let messageLines = [];
 
     if (scope === "overall") {
-      const allocatedValue = budget.allocated_amount;
-      const allocatedDisplay =
-        allocatedValue === null ||
-        allocatedValue === undefined ||
-        allocatedValue === ""
-          ? "ยังไม่มีการจัดสรร"
-          : formatCurrency(allocatedValue);
+      const fundName =
+        (typeof subcategory?.subcategory_name === "string"
+          ? subcategory.subcategory_name.trim()
+          : "") || "-";
 
-      messageLines.push(`งบประมาณที่จัดสรร: ${allocatedDisplay}`);
+      messageLines = [
+        `ต้องการลบเงื่อนไขหลักของ "<strong>${fundName}</strong>" หรือไม่?`,
+        "การลบนี้ไม่สามารถย้อนกลับได้",
+      ];
+    } else {
+      const candidateLabels = [budget.fund_description, budget.level]
+        .map((value) => (typeof value === "string" ? value.trim() : ""))
+        .filter((value) => value && value !== "-" && !/undefined/i.test(value));
+
+      const fallbackLabel = budget.subcategory_budget_id
+        ? `เงื่อนไขรอง #${budget.subcategory_budget_id}`
+        : "เงื่อนไขรอง";
+
+      const label = candidateLabels[0] || fallbackLabel;
+
+      messageLines = [
+        `ต้องการลบเงื่อนไขรอง "<strong>${label}</strong>" หรือไม่?`,
+        "การลบนี้ไม่สามารถย้อนกลับได้",
+      ];
     }
 
-    messageLines.push("การลบนี้ไม่สามารถย้อนกลับได้");
-
     const res = await Swal.fire({
-      title: "ยืนยันการลบนโยบายงบประมาณ?",
+      title: "ยืนยันการลบเงื่อนไขงบประมาณ?",
       html: messageLines.join("<br/>"),
       icon: "warning",
       showCancelButton: true,
@@ -533,7 +531,7 @@ const FundManagementTab = ({
       iconBgClass="bg-indigo-100"
       iconColorClass="text-indigo-600"
       title="จัดการทุน"
-      description="เพิ่ม/แก้ไข หมวดหมู่ ทุนย่อย และนโยบายงบประมาณตามโครงสร้างใหม่"
+      description="เพิ่ม/แก้ไข หมวดหมู่ ทุนย่อย และเงื่อนไขงบประมาณตามโครงสร้างใหม่"
       actions={
         <>
           <button
@@ -786,9 +784,9 @@ const FundManagementTab = ({
                                             <Layers size={18} />
                                           </div>
                                           <div>
-                                            <p className="font-semibold text-indigo-900">นโยบายภาพรวม</p>
+                                            <p className="font-semibold text-indigo-900">เงื่อนไขหลัก</p>
                                             <p className="text-sm text-indigo-700 mt-0.5">
-                                              {overall.fund_description?.trim() || "ยังไม่มีคำอธิบายนโยบาย"}
+                                              {overall.fund_description?.trim() || "ยังไม่มีคำอธิบายเงื่อนไข"}
                                             </p>
                                           </div>
                                         </div>
@@ -849,13 +847,13 @@ const FundManagementTab = ({
                                   )}
 
                                   <div className="flex justify-between items-center">
-                                    <h4 className="text-sm font-semibold text-gray-700">กฎย่อยของทุนย่อย</h4>
+                                    <h4 className="text-sm font-semibold text-gray-700">เงื่อนไขรองของทุนย่อย</h4>
                                     <button
                                       type="button"
                                       onClick={() => onAddBudget?.(subcategory, category)}
                                       className="flex items-center gap-2 px-3 py-1.5 text-sm bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-lg hover:bg-indigo-100"
                                     >
-                                      <Plus size={14} /> เพิ่มกฎย่อย
+                                      <Plus size={14} /> เพิ่มเงื่อนไขรอง
                                     </button>
                                   </div>
 
@@ -865,10 +863,10 @@ const FundManagementTab = ({
                                         const normalizedDescription = (rule.fund_description || "").trim();
                                         const normalizedLevel = (rule.level || "").trim();
                                         const fallbackIdentifier = rule.subcategory_budget_id
-                                          ? `กฎย่อย #${rule.subcategory_budget_id}`
+                                          ? `เงื่อนไขรอง #${rule.subcategory_budget_id}`
                                           : rule.order_index
-                                          ? `กฎย่อย #${rule.order_index}`
-                                          : `กฎย่อย #${ruleIndex + 1}`;
+                                          ? `เงื่อนไขรอง #${rule.order_index}`
+                                          : `เงื่อนไขรอง #${ruleIndex + 1}`;
                                         const ruleTitle = normalizedDescription || normalizedLevel || fallbackIdentifier;
                                         const showLevelSubtitle = Boolean(
                                           normalizedLevel && normalizedLevel !== ruleTitle
@@ -946,7 +944,7 @@ const FundManagementTab = ({
                                       })
                                     ) : (
                                       <div className="border border-dashed border-gray-300 rounded-lg p-4 text-sm text-gray-600">
-                                        ยังไม่มีกฎย่อย สามารถเพิ่มกฎเพื่อกำหนดเพดานต่อครั้งเฉพาะเงื่อนไขได้
+                                        ยังไม่มีเงื่อนไขรอง สามารถเพิ่มเงื่อนไขรองเพื่อกำหนดเพดานต่อครั้งเฉพาะเงื่อนไขได้
                                       </div>
                                     )}
                                   </div>
