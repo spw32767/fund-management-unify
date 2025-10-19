@@ -15,7 +15,7 @@ export default function SubmissionTable({
   // lookups / enrichments
   catMap = {},
   subMap = {},
-  // we keep these to avoid breaking parent props, but we no longer use them for this column
+  // kept for compatibility with parent props
   budgetMap = {},
   subBudgetDescMap = {},
   detailsMap = {},
@@ -314,7 +314,6 @@ export default function SubmissionTable({
             const subName = getSubcategoryName(s);
             const articleTitle = getArticleTitle(s);
             const author = getAuthorName(s);
-
             return (
               <tr key={makeRowKey(s)} className="hover:bg-gray-50 transition-colors duration-150">
                 {/* เลขที่คำร้อง */}
