@@ -14,6 +14,7 @@ import systemConfigAPI from '../../../lib/system_config_api';
 import { useStatusMap } from '@/app/hooks/useStatusMap';
 import SubmissionExportModal from './SubmissionExportModal';
 import { downloadXlsx } from '@/app/admin/utils/xlsxExporter';
+import apiClient from '@/app/lib/api';
 
 // ----------- CONFIG -----------
 const PAGE_SIZE  = 10;        // how many rows to show at a time
@@ -47,6 +48,7 @@ const EXPORT_COLUMNS = [
   { key: 'journalIndexing', header: 'ฐานข้อมูล Indexing', width: 22 },
   { key: 'journalQuartile', header: 'Quartile', width: 14 },
   { key: 'publicationDate', header: 'วันที่เผยแพร่', width: 20 },
+  { key: 'mergedSubmissionPdf', header: 'Merge submissions PDF', width: 42 },
 ];
 
 const pickFirst = (...values) => {
@@ -70,6 +72,74 @@ const formatDateTime = (value) => {
   if (Number.isNaN(date.getTime())) return '';
   const pad = (n) => String(Math.abs(Math.trunc(n))).padStart(2, '0');
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
+};
+
+const resolveFileURL = (filePath) => {
+  if (!filePath) return '';
+  if (/^https?:\/\//i.test(filePath)) return filePath;
+  const base = apiClient.baseURL.replace(/\/?api\/v1$/, '');
+  try {
+    return new URL(filePath, base).href;
+  } catch {
+    return filePath;
+  }
+};
+
+const extractMergedDocumentMeta = (source) => {
+  if (!source || typeof source !== 'object') return null;
+  const doc = source.merged_document || source.mergedDocument || source.MergedDocument;
+  if (!doc || typeof doc !== 'object') return null;
+
+  const file = doc.file || doc.File;
+  const filePath = pickFirst(
+    doc.file_path,
+    doc.stored_path,
+    doc.StoredPath,
+    doc.relative_path,
+    doc.RelativePath,
+    doc.path,
+    doc.url,
+    doc.FilePath,
+    doc.File?.stored_path,
+    doc.File?.file_path,
+    doc.File?.path,
+    file?.stored_path,
+    file?.StoredPath,
+    file?.file_path,
+    file?.path,
+    file?.url,
+  );
+
+  if (!filePath) return null;
+
+  const displayName = pickFirst(
+    doc.display_name,
+    doc.DisplayName,
+    doc.original_name,
+    doc.OriginalName,
+    doc.file_name,
+    doc.FileName,
+    file?.original_name,
+    file?.OriginalName,
+    file?.file_name,
+    file?.FileName,
+  );
+
+  return {
+    filePath,
+    displayName: displayName || 'merged_document.pdf',
+  };
+};
+
+const getMergedDocumentExportValue = (...sources) => {
+  for (const source of sources) {
+    const meta = extractMergedDocumentMeta(source);
+    if (meta) {
+      const url = resolveFileURL(meta.filePath);
+      return url;
+    }
+  }
+  return '';
 };
 
 const normalizeYearValue = (value) => {
@@ -231,7 +301,19 @@ export default function SubmissionsManagement() {
         if (reqId !== latestReq.current) return; // race protection
 
         const chunk = res?.submissions || res?.data || [];
-        aggregate.push(...chunk);
+        const normalizedChunk = Array.isArray(chunk)
+          ? chunk.map((item) => {
+              if (item && typeof item === 'object') {
+                if (item.merged_document && !item.mergedDocument) {
+                  item.mergedDocument = item.merged_document;
+                } else if (item.mergedDocument && !item.merged_document) {
+                  item.merged_document = item.mergedDocument;
+                }
+              }
+              return item;
+            })
+          : [];
+        aggregate.push(...normalizedChunk);
 
         // stop if last page or no pagination info
         const totalPages = res?.pagination?.total_pages || 0;
@@ -957,6 +1039,8 @@ export default function SubmissionsManagement() {
         fiscalYearLabel = String(yearIdCandidate);
       }
 
+      const mergedPdfValue = getMergedDocumentExportValue(row, submissionObj, detailPayload);
+
       return {
         submissionNumber: row?.submission_number || submissionObj?.submission_number || '',
         submissionId: row?.submission_id || submissionObj?.submission_id || row?.id || '',
@@ -986,6 +1070,7 @@ export default function SubmissionsManagement() {
         journalIndexing: indexing || '',
         journalQuartile: quartile || '',
         publicationDate,
+        mergedSubmissionPdf: mergedPdfValue,
       };
     },
     [
