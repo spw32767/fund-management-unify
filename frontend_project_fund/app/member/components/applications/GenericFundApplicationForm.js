@@ -1965,7 +1965,7 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
     );
   }
 
-  const pageTitle = `ยื่นขอ${subcategoryData?.subcategory_name || 'ทุน'}`;
+  const pageTitle = `ยื่นขอ ${subcategoryData?.subcategory_name || 'ทุน'}`;
   const pageSubtitle = 'กรุณากรอกข้อมูลให้ครบถ้วนก่อนส่งคำร้องเพื่อเข้าสู่การพิจารณา';
   const breadcrumbs = [
     { label: 'หน้าแรก', href: '/member' },
