@@ -5437,7 +5437,10 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
 
       const pendingUploads = getAllAttachedFiles();
 
-      const response = await publicationDetailsAPI.add(submissionId, publicationData);
+      const response = await publicationDetailsAPI.add(submissionId, publicationData, {
+        mode: 'draft',
+        allowIncomplete: true,
+      });
 
       const savedExternalFunds = Array.isArray(response?.external_fundings)
         ? response.external_fundings
@@ -6205,7 +6208,9 @@ const showSubmissionConfirmation = async () => {
 
       try {
         // ส่ง publicationData โดยตรง
-        const response = await publicationDetailsAPI.add(submissionId, publicationData);
+        const response = await publicationDetailsAPI.add(submissionId, publicationData, {
+          mode: 'submit',
+        });
         console.log('Publication details saved successfully:', response);
 
         const savedExternalFunds = Array.isArray(response?.external_fundings)
