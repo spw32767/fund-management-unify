@@ -1052,20 +1052,6 @@ function DeptDecisionPanel({ submission, onApprove, onReject, onRequestRevision,
 /* =========================
  * Main Component
  * ========================= */
-  // ---- DEBUG switch & helpers ----
-  const DEBUG = (typeof window !== 'undefined') && (
-    new URLSearchParams(window.location.search).has('debug') ||
-    localStorage.getItem('dept_debug') === '1'
-  );
-  const dlog = (...args) => { if (DEBUG) console.log(...args); };
-  const dwarn = (...args) => { if (DEBUG) console.warn(...args); };
-  const dgroup = (label, obj) => {
-    if (DEBUG) {
-      try { console.groupCollapsed(label); if (obj !== undefined) console.log(obj); }
-      finally { console.groupEnd(); }
-    }
-  };
-
 export default function PublicationSubmissionDetailsDept({ submissionId, onBack }) {
   const [loading, setLoading] = useState(true);
   const [submission, setSubmission] = useState(null);
@@ -1091,9 +1077,7 @@ export default function PublicationSubmissionDetailsDept({ submissionId, onBack 
   
   // โหลดรายละเอียดสดหลังดำเนินการ
   async function reloadDetails() {
-    // DEBUG: reloadDetails()
     const res = await deptHeadAPI.getSubmissionDetails(submission.submission_id);
-    dgroup(`[Dept DEBUG] reloadDetails raw`, res);
     let data = res?.submission || res;
     if (res?.submission_users) data.submission_users = res.submission_users;
     if (res?.documents) data.documents = res.documents;
@@ -1110,7 +1094,6 @@ export default function PublicationSubmissionDetailsDept({ submissionId, onBack 
       setLoading(true);
       try {
         const res = await deptHeadAPI.getSubmissionDetails(submissionId);
-        dgroup(`[Dept DEBUG] GET /dept-head/submissions/${submissionId}/details — raw`, res);
         let data = res?.submission || res;
 
         // Normalize arrays
@@ -1136,7 +1119,6 @@ export default function PublicationSubmissionDetailsDept({ submissionId, onBack 
           data.applicant_user_id = res.applicant_user_id;
         }
 
-        dgroup('[Dept DEBUG] normalized for UI', data);
         setSubmission(data);
         const normalizedDocs = pickArray(
           data?.documents,
@@ -1919,7 +1901,6 @@ export default function PublicationSubmissionDetailsDept({ submissionId, onBack 
     let _subId = subId;
     if ((_catId == null && _subId == null) && (submission?.submission_type === 'publication_reward')) {
       _subId = 1;
-      if (DEBUG) console.warn('[Dept DEBUG] Fallback subcategory_id=1 (frontend-only) — no ids in payload');
     }
 
 
@@ -1939,9 +1920,7 @@ export default function PublicationSubmissionDetailsDept({ submissionId, onBack 
           setFundNames((prev) => ({ ...prev, ...names }));
 
           // debug ช่วยไล่ว่าจับชื่อได้หรือยัง
-          if (DEBUG) console.debug('[Dept] resolve fund', {
-            _catId, _subId, payloadSubName, names
-          });
+          // resolved fund info is available via state updates
         } catch (e) {
           console.warn('Resolve fund names failed:', e);
         } finally {
@@ -1961,14 +1940,11 @@ export default function PublicationSubmissionDetailsDept({ submissionId, onBack 
       null;
 
     if (!detail) {
-      console.log('[DEBUG] no detail yet, skip fetch announcements');
       return;
     }
 
     const mainId = detail?.main_annoucement;
     const rewardId = detail?.reward_announcement;
-
-    console.log('[DEBUG] will fetch announcements with ids =', { mainId, rewardId });
 
     let cancelled = false;
     (async () => {
@@ -1976,7 +1952,6 @@ export default function PublicationSubmissionDetailsDept({ submissionId, onBack 
         // โหลด Main
         if (mainId) {
           const res = await deptHeadAPI.getAnnouncement(mainId);
-          console.log('[DEBUG] getAnnouncement(main) raw res =', res);
           // รองรับหลากหลายทรง response
           const parsed =
             res?.announcement ||      // { announcement: {...} }
@@ -1985,7 +1960,6 @@ export default function PublicationSubmissionDetailsDept({ submissionId, onBack 
             res;                      // {...}
           if (!cancelled) {
             setMainAnn(parsed || null);
-            console.log('[DEBUG] setMainAnn =', parsed);
           }
         } else {
           setMainAnn(null);
@@ -1994,7 +1968,6 @@ export default function PublicationSubmissionDetailsDept({ submissionId, onBack 
         // โหลด Reward
         if (rewardId) {
           const res2 = await deptHeadAPI.getAnnouncement(rewardId);
-          console.log('[DEBUG] getAnnouncement(reward) raw res =', res2);
           const parsed2 =
             res2?.announcement ||
             res2?.data?.announcement ||
@@ -2002,13 +1975,12 @@ export default function PublicationSubmissionDetailsDept({ submissionId, onBack 
             res2;
           if (!cancelled) {
             setRewardAnn(parsed2 || null);
-            console.log('[DEBUG] setRewardAnn =', parsed2);
           }
         } else {
           setRewardAnn(null);
         }
       } catch (e) {
-        console.warn('[DEBUG] Load announcements failed:', e);
+        console.warn('Load announcements failed:', e);
         if (!cancelled) {
           setMainAnn(null);
           setRewardAnn(null);
@@ -2024,10 +1996,6 @@ export default function PublicationSubmissionDetailsDept({ submissionId, onBack 
   ]);
 
   const displaySubName = fundNames?.subcategory || getSubcategoryName(submission, pubDetail);
-  console.debug('[Dept] displaySubName =', displaySubName, {
-    raw_subcategory_id: submission?.subcategory_id,
-    fromDetail_subcategory_id: pubDetail?.subcategory_id,
-  });
   
   if (loading) {
     return (

@@ -1554,9 +1554,6 @@ export default function PublicationSubmissionDetails({ submissionId, onBack }) {
           };
         });
 
-        // Add console.log for attachments
-        console.log('Publication Submission Attachments (merged):', merged);
-
         if (!cancel) setAttachments(merged);
       } catch (e) {
         console.error('load attachments failed', e);
@@ -2040,14 +2037,11 @@ export default function PublicationSubmissionDetails({ submissionId, onBack }) {
       null;
 
     if (!detail) {
-      console.log('[DEBUG] no detail yet, skip fetch announcements');
       return;
     }
 
     const mainId = detail?.main_annoucement;
     const rewardId = detail?.reward_announcement;
-
-    console.log('[DEBUG] will fetch announcements with ids =', { mainId, rewardId });
 
     let cancelled = false;
     (async () => {
@@ -2055,7 +2049,6 @@ export default function PublicationSubmissionDetails({ submissionId, onBack }) {
         // โหลด Main
         if (mainId) {
           const res = await announcementAPI.getAnnouncement(mainId);
-          console.log('[DEBUG] getAnnouncement(main) raw res =', res);
           // รองรับหลากหลายทรง response
           const parsed =
             res?.announcement ||      // { announcement: {...} }
@@ -2064,7 +2057,6 @@ export default function PublicationSubmissionDetails({ submissionId, onBack }) {
             res;                      // {...}
           if (!cancelled) {
             setMainAnn(parsed || null);
-            console.log('[DEBUG] setMainAnn =', parsed);
           }
         } else {
           setMainAnn(null);
@@ -2073,7 +2065,6 @@ export default function PublicationSubmissionDetails({ submissionId, onBack }) {
         // โหลด Reward
         if (rewardId) {
           const res2 = await announcementAPI.getAnnouncement(rewardId);
-          console.log('[DEBUG] getAnnouncement(reward) raw res =', res2);
           const parsed2 =
             res2?.announcement ||
             res2?.data?.announcement ||
@@ -2081,7 +2072,6 @@ export default function PublicationSubmissionDetails({ submissionId, onBack }) {
             res2;
           if (!cancelled) {
             setRewardAnn(parsed2 || null);
-            console.log('[DEBUG] setRewardAnn =', parsed2);
           }
         } else {
           setRewardAnn(null);

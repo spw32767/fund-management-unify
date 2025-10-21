@@ -721,7 +721,6 @@ const getMaxFeeLimit = async (quartile, year = null, preloadedLimits = null) => 
   } catch (error) {
     // ถ้าไม่พบ config สำหรับ quartile นี้ ให้ return 0
     if (error.message && error.message.includes('Configuration not found')) {
-      console.log(`No fee limit config for quartile ${quartile} in year ${year}`);
       return 0;
     }
     console.error('Error fetching fee limit:', error);
@@ -1663,10 +1662,6 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
       const resp = await publicationBudgetAPI.getValidOptions(category_id, year_id);
       const options = resp.options || resp.data || [];
 
-      if (process.env.NODE_ENV !== 'production') {
-        console.log('[PublicationRewardForm] publication budget options API response:', resp);
-        console.log('[PublicationRewardForm] publication budget options list:', options);
-      }
       const pairs = [];
       const rateMap = {};
       const budgetMap = {};
@@ -1722,15 +1717,6 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
           subcategoryBudget?.Description,
           normalizedQuartileLabel,
         ]) || '';
-
-        if (process.env.NODE_ENV !== 'production') {
-          console.log('[PublicationRewardForm] normalized budget option entry:', {
-            key,
-            raw: opt,
-            resolvedFundDescription,
-            normalizedQuartileLabel,
-          });
-        }
 
         budgetMap[key] = {
           subcategory_id: opt.subcategory_id ?? null,
@@ -2141,12 +2127,6 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
       setFormData(prev => ({ ...prev, category_id: categoryId }));
     }
   }, [categoryId]);
-
-  // Log navigation parameters
-  useEffect(() => {
-    console.log('Navigation params:', { category_id: categoryId, year_id: yearId });
-  }, [categoryId, yearId]);
-
 
   const loadExistingSubmission = useCallback(
     async (targetSubmissionId) => {
@@ -3137,62 +3117,6 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
   };
 
   // Debug file states (development only)
-  const debugFileStates = () => {
-    console.group('=== DEBUG FILE STATES ===');
-    
-    console.log('1. uploadedFiles state:');
-    Object.entries(uploadedFiles).forEach(([key, file]) => {
-      if (file) {
-        console.log(`  ${key}:`, {
-          name: file.name,
-          type: file.type,
-          size: file.size,
-          lastModified: file.lastModified
-        });
-      } else {
-        console.log(`  ${key}: null/undefined`);
-      }
-    });
-    
-    console.log('2. otherDocuments state:');
-    if (otherDocuments && otherDocuments.length > 0) {
-      otherDocuments.forEach((doc, index) => {
-        const file = doc.file || doc;
-        if (file) {
-          console.log(`  Document ${index}:`, {
-            name: file.name,
-            type: file.type,
-            size: file.size
-          });
-        } else {
-          console.log(`  Document ${index}: invalid file object`, doc);
-        }
-      });
-    } else {
-      console.log('  No other documents');
-    }
-    
-    console.log('3. externalFundings state:');
-    if (externalFundings && externalFundings.length > 0) {
-      externalFundings.forEach((funding, index) => {
-        if (funding.file) {
-          console.log(`  Funding ${index}:`, {
-            name: funding.file.name,
-            type: funding.file.type,
-            size: funding.file.size,
-            fundName: funding.fundName
-          });
-        } else {
-          console.log(`  Funding ${index}: no file attached`, { fundName: funding.fundName });
-        }
-      });
-    } else {
-      console.log('  No external fundings');
-    }
-    
-    console.groupEnd();
-  };
-
   // =================================================================
   // DATA LOADING FUNCTIONS
   // =================================================================
@@ -3202,7 +3126,6 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
     try {
       setInitialDataReady(false);
       setLoading(true);
-      console.log('Starting loadInitialData...');
       
       // Get current user data
       let userLoaded = false;
@@ -3211,22 +3134,19 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
       // Try to fetch from API first
       try {
         const profileResponse = await authAPI.getProfile();
-        console.log('Full profile response:', profileResponse);
-        
+
         if (profileResponse && profileResponse.user) {
           currentUserData = profileResponse.user;
           setCurrentUser(currentUserData);
           userLoaded = true;
-          console.log('Current user from API:', currentUserData);
         }
       } catch (error) {
-        console.log('Could not fetch profile from API:', error);
+        console.warn('Could not fetch profile from API:', error);
       }
-      
+
       // If API fails, use localStorage
       if (!userLoaded) {
         const storedUser = authAPI.getCurrentUser();
-        console.log('Stored user from localStorage:', storedUser);
         if (storedUser) {
           currentUserData = storedUser;
           setCurrentUser(storedUser);
@@ -3266,22 +3186,10 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
           reward_announcement: root?.config_id ?? null,
         });
 
-        // (แนะนำ) debug ดูค่าที่ล็อกได้
-        console.log('announcementLock =', {
-          main_annoucement: root?.main_annoucement,
-          reward_announcement: root?.reward_announcement,
-        });
       } catch (e) {
         console.warn('Cannot fetch system-config window; main_annoucement/reward_announcement will be null', e);
         setAnnouncementLock({ main_annoucement: null, reward_announcement: null });
       }
-
-      console.log('Raw API responses:');
-      console.log('Years:', yearsResponse);
-      console.log('Users:', usersResponse);
-      console.log('Document Types:', docTypesResponse);
-      console.log('Current System Year:', currentYearResponse);
-      console.log('Available Rate Years:', availableRateYearsResponse);
 
       // Normalize year list from response
       const rawYears = Array.isArray(yearsResponse?.years)
@@ -3506,8 +3414,6 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
 
       // Handle users response and filter out current user
       if (usersResponse && usersResponse.users) {
-        console.log('All users before filtering:', usersResponse.users);
-        
         // Filter out current user from co-author list
         const filteredUsers = usersResponse.users.filter(user => {
           if (currentUserData && currentUserData.user_id) {
@@ -3515,9 +3421,6 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
           }
           return true;
         });
-        
-        console.log('Current user ID:', currentUserData?.user_id);
-        console.log('Filtered users (without current user):', filteredUsers);
         setUsers(filteredUsers);
       }
 
@@ -3548,9 +3451,6 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
 
         if (relevantDocs.length === 0) {
           console.warn('No document types explicitly configured for publication_reward; falling back to legacy list.');
-          console.log('Legacy document types payload:', sortedDocTypes);
-        } else {
-          console.log('Filtered publication_reward document types:', relevantDocs);
         }
 
         setDocumentTypes([]);
@@ -4434,8 +4334,6 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
   }, []);
 
   const handleFileUpload = (documentTypeId, files) => {
-    console.log('handleFileUpload called with:', { documentTypeId, files });
-
     const key = documentTypeId;
 
     if (!files || files.length === 0) {
@@ -4468,7 +4366,6 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
     }
 
     if (documentTypeId === 'other') {
-      console.log('Adding other documents:', files);
       const incoming = Array.from(files || []).filter(Boolean);
       if (incoming.length === 0) {
         return;
@@ -4495,7 +4392,6 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
     }
 
     const [file] = files;
-    console.log(`Setting uploaded file for type ${documentTypeId}:`, file);
 
     setUploadedFiles((prev) => ({
       ...prev,
@@ -4524,8 +4420,6 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
 
   // Handle external funding file changes
   const handleExternalFundingFileChange = (clientId, file) => {
-    console.log('handleExternalFundingFileChange called with:', { id: clientId, file });
-
     const targetFunding = externalFundings.find((funding) => funding.clientId === clientId);
     if (!targetFunding) {
       console.warn('No external funding entry found for clientId:', clientId);
@@ -4598,8 +4492,6 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
     if (errors[errorKey]) {
       setErrors((prev) => ({ ...prev, [errorKey]: '' }));
     }
-
-    console.log('External funding file added successfully');
   };
 
   const handleClearExternalFundingUpload = (clientId) => {
@@ -6029,8 +5921,6 @@ const showSubmissionConfirmation = async () => {
       setIsSubmitting(true);
       setLoading(true);
 
-      debugFileStates();
-
       // Show loading dialog
       Swal.fire({
         title: 'กำลังส่งคำร้อง...',
@@ -6086,8 +5976,6 @@ const showSubmissionConfirmation = async () => {
         });
       }
 
-      console.log(`Total files to upload: ${allFiles.length}`);
-
       // Create submission if not exists
       if (!submissionId) {
         Swal.update({
@@ -6105,11 +5993,6 @@ const showSubmissionConfirmation = async () => {
           throw new Error('ไม่พบข้อมูลหมวดทุนสำหรับการสร้างคำร้อง');
         }
 
-        console.log('Before POST:', {
-          subcategory_id: submissionSubcategoryId,
-          subcategory_budget_id: submissionSubcategoryBudgetId
-        });
-
         const submissionResponse = await submissionAPI.create({
           submission_type: 'publication_reward',
           year_id: formData.year_id,
@@ -6120,7 +6003,6 @@ const showSubmissionConfirmation = async () => {
         
         submissionId = submissionResponse.submission.submission_id;
         setCurrentSubmissionId(submissionId);
-        console.log('Created submission:', submissionId);
       }
 
       // Step 2: Manage Users in Submission
@@ -6130,11 +6012,6 @@ const showSubmissionConfirmation = async () => {
         });
 
         try {
-          console.log('=== Managing Submission Users via API ===');
-          console.log('Current User:', currentUser);
-          console.log('Co-authors:', coauthors);
-          console.log('Author Type:', formData.author_status);
-
           // Prepare all users data
           const allUsers = [];
 
@@ -6162,42 +6039,29 @@ const showSubmissionConfirmation = async () => {
             });
           }
 
-          console.log('All users to add:', allUsers);
-
           // Try batch API first
           let batchSuccess = false;
           
           try {
             const batchResult = await submissionUsersAPI.addMultipleUsers(submissionId, allUsers);
-            console.log('✅ Batch API successful:', batchResult);
-            
+
             if (batchResult.success) {
               batchSuccess = true;
-              console.log('Successfully added users via batch API');
             }
           } catch (batchError) {
-            console.log('Batch API failed, trying individual additions:', batchError);
+            console.warn('Batch API failed, trying individual additions:', batchError);
           }
 
           // If batch fails, add individually
           if (!batchSuccess) {
-            console.log('Adding users individually...');
-            
             let successCount = 0;
             const errors = [];
 
             for (let i = 0; i < allUsers.length; i++) {
               const user = allUsers[i];
-              
-              try {
-                console.log(`Adding user ${i + 1}:`, {
-                  user_id: user.user_id,
-                  role: user.role,
-                  is_primary: user.is_primary
-                });
 
+              try {
                 await submissionUsersAPI.addUser(submissionId, user);
-                console.log(`✅ Added user ${i + 1} successfully`);
                 successCount++;
 
               } catch (individualError) {
@@ -6216,8 +6080,6 @@ const showSubmissionConfirmation = async () => {
                 text: `Errors: ${errors.slice(0, 2).join('; ')}${errors.length > 2 ? '...' : ''}`
               });
             } else {
-              console.log(`✅ Successfully added ${successCount}/${allUsers.length} users individually`);
-              
               if (errors.length > 0) {
                 console.warn('Some users failed:', errors);
                 Toast.fire({
@@ -6326,16 +6188,11 @@ const showSubmissionConfirmation = async () => {
         reward_announcement: announcementLock.reward_announcement,
       };
 
-      console.log('=== Sending Publication Data ===');
-      console.log('Submission ID:', submissionId);
-      console.log('Publication Data:', JSON.stringify(publicationData, null, 2));
-
       try {
         // ส่ง publicationData โดยตรง
         const response = await publicationDetailsAPI.add(submissionId, publicationData, {
           mode: 'submit',
         });
-        console.log('Publication details saved successfully:', response);
 
         const savedExternalFunds = Array.isArray(response?.external_fundings)
           ? response.external_fundings

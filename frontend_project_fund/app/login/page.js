@@ -28,7 +28,6 @@ export default function LoginPage() {
   // Redirect if already authenticated - แก้ไขให้ใช้ Next.js router
   useEffect(() => {
     if (isAuthenticated && user && !redirecting) {
-      console.log('User authenticated, redirecting...', user);
       setRedirecting(true);
       redirectBasedOnRole();
     }
@@ -53,14 +52,12 @@ export default function LoginPage() {
   // แก้ไขการ redirect ให้ใช้ Next.js router และตรวจสอบ role ให้แม่นยำ
   const redirectBasedOnRole = () => {
     if (!user) {
-      console.log('No user data found');
       return;
     }
 
     // ตรวจสอบ role จาก user object
     const userRole = user.role_id || user.role;
-    console.log('User role detected:', userRole, 'User data:', user);
-    
+
     // หน่วงเวลาเล็กน้อยเพื่อให้ state update เสร็จ
     setTimeout(() => {
       if (
@@ -71,13 +68,10 @@ export default function LoginPage() {
         userRole === 'staff' ||
         userRole === 'dept_head'
       ) {
-        console.log('Redirecting to member area');
         router.replace('/member');
       } else if (userRole === 3 || userRole === 'admin') {
-        console.log('Redirecting to admin dashboard');
         router.replace('/admin');
       } else {
-        console.log('Redirecting to default dashboard');
         router.replace('/dashboard');
       }
     }, 100);
@@ -101,10 +95,8 @@ export default function LoginPage() {
     }
 
     try {
-      console.log('Attempting login...');
-      const response = await login(formData.email, formData.password);
-      console.log('Login response:', response);
-      
+      await login(formData.email, formData.password);
+
       // อย่าทำการ redirect ที่นี่ ให้ useEffect จัดการ
       // เพราะ login function จะ update isAuthenticated และ user state
       

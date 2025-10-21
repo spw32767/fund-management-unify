@@ -38,11 +38,8 @@ export const teacherAPI = {
         year = win?.current_year;
       }
 
-      console.log('Getting teacher funds structure for year:', year);
-
       // Step 1: Get years to convert year to year_id
       const yearsResponse = await apiClient.get('/years');
-      console.log('Years response:', yearsResponse);
 
       // Handle different response formats
       const yearsData = yearsResponse.years || yearsResponse.data || [];
@@ -60,8 +57,6 @@ export const teacherAPI = {
       const response = await apiClient.get('/funds/structure', {
         year_id: targetYear.year_id
       });
-
-      console.log('Fund structure response:', response);
 
       return {
         categories: response.categories || [],
@@ -81,11 +76,8 @@ export const teacherAPI = {
       if (categoryId) params.category_id = categoryId;
       if (yearId) params.year_id = yearId;
 
-      console.log('Getting teacher subcategories with params:', params);
-
       // เรียก Teacher specific endpoint
       const response = await apiClient.get('/teacher/subcategories', params);
-      console.log('Teacher subcategories response:', response);
 
       return response;
     } catch (error) {
@@ -500,8 +492,6 @@ export const fundApplicationAPI = {
   // Create publication reward application with all details and files
   async createApplication(applicationData) {
     try {
-      console.log('Creating publication reward application:', applicationData);
-
       const {
         // Basic submission data
         submission_type = 'publication_reward',
@@ -552,15 +542,11 @@ export const fundApplicationAPI = {
       });
 
       const submissionId = submissionResponse.submission.submission_id;
-      console.log('Created submission:', submissionId);
 
       // Step 2: Add co-authors to submission_users
       if (coauthors && coauthors.length > 0) {
-        console.log('Adding co-authors to submission:', coauthors);
-
         try {
           await submissionUsersAPI.setCoauthors(submissionId, coauthors);
-          console.log('Co-authors added successfully');
         } catch (error) {
           console.error('Error adding co-authors:', error);
           // Don't throw error here, continue with submission
@@ -598,7 +584,6 @@ export const fundApplicationAPI = {
       });
 
       await Promise.all(uploadPromises);
-      console.log('Files uploaded and attached successfully');
 
       // Step 4: Add publication reward details - ส่งข้อมูลใหม่ที่เพิ่มเข้ามา
       const detailsResponse = await apiClient.post(`/submissions/${submissionId}/publication-details`, {
@@ -667,8 +652,6 @@ export const publicationRewardAPI = {
   // Create publication reward application with all details and files
   async createApplication(applicationData) {
     try {
-      console.log('Creating publication reward application:', applicationData);
-
       const {
         // Basic submission data
         submission_type = 'publication_reward',
@@ -699,15 +682,11 @@ export const publicationRewardAPI = {
       });
 
       const submissionId = submissionResponse.submission.submission_id;
-      console.log('Created submission:', submissionId);
 
       // Step 2: Add co-authors to submission_users
       if (coauthors && coauthors.length > 0) {
-        console.log('Adding co-authors to submission:', coauthors);
-
         try {
           await submissionUsersAPI.setCoauthors(submissionId, coauthors);
-          console.log('Co-authors added successfully via submissionUsersAPI');
         } catch (error) {
           console.error('Error adding co-authors:', error);
           // Don't throw error here, continue with submission
@@ -745,7 +724,6 @@ export const publicationRewardAPI = {
       });
 
       await Promise.all(uploadPromises);
-      console.log('Files uploaded and attached successfully');
 
       // Step 4: Add publication reward details
       const detailsResponse = await apiClient.post(`/submissions/${submissionId}/publication-details`, {

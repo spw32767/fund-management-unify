@@ -91,8 +91,6 @@ export const adminAPI = {
   // Create new category
   async createCategory(categoryData) {
     try {
-      console.log('Creating category with data:', categoryData);
-      
       // ตรวจสอบข้อมูลก่อนส่ง
       if (!categoryData.category_name || categoryData.category_name.trim() === '') {
         throw new Error('ชื่อหมวดหมู่ห้ามว่าง');
@@ -103,7 +101,6 @@ export const adminAPI = {
       }
       
       const response = await apiClient.post('/admin/categories', categoryData);
-      console.log('Create category response:', response);
       return response;
     } catch (error) {
       console.error('Error creating category:', error);
@@ -181,11 +178,8 @@ export const adminAPI = {
       if (categoryId) params.category_id = categoryId;
       if (yearId) params.year_id = yearId;
       
-      console.log('Getting all subcategories for admin with params:', params);
-      
       const response = await apiClient.get('/admin/subcategories', params);
-      console.log('Admin subcategories response:', response);
-      
+
       return response;
     } catch (error) {
       console.error('Error fetching all subcategories:', error);
@@ -228,8 +222,6 @@ export const adminAPI = {
           : (subcategoryData.target_roles ? [subcategoryData.target_roles] : [])
       };
       
-      console.log('Sending subcategory data:', data); // debug log
-      
       const response = await apiClient.post('/admin/subcategories', data);
       return response;
     } catch (error) {
@@ -248,8 +240,6 @@ export const adminAPI = {
           ? subcategoryData.target_roles  // ส่งเป็น array ตรงๆ
           : (subcategoryData.target_roles ? [subcategoryData.target_roles] : [])
       };
-      
-      console.log('Updating subcategory data:', data); // debug log
       
       const response = await apiClient.put(`/admin/subcategories/${subcategoryId}`, data);
       return response;
@@ -509,22 +499,18 @@ export const adminAPI = {
   // Get all categories and subcategories (no filtering for admin) - Legacy method
   async getAllFundsStructure(year = '2568') {
     try {
-      console.log('Getting all funds structure for admin, year:', year);
-
       // Step 1: Get years to convert year to year_id
       const yearsResponse = await apiClient.get('/years');
-      console.log('Years response:', yearsResponse);
-      
+
       const targetYear = yearsResponse.years?.find(y => y.year === year);
       if (!targetYear) {
         throw new Error(`Year ${year} not found`);
       }
 
       // Step 2: Get all categories for the year
-      const categoriesResponse = await apiClient.get('/categories', { 
-        year_id: targetYear.year_id 
+      const categoriesResponse = await apiClient.get('/categories', {
+        year_id: targetYear.year_id
       });
-      console.log('Categories response:', categoriesResponse);
 
       if (!categoriesResponse.categories) {
         return { categories: [] };
@@ -534,16 +520,12 @@ export const adminAPI = {
       const categoriesWithSubs = await Promise.all(
         categoriesResponse.categories.map(async (category) => {
           try {
-            console.log(`Getting all subcategories for category ${category.category_id}`);
-            
             // เรียก Admin endpoint ที่ได้ข้อมูลทั้งหมด
             const subResponse = await apiClient.get('/admin/subcategories', {
               category_id: category.category_id,
               year_id: targetYear.year_id
             });
-            
-            console.log(`All subcategories for category ${category.category_id}:`, subResponse);
-            
+
             return {
               ...category,
               subcategories: subResponse.subcategories || []
@@ -557,8 +539,6 @@ export const adminAPI = {
           }
         })
       );
-
-      console.log('Final admin result (all funds):', categoriesWithSubs);
 
       return {
         categories: categoriesWithSubs,
@@ -938,7 +918,6 @@ export const adminAPI = {
       const response = await apiClient.get('/admin/reward-config', { 
         params: { year }
       });
-      console.log('Admin reward configs:', response);
       return response;
     } catch (error) {
       console.error('Error fetching reward configs:', error);

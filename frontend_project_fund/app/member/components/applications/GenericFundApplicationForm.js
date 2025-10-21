@@ -719,6 +719,71 @@ const firstNonEmptyString = (...values) => {
   return '';
 };
 
+const firstValidNumber = (...values) => {
+  for (const value of values) {
+    if (value === undefined || value === null || value === '') {
+      continue;
+    }
+    const numeric = Number(value);
+    if (!Number.isNaN(numeric)) {
+      return numeric;
+    }
+  }
+  return null;
+};
+
+const pickFirstObject = (...values) => {
+  for (const value of values) {
+    if (value && typeof value === 'object') {
+      return value;
+    }
+  }
+  return null;
+};
+
+const cloneFundContext = (context) => {
+  if (!context) {
+    return null;
+  }
+
+  const cloned = { ...context };
+  if (context.subcategory && typeof context.subcategory === 'object') {
+    cloned.subcategory = { ...context.subcategory };
+    if (context.subcategory.category && typeof context.subcategory.category === 'object') {
+      cloned.subcategory.category = { ...context.subcategory.category };
+    }
+  }
+
+  return cloned;
+};
+
+const mergeFundContext = (baseContext, incomingContext) => {
+  if (!baseContext && !incomingContext) {
+    return null;
+  }
+
+  const base = cloneFundContext(baseContext) || {};
+  const incoming = cloneFundContext(incomingContext);
+
+  if (incoming) {
+    Object.assign(base, incoming);
+
+    if (incoming.subcategory) {
+      base.subcategory = { ...(base.subcategory || {}), ...incoming.subcategory };
+
+      const incomingCategory = incoming.subcategory.category;
+      if (incomingCategory || base.subcategory?.category) {
+        base.subcategory.category = {
+          ...(base.subcategory?.category || {}),
+          ...(incomingCategory || {}),
+        };
+      }
+    }
+  }
+
+  return Object.keys(base).length > 0 ? base : null;
+};
+
 const formatReviewerComment = (value) => {
   if (typeof value === 'string') {
     const trimmed = value.trim();
@@ -743,6 +808,9 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
   const [errors, setErrors] = useState({});
   const [currentSubmissionId, setCurrentSubmissionId] = useState(
     subcategoryData?.submissionId ?? null
+  );
+  const [fundContext, setFundContext] = useState(() =>
+    mergeFundContext(null, subcategoryData)
   );
 
   // Form data
@@ -791,7 +859,11 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
     return resolveCategoryPageFromName(nameCandidate);
   });
 
-  const originPage = subcategoryData?.originPage || null;
+  useEffect(() => {
+    setFundContext((prev) => mergeFundContext(prev, subcategoryData));
+  }, [subcategoryData]);
+
+  const originPage = fundContext?.originPage ?? subcategoryData?.originPage ?? null;
   const editingExistingSubmission = useMemo(
     () => Boolean(currentSubmissionId || subcategoryData?.submissionId),
     [currentSubmissionId, subcategoryData?.submissionId]
@@ -805,6 +877,7 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
     }
     return "research-fund";
   }, [originPage, editingExistingSubmission]);
+  const effectiveFundContext = fundContext || subcategoryData || {};
 
   // =================================================================
   // INITIAL DATA LOADING
@@ -814,22 +887,27 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
   }, [subcategoryData]);
 
   useEffect(() => {
-    const originCandidate = resolveCategoryPageFromOrigin(subcategoryData?.originPage);
+    const originCandidate = resolveCategoryPageFromOrigin(originPage);
     if (originCandidate) {
       setCategoryPage(originCandidate);
       return;
     }
 
     const nameCandidate = firstNonEmptyString(
-      subcategoryData?.category_name,
-      subcategoryData?.subcategory?.category?.category_name,
-      subcategoryData?.subcategory_name,
+      fundContext?.category_name,
+      fundContext?.subcategory?.category?.category_name,
+      fundContext?.subcategory_name,
     );
     const resolved = resolveCategoryPageFromName(nameCandidate);
     if (resolved) {
       setCategoryPage(resolved);
     }
-  }, [subcategoryData]);
+  }, [
+    originPage,
+    fundContext?.category_name,
+    fundContext?.subcategory?.category?.category_name,
+    fundContext?.subcategory_name,
+  ]);
 
   const loadInitialData = async () => {
     try {
@@ -868,10 +946,6 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
           setHasDraft(false);
         }
       }
-
-      console.log('Loaded user data:', userData);
-      console.log('Loaded document requirements:', docRequirements);
-      console.log('Resolved pending status:', statusInfo);
 
       setPendingStatus(statusInfo);
 
@@ -959,13 +1033,202 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
         submission.fundApplicationDetail ||
         null;
 
+      setFundContext((prev) => {
+        const base = mergeFundContext(prev, subcategoryData);
+        const working = cloneFundContext(base) || {};
+
+        const resolvedSubcategory = pickFirstObject(
+          detail?.subcategory,
+          detail?.Subcategory,
+          submission.subcategory,
+          submission.Subcategory,
+          working?.subcategory,
+        );
+        const resolvedCategory = pickFirstObject(
+          resolvedSubcategory?.category,
+          resolvedSubcategory?.Category,
+          detail?.category,
+          detail?.Category,
+          submission.category,
+          submission.Category,
+          working?.subcategory?.category,
+        );
+
+        const resolvedCategoryId = firstValidNumber(
+          submission.category_id,
+          submission.CategoryID,
+          detail?.category_id,
+          detail?.CategoryID,
+          resolvedCategory?.category_id,
+          resolvedCategory?.CategoryID,
+          working?.category_id,
+        );
+        if (resolvedCategoryId != null) {
+          working.category_id = resolvedCategoryId;
+        }
+
+        const resolvedSubcategoryId = firstValidNumber(
+          submission.subcategory_id,
+          submission.SubcategoryID,
+          detail?.subcategory_id,
+          detail?.SubcategoryID,
+          resolvedSubcategory?.subcategory_id,
+          resolvedSubcategory?.SubcategoryID,
+          working?.subcategory_id,
+        );
+        if (resolvedSubcategoryId != null) {
+          working.subcategory_id = resolvedSubcategoryId;
+        }
+
+        const resolvedBudgetId = firstValidNumber(
+          submission.subcategory_budget_id,
+          submission.SubcategoryBudgetID,
+          detail?.subcategory_budget_id,
+          detail?.SubcategoryBudgetID,
+          working?.subcategory_budget_id,
+        );
+        if (resolvedBudgetId != null) {
+          working.subcategory_budget_id = resolvedBudgetId;
+        }
+
+        const resolvedYearId = firstValidNumber(
+          submission.year_id,
+          submission.YearID,
+          detail?.year_id,
+          detail?.YearID,
+          working?.year_id,
+        );
+        if (resolvedYearId != null) {
+          working.year_id = resolvedYearId;
+        }
+
+        const resolvedCategoryName = firstNonEmptyString(
+          submission.category_name,
+          submission.CategoryName,
+          detail?.category_name,
+          detail?.CategoryName,
+          resolvedCategory?.category_name,
+          resolvedCategory?.CategoryName,
+          working?.category_name,
+          working?.subcategory?.category?.category_name,
+        );
+        if (resolvedCategoryName) {
+          working.category_name = resolvedCategoryName;
+        }
+
+        const resolvedSubcategoryName = firstNonEmptyString(
+          submission.subcategory_name,
+          submission.SubcategoryName,
+          detail?.subcategory_name,
+          detail?.SubcategoryName,
+          resolvedSubcategory?.subcategory_name,
+          resolvedSubcategory?.subcategorie_name,
+          working?.subcategory_name,
+        );
+        if (resolvedSubcategoryName) {
+          working.subcategory_name = resolvedSubcategoryName;
+        }
+
+        const resolvedFundFullName = firstNonEmptyString(
+          resolvedSubcategory?.fund_full_name,
+          detail?.fund_full_name,
+          working?.subcategory?.fund_full_name,
+          resolvedSubcategoryName,
+        );
+
+        const resolvedFundName = firstNonEmptyString(
+          resolvedSubcategory?.fund_name,
+          detail?.fund_name,
+          working?.subcategory?.fund_name,
+          resolvedFundFullName,
+          resolvedSubcategoryName,
+        );
+
+        const resolvedFundDescription = firstNonEmptyString(
+          detail?.fund_description,
+          resolvedSubcategory?.fund_description,
+          working?.fund_description,
+          working?.subcategory?.fund_description,
+        );
+
+        const resolvedSubcategoryDescription = firstNonEmptyString(
+          detail?.subcategory_description,
+          resolvedSubcategory?.subcategory_description,
+          working?.subcategory_description,
+          working?.subcategory?.subcategory_description,
+        );
+
+        const resolvedFundCondition = firstNonEmptyString(
+          detail?.fund_condition,
+          resolvedSubcategory?.fund_condition,
+          working?.subcategory?.fund_condition,
+        );
+
+        const mergedSubcategory = {
+          ...(working?.subcategory || {}),
+          ...(resolvedSubcategory || {}),
+        };
+
+        if (resolvedSubcategoryId != null) {
+          mergedSubcategory.subcategory_id = resolvedSubcategoryId;
+        }
+        if (resolvedSubcategoryName) {
+          mergedSubcategory.subcategory_name = resolvedSubcategoryName;
+        }
+        if (resolvedFundFullName) {
+          mergedSubcategory.fund_full_name = resolvedFundFullName;
+        }
+        if (resolvedFundName) {
+          mergedSubcategory.fund_name = resolvedFundName;
+        }
+        if (resolvedFundDescription) {
+          mergedSubcategory.fund_description = resolvedFundDescription;
+        }
+        if (resolvedSubcategoryDescription) {
+          mergedSubcategory.subcategory_description = resolvedSubcategoryDescription;
+        }
+        if (resolvedFundCondition) {
+          mergedSubcategory.fund_condition = resolvedFundCondition;
+        }
+
+        const mergedCategory = {
+          ...(working?.subcategory?.category || {}),
+          ...(resolvedCategory || {}),
+        };
+
+        if (resolvedCategoryId != null) {
+          mergedCategory.category_id = resolvedCategoryId;
+        }
+        if (resolvedCategoryName) {
+          mergedCategory.category_name = resolvedCategoryName;
+        }
+
+        if (Object.keys(mergedCategory).length > 0) {
+          mergedSubcategory.category = mergedCategory;
+        }
+
+        if (Object.keys(mergedSubcategory).length > 0) {
+          working.subcategory = mergedSubcategory;
+        }
+
+        if (resolvedFundDescription) {
+          working.fund_description = resolvedFundDescription;
+        }
+        if (resolvedSubcategoryDescription) {
+          working.subcategory_description = resolvedSubcategoryDescription;
+        }
+
+        return mergeFundContext(working, null);
+      });
+
       const categoryNameCandidate = firstNonEmptyString(
         submission.category_name,
         submission.Category?.CategoryName,
         submission.category?.category_name,
         detail?.subcategory?.category?.category_name,
         detail?.Subcategory?.Category?.CategoryName,
-        subcategoryData?.category_name,
+        effectiveFundContext?.category_name,
+        effectiveFundContext?.subcategory?.category?.category_name,
       );
       const resolvedCategoryPage = resolveCategoryPageFromName(categoryNameCandidate);
       if (resolvedCategoryPage) {
@@ -1147,8 +1410,6 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
         main_annoucement: root?.main_annoucement ?? null,
         activity_support_announcement: root?.activity_support_announcement ?? null,
       };
-
-      console.log('System announcement snapshot resolved:', normalized);
 
       setAnnouncementLock(normalized);
       return normalized;
@@ -1754,13 +2015,17 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
       await new Promise(resolve => setTimeout(resolve, 300));
 
       let submissionId = currentSubmissionId;
+      const contextYearId = effectiveFundContext?.year_id ?? null;
+      const contextCategoryId = effectiveFundContext?.category_id ?? null;
+      const contextSubcategoryId = effectiveFundContext?.subcategory_id ?? null;
+      const contextBudgetId = effectiveFundContext?.subcategory_budget_id ?? null;
       if (!submissionId) {
         const payload = {
           submission_type: 'fund_application',
-          year_id: subcategoryData?.year_id,
-          category_id: subcategoryData?.category_id,
-          subcategory_id: subcategoryData?.subcategory_id,
-          subcategory_budget_id: subcategoryData?.subcategory_budget_id,
+          year_id: contextYearId,
+          category_id: contextCategoryId,
+          subcategory_id: contextSubcategoryId,
+          subcategory_budget_id: contextBudgetId,
         };
 
         const submissionRes = await submissionAPI.createSubmission(payload);
@@ -1772,9 +2037,9 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
       } else {
         try {
           await submissionAPI.update(submissionId, {
-            category_id: subcategoryData?.category_id,
-            subcategory_id: subcategoryData?.subcategory_id,
-            subcategory_budget_id: subcategoryData?.subcategory_budget_id,
+            category_id: contextCategoryId,
+            subcategory_id: contextSubcategoryId,
+            subcategory_budget_id: contextBudgetId,
           });
         } catch (updateError) {
           console.warn('Failed to update submission metadata for draft:', updateError);
@@ -1789,7 +2054,7 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
         project_title: formData.project_title || '',
         project_description: formData.project_description || '',
         requested_amount: parseFloat(formData.requested_amount) || 0,
-        subcategory_id: subcategoryData?.subcategory_id,
+        subcategory_id: contextSubcategoryId,
         main_annoucement: announcementLock.main_annoucement,
         activity_support_announcement: announcementLock.activity_support_announcement,
       };
@@ -1879,8 +2144,8 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
 
     const targetPage = resolveCategoryPageFromOrigin(categoryPage) || 'research-fund';
     if (onNavigate) {
-      const navigationData = subcategoryData
-        ? { ...subcategoryData, submissionId: null, originPage: targetPage }
+      const navigationData = effectiveFundContext && Object.keys(effectiveFundContext).length > 0
+        ? { ...effectiveFundContext, submissionId: null, originPage: targetPage }
         : { originPage: targetPage };
       onNavigate(targetPage, navigationData);
     } else {
@@ -1907,6 +2172,10 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
       setSubmitting(true);
 
       let submissionId = currentSubmissionId;
+      const contextYearId = effectiveFundContext?.year_id ?? null;
+      const contextCategoryId = effectiveFundContext?.category_id ?? null;
+      const contextSubcategoryId = effectiveFundContext?.subcategory_id ?? null;
+      const contextBudgetId = effectiveFundContext?.subcategory_budget_id ?? null;
       if (!submissionId) {
         let statusForSubmission = pendingStatus;
         if (!statusForSubmission?.id) {
@@ -1917,20 +2186,16 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
         // Step 1: Create submission record (server defaults to draft status; status_id retained for backwards compatibility)
         const submissionPayload = {
           submission_type: 'fund_application',
-          year_id: subcategoryData?.year_id,
-          category_id: subcategoryData?.category_id,
-          subcategory_id: subcategoryData?.subcategory_id,
-          subcategory_budget_id: subcategoryData?.subcategory_budget_id,
+          year_id: contextYearId,
+          category_id: contextCategoryId,
+          subcategory_id: contextSubcategoryId,
+          subcategory_budget_id: contextBudgetId,
         };
         if (statusForSubmission?.id) {
           submissionPayload.status_id = statusForSubmission.id;
         }
-
-        console.log('Creating submission with payload:', submissionPayload, 'resolved status:', statusForSubmission);
-
         const submissionRes = await submissionAPI.createSubmission(submissionPayload);
         submissionId = submissionRes?.submission?.submission_id;
-        console.log('Submission creation response:', submissionRes);
         if (!submissionId) {
           throw new Error('ไม่สามารถสร้างคำร้องได้');
         }
@@ -1938,9 +2203,9 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
       } else {
         try {
           await submissionAPI.update(submissionId, {
-            category_id: subcategoryData?.category_id,
-            subcategory_id: subcategoryData?.subcategory_id,
-            subcategory_budget_id: subcategoryData?.subcategory_budget_id,
+            category_id: contextCategoryId,
+            subcategory_id: contextSubcategoryId,
+            subcategory_budget_id: contextBudgetId,
           });
         } catch (updateError) {
           console.warn('Failed to update submission metadata before submit:', updateError);
@@ -1953,12 +2218,10 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
           project_title: formData.project_title || '',
           project_description: formData.project_description || '',
           requested_amount: parseFloat(formData.requested_amount) || 0,
-          subcategory_id: subcategoryData.subcategory_id,
+          subcategory_id: contextSubcategoryId,
           main_annoucement: announcementLock.main_annoucement,
           activity_support_announcement: announcementLock.activity_support_announcement,
         };
-
-        console.log('Saving fund details payload:', fundDetailsPayload);
 
         await apiClient.post(`/submissions/${submissionId}/fund-details`, fundDetailsPayload);
       }
@@ -1980,7 +2243,7 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
         const submissionDate = new Date();
         try {
           const installmentNumber = await fundInstallmentAPI.resolveInstallmentNumber({
-            yearId: subcategoryData?.year_id ?? formData.year_id ?? null,
+            yearId: effectiveFundContext?.year_id ?? formData.year_id ?? null,
             submissionDate,
           });
 
@@ -2089,29 +2352,29 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
     );
   }
 
-  const pageTitle = `ยื่นขอ ${subcategoryData?.subcategory_name || 'ทุน'}`;
+  const pageTitle = `ยื่นขอ ${effectiveFundContext?.subcategory_name || 'ทุน'}`;
   const pageSubtitle = 'กรุณากรอกข้อมูลให้ครบถ้วนก่อนส่งคำร้องเพื่อเข้าสู่การพิจารณา';
   const breadcrumbs = [
     { label: 'หน้าแรก', href: '/member' },
     { label: 'ทุนวิจัย', href: '/member?tab=research-fund' },
-    { label: subcategoryData?.subcategory_name || 'ยื่นคำร้อง' }
+    { label: effectiveFundContext?.subcategory_name || 'ยื่นคำร้อง' }
   ];
   const pendingStatusName = pendingStatus?.name || 'กำลังโหลดสถานะ...';
   const pendingStatusCode = pendingStatus?.code ?? '—';
   const formattedRequestedAmount = formatCurrency(formData.requested_amount || 0);
   const requiredDocumentCount = documentRequirements.filter((doc) => doc.required).length;
   const bannerPrimaryDescription = firstNonEmptyString(
-    subcategoryData?.subcategory?.fund_full_name,
-    subcategoryData?.subcategory?.fund_name,
-    subcategoryData?.subcategory?.subcategory_name,
-    subcategoryData?.subcategory_name
+    effectiveFundContext?.subcategory?.fund_full_name,
+    effectiveFundContext?.subcategory?.fund_name,
+    effectiveFundContext?.subcategory?.subcategory_name,
+    effectiveFundContext?.subcategory_name
   );
   const bannerSecondaryDescription = firstNonEmptyString(
-    subcategoryData?.subcategory?.fund_description,
-    subcategoryData?.subcategory?.subcategory_description,
-    subcategoryData?.subcategory?.fund_condition,
-    subcategoryData?.fund_description,
-    subcategoryData?.subcategory_description
+    effectiveFundContext?.subcategory?.fund_description,
+    effectiveFundContext?.subcategory?.subcategory_description,
+    effectiveFundContext?.subcategory?.fund_condition,
+    effectiveFundContext?.fund_description,
+    effectiveFundContext?.subcategory_description
   );
   const shouldShowFundBanner = Boolean(bannerPrimaryDescription || bannerSecondaryDescription);
   const selectionLocked = Boolean(editingExistingSubmission);
