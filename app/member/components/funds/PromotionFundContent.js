@@ -400,7 +400,6 @@ export default function PromotionFundContent({ onNavigate }) {
 
       // ใช้ API ใหม่ที่ส่งข้อมูลแบบจัดกลุ่มแล้ว
       const response = await teacherAPI.getVisibleFundsStructure(year);
-      console.log("Fund structure response:", response);
 
       if (!response.categories || !Array.isArray(response.categories)) {
         console.error("No categories found or invalid format");

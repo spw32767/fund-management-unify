@@ -307,13 +307,6 @@ export default function ResearchFundContent({ onNavigate }) {
         now: win.now ?? null,
       };
 
-      console.log("[system-config]", {
-        start_date,
-        end_date,
-        is_open_effective: open,
-        now: win.now,
-      });
-
       return payload;
     } catch (e) {
       console.warn("loadSystemConfig failed:", e);

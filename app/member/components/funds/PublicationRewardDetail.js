@@ -528,9 +528,7 @@ export default function PublicationRewardDetail({ submissionId, onNavigate }) {
     try {
       // โหลด submission detail
       const response = await submissionAPI.getSubmission(submissionId);
-      //console.log('Submission Detail:', response);
-      console.log('Submission Detail:', JSON.stringify(response, null, 2));
-      
+
        // เริ่มจากข้อมูล submission พื้นฐาน
       let submissionData = response.submission || response;
 
@@ -578,7 +576,7 @@ export default function PublicationRewardDetail({ submissionId, onNavigate }) {
             submissionData.submission_users = usersResponse.users;
           }
         } catch (error) {
-          console.log('Could not load submission users separately');
+          console.warn('Could not load submission users separately', error);
         }
       }
       

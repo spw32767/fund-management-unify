@@ -981,10 +981,7 @@ export const submissionsListingAPI = {
 
   async getAdminSubmissions(params) {
     try {
-      console.log('[API] getAdminSubmissions called with params:', params);
       const response = await apiClient.get('/admin/submissions', { params });
-      console.log('[API] Backend response filters:', response.filters);
-      console.log('[API] Total submissions in response:', response.submissions?.length || 0);
       return response;
     } catch (error) {
       console.error('[API] Error fetching admin submissions:', error);

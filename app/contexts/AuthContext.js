@@ -148,10 +148,9 @@ export function AuthProvider({ children }) {
                 },
                 });
                 
-                console.log('Authentication restored from localStorage:', user);
                 return;
             } else {
-                console.log('Token expired');
+                console.warn('Token expired');
             }
             } catch (error) {
             console.error('Invalid token format:', error);
@@ -209,8 +208,6 @@ export function AuthProvider({ children }) {
     try {
         const response = await authAPI.login(email, password);
         
-        console.log('Login API response:', response);
-        
         // ตรวจสอบ response structure
         if (!response.token || !response.user) {
         throw new Error('Invalid response from server');
@@ -231,7 +228,6 @@ export function AuthProvider({ children }) {
         },
         });
 
-        console.log('Login successful, user data:', response.user);
         return response;
         
     } catch (error) {
@@ -273,7 +269,6 @@ export function AuthProvider({ children }) {
     
     dispatch({ type: AUTH_ACTIONS.LOGOUT });
     
-    console.log('User logged out');
     };
 
   // Clear error

@@ -20,11 +20,9 @@ export default function HomePage() {
 
       if (isAuthenticated && user) {
         // ถ้า user ล็อกอินแล้ว ให้ redirect ตาม role
-        console.log('User is authenticated, redirecting based on role:', user);
         redirectBasedOnRole(user);
       } else {
         // ถ้ายังไม่ล็อกอิน ให้ไปหน้า login
-        console.log('User not authenticated, redirecting to login');
         router.replace('/login');
       }
     };
@@ -34,7 +32,6 @@ export default function HomePage() {
 
   const redirectBasedOnRole = (userData) => {
     const userRole = userData.role_id || userData.role;
-    console.log('Redirecting user with role:', userRole);
     
     // ใช้ setTimeout เพื่อให้มั่นใจว่า state update เสร็จแล้ว
     setTimeout(() => {
