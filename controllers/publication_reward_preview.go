@@ -177,7 +177,7 @@ func handlePublicationRewardPreviewSubmission(c *gin.Context) {
 		"{{date_th}}":            utils.FormatThaiDate(submission.CreatedAt),
 		"{{applicant_name}}":     buildApplicantName(submission.User),
 		"{{date_of_employment}}": resolveApplicantEmploymentDate(submission.User),
-		"{{position}}":           strings.TrimSpace(submission.User.Position.PositionName),
+		"{{position}}":           resolveApplicantPosition(submission.User),
 		"{{installment}}":        installmentText,
 		"{{total_amount}}":       formatAmount(detail.TotalAmount),
 		"{{total_amount_text}}":  utils.BahtText(detail.TotalAmount),
@@ -304,11 +304,16 @@ func buildFormPreviewReplacements(payload *PublicationRewardPreviewFormPayload, 
 		installmentText = formatNullableInt(sysConfig.Installment)
 	}
 
+	positionText := lookupPositionFromUserID(requesterID)
+	if positionText == "" {
+		positionText = strings.TrimSpace(payload.Applicant.PositionName)
+	}
+
 	replacements := map[string]string{
 		"{{date_th}}":            utils.FormatThaiDate(time.Now()),
 		"{{applicant_name}}":     buildPreviewApplicantName(payload.Applicant),
 		"{{date_of_employment}}": employmentDate,
-		"{{position}}":           strings.TrimSpace(payload.Applicant.PositionName),
+		"{{position}}":           positionText,
 		"{{installment}}":        installmentText,
 		"{{total_amount}}":       formatAmount(totalAmount),
 		"{{total_amount_text}}":  utils.BahtText(totalAmount),
@@ -520,6 +525,70 @@ func resolveApplicantEmploymentDate(user *models.User) string {
 	return ""
 }
 
+func resolveApplicantPosition(user *models.User) string {
+	if user == nil {
+		return ""
+	}
+
+	if user.PositionTitle != nil {
+		if title := strings.TrimSpace(*user.PositionTitle); title != "" {
+			return title
+		}
+	}
+
+	if title := strings.TrimSpace(user.Position.PositionName); title != "" {
+		return title
+	}
+
+	if user.UserID == 0 {
+		return ""
+	}
+
+	type positionRow struct {
+		Position     sql.NullString `gorm:"column:position"`
+		PositionName sql.NullString `gorm:"column:position_name"`
+	}
+
+	var row positionRow
+	if err := config.DB.Table("users").
+		Select("position, position_name").
+		Where("user_id = ?", user.UserID).
+		Scan(&row).Error; err == nil {
+		if row.Position.Valid {
+			if title := strings.TrimSpace(row.Position.String); title != "" {
+				return title
+			}
+		}
+		if row.PositionName.Valid {
+			if title := strings.TrimSpace(row.PositionName.String); title != "" {
+				return title
+			}
+		}
+	}
+
+	if user.PositionID == 0 {
+		return ""
+	}
+
+	type positionNameRow struct {
+		Name sql.NullString `gorm:"column:position_name"`
+	}
+
+	var nameRow positionNameRow
+	if err := config.DB.Table("positions").
+		Select("position_name").
+		Where("position_id = ?", user.PositionID).
+		Scan(&nameRow).Error; err != nil {
+		return ""
+	}
+
+	if nameRow.Name.Valid {
+		return strings.TrimSpace(nameRow.Name.String)
+	}
+
+	return ""
+}
+
 func lookupEmploymentDateFromUserID(userID int) string {
 	if userID <= 0 {
 		return ""
@@ -538,6 +607,23 @@ func lookupEmploymentDateFromUserID(userID int) string {
 	}
 
 	return ""
+}
+
+func lookupPositionFromUserID(userID int) string {
+	if userID <= 0 {
+		return ""
+	}
+
+	var user models.User
+	if err := config.DB.
+		Select("user_id", "position", "position_id").
+		Preload("Position").
+		Where("user_id = ?", userID).
+		First(&user).Error; err != nil {
+		return ""
+	}
+
+	return resolveApplicantPosition(&user)
 }
 
 func buildPreviewApplicantName(app PublicationRewardPreviewApplicant) string {
@@ -1244,9 +1330,25 @@ func buildApplicantName(user *models.User) string {
 	if user == nil {
 		return ""
 	}
-	fname := strings.TrimSpace(user.UserFname)
-	lname := strings.TrimSpace(user.UserLname)
-	return strings.TrimSpace(strings.Join([]string{fname, lname}, " "))
+	var prefix string
+	if user.Prefix != nil {
+		prefix = strings.TrimSpace(*user.Prefix)
+	}
+
+	parts := []string{
+		prefix,
+		strings.TrimSpace(user.UserFname),
+		strings.TrimSpace(user.UserLname),
+	}
+
+	filtered := make([]string, 0, len(parts))
+	for _, part := range parts {
+		if part != "" {
+			filtered = append(filtered, part)
+		}
+	}
+
+	return strings.Join(filtered, " ")
 }
 
 func formatNullableInt(value sql.NullInt64) string {
