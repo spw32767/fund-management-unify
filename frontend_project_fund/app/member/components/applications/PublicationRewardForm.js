@@ -2941,6 +2941,48 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
     feeLimits.total,
   ]);
 
+  const markDocumentForRemoval = useCallback(
+    (docId, reason = 'remove', options = {}) => {
+      if (docId == null) {
+        return;
+      }
+
+      const idStr = String(docId);
+
+      setDetachedDocumentIds((prev) => {
+        if (prev.includes(idStr)) {
+          return prev;
+        }
+        return [...prev, idStr];
+      });
+
+      const updater = (doc) => {
+        if (!doc || String(doc.document_id) !== idStr) {
+          return doc;
+        }
+        return {
+          ...doc,
+          pendingRemoval: true,
+          pendingRemovalReason: reason,
+        };
+      };
+
+      setServerDocuments((prev) => prev.map(updater));
+      setServerExternalFundingFiles((prev) => prev.map(updater));
+
+      if (options.fundingClientId) {
+        setExternalFundings((prev) =>
+          prev.map((funding) =>
+            funding.clientId === options.fundingClientId
+              ? { ...funding, serverDocumentPendingRemovalReason: reason }
+              : funding
+          )
+        );
+      }
+    },
+    [setDetachedDocumentIds, setServerDocuments, setServerExternalFundingFiles, setExternalFundings]
+  );
+
   useEffect(() => {
     if (!formData.journal_quartile || feeLimits.total > 0) {
       return;
@@ -3912,48 +3954,6 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
       }
     },
     [setServerDocuments, setServerExternalFundingFiles, setDetachedDocumentIds, setDocumentReplacements, setExternalFundings]
-  );
-
-  const markDocumentForRemoval = useCallback(
-    (docId, reason = 'remove', options = {}) => {
-      if (docId == null) {
-        return;
-      }
-
-      const idStr = String(docId);
-
-      setDetachedDocumentIds((prev) => {
-        if (prev.includes(idStr)) {
-          return prev;
-        }
-        return [...prev, idStr];
-      });
-
-      const updater = (doc) => {
-        if (!doc || String(doc.document_id) !== idStr) {
-          return doc;
-        }
-        return {
-          ...doc,
-          pendingRemoval: true,
-          pendingRemovalReason: reason,
-        };
-      };
-
-      setServerDocuments((prev) => prev.map(updater));
-      setServerExternalFundingFiles((prev) => prev.map(updater));
-
-      if (options.fundingClientId) {
-        setExternalFundings((prev) =>
-          prev.map((funding) =>
-            funding.clientId === options.fundingClientId
-              ? { ...funding, serverDocumentPendingRemovalReason: reason }
-              : funding
-          )
-        );
-      }
-    },
-    [setDetachedDocumentIds, setServerDocuments, setServerExternalFundingFiles, setExternalFundings]
   );
 
   const unmarkDocumentRemoval = useCallback(
