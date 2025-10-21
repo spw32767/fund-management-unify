@@ -1127,12 +1127,6 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
     });
 
     if (missingIds.size > 0) {
-      console.groupCollapsed(
-        '[GeneralSubmissionDetails] Fetching metadata for research attachments'
-      );
-      console.log('File IDs missing metadata', Array.from(missingIds));
-      console.groupEnd();
-
       await Promise.all(
         Array.from(missingIds).map(async (fileId) => {
           try {
@@ -1232,28 +1226,6 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
       };
     });
 
-    console.groupCollapsed('[GeneralSubmissionDetails] Research attachment metadata cache');
-    console.log(
-      'Cached file metadata',
-      Object.fromEntries(
-        Array.from(cache.entries()).map(([id, meta]) => [
-          id,
-          meta
-            ? {
-                file_id: meta.file_id ?? id,
-                original_name:
-                  typeof meta.original_name === 'string' && meta.original_name.trim()
-                    ? meta.original_name.trim()
-                    : null,
-                file_path: meta.file_path ?? meta.stored_path ?? null,
-              }
-            : null,
-        ])
-      )
-    );
-    console.log('Enriched research events (attachments normalized)', enrichedEvents);
-    console.groupEnd();
-
     return enrichedEvents;
   }, [adminSubmissionAPI]);
 
@@ -1268,18 +1240,6 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
         const { events = [], totals, meta } = await adminSubmissionAPI.getResearchFundEvents(id);
         const sorted = sortEventsByCreatedAt(events);
         const enriched = await enhanceResearchEventAttachments(sorted);
-        console.groupCollapsed(
-          '[GeneralSubmissionDetails] Research fund events fetched',
-          `submission:${id}`
-        );
-        console.log('Raw events from API', events);
-        console.log('Sorted events (oldest first)', sorted);
-        console.log('Enriched events with file metadata', enriched);
-        console.log('Totals payload', totals);
-        if (meta !== undefined) {
-          console.log('Meta payload', meta);
-        }
-        console.groupEnd();
         setResearchEvents(enriched);
         setResearchTotals(totals || null);
         setIsFundClosed(Boolean(totals?.is_closed));
@@ -1298,13 +1258,6 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
 
   useEffect(() => {
     fileMetaCacheRef.current.clear();
-    console.log(
-      '[GeneralSubmissionDetails] Reset research attachment metadata cache',
-      {
-        submissionEntityId,
-        submissionId,
-      }
-    );
   }, [submissionEntityId, submissionId]);
 
   const statusCode = useMemo(
@@ -1427,32 +1380,6 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
     loadAttachments();
   }, [submission?.submission_id]);
 
-  useEffect(() => {
-    if (!submission) return;
-    console.groupCollapsed('[GeneralSubmissionDetails] Submission data debug');
-    console.log('Submission ID', submission?.submission_id);
-    console.log('Admin comment', submission?.admin_comment ?? submission?.approval_comment ?? submission?.comment);
-    console.log('Head comment', submission?.head_comment ?? submission?.HeadComment ?? submission?.headComment);
-    console.log('Research fund detection', researchFundDetection);
-    console.log('Raw submission object', submission);
-    console.groupEnd();
-  }, [submission, researchFundDetection]);
-
-  useEffect(() => {
-    if (attachmentsLoading) return;
-    console.groupCollapsed('[GeneralSubmissionDetails] Submission attachments debug');
-    console.log('Attachments list', attachments);
-    console.groupEnd();
-  }, [attachments, attachmentsLoading]);
-
-  useEffect(() => {
-    if (researchLoading) return;
-    console.groupCollapsed('[GeneralSubmissionDetails] Research fund events debug');
-    console.log('Normalized research events', researchEvents);
-    console.log('Research totals', researchTotals);
-    console.groupEnd();
-  }, [researchEvents, researchTotals, researchLoading]);
-
   // fetch announcements for Status Summary
   useEffect(() => {
     const d =
@@ -1496,20 +1423,6 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
     }
     const targetId = submissionEntityId ?? submissionId;
     if (!targetId) return;
-    console.groupCollapsed(
-      '[GeneralSubmissionDetails] Research fund events request',
-      `submission:${targetId}`
-    );
-    console.log('Timeline request context', {
-      submissionId: targetId,
-      categoryId: researchFundDetection.categoryId,
-      categoryName: researchFundDetection.categoryName,
-      candidates: researchFundDetection.candidates,
-      matchedCandidate: researchFundDetection.matchedCandidate,
-      keyword: researchFundDetection.keyword,
-      detectedResearchFund: isResearchFundSubmission,
-    });
-    console.groupEnd();
     loadResearchEvents(targetId);
   }, [
     isResearchFundApproved,
@@ -2309,13 +2222,6 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
                               if (!attachmentList.length) {
                                 return <span className="text-xs text-gray-400">ไม่มีไฟล์แนบ</span>;
                               }
-
-                              console.groupCollapsed(
-                                '[GeneralSubmissionDetails] Render research attachments',
-                                event.id ?? event.created_at ?? 'unknown-event'
-                              );
-                              console.log('Attachment list', attachmentList);
-                              console.groupEnd();
 
                               return (
                                 <div className="space-y-2">

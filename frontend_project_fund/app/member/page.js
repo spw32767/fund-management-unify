@@ -60,7 +60,6 @@ export function MemberPageContent({ initialPage = 'profile' }) {
     setCurrentPage(page);
     
     if (data) {
-      console.log("Navigate with data:", data);
       setSelectedFundData(data);
     }
   };

@@ -88,7 +88,6 @@ export default function Navigation({
 
   const handleLogout = async () => {
     try {
-      console.log("Logout from navigation");
       await logout();
       router.replace('/login');
     } catch (error) {

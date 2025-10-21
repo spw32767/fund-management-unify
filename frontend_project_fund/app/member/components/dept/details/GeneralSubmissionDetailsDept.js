@@ -780,7 +780,6 @@ export default function GeneralSubmissionDetailsDept({ submissionId, onBack }) {
       setLoading(true);
       try {
         const res = await deptHeadAPI.getSubmissionDetails(submissionId);
-        console.log('[DeptHead] details payload:', res);
 
         let data = res?.submission || res;
 
@@ -793,7 +792,6 @@ export default function GeneralSubmissionDetailsDept({ submissionId, onBack }) {
 
         const applicant =
           res?.applicant || res?.applicant_user || data?.user || data?.User;
-        console.log('[DeptHead] resolved applicant:', applicant);
         if (applicant) {
           data.applicant = applicant;
           data.user = applicant;
@@ -801,14 +799,6 @@ export default function GeneralSubmissionDetailsDept({ submissionId, onBack }) {
         if (res?.applicant_user_id) data.applicant_user_id = res.applicant_user_id;
 
         setSubmission(data);
-        console.group('[DeptHead Debug] Submission Payload');
-        console.log('submissionId:', submissionId);
-        console.log('Raw response (res):', res);
-        console.log('Normalized submission object (data):', data);
-        console.log('FundApplicationDetail:', data?.FundApplicationDetail);
-        console.log('Applicant (resolved):', applicant);
-        console.log('Details key paths:', Object.keys(data || {}));
-        console.groupEnd();
 
       } catch (e) {
         console.error('load details failed', e);
@@ -833,8 +823,6 @@ export default function GeneralSubmissionDetailsDept({ submissionId, onBack }) {
             ? deptHeadAPI.getDocumentTypes()
             : Promise.resolve([])),
         ]);
-        console.log('[DeptHead] docRes:', docRes);
-        console.log('[DeptHead] typeRes:', typeRes);
         const docsApi = pickArray(
           docRes?.documents,
           docRes?.data?.documents,
@@ -917,7 +905,6 @@ export default function GeneralSubmissionDetailsDept({ submissionId, onBack }) {
 
     const mainId = d?.main_annoucement;
     const actId  = d?.activity_support_announcement;
-    console.log('[DEBUG] ann ids =', { mainId, actId, d });
 
     let cancelled = false;
     (async () => {
@@ -944,18 +931,6 @@ export default function GeneralSubmissionDetailsDept({ submissionId, onBack }) {
     })();
     return () => { cancelled = true; };
   }, [submission?.FundApplicationDetail, submission?.details?.data]);
-
-  useEffect(() => {
-    if (!loading && submission) {
-      console.group('[DeptHead Debug] Current State Snapshot');
-      console.log('Submission:', submission);
-      console.log('Detail:', submission?.FundApplicationDetail || submission?.details?.data);
-      console.log('Main Announcement:', mainAnn);
-      console.log('Activity Announcement:', activityAnn);
-      console.log('Attachments:', attachments);
-      console.groupEnd();
-    }
-  }, [loading, submission, attachments, mainAnn, activityAnn]);
 
   const formType = useMemo(() => {
     const t =

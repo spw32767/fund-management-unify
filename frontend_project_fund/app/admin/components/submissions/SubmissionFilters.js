@@ -163,7 +163,6 @@ export default function SubmissionFilters({ filters, onFilterChange, onSearch, s
     try {
       // ใช้ adminAPI สำหรับ categories (admin endpoint)
       const response = await adminAPI.getCategories(yearId);
-      console.log('Categories response:', response);
 
       if (response && Array.isArray(response)) {
         return dedupeOptions(response, normalizeCategoryOption, 'category_id');
@@ -173,7 +172,7 @@ export default function SubmissionFilters({ filters, onFilterChange, onSearch, s
         return dedupeOptions(response.categories, normalizeCategoryOption, 'category_id');
       } else {
         // เรียกข้อมูลจากตาราง fund_categories
-        console.log('Using categories from database structure');
+        console.warn('Using categories from database structure');
       }
     } catch (error) {
       console.error('Error fetching categories:', error);
@@ -186,7 +185,6 @@ export default function SubmissionFilters({ filters, onFilterChange, onSearch, s
     try {
       // ใช้ adminAPI สำหรับ subcategories (admin endpoint)
       const response = await adminAPI.getSubcategories(categoryId);
-      console.log('Subcategories response:', response);
       
       if (response && Array.isArray(response)) {
         setSubcategories(dedupeOptions(response, normalizeSubcategoryOption, 'subcategory_id'));

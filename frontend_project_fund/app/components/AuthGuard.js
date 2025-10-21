@@ -79,16 +79,8 @@ export default function AuthGuard({
       setInitialCheck(true);
     }
 
-    console.log('AuthGuard check:', {
-      isAuthenticated,
-      user: user ? { role_id: user.role_id, role: user.role } : null,
-      allowedRoles,
-      requireAuth
-    });
-
     // ถ้าต้องการ authentication แต่ยังไม่ได้ login
     if (requireAuth && !isAuthenticated) {
-      console.log('User not authenticated, redirecting to login');
       router.replace('/login');
       return;
     }
@@ -96,10 +88,6 @@ export default function AuthGuard({
     // ถ้า login แล้วแต่ไม่มีสิทธิ์ตาม role ที่กำหนด
     if (isAuthenticated && allowedRoles.length > 0) {
       if (!hasAnyRole(allowedRoles)) {
-        console.log('User does not have required role:', {
-          userRole: user?.role_id || user?.role,
-          allowedRoles
-        });
         setShowUnauthorized(true);
         return;
       }
@@ -108,10 +96,6 @@ export default function AuthGuard({
     if (isAuthenticated) {
       const roleValue = user?.role ?? user?.role_id;
       if (!canAccess(pathname, roleValue)) {
-        console.log('Access denied for role on path:', {
-          pathname,
-          role: roleValue,
-        });
         setShowUnauthorized(true);
         return;
       }

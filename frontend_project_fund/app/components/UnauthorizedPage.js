@@ -14,8 +14,7 @@ export default function UnauthorizedPage() {
   const handleGoToLogin = async () => {
     try {
       setIsLoggingOut(true);
-      console.log('Logging out before redirecting to login...');
-      
+
       // ทำการ logout ก่อน
       await logout();
       

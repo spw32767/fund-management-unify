@@ -393,7 +393,6 @@ export default function PromotionFundContent() {
       }
 
       const response = await teacherAPI.getVisibleFundsStructure(year);
-      console.log("Fund structure response:", response);
 
       if (!response.categories || !Array.isArray(response.categories)) {
         console.error("No categories found or invalid format");

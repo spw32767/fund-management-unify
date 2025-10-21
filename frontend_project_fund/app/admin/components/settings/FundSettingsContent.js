@@ -591,8 +591,6 @@ export default function FundSettingsContent({ onNavigate }) {
         year_id: selectedYear.year_id 
       };
       
-      console.log('Sending category data:', dataWithYear); // เพิ่ม log เพื่อตรวจสอบ
-      
       // Validate data
       adminAPI.validateCategoryData(dataWithYear);
       
@@ -607,7 +605,6 @@ export default function FundSettingsContent({ onNavigate }) {
       } else {
         // Add new category
         const response = await adminAPI.createCategory(dataWithYear);
-        console.log('Create category response:', response); // เพิ่ม log
         
         if (response.category) {
           setCategories(prev => [...prev, { 

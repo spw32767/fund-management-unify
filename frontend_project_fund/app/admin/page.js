@@ -22,9 +22,9 @@ function AdminPageContent() {
 
   const handleNavigate = (page, data) => {
     setCurrentPage(page);
-    
+
     if (data) {
-      console.log("Navigate with data:", data);
+      // placeholder for future navigation data handling
     }
   };
 

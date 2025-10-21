@@ -391,7 +391,7 @@ export default function FundApplicationDetail({ submissionId, onNavigate }) {
             submissionData.submission_users = usersResponse.users;
           }
         } catch (err) {
-          console.log("Could not load submission users", err);
+          console.warn("Could not load submission users", err);
         }
       }
 

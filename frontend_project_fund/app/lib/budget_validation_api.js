@@ -49,8 +49,6 @@ export const budgetValidationAPI = {
   // ตรวจสอบ budget availability สำหรับ subcategory เดียว
   checkBudgetAvailability: async (subcategoryId) => {
     try {
-      console.log(`[budget] check one -> subcategory: ${subcategoryId}`);
-
       const resp = await apiClient.get(
         `/subcategory-budgets/validate?subcategory_id=${subcategoryId}`
       );
@@ -58,8 +56,6 @@ export const budgetValidationAPI = {
       // รองรับทั้ง axios style ({data: {...}}) และ client ที่คืน JSON ตรง ๆ
       const payload = resp?.data ?? resp;
       const normalized = normalizeBudgetValidation(payload, subcategoryId);
-
-      console.log('[budget] normalized one:', normalized);
       return normalized;
     } catch (error) {
       console.error(`[budget] error (one) subcategory ${subcategoryId}:`, error);
@@ -86,8 +82,6 @@ export const budgetValidationAPI = {
   // ดึงรายการ quartiles ที่มี budget พร้อมใช้งาน
   getAvailableQuartiles: async (subcategoryId) => {
     try {
-      console.log(`[budget] get available quartiles -> subcategory: ${subcategoryId}`);
-
       const resp = await apiClient.get(
         `/subcategory-budgets/available-quartiles?subcategory_id=${subcategoryId}`
       );
@@ -101,7 +95,6 @@ export const budgetValidationAPI = {
         (Array.isArray(root) ? root : null);
 
       const out = Array.isArray(arr) ? arr : [];
-      console.log('[budget] available quartiles:', out);
       return out;
     } catch (error) {
       console.error(`[budget] error get quartiles subcategory ${subcategoryId}:`, error);
@@ -114,8 +107,6 @@ export const budgetValidationAPI = {
     if (!subcategoryIds || subcategoryIds.length === 0) {
       return {};
     }
-
-    console.log('[budget] check multiple ->', subcategoryIds);
 
     try {
       const jobs = subcategoryIds.map(async (id) => {
@@ -152,7 +143,6 @@ export const budgetValidationAPI = {
         }
       }
 
-      console.log('[budget] multiple result (normalized):', map);
       return map;
     } catch (error) {
       console.error('[budget] error (multiple):', error);
