@@ -18,6 +18,7 @@ import apiClient from '@/app/lib/api';
 
 // ----------- CONFIG -----------
 const PAGE_SIZE  = 10;        // how many rows to show at a time
+const FETCH_PAGE_LIMIT = 1000; // how many records to request from the API per page when aggregating
 
 const EXPORT_COLUMNS = [
   { key: 'submissionNumber', header: 'เลขที่คำร้อง', width: 18 },
@@ -288,13 +289,13 @@ export default function SubmissionsManagement() {
       const aggregate = [];
 
       while (!done) {
-         const params = {
-           page,
-           limit: 500,               // ← NEW: ลดปัญหาหน้าเหลื่อม/ซ้ำ
-           year_id: yearId || '',
-           sort_by: 'created_at',
-           sort_order: 'desc',
-         };
+        const params = {
+          page,
+          limit: FETCH_PAGE_LIMIT,   // ↑ increase backend page size to reduce missing records
+          year_id: yearId || '',
+          sort_by: 'created_at',
+          sort_order: 'desc',
+        };
         console.log('[FetchAll] /admin/submissions params:', params);
 
         const res = await submissionsListingAPI.getAdminSubmissions(params);
@@ -315,10 +316,41 @@ export default function SubmissionsManagement() {
           : [];
         aggregate.push(...normalizedChunk);
 
-        // stop if last page or no pagination info
-        const totalPages = res?.pagination?.total_pages || 0;
-        if (!chunk.length || totalPages <= page || !totalPages) done = true;
-        page += 1;
+        // stop if we've clearly reached the last page or exhausted available records
+        const paginationRaw = res?.pagination || {};
+        const totalPages = paginationRaw.total_pages ?? paginationRaw.totalPages ?? 0;
+        const totalItems =
+          paginationRaw.total_items ??
+          paginationRaw.total ??
+          paginationRaw.total_count ??
+          paginationRaw.totalCount ??
+          0;
+        const hasNext =
+          typeof paginationRaw.has_next === 'boolean'
+            ? paginationRaw.has_next
+            : typeof paginationRaw.hasNext === 'boolean'
+            ? paginationRaw.hasNext
+            : typeof paginationRaw.has_more === 'boolean'
+            ? paginationRaw.has_more
+            : null;
+        const chunkLength = normalizedChunk.length;
+        const pageLimit = params.limit ?? FETCH_PAGE_LIMIT;
+        const currentPage = paginationRaw.current_page ?? paginationRaw.currentPage ?? page;
+
+        const reachedTotalPages = totalPages ? currentPage >= totalPages : false;
+        const reachedTotalItems = totalItems ? aggregate.length >= totalItems : false;
+        const shouldContinue =
+          chunkLength > 0 &&
+          hasNext !== false &&
+          !reachedTotalPages &&
+          !reachedTotalItems &&
+          (hasNext === true || totalPages || totalItems || chunkLength >= pageLimit);
+
+        if (shouldContinue) {
+          page += 1;
+        } else {
+          done = true;
+        }
 
         // safety cap
         if (aggregate.length > 10000) done = true;
