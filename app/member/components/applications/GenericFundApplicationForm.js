@@ -26,6 +26,8 @@ const DRAFT_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 
 const EDITABLE_STATUS_CODES = new Set(['draft', 'needs_more_info']);
 
+const MAX_CURRENCY_AMOUNT = 1_000_000;
+
 const buildResolvedStatus = (status) => {
   if (!status || typeof status !== 'object') {
     return null;
@@ -184,6 +186,69 @@ const dedupeStringList = (items) => {
   });
 
   return result;
+};
+
+const clampCurrencyValue = (rawValue) => {
+  if (rawValue === null || rawValue === undefined) {
+    return '';
+  }
+
+  if (typeof rawValue === 'number') {
+    if (!Number.isFinite(rawValue)) {
+      return 0;
+    }
+    return Math.min(Math.max(rawValue, 0), MAX_CURRENCY_AMOUNT);
+  }
+
+  if (typeof rawValue === 'string') {
+    const trimmed = rawValue.trim();
+    if (!trimmed) {
+      return '';
+    }
+    const numeric = Number(trimmed);
+    if (!Number.isFinite(numeric)) {
+      return rawValue;
+    }
+    const clamped = Math.min(Math.max(numeric, 0), MAX_CURRENCY_AMOUNT);
+    return numeric === clamped ? rawValue : clamped.toString();
+  }
+
+  return rawValue;
+};
+
+const CATEGORY_PAGE_KEYWORDS = {
+  'promotion-fund': ['ส่งเสริม', 'promotion', 'เผยแพร่', 'รางวัล', 'กิจกรรม'],
+  'research-fund': ['วิจัย', 'research', 'อุดหนุน', 'สนับสนุน', 'ทุนวิจัย'],
+};
+
+const resolveCategoryPageFromName = (value) => {
+  if (!value) {
+    return null;
+  }
+  const normalized = String(value).toLowerCase();
+  if (!normalized) {
+    return null;
+  }
+
+  if (CATEGORY_PAGE_KEYWORDS['promotion-fund'].some((keyword) => normalized.includes(keyword))) {
+    return 'promotion-fund';
+  }
+
+  if (CATEGORY_PAGE_KEYWORDS['research-fund'].some((keyword) => normalized.includes(keyword))) {
+    return 'research-fund';
+  }
+
+  return null;
+};
+
+const resolveCategoryPageFromOrigin = (originPage) => {
+  if (!originPage) {
+    return null;
+  }
+  if (originPage === 'promotion-fund' || originPage === 'research-fund') {
+    return originPage;
+  }
+  return null;
 };
 
 const buildApplicantDisplayName = (user) => {
@@ -713,6 +778,18 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
     activity_support_announcement: null,
   });
   const [hasDraft, setHasDraft] = useState(false);
+  const [categoryPage, setCategoryPage] = useState(() => {
+    const originCandidate = resolveCategoryPageFromOrigin(subcategoryData?.originPage);
+    if (originCandidate) {
+      return originCandidate;
+    }
+    const nameCandidate = firstNonEmptyString(
+      subcategoryData?.category_name,
+      subcategoryData?.subcategory?.category?.category_name,
+      subcategoryData?.subcategory_name,
+    );
+    return resolveCategoryPageFromName(nameCandidate);
+  });
 
   const originPage = subcategoryData?.originPage || null;
   const editingExistingSubmission = useMemo(
@@ -734,6 +811,24 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
   // =================================================================
   useEffect(() => {
     loadInitialData();
+  }, [subcategoryData]);
+
+  useEffect(() => {
+    const originCandidate = resolveCategoryPageFromOrigin(subcategoryData?.originPage);
+    if (originCandidate) {
+      setCategoryPage(originCandidate);
+      return;
+    }
+
+    const nameCandidate = firstNonEmptyString(
+      subcategoryData?.category_name,
+      subcategoryData?.subcategory?.category?.category_name,
+      subcategoryData?.subcategory_name,
+    );
+    const resolved = resolveCategoryPageFromName(nameCandidate);
+    if (resolved) {
+      setCategoryPage(resolved);
+    }
   }, [subcategoryData]);
 
   const loadInitialData = async () => {
@@ -864,6 +959,19 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
         submission.fundApplicationDetail ||
         null;
 
+      const categoryNameCandidate = firstNonEmptyString(
+        submission.category_name,
+        submission.Category?.CategoryName,
+        submission.category?.category_name,
+        detail?.subcategory?.category?.category_name,
+        detail?.Subcategory?.Category?.CategoryName,
+        subcategoryData?.category_name,
+      );
+      const resolvedCategoryPage = resolveCategoryPageFromName(categoryNameCandidate);
+      if (resolvedCategoryPage) {
+        setCategoryPage(resolvedCategoryPage);
+      }
+
       const applicantUser =
         submission.applicant_user ||
         submission.user ||
@@ -919,6 +1027,7 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
         requestedAmountRaw != null && requestedAmountRaw !== ''
           ? String(requestedAmountRaw)
           : '';
+      const limitedRequestedAmount = clampCurrencyValue(requestedAmount);
 
       setFormData(prev => ({
         ...prev,
@@ -926,7 +1035,7 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
         phone: normalizedPhone || prev.phone || '',
         project_title: projectTitle || prev.project_title || '',
         project_description: projectDescription || prev.project_description || '',
-        requested_amount: requestedAmount || prev.requested_amount || '',
+        requested_amount: limitedRequestedAmount || prev.requested_amount || '',
       }));
 
       if (detail) {
@@ -1055,8 +1164,13 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
   // FORM HANDLING
   // =================================================================
   const handleInputChange = (field, value) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
-    
+    let nextValue = value;
+    if (field === 'requested_amount') {
+      nextValue = clampCurrencyValue(value);
+    }
+
+    setFormData(prev => ({ ...prev, [field]: nextValue }));
+
     // Clear field error when user starts typing
     if (errors[field]) {
       setErrors(prev => ({ ...prev, [field]: '' }));
@@ -1762,6 +1876,16 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
       title: 'ลบร่างเรียบร้อยแล้ว',
       confirmButtonColor: '#3085d6'
     });
+
+    const targetPage = resolveCategoryPageFromOrigin(categoryPage) || 'research-fund';
+    if (onNavigate) {
+      const navigationData = subcategoryData
+        ? { ...subcategoryData, submissionId: null, originPage: targetPage }
+        : { originPage: targetPage };
+      onNavigate(targetPage, navigationData);
+    } else {
+      router.push(`/member?initialPage=${targetPage}`);
+    }
   };
 
   const submitApplication = async () => {
@@ -2189,6 +2313,7 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
                     id="requested-amount"
                     type="number"
                     min="0"
+                    max={MAX_CURRENCY_AMOUNT}
                     value={formData.requested_amount}
                     onChange={(e) => handleInputChange('requested_amount', e.target.value)}
                     placeholder="0.00"

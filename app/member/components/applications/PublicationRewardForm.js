@@ -62,6 +62,37 @@ const Toast = Swal.mixin({
   }
 });
 
+const MAX_CURRENCY_AMOUNT = 1_000_000;
+
+const clampCurrencyValue = (rawValue) => {
+  if (rawValue === null || rawValue === undefined) {
+    return '';
+  }
+
+  if (typeof rawValue === 'number') {
+    if (!Number.isFinite(rawValue)) {
+      return 0;
+    }
+    const clamped = Math.min(Math.max(rawValue, 0), MAX_CURRENCY_AMOUNT);
+    return clamped;
+  }
+
+  if (typeof rawValue === 'string') {
+    const trimmed = rawValue.trim();
+    if (!trimmed) {
+      return '';
+    }
+    const numeric = Number(trimmed);
+    if (!Number.isFinite(numeric)) {
+      return rawValue;
+    }
+    const clamped = Math.min(Math.max(numeric, 0), MAX_CURRENCY_AMOUNT);
+    return numeric === clamped ? rawValue : clamped.toString();
+  }
+
+  return rawValue;
+};
+
 const normalizeStatusCode = (value) => {
   if (value === null || value === undefined) return null;
   const normalized = String(value).trim().toLowerCase();
@@ -2219,7 +2250,7 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
             clientId: `server-${fundId ?? index}`,
             externalFundId: fundId,
             fundName: fund.fund_name ?? fund.FundName ?? '',
-            amount: toNumberOrEmpty(fund.amount ?? fund.Amount ?? ''),
+            amount: clampCurrencyValue(toNumberOrEmpty(fund.amount ?? fund.Amount ?? '')),
             file: null,
             serverDocumentId: documentId,
             serverFileName: resolvedFileName,
@@ -2266,10 +2297,14 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
           const rewardValue = toNumberOrEmpty(
             detail.reward_amount ?? prev.publication_reward ?? prev.reward_amount ?? ''
           );
-          const revisionValue = toNumberOrEmpty(detail.revision_fee ?? prev.revision_fee ?? '');
-          const publicationValue = toNumberOrEmpty(detail.publication_fee ?? prev.publication_fee ?? '');
-          const resolvedExternalAmount = toNumberOrEmpty(
-            detail.external_funding_amount ?? prev.external_funding_amount ?? ''
+          const revisionValue = clampCurrencyValue(
+            toNumberOrEmpty(detail.revision_fee ?? prev.revision_fee ?? '')
+          );
+          const publicationValue = clampCurrencyValue(
+            toNumberOrEmpty(detail.publication_fee ?? prev.publication_fee ?? '')
+          );
+          const resolvedExternalAmount = clampCurrencyValue(
+            toNumberOrEmpty(detail.external_funding_amount ?? prev.external_funding_amount ?? '')
           );
           const normalizedReward = typeof rewardValue === 'number' ? rewardValue : 0;
           const normalizedRevision = typeof revisionValue === 'number' ? revisionValue : 0;
@@ -2882,20 +2917,121 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
 
   // Calculate total amount when relevant values change
   useEffect(() => {
-    const externalTotal = externalFundings.reduce((sum, funding) => 
-      sum + (parseFloat(funding.amount) || 0), 0);
-    
-    const totalAmount = (parseFloat(formData.publication_reward) || 0) + 
-                      (parseFloat(formData.revision_fee) || 0) + 
-                      (parseFloat(formData.publication_fee) || 0) - 
+    const canUseExternal = Boolean(formData.journal_quartile && feeLimits.total > 0);
+    const externalTotal = canUseExternal
+      ? externalFundings.reduce((sum, funding) => sum + (parseFloat(funding.amount) || 0), 0)
+      : 0;
+
+    const totalAmount = (parseFloat(formData.publication_reward) || 0) +
+                      (parseFloat(formData.revision_fee) || 0) +
+                      (parseFloat(formData.publication_fee) || 0) -
                       externalTotal;
-    
+
     setFormData(prev => ({
       ...prev,
       external_funding_amount: externalTotal,
       total_amount: totalAmount
     }));
-  }, [formData.publication_reward, formData.revision_fee, formData.publication_fee, externalFundings]);
+  }, [
+    formData.publication_reward,
+    formData.revision_fee,
+    formData.publication_fee,
+    formData.journal_quartile,
+    externalFundings,
+    feeLimits.total,
+  ]);
+
+  const markDocumentForRemoval = useCallback(
+    (docId, reason = 'remove', options = {}) => {
+      if (docId == null) {
+        return;
+      }
+
+      const idStr = String(docId);
+
+      setDetachedDocumentIds((prev) => {
+        if (prev.includes(idStr)) {
+          return prev;
+        }
+        return [...prev, idStr];
+      });
+
+      const updater = (doc) => {
+        if (!doc || String(doc.document_id) !== idStr) {
+          return doc;
+        }
+        return {
+          ...doc,
+          pendingRemoval: true,
+          pendingRemovalReason: reason,
+        };
+      };
+
+      setServerDocuments((prev) => prev.map(updater));
+      setServerExternalFundingFiles((prev) => prev.map(updater));
+
+      if (options.fundingClientId) {
+        setExternalFundings((prev) =>
+          prev.map((funding) =>
+            funding.clientId === options.fundingClientId
+              ? { ...funding, serverDocumentPendingRemovalReason: reason }
+              : funding
+          )
+        );
+      }
+    },
+    [setDetachedDocumentIds, setServerDocuments, setServerExternalFundingFiles, setExternalFundings]
+  );
+
+  useEffect(() => {
+    if (!formData.journal_quartile || feeLimits.total > 0) {
+      return;
+    }
+
+    setFormData((prev) => {
+      const next = { ...prev };
+      let updated = false;
+
+      const revisionNumeric = parseFloat(prev.revision_fee);
+      if (!Number.isNaN(revisionNumeric) && revisionNumeric !== 0) {
+        next.revision_fee = '';
+        updated = true;
+      }
+
+      const publicationNumeric = parseFloat(prev.publication_fee);
+      if (!Number.isNaN(publicationNumeric) && publicationNumeric !== 0) {
+        next.publication_fee = '';
+        updated = true;
+      }
+
+      if (!updated) {
+        return prev;
+      }
+
+      next.external_funding_amount = 0;
+      next.total_amount = (parseFloat(prev.publication_reward) || 0);
+      return next;
+    });
+
+    if (externalFundings.length > 0) {
+      externalFundings.forEach((funding) => {
+        if (funding?.serverDocumentId) {
+          markDocumentForRemoval(funding.serverDocumentId, 'remove', { fundingClientId: funding.clientId });
+        }
+      });
+      setExternalFundings([]);
+    }
+
+    if (externalFundingFiles.length > 0) {
+      setExternalFundingFiles([]);
+    }
+  }, [
+    formData.journal_quartile,
+    feeLimits.total,
+    externalFundings,
+    externalFundingFiles,
+    markDocumentForRemoval,
+  ]);
 
   // Auto-save draft periodically
   // Check fees limit when quartile or fees change
@@ -3820,48 +3956,6 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
     [setServerDocuments, setServerExternalFundingFiles, setDetachedDocumentIds, setDocumentReplacements, setExternalFundings]
   );
 
-  const markDocumentForRemoval = useCallback(
-    (docId, reason = 'remove', options = {}) => {
-      if (docId == null) {
-        return;
-      }
-
-      const idStr = String(docId);
-
-      setDetachedDocumentIds((prev) => {
-        if (prev.includes(idStr)) {
-          return prev;
-        }
-        return [...prev, idStr];
-      });
-
-      const updater = (doc) => {
-        if (!doc || String(doc.document_id) !== idStr) {
-          return doc;
-        }
-        return {
-          ...doc,
-          pendingRemoval: true,
-          pendingRemovalReason: reason,
-        };
-      };
-
-      setServerDocuments((prev) => prev.map(updater));
-      setServerExternalFundingFiles((prev) => prev.map(updater));
-
-      if (options.fundingClientId) {
-        setExternalFundings((prev) =>
-          prev.map((funding) =>
-            funding.clientId === options.fundingClientId
-              ? { ...funding, serverDocumentPendingRemovalReason: reason }
-              : funding
-          )
-        );
-      }
-    },
-    [setDetachedDocumentIds, setServerDocuments, setServerExternalFundingFiles, setExternalFundings]
-  );
-
   const unmarkDocumentRemoval = useCallback(
     (docId, options = {}) => {
       if (docId == null) {
@@ -4312,9 +4406,14 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
 
   // Handle external funding field changes
   const handleExternalFundingChange = (clientId, field, value) => {
+    let nextValue = value;
+    if (field === 'amount') {
+      nextValue = clampCurrencyValue(value);
+    }
+
     setExternalFundings(prev =>
       prev.map(funding =>
-        funding.clientId === clientId ? { ...funding, [field]: value } : funding
+        funding.clientId === clientId ? { ...funding, [field]: nextValue } : funding
       )
     );
   };
@@ -4828,6 +4927,8 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
       return null;
     })();
 
+    const includeExternalFunds = Boolean(formData.journal_quartile && feeLimits.total > 0);
+
     const payload = {
       year_id: resolvedYearId,
       formData: normalizedFormData,
@@ -4850,10 +4951,12 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
         user_fname: author.user_fname,
         user_lname: author.user_lname,
       })),
-      external_fundings: (externalFundings || []).map((funding) => ({
-        fund_name: stringify(funding.fundName),
-        amount: stringify(funding.amount),
-      })),
+      external_fundings: includeExternalFunds
+        ? (externalFundings || []).map((funding) => ({
+            fund_name: stringify(funding.fundName),
+            amount: stringify(funding.amount),
+          }))
+        : [],
       attachments: attachments.map((item, index) => ({
         filename: item.name,
         document_type_id: item.document_type_id ?? null,
@@ -5389,12 +5492,15 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
         ? `${formData.journal_year}-${formData.journal_month.padStart(2, '0')}-01`
         : `${new Date().getFullYear()}-01-01`;
 
-      const externalFundingData = externalFundings.map(funding => ({
-        client_id: funding.clientId || '',
-        external_fund_id: funding.externalFundId ?? null,
-        fund_name: funding.fundName || '',
-        amount: parseFloat(funding.amount) || 0,
-      }));
+      const includeExternalFunds = Boolean(formData.journal_quartile && feeLimits.total > 0);
+      const externalFundingData = includeExternalFunds
+        ? externalFundings.map(funding => ({
+            client_id: funding.clientId || '',
+            external_fund_id: funding.externalFundId ?? null,
+            fund_name: funding.fundName || '',
+            amount: parseFloat(funding.amount) || 0,
+          }))
+        : [];
 
       const authorSubmissionFields = getAuthorSubmissionFields(formData);
 
@@ -5418,7 +5524,7 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
         reward_amount: parseFloat(formData.publication_reward) || 0,
         revision_fee: parseFloat(formData.revision_fee) || 0,
         publication_fee: parseFloat(formData.publication_fee) || 0,
-        external_funding_amount: parseFloat(formData.external_funding_amount) || 0,
+        external_funding_amount: includeExternalFunds ? (parseFloat(formData.external_funding_amount) || 0) : 0,
         total_amount: parseFloat(formData.total_amount) || 0,
         external_fundings: externalFundingData,
         author_count: (coauthors?.length || 0) + 1,
@@ -5437,7 +5543,10 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
 
       const pendingUploads = getAllAttachedFiles();
 
-      const response = await publicationDetailsAPI.add(submissionId, publicationData);
+      const response = await publicationDetailsAPI.add(submissionId, publicationData, {
+        mode: 'draft',
+        allowIncomplete: true,
+      });
 
       const savedExternalFunds = Array.isArray(response?.external_fundings)
         ? response.external_fundings
@@ -5541,12 +5650,27 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
       setCurrentSubmissionStatus(null);
     }
 
+    const resolvedCategoryId = categoryId ?? formData.category_id ?? null;
+    const resolvedYearId = yearId ?? formData.year_id ?? null;
+
     resetForm();
 
     Toast.fire({
       icon: 'success',
       title: 'ลบร่างเรียบร้อยแล้ว'
     });
+
+    const targetPage = 'promotion-fund';
+    if (onNavigate) {
+      const payload = {
+        originPage: targetPage,
+        category_id: resolvedCategoryId,
+        year_id: resolvedYearId,
+      };
+      onNavigate(targetPage, payload);
+    } else {
+      router.push(`/member?initialPage=${targetPage}`);
+    }
   };
   // =================================================================
   // SUBMISSION CONFIRMATION
@@ -6132,13 +6256,16 @@ const showSubmissionConfirmation = async () => {
         ? `${formData.journal_year}-${formData.journal_month.padStart(2, '0')}-01`
         : `${new Date().getFullYear()}-01-01`;
 
+      const includeExternalFunds = Boolean(formData.journal_quartile && feeLimits.total > 0);
       // สร้าง external funding array สำหรับส่งไป backend (ถ้ามี)
-      const externalFundingData = externalFundings.map(funding => ({
-        client_id: funding.clientId || '',
-        external_fund_id: funding.externalFundId ?? null,
-        fund_name: funding.fundName || '',
-        amount: parseFloat(funding.amount) || 0
-      }));
+      const externalFundingData = includeExternalFunds
+        ? externalFundings.map(funding => ({
+            client_id: funding.clientId || '',
+            external_fund_id: funding.externalFundId ?? null,
+            fund_name: funding.fundName || '',
+            amount: parseFloat(funding.amount) || 0
+          }))
+        : [];
 
       const authorSubmissionFields = getAuthorSubmissionFields(formData);
 
@@ -6169,9 +6296,9 @@ const showSubmissionConfirmation = async () => {
         reward_amount: parseFloat(formData.publication_reward) || 0,
         revision_fee: parseFloat(formData.revision_fee) || 0,
         publication_fee: parseFloat(formData.publication_fee) || 0,
-        external_funding_amount: parseFloat(formData.external_funding_amount) || 0,
+        external_funding_amount: includeExternalFunds ? (parseFloat(formData.external_funding_amount) || 0) : 0,
         total_amount: parseFloat(formData.total_amount) || 0,
-        
+
         // External fundings breakdown
         external_fundings: externalFundingData,
         
@@ -6205,7 +6332,9 @@ const showSubmissionConfirmation = async () => {
 
       try {
         // ส่ง publicationData โดยตรง
-        const response = await publicationDetailsAPI.add(submissionId, publicationData);
+        const response = await publicationDetailsAPI.add(submissionId, publicationData, {
+          mode: 'submit',
+        });
         console.log('Publication details saved successfully:', response);
 
         const savedExternalFunds = Array.isArray(response?.external_fundings)
@@ -6465,7 +6594,7 @@ const showSubmissionConfirmation = async () => {
   const disableJournalNameInput = (availableQuartiles.length === 0 && !editingExistingSubmission);
   const displayResolutionError = selectionLocked ? '' : resolutionError;
   const allowExternalFunding = Boolean(
-    formData.journal_quartile && (feeLimits.total > 0 || selectionLocked)
+    formData.journal_quartile && feeLimits.total > 0
   );
   const shouldShowReviewerComments = currentSubmissionStatus === 'needs_more_info';
   const adminCommentDisplay = formatReviewerComment(reviewComments.admin);
@@ -7223,14 +7352,16 @@ const showSubmissionConfirmation = async () => {
                         e.preventDefault();
                         return;
                       }
-                      const newValue = e.target.value;
+                      const rawValue = e.target.value;
+                      const newValue = clampCurrencyValue(rawValue);
                       setFormData(prev => ({ ...prev, revision_fee: newValue }));
-                      
+
                       // Validate fees in real-time
                       await validateFeesRealtime(newValue, formData.publication_fee, formData.journal_quartile, feeLimits.total, setFeeError);
                     }}
                     disabled={!formData.journal_quartile || feeLimits.total === 0}
                     min="0"
+                    max={MAX_CURRENCY_AMOUNT}
                     placeholder="0"
                     className={`text-2xl font-semibold text-gray-800 w-full bg-transparent border-none focus:outline-none ${
                       (!formData.journal_quartile || feeLimits.total === 0) ? 'cursor-not-allowed opacity-50' : ''
@@ -7255,14 +7386,16 @@ const showSubmissionConfirmation = async () => {
                         e.preventDefault();
                         return;
                       }
-                      const newValue = e.target.value;
+                      const rawValue = e.target.value;
+                      const newValue = clampCurrencyValue(rawValue);
                       setFormData(prev => ({ ...prev, publication_fee: newValue }));
-                      
+
                       // Validate fees in real-time
                       await validateFeesRealtime(formData.revision_fee, newValue, formData.journal_quartile, feeLimits.total, setFeeError);
                     }}
                     disabled={!formData.journal_quartile || feeLimits.total === 0}
                     min="0"
+                    max={MAX_CURRENCY_AMOUNT}
                     placeholder="0"
                     className={`text-2xl font-semibold text-gray-800 w-full bg-transparent border-none focus:outline-none ${
                       (!formData.journal_quartile || feeLimits.total === 0) ? 'cursor-not-allowed opacity-50' : ''
@@ -7579,13 +7712,16 @@ const showSubmissionConfirmation = async () => {
                             })()}
                           </td>
                           <td className="px-3 py-2">
-                            <input
-                              type="number"
-                              value={funding.amount}
-                              onChange={(e) => handleExternalFundingChange(funding.clientId, 'amount', e.target.value)}
-                              placeholder="0"
-                              className="w-full px-2 py-1 border border-gray-300 rounded text-right text-sm focus:outline-none focus:border-blue-500"
-                            />
+                          <input
+                            type="number"
+                            value={funding.amount}
+                            onChange={(e) => handleExternalFundingChange(funding.clientId, 'amount', e.target.value)}
+                            placeholder="0"
+                            min="0"
+                            max={MAX_CURRENCY_AMOUNT}
+                            disabled={!allowExternalFunding}
+                            className="w-full px-2 py-1 border border-gray-300 rounded text-right text-sm focus:outline-none focus:border-blue-500"
+                          />
                           </td>
                         </tr>
                       ))
@@ -7618,9 +7754,13 @@ const showSubmissionConfirmation = async () => {
 
               {/* External funding total */}
               <div className="mt-4 text-right">
-                <span className="text-sm text-gray-700">รวม (Total) </span> 
+                <span className="text-sm text-gray-700">รวม (Total) </span>
                 <span className="text-xl font-bold text-gray-900">
-                  {formatCurrency((externalFundings || []).reduce((sum, funding) => sum + (parseFloat(funding?.amount || 0)), 0))}
+                  {formatCurrency(
+                    allowExternalFunding
+                      ? (externalFundings || []).reduce((sum, funding) => sum + (parseFloat(funding?.amount || 0)), 0)
+                      : 0
+                  )}
                 </span>
                 <span className="text-sm text-gray-700"> บาท (Baht)</span>
               </div>

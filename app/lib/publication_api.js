@@ -194,9 +194,29 @@ export const submissionUsersAPI = {
 // Publication Details API
 export const publicationDetailsAPI = {
   // Add publication details to submission
-  async add(submissionId, details) {
+  async add(submissionId, details, options = {}) {
     try {
-      const response = await apiClient.post(`/submissions/${submissionId}/publication-details`, {
+      const params = new URLSearchParams();
+
+      const normalizedMode = typeof options.mode === 'string'
+        ? options.mode.trim().toLowerCase()
+        : '';
+      if (normalizedMode) {
+        params.set('mode', normalizedMode);
+      }
+
+      const allowIncomplete =
+        options.allowIncomplete === true || normalizedMode === 'draft';
+      if (allowIncomplete) {
+        params.set('allow_incomplete', '1');
+      }
+
+      const queryString = params.toString();
+      const endpoint = queryString
+        ? `/submissions/${submissionId}/publication-details?${queryString}`
+        : `/submissions/${submissionId}/publication-details`;
+
+      const response = await apiClient.post(endpoint, {
         article_title: details.article_title,
         journal_name: details.journal_name,
         publication_date: details.publication_date,
