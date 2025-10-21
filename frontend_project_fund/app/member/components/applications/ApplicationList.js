@@ -171,9 +171,6 @@ export default function ApplicationList({ onNavigate }) {
         });
       }
       
-      // Debug log
-      console.log('API Response:', response);
-
       if (response.success && Array.isArray(response.submissions)) {
         // Transform data to match existing structure
         const transformedData = response.submissions.map(sub => {

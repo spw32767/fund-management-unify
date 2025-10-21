@@ -381,32 +381,19 @@ export const publicationRewardAPI = {
         isDraft = false
       } = applicationData;
 
-      console.log('Starting publication reward creation with data:', {
-        submission_type,
-        year_id,
-        priority,
-        uploadedFiles: Object.keys(uploadedFiles),
-        otherDocuments: otherDocuments.length,
-        coauthors: coauthors.length
-      });
-
       // Step 1: Create submission
       const submissionResponse = await submissionAPI.createSubmission({
         submission_type,
         year_id,
         priority
       });
-      
+
       const submissionId = submissionResponse.submission.submission_id;
-      console.log('Created submission:', submissionId);
 
       // Step 2: Add co-authors to submission_users
       if (coauthors && coauthors.length > 0) {
-        console.log('Adding co-authors to submission:', coauthors);
-        
         try {
           await submissionUsersAPI.setCoauthors(submissionId, coauthors);
-          console.log('Co-authors added successfully');
         } catch (error) {
           console.error('Error adding co-authors:', error);
           // Don't throw error here, continue with submission
@@ -436,8 +423,6 @@ export const publicationRewardAPI = {
         author_status
       });
 
-      console.log('Publication details added successfully');
-
       // Step 4: Upload files and attach documents - เพิ่มส่วนนี้
       const uploadPromises = [];
 
@@ -448,7 +433,6 @@ export const publicationRewardAPI = {
             uploadPromises.push(
               fileAPI.uploadFile(file)
                 .then(fileResponse => {
-                  console.log(`File uploaded successfully:`, fileResponse.file);
                   return documentAPI.attachDocument(submissionId, {
                     file_id: fileResponse.file.file_id,
                     document_type_id: parseInt(documentTypeId),
@@ -456,10 +440,7 @@ export const publicationRewardAPI = {
                     display_order: index + 1
                   });
                 })
-                .then(docResponse => {
-                  console.log(`Document attached successfully:`, docResponse);
-                  return docResponse;
-                })
+                .then(docResponse => docResponse)
                 .catch(error => {
                   console.error(`Error processing file ${file.name}:`, error);
                   throw error;
@@ -475,7 +456,6 @@ export const publicationRewardAPI = {
           uploadPromises.push(
             fileAPI.uploadFile(file)
               .then(fileResponse => {
-                console.log(`Other document uploaded:`, fileResponse.file);
                 return documentAPI.attachDocument(submissionId, {
                   file_id: fileResponse.file.file_id,
                   document_type_id: 99, // Default type for other documents
@@ -493,9 +473,7 @@ export const publicationRewardAPI = {
 
       // Wait for all file uploads to complete
       if (uploadPromises.length > 0) {
-        console.log(`Uploading ${uploadPromises.length} files...`);
         await Promise.all(uploadPromises);
-        console.log('All files uploaded and attached successfully');
       }
 
       return {

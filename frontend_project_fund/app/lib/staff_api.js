@@ -9,22 +9,18 @@ export const staffAPI = {
   // Get all categories and subcategories visible to staff
   async getVisibleFundsStructure(year = '2568') {
     try {
-      console.log('Getting staff funds structure for year:', year);
-
       // Step 1: Get years to convert year to year_id
       const yearsResponse = await apiClient.get('/years');
-      console.log('Years response:', yearsResponse);
-      
+
       const targetYear = yearsResponse.years?.find(y => y.year === year);
       if (!targetYear) {
         throw new Error(`Year ${year} not found`);
       }
 
       // Step 2: Get categories for the year
-      const categoriesResponse = await apiClient.get('/categories', { 
-        year_id: targetYear.year_id 
+      const categoriesResponse = await apiClient.get('/categories', {
+        year_id: targetYear.year_id
       });
-      console.log('Categories response:', categoriesResponse);
 
       if (!categoriesResponse.categories) {
         return { categories: [] };
@@ -34,16 +30,12 @@ export const staffAPI = {
       const categoriesWithSubs = await Promise.all(
         categoriesResponse.categories.map(async (category) => {
           try {
-            console.log(`Getting staff subcategories for category ${category.category_id}`);
-            
             // เรียก Staff specific endpoint
             const subResponse = await apiClient.get('/staff/subcategories', {
               category_id: category.category_id,
               year_id: targetYear.year_id
             });
-            
-            console.log(`Staff subcategories for category ${category.category_id}:`, subResponse);
-            
+
             return {
               ...category,
               subcategories: subResponse.subcategories || []
@@ -63,8 +55,6 @@ export const staffAPI = {
         cat => cat.subcategories && cat.subcategories.length > 0
       );
 
-      console.log('Final staff result:', filteredCategories);
-
       return {
         categories: filteredCategories,
         year: year,
@@ -83,12 +73,9 @@ export const staffAPI = {
       if (categoryId) params.category_id = categoryId;
       if (yearId) params.year_id = yearId;
       
-      console.log('Getting staff subcategories with params:', params);
-      
       // เรียก Staff specific endpoint
       const response = await apiClient.get('/staff/subcategories', params);
-      console.log('Staff subcategories response:', response);
-      
+
       return response;
     } catch (error) {
       console.error('Error fetching staff subcategories:', error);

@@ -2,7 +2,6 @@
 class APIClient {
   constructor() {
     this.baseURL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080/api/v1';
-    console.log('API Base URL:', this.baseURL); // Debug log
     this.accessTokenKey = 'access_token';
     this.refreshTokenKey = 'refresh_token';
     this.userKey = 'user_data';
