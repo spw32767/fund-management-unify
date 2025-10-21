@@ -296,7 +296,6 @@ export default function SubmissionsManagement() {
           sort_by: 'created_at',
           sort_order: 'desc',
         };
-        console.log('[FetchAll] /admin/submissions params:', params);
 
         const res = await submissionsListingAPI.getAdminSubmissions(params);
         if (reqId !== latestReq.current) return; // race protection
@@ -1232,7 +1231,6 @@ export default function SubmissionsManagement() {
 
   // ---------- Handlers ----------
   const handleYearChange = (yearId) => {
-    console.log('Year changed to:', yearId);
     setSelectedYear(yearId);
     setCurrentPage(1);
     setCursor(0);

@@ -465,10 +465,6 @@ export default function AnnouncementManager() {
 
   async function handleViewFile(row, entity) {
     const meta = getFileAccessMeta(row, entity);
-    console.log("[AnnouncementManager] handleViewFile", {
-      ...meta,
-      rowSnapshot: row,
-    });
 
     const { viewEndpoint, fileExtension } = meta;
     const isPDF = fileExtension === "pdf";
@@ -515,14 +511,9 @@ export default function AnnouncementManager() {
 
   async function handleDownloadFile(row, entity) {
       const meta = getFileAccessMeta(row, entity);
-      console.log("[AnnouncementManager] handleDownloadFile", {
-        ...meta,
-        rowSnapshot: row,
-      });
 
       // 1. ตรวจสอบว่าไฟล์นี้กำลังถูกดาวน์โหลดอยู่หรือไม่
       if (downloadingIds.has(meta.id)) {
-        console.log(`[AnnouncementManager] Download for ID ${meta.id} already in progress.`);
         return;
       }
 
@@ -1371,9 +1362,7 @@ export default function AnnouncementManager() {
               if (payload.expired_at) fd.append("expired_at", toRFC3339(payload.expired_at));
               fd.append("file", payload.file);
 
-              console.log("[CREATE] FormData keys:", [...fd.keys()]);
               const resp = await adminAnnouncementAPI.create(fd);
-              console.log("[CREATE] resp:", resp?.status, resp?.data);
               toast("success", "เพิ่มประกาศแล้ว");
             } else {
               // === UPDATE (PUT JSON) ===
@@ -1388,20 +1377,16 @@ export default function AnnouncementManager() {
                 published_at: payload.published_at ? toRFC3339(payload.published_at) : null,
                 expired_at: payload.expired_at ? toRFC3339(payload.expired_at) : null,
               };
-              console.log("[UPDATE] meta:", meta);
 
               const targetId = getAnnouncementId(aEditing);
               const putResp = await adminAnnouncementAPI.update(targetId, meta);
-              console.log("[UPDATE] resp:", putResp?.status, putResp?.data);
 
               if (payload.file) {
                 if (!isAllowedUploadFile(payload.file)) {
                   toast("error", `ไฟล์ต้องเป็น ${FILE_TYPE_LABEL}`);
                   return;
                 }
-                console.log("[REPLACE FILE] id:", targetId, "file:", payload.file?.name);
                 const rep = await adminAnnouncementAPI.replaceFile(targetId, payload.file);
-                console.log("[REPLACE FILE] resp:", rep?.status, rep?.data);
               }
 
               toast("success", "บันทึกประกาศแล้ว");
