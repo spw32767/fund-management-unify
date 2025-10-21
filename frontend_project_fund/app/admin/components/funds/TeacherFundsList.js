@@ -283,7 +283,6 @@ const SubcategoryCard = ({ subcategory, userRole }) => {
 // Handle apply for fund
 const handleApplyForFund = (subcategory) => {
   // Navigate to application form or open modal
-  console.log('Apply for fund:', subcategory);
   // This would typically use Next.js router to navigate to application form
   // router.push(`/teacher/applications/new?subcategory=${subcategory.subcategorie_id}`);
 };
