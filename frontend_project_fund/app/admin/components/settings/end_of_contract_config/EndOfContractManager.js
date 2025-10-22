@@ -77,6 +77,7 @@ const EndOfContractManager = () => {
   const [loading, setLoading] = useState(false);
   const [savingOrder, setSavingOrder] = useState(false);
   const [orderDirty, setOrderDirty] = useState(false);
+  const [draggingId, setDraggingId] = useState(null);
 
   const [modalOpen, setModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState("create");
@@ -106,6 +107,7 @@ const EndOfContractManager = () => {
       showError("ไม่สามารถโหลดข้อตกลงได้");
     } finally {
       setLoading(false);
+      setDraggingId(null);
     }
   }, [showError]);
 
@@ -229,6 +231,62 @@ const EndOfContractManager = () => {
     });
   }, []);
 
+  const handleDragStart = useCallback((event, termId) => {
+    setDraggingId(termId);
+    if (event?.dataTransfer) {
+      event.dataTransfer.effectAllowed = "move";
+      try {
+        event.dataTransfer.setData("text/plain", String(termId));
+      } catch (err) {
+        // บราวเซอร์บางตัวอาจไม่รองรับ setData
+      }
+    }
+  }, []);
+
+  const handleDragOver = useCallback(
+    (event, targetId) => {
+      event.preventDefault();
+      if (draggingId == null || draggingId === targetId) {
+        return;
+      }
+
+      let updated = false;
+      setTerms((prev) => {
+        const list = normalizeTermList(prev);
+        const fromIndex = list.findIndex((item) => item.eoc_id === draggingId);
+        const toIndex = list.findIndex((item) => item.eoc_id === targetId);
+
+        if (fromIndex === -1 || toIndex === -1 || fromIndex === toIndex) {
+          return prev;
+        }
+
+        const reordered = list.slice();
+        const [moved] = reordered.splice(fromIndex, 1);
+        reordered.splice(toIndex, 0, moved);
+
+        updated = true;
+
+        return reordered.map((item, index) => ({
+          ...item,
+          display_order: index + 1,
+        }));
+      });
+
+      if (updated) {
+        setOrderDirty(true);
+      }
+
+      if (event?.dataTransfer) {
+        event.dataTransfer.dropEffect = "move";
+      }
+    },
+    [draggingId]
+  );
+
+  const handleDragEnd = useCallback(() => {
+    setDraggingId(null);
+  }, []);
+
   const handleSaveOrder = useCallback(async () => {
     if (!orderDirty) {
       return;
@@ -263,31 +321,43 @@ const EndOfContractManager = () => {
     }
   }, [loadTerms, orderDirty, orderedTerms, showError, showSuccess]);
 
+  const isRefreshDisabled = loading || savingOrder;
+  const isSaveEnabled = orderDirty && orderedTerms.length > 0;
+  const refreshButtonClasses = `inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition ${
+    isRefreshDisabled
+      ? "border border-gray-200 bg-gray-50 text-gray-400 disabled:opacity-100"
+      : "border border-green-200 text-green-600 hover:bg-green-50"
+  } disabled:cursor-not-allowed`;
+  const saveButtonClasses = `inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition ${
+    isSaveEnabled || savingOrder
+      ? "border border-blue-200 text-blue-600 hover:bg-blue-50 disabled:opacity-70"
+      : "border border-gray-200 bg-gray-50 text-gray-400 disabled:opacity-100"
+  } disabled:cursor-not-allowed`;
+
   const actionButtons = (
     <>
-      {orderDirty ? (
-        <button
-          type="button"
-          onClick={handleSaveOrder}
-          disabled={savingOrder || orderedTerms.length === 0}
-          className="inline-flex items-center gap-2 rounded-md bg-green-600 px-3 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          {savingOrder ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-          {savingOrder ? "กำลังบันทึก" : "บันทึกการเรียงลำดับ"}
-        </button>
-      ) : null}
       <button
         type="button"
         onClick={loadTerms}
-        disabled={loading || savingOrder}
-        className="inline-flex items-center gap-2 rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
+        disabled={isRefreshDisabled}
+        className={refreshButtonClasses}
       >
-        <RefreshCcw className="h-4 w-4" /> รีเฟรช
+        {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCcw className="h-4 w-4" />}
+        รีเฟรช
+      </button>
+      <button
+        type="button"
+        onClick={handleSaveOrder}
+        disabled={!isSaveEnabled || savingOrder}
+        className={saveButtonClasses}
+      >
+        {savingOrder ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+        {savingOrder ? "กำลังบันทึก" : "บันทึกการเรียงลำดับ"}
       </button>
       <button
         type="button"
         onClick={openCreateModal}
-        className="inline-flex items-center gap-2 rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700"
+        className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-blue-700"
       >
         <PlusCircle className="h-4 w-4" /> เพิ่มข้อตกลง
       </button>
@@ -314,7 +384,23 @@ const EndOfContractManager = () => {
               {orderedTerms.map((term, index) => (
                 <div
                   key={term.eoc_id}
-                  className="flex flex-col gap-3 rounded-lg border border-gray-200 bg-white p-4 shadow-sm transition hover:shadow-md md:flex-row md:items-start md:justify-between"
+                  draggable={
+                    orderedTerms.length > 1 && !loading && !savingOrder
+                  }
+                  onDragStart={(event) => handleDragStart(event, term.eoc_id)}
+                  onDragOver={(event) => handleDragOver(event, term.eoc_id)}
+                  onDragEnd={handleDragEnd}
+                  className={`flex flex-col gap-3 rounded-lg border bg-white p-4 shadow-sm transition md:flex-row md:items-start md:justify-between ${
+                    draggingId === term.eoc_id
+                      ? "border-blue-200 ring-2 ring-blue-100"
+                      : "border-gray-200 hover:shadow-md"
+                  } ${
+                    orderedTerms.length > 1 && !loading && !savingOrder
+                      ? draggingId === term.eoc_id
+                        ? "cursor-grabbing"
+                        : "cursor-grab"
+                      : ""
+                  }`}
                 >
                   <div className="md:flex-1">
                     <div className="text-xs font-semibold uppercase text-gray-500">ข้อที่ {index + 1}</div>
