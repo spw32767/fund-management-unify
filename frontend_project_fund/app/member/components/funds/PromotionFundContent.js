@@ -710,9 +710,9 @@ export default function PromotionFundContent({ onNavigate }) {
 
   const yearDisplayHelperText = yearsLoading
     ? "กำลังโหลดปีงบประมาณจากระบบ"
-    : yearDisplayIsAvailable
-      ? "ระบบกำหนดปีงบประมาณให้อัตโนมัติ"
-      : "ไม่พบปีงบประมาณที่เปิดใช้งาน";
+    : !yearDisplayIsAvailable
+      ? "ไม่พบปีงบประมาณที่เปิดใช้งาน"
+      : "";
 
   if (loading) {
     return (
@@ -867,7 +867,6 @@ export default function PromotionFundContent({ onNavigate }) {
                     ? 'bg-blue-50 border-blue-200 text-blue-700'
                     : 'bg-gray-100 border-gray-200 text-gray-500'
                 }`}
-                title={yearDisplayIsAvailable ? 'ระบบกำหนดปีงบประมาณให้อัตโนมัติ' : undefined}
               >
                 <Calendar
                   size={16}
@@ -877,7 +876,9 @@ export default function PromotionFundContent({ onNavigate }) {
                 <span>{yearDisplayLabel}</span>
               </div>
             </div>
-            <span className="text-xs text-gray-500">{yearDisplayHelperText}</span>
+            {yearDisplayHelperText && (
+              <span className="text-xs text-gray-500">{yearDisplayHelperText}</span>
+            )}
           </div>
 
           {/* Search and Filter */}
