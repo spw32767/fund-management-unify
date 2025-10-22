@@ -4,7 +4,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { DollarSign, FileText, Search, Download, X, Info, Clock, AlertTriangle } from "lucide-react";
+import { DollarSign, FileText, Search, Download, X, Info, Clock, AlertTriangle, Calendar } from "lucide-react";
 import PageLayout from "../common/PageLayout";
 import { teacherAPI } from "../../../lib/member_api";
 import { targetRolesUtils, filterFundsByRole } from "../../../lib/target_roles_utils";
@@ -104,6 +104,7 @@ const selectCategoriesByKeywords = (categories = [], keywords = []) => {
 
 export default function ResearchFundContent({ onNavigate }) {
   const [selectedYear, setSelectedYear] = useState("");
+  const [currentYear, setCurrentYear] = useState("");
   const [yearId, setYearId] = useState(null);
   const [fundCategories, setFundCategories] = useState([]);
   const [filteredFunds, setFilteredFunds] = useState([]);
@@ -150,6 +151,61 @@ export default function ResearchFundContent({ onNavigate }) {
   }, [searchTerm, fundCategories]);
 
   // ---------- helpers ----------
+  const normalizeYearValue = (value) => {
+    if (value === undefined || value === null) return null;
+    const str = String(value).trim();
+    return str ? str : null;
+  };
+
+  const resolveFundYear = (fund, category) => {
+    const candidates = [
+      fund?.year,
+      fund?.year_name,
+      fund?.yearName,
+      fund?.fiscal_year,
+      fund?.fiscalYear,
+      fund?.budget_year,
+      fund?.budgetYear,
+      fund?.budget_year_name,
+      fund?.budgetYearName,
+      fund?.budget_year_label,
+      fund?.budgetYearLabel,
+      fund?.year_label,
+      fund?.yearLabel,
+      fund?.year_text,
+      fund?.yearText,
+      category?.year,
+      category?.year_name,
+      category?.yearName,
+      category?.fiscal_year,
+      category?.budget_year,
+      category?.budgetYear,
+    ];
+
+    for (const candidate of candidates) {
+      const normalized = normalizeYearValue(candidate);
+      if (normalized) {
+        return normalized;
+      }
+    }
+    return null;
+  };
+
+  const isFundInCurrentBudgetYear = (fund, category) => {
+    const activeYear = normalizeYearValue(currentYear);
+    if (!activeYear) {
+      return true;
+    }
+
+    const fundYear = resolveFundYear(fund, category);
+    if (fundYear) {
+      return normalizeYearValue(fundYear) === activeYear;
+    }
+
+    const selected = normalizeYearValue(selectedYear);
+    return selected ? selected === activeYear : true;
+  };
+
   // Accepts "YYYY-MM-DD HH:mm:ss" (treated as local) or ISO (respects Z/offset)
   const computeApplicationOpen = (start, end) => {
     if (!start || !end) return true; // if not configured => allow
@@ -208,14 +264,18 @@ export default function ResearchFundContent({ onNavigate }) {
       setUserRole(roleInfo);
 
       const normalizedYears = Array.isArray(yearsData)
-        ? [...yearsData].sort((a, b) => {
-            const aYear = Number(a?.year ?? 0);
-            const bYear = Number(b?.year ?? 0);
-            return bYear - aYear;
-          })
+        ? [...yearsData]
+            .map((entry) => ({
+              ...entry,
+              year: entry?.year != null ? String(entry.year) : entry?.year,
+            }))
+            .sort((a, b) => {
+              const aYear = Number(a?.year ?? 0);
+              const bYear = Number(b?.year ?? 0);
+              return bYear - aYear;
+            })
         : [];
 
-      setYears(normalizedYears);
       setSystemConfig(winData || null);
 
       const systemYearCandidate =
@@ -238,8 +298,22 @@ export default function ResearchFundContent({ onNavigate }) {
 
       const finalYear = hasResolvedYear ? resolvedYearCandidate : fallbackYear;
 
-      if (finalYear) {
-        setSelectedYear(finalYear);
+      const normalizedFinalYear = finalYear ? String(finalYear) : '';
+
+      const limitedYears = normalizedFinalYear
+        ? normalizedYears.filter((year) => String(year.year) === normalizedFinalYear)
+        : normalizedYears;
+
+      const yearOptions = (limitedYears.length ? limitedYears : normalizedYears).map((year) => ({
+        ...year,
+        year: year?.year != null ? String(year.year) : year?.year,
+      }));
+
+      setYears(yearOptions);
+      setCurrentYear(normalizedFinalYear);
+
+      if (normalizedFinalYear) {
+        setSelectedYear(normalizedFinalYear);
       } else {
         setSelectedYear("");
       }
@@ -516,7 +590,16 @@ export default function ResearchFundContent({ onNavigate }) {
     }
   };
 
-  const handleApplyForm = (subcategory) => {
+  const handleApplyForm = (subcategory, options = {}) => {
+    const { isCurrentBudgetYear: canApplyCurrent = true } = options;
+
+    if (!canApplyCurrent) {
+      if (typeof window !== "undefined") {
+        window.alert("สามารถยื่นขอทุนได้เฉพาะปีงบประมาณปัจจุบัน");
+      }
+      return;
+    }
+
     if (!isWithinApplicationPeriod) {
       if (typeof window !== "undefined") {
         window.alert("หมดเวลาการยื่นขอทุนแล้ว");
@@ -614,6 +697,23 @@ export default function ResearchFundContent({ onNavigate }) {
     return null;
   };
 
+  const resolvedYear =
+    normalizeYearValue(selectedYear) ||
+    normalizeYearValue(currentYear) ||
+    (years.length ? normalizeYearValue(years[0]?.year) : null);
+
+  const yearDisplayLabel = yearsLoading
+    ? "กำลังโหลด..."
+    : resolvedYear || "ไม่พบปีงบประมาณ";
+
+  const yearDisplayIsAvailable = !yearsLoading && !!resolvedYear;
+
+  const yearDisplayHelperText = yearsLoading
+    ? "กำลังโหลดปีงบประมาณจากระบบ"
+    : !yearDisplayIsAvailable
+      ? "ไม่พบปีงบประมาณที่เปิดใช้งาน"
+      : "";
+
   // ---------- rendering ----------
   if (loading) {
     // remaining_budget / used_amount / remaining_grant are no longer displayed here;
@@ -644,12 +744,18 @@ export default function ResearchFundContent({ onNavigate }) {
     );
   }
 
-  const renderFundRow = (fund) => {
+  const renderFundRow = (fund, category) => {
     const fundName = fund.subcategorie_name || fund.subcategory_name || "ไม่ระบุ";
     const formType = fund.form_type || "download";
     const formConfig = FORM_TYPE_CONFIG[formType] || {};
     const ButtonIcon = formConfig.icon || FileText;
     const isOnlineForm = !!formConfig.isOnlineForm;
+    const activeYearLabel = normalizeYearValue(currentYear) || normalizeYearValue(selectedYear);
+    const isCurrentBudgetYear = isFundInCurrentBudgetYear(fund, category);
+    const canApply = isCurrentBudgetYear && isWithinApplicationPeriod;
+    const buttonTitle = !isCurrentBudgetYear
+      ? `ยื่นขอทุนได้เฉพาะปีงบประมาณ ${activeYearLabel || "ปัจจุบัน"}`
+      : (isWithinApplicationPeriod ? "ยื่นขอทุน" : "หมดเวลาการยื่นขอทุน");
 
     const handleDownload = () => {
       const docUrl = fund.form_url || "/documents/default-fund-form.docx";
@@ -659,7 +765,10 @@ export default function ResearchFundContent({ onNavigate }) {
     };
 
     return (
-      <tr key={fund.subcategory_id || fund.subcategorie_id} className={!isWithinApplicationPeriod ? "bg-gray-50" : ""}>
+      <tr
+        key={fund.subcategory_id || fund.subcategorie_id}
+        className={!canApply ? "bg-gray-50" : ""}
+      >
         <td className="px-6 py-4 align-top">
           <div className="text-sm font-medium text-gray-900 max-w-lg break-words leading-relaxed">
             {fundName}
@@ -689,30 +798,37 @@ export default function ResearchFundContent({ onNavigate }) {
 
         <td className="px-6 py-4 text-center">
           {isOnlineForm ? (
-            <div className="inline-flex items-center gap-3">
-              <button
-                onClick={() => handleViewDetails(fund)}
-                className="inline-flex items-center gap-2 px-1 py-2 text-sm font-medium text-blue-600 hover:text-blue-700"
-                title="เปิดดูรายละเอียด (อ่านอย่างเดียว)"
-              >
-                <Search size={16} />
-                ดูรายละเอียด
-              </button>
+            <div className="flex flex-col items-start gap-1">
+              <div className="inline-flex items-center gap-3">
+                <button
+                  onClick={() => handleViewDetails(fund)}
+                  className="inline-flex items-center gap-2 px-1 py-2 text-sm font-medium text-blue-600 hover:text-blue-700"
+                  title="เปิดดูรายละเอียด (อ่านอย่างเดียว)"
+                >
+                  <Search size={16} />
+                  ดูรายละเอียด
+                </button>
 
-              <button
-                onClick={() => handleApplyForm(fund)}
-                className={`inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
-                  isWithinApplicationPeriod
-                    ? "bg-blue-600 text-white hover:bg-blue-700"
-                    : "bg-gray-300 text-gray-500 cursor-not-allowed"
-                }`}
-                title={isWithinApplicationPeriod ? "ยื่นขอทุน" : "หมดเวลาการยื่นขอทุน"}
-                disabled={!isWithinApplicationPeriod}
-                aria-disabled={!isWithinApplicationPeriod}
-              >
-                <ButtonIcon size={16} />
-                ยื่นขอทุน
-              </button>
+                <button
+                  onClick={() => handleApplyForm(fund, { isCurrentBudgetYear })}
+                  className={`inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
+                    canApply
+                      ? "bg-blue-600 text-white hover:bg-blue-700"
+                      : "bg-gray-300 text-gray-500 cursor-not-allowed"
+                  }`}
+                  title={buttonTitle}
+                  disabled={!canApply}
+                  aria-disabled={!canApply}
+                >
+                  <ButtonIcon size={16} />
+                  ยื่นขอทุน
+                </button>
+              </div>
+              {!isCurrentBudgetYear && activeYearLabel && (
+                <p className="text-xs text-red-500">
+                  ยื่นขอได้เฉพาะทุนในปีงบประมาณ {activeYearLabel}
+                </p>
+              )}
             </div>
           ) : (
             <button
@@ -744,26 +860,29 @@ export default function ResearchFundContent({ onNavigate }) {
 
       {/* Control Bar (เหมือน Promotion) */}
       <div className="mb-6 bg-white rounded-lg shadow-sm p-4">
-        <div className="flex flex-col md:flex-row gap-4 items-center justify-between">
-          {/* Year Selector */}
-          <div className="flex items-center gap-2">
-            <label className="text-sm font-medium text-gray-700">ปีงบประมาณ:</label>
-            <select
-              className="px-3 py-2 text-gray-700 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-              value={selectedYear}
-              onChange={(e) => setSelectedYear(e.target.value)}
-              disabled={yearsLoading}
-            >
-              {yearsLoading ? (
-                <option>กำลังโหลด...</option>
-              ) : (
-                years.map((year) => (
-                  <option key={year.year_id} value={year.year}>
-                    {year.year}
-                  </option>
-                ))
-              )}
-            </select>
+        <div className="flex flex-col md:flex-row gap-4 items-start md:items-center justify-between">
+          {/* Year Display */}
+          <div className="flex flex-col items-start gap-1">
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium text-gray-700">ปีงบประมาณ:</span>
+              <div
+                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-sm font-semibold ${
+                  yearDisplayIsAvailable
+                    ? 'bg-blue-50 border-blue-200 text-blue-700'
+                    : 'bg-gray-100 border-gray-200 text-gray-500'
+                }`}
+              >
+                <Calendar
+                  size={16}
+                  className={yearDisplayIsAvailable ? 'text-blue-500' : 'text-gray-400'}
+                  aria-hidden="true"
+                />
+                <span>{yearDisplayLabel}</span>
+              </div>
+            </div>
+            {yearDisplayHelperText && (
+              <span className="text-xs text-gray-500">{yearDisplayHelperText}</span>
+            )}
           </div>
 
           {/* Search */}
@@ -816,7 +935,7 @@ export default function ResearchFundContent({ onNavigate }) {
               <tbody className="bg-white divide-y divide-gray-200">
                 {filteredFunds.map((category) => {
                   if (category.subcategories && category.subcategories.length > 0) {
-                    return category.subcategories.map((fund) => renderFundRow(fund));
+                    return category.subcategories.map((fund) => renderFundRow(fund, category));
                   } else {
                     return (
                       <tr key={category.category_id}>
