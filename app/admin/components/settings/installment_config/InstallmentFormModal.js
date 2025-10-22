@@ -108,7 +108,7 @@ const InstallmentFormModal = ({
     >
       <div className="grid gap-4 md:grid-cols-2">
         <label className="flex flex-col gap-1">
-          <span className="text-sm font-medium text-gray-700">เลขงวด *</span>
+          <span className="text-sm font-medium text-gray-700">เลขรอบการพิจารณา *</span>
           <select
             value={formData.installment_number}
             onChange={(e) => onChange("installment_number", e.target.value)}
@@ -124,7 +124,7 @@ const InstallmentFormModal = ({
         </label>
 
         <label className="flex flex-col gap-1">
-          <span className="text-sm font-medium text-gray-700">วันตัดงวด (MM/DD/YYYY) *</span>
+          <span className="text-sm font-medium text-gray-700">วันตัดรอบการพิจารณา (MM/DD/YYYY) *</span>
           <input
             type="date"
             value={formData.cutoff_date}
@@ -135,13 +135,13 @@ const InstallmentFormModal = ({
         </label>
 
         <label className="flex flex-col gap-1">
-          <span className="text-sm font-medium text-gray-700">ชื่อ/คำอธิบายงวด</span>
+          <span className="text-sm font-medium text-gray-700">ชื่อ/คำอธิบายรอบการพิจารณา</span>
           <input
             type="text"
             value={formData.name}
             onChange={(e) => onChange("name", e.target.value)}
             className="rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
-            placeholder="เช่น งวดที่ 1"
+            placeholder="เช่น รอบการพิจารณาที่ 1"
             disabled={submitting}
           />
         </label>

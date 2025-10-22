@@ -1154,6 +1154,72 @@ export const adminAPI = {
     }
   },
 
+  // ==================== END OF CONTRACT TERMS MANAGEMENT ====================
+
+  async getEndOfContractTerms() {
+    try {
+      const response = await apiClient.get('/admin/end-of-contract');
+      if (Array.isArray(response)) {
+        return response;
+      }
+      if (response && typeof response === 'object') {
+        if (Array.isArray(response.data)) return response.data;
+        if (Array.isArray(response.items)) return response.items;
+      }
+      return [];
+    } catch (error) {
+      console.error('Error fetching end-of-contract terms:', error);
+      throw error;
+    }
+  },
+
+  async createEndOfContractTerm(termData) {
+    try {
+      const payload = { ...termData };
+      if (payload.display_order === null || payload.display_order === undefined || payload.display_order === '') {
+        delete payload.display_order;
+      }
+      return await apiClient.post('/admin/end-of-contract', payload);
+    } catch (error) {
+      console.error('Error creating end-of-contract term:', error);
+      throw error;
+    }
+  },
+
+  async updateEndOfContractTerm(termId, termData) {
+    try {
+      const payload = { ...termData };
+      if (payload.display_order === null || payload.display_order === undefined || payload.display_order === '') {
+        delete payload.display_order;
+      }
+      return await apiClient.put(`/admin/end-of-contract/${termId}`, payload);
+    } catch (error) {
+      console.error('Error updating end-of-contract term:', error);
+      throw error;
+    }
+  },
+
+  async deleteEndOfContractTerm(termId) {
+    try {
+      return await apiClient.delete(`/admin/end-of-contract/${termId}`);
+    } catch (error) {
+      console.error('Error deleting end-of-contract term:', error);
+      throw error;
+    }
+  },
+
+  async reorderEndOfContractTerms(orderedIds) {
+    try {
+      if (!Array.isArray(orderedIds)) {
+        throw new Error('orderedIds must be an array');
+      }
+      return await apiClient.patch('/admin/end-of-contract/reorder', { ordered_ids: orderedIds });
+    } catch (error) {
+      console.error('Error reordering end-of-contract terms:', error);
+      throw error;
+    }
+  },
+
   // ===== Approval Records (Admin) =====
   async getApprovalTotals(params = {}) {
     return apiClient.get('/admin/approval-records/totals', params);

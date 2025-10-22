@@ -2,10 +2,116 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { FileText, Eye, Download, Bell, BookOpen } from "lucide-react";
+import { FileText, Eye, Download, Bell, BookOpen, CalendarClock } from "lucide-react";
 import apiClient, { announcementAPI, fundFormAPI, systemAPI } from "../../../lib/api";
 import { systemConfigAPI } from "../../../lib/system_config_api";
+import { fundInstallmentAPI } from "../../../lib/fund_installment_api";
 import DataTable from "../../../admin/components/common/DataTable";
+
+const parseISODate = (value) => {
+  if (!value) return null;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+};
+
+const formatThaiDate = (date) => {
+  if (!(date instanceof Date) || Number.isNaN(date.getTime())) {
+    return "ยังไม่กำหนด";
+  }
+
+  return date.toLocaleDateString("th-TH", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
+};
+
+const formatInstallmentNumber = (value) => {
+  if (value === null || value === undefined) {
+    return "-";
+  }
+
+  const numeric = Number(value);
+  if (Number.isNaN(numeric)) {
+    return String(value);
+  }
+
+  return numeric.toLocaleString("th-TH");
+};
+
+const DAY_IN_MS = 24 * 60 * 60 * 1000;
+
+const getCountdownLabel = (targetDate, referenceDate) => {
+  if (!(targetDate instanceof Date) || Number.isNaN(targetDate.getTime())) {
+    return null;
+  }
+
+  const reference =
+    referenceDate instanceof Date && !Number.isNaN(referenceDate.getTime())
+      ? referenceDate
+      : new Date();
+
+  const diffMs = targetDate.getTime() - reference.getTime();
+
+  if (diffMs > 0) {
+    if (diffMs < DAY_IN_MS) {
+      return "ภายในวันนี้";
+    }
+
+    const diffDays = Math.ceil(diffMs / DAY_IN_MS);
+    return `เหลืออีก ${diffDays.toLocaleString("th-TH")} วัน`;
+  }
+
+  if (Math.abs(diffMs) < DAY_IN_MS) {
+    return "ครบกำหนดวันนี้";
+  }
+
+  const diffDays = Math.ceil(Math.abs(diffMs) / DAY_IN_MS);
+  return `ผ่านไปแล้ว ${diffDays.toLocaleString("th-TH")} วัน`;
+};
+
+const getInstallmentKey = (period) => {
+  if (!period || typeof period !== "object") {
+    return null;
+  }
+
+  const raw = period.raw ?? {};
+  const candidates = [
+    raw.installment_period_id,
+    raw.InstallmentPeriodID,
+    raw.id,
+    raw.ID,
+    period.installmentPeriodId,
+    period.installment_period_id,
+  ];
+
+  for (const candidate of candidates) {
+    if (candidate != null && candidate !== "") {
+      return String(candidate);
+    }
+  }
+
+  const cutoffValid =
+    period.cutoffDate instanceof Date && !Number.isNaN(period.cutoffDate.getTime())
+      ? period.cutoffDate.getTime()
+      : null;
+  const installmentLabel =
+    period.installmentNumber != null ? String(period.installmentNumber) : null;
+
+  if (cutoffValid != null && installmentLabel != null) {
+    return `${installmentLabel}-${cutoffValid}`;
+  }
+
+  if (cutoffValid != null) {
+    return `cutoff-${cutoffValid}`;
+  }
+
+  if (installmentLabel != null) {
+    return `installment-${installmentLabel}`;
+  }
+
+  return null;
+};
 
 export default function AnnouncementPage() {
   const [announcements, setAnnouncements] = useState([]);
@@ -20,12 +126,16 @@ export default function AnnouncementPage() {
   const [years, setYears] = useState([]);
   const [yearsLoading, setYearsLoading] = useState(false);
   const [currentYearLabel, setCurrentYearLabel] = useState(null);
+  const [installmentPeriods, setInstallmentPeriods] = useState([]);
+  const [systemNow, setSystemNow] = useState(null);
+  const [loadingInstallments, setLoadingInstallments] = useState(true);
 
   useEffect(() => {
     loadAnnouncements();
     loadFundForms();
     loadSystemConfig();
     loadYears();
+    loadInstallmentPeriods();
   }, []);
 
   const loadAnnouncements = async () => {
@@ -106,6 +216,23 @@ export default function AnnouncementPage() {
     }
   };
 
+  const loadInstallmentPeriods = async () => {
+    try {
+      setLoadingInstallments(true);
+      const periods = await fundInstallmentAPI.list();
+      if (Array.isArray(periods)) {
+        setInstallmentPeriods(periods);
+      } else {
+        setInstallmentPeriods([]);
+      }
+    } catch (error) {
+      console.error("Error loading installment periods:", error);
+      setInstallmentPeriods([]);
+    } finally {
+      setLoadingInstallments(false);
+    }
+  };
+
   const loadSystemConfig = async () => {
     try {
       const rawConfig = await systemConfigAPI.getWindow();
@@ -148,6 +275,9 @@ export default function AnnouncementPage() {
 
       setSystemConfigAnnouncementIds(Array.from(configIds));
 
+      const nowISO = normalized?.now ?? new Date().toISOString();
+      setSystemNow(nowISO);
+
       const normalizedCurrentYear =
         normalized?.current_year != null && normalized.current_year !== ""
           ? String(normalized.current_year)
@@ -159,6 +289,7 @@ export default function AnnouncementPage() {
     } catch (error) {
       console.error("Error loading system config:", error);
       setSystemConfigAnnouncementIds([]);
+      setSystemNow(null);
     }
   };
 
@@ -302,6 +433,130 @@ export default function AnnouncementPage() {
 
     return null;
   };
+
+  const systemNowDate = useMemo(() => {
+    const parsed = parseISODate(systemNow);
+    if (!parsed || Number.isNaN(parsed.getTime())) {
+      return new Date();
+    }
+    return parsed;
+  }, [systemNow]);
+
+  const yearLabelMap = useMemo(() => {
+    const map = new Map();
+    if (!Array.isArray(years)) {
+      return map;
+    }
+
+    years.forEach((year) => {
+      if (!year) return;
+      const idCandidate =
+        year.year_id ?? year.YearID ?? year.id ?? year.yearId ?? null;
+      const labelCandidate = year.year ?? year.Year ?? null;
+      if (idCandidate != null && labelCandidate != null) {
+        map.set(String(idCandidate), String(labelCandidate));
+      }
+    });
+
+    return map;
+  }, [years]);
+
+  const activeInstallmentYearId = useMemo(() => {
+    if (selectedYearId && selectedYearId !== "all") {
+      return String(selectedYearId);
+    }
+
+    if (currentYearLabel != null) {
+      const matchedYear = Array.isArray(years)
+        ? years.find((year) => String(year.year) === String(currentYearLabel))
+        : null;
+      if (matchedYear?.year_id != null) {
+        return String(matchedYear.year_id);
+      }
+    }
+
+    return null;
+  }, [selectedYearId, currentYearLabel, years]);
+
+  const normalizedInstallments = useMemo(() => {
+    if (!Array.isArray(installmentPeriods)) {
+      return [];
+    }
+
+    return installmentPeriods.filter((period) => {
+      if (!period) return false;
+      const cutoff = period.cutoffDate;
+      return cutoff instanceof Date && !Number.isNaN(cutoff.getTime());
+    });
+  }, [installmentPeriods]);
+
+  const filteredInstallments = useMemo(() => {
+    if (!activeInstallmentYearId) {
+      return normalizedInstallments;
+    }
+
+    return normalizedInstallments.filter((period) => {
+      if (period.yearId == null) {
+        return true;
+      }
+
+      return String(period.yearId) === activeInstallmentYearId;
+    });
+  }, [normalizedInstallments, activeInstallmentYearId]);
+
+  const sortedInstallments = useMemo(() => {
+    const items = [...filteredInstallments];
+    items.sort((a, b) => a.cutoffDate.getTime() - b.cutoffDate.getTime());
+    return items;
+  }, [filteredInstallments]);
+
+  const upcomingInstallments = useMemo(() => {
+    const nowTime = systemNowDate.getTime();
+    return sortedInstallments.filter((period) => period.cutoffDate.getTime() >= nowTime);
+  }, [sortedInstallments, systemNowDate]);
+
+  const nextInstallment = upcomingInstallments[0] ?? null;
+  const latestPastInstallment =
+    !nextInstallment && sortedInstallments.length > 0
+      ? sortedInstallments[sortedInstallments.length - 1]
+      : null;
+
+  const nextInstallmentDisplay = useMemo(() => {
+    if (!nextInstallment) {
+      return null;
+    }
+
+    const yearLabel =
+      nextInstallment.yearId != null
+        ? yearLabelMap.get(String(nextInstallment.yearId)) ?? null
+        : null;
+
+    return {
+      installmentNumber: nextInstallment.installmentNumber,
+      cutoffLabel: formatThaiDate(nextInstallment.cutoffDate),
+      yearLabel,
+      countdownLabel: getCountdownLabel(nextInstallment.cutoffDate, systemNowDate),
+      status: nextInstallment.status ?? null,
+    };
+  }, [nextInstallment, yearLabelMap, systemNowDate]);
+
+  const latestPastInstallmentDisplay = useMemo(() => {
+    if (!latestPastInstallment) {
+      return null;
+    }
+
+    const yearLabel =
+      latestPastInstallment.yearId != null
+        ? yearLabelMap.get(String(latestPastInstallment.yearId)) ?? null
+        : null;
+
+    return {
+      installmentNumber: latestPastInstallment.installmentNumber,
+      cutoffLabel: formatThaiDate(latestPastInstallment.cutoffDate),
+      yearLabel,
+      countdownLabel: getCountdownLabel(latestPastInstallment.cutoffDate, systemNowDate),
+    };
+  }, [latestPastInstallment, yearLabelMap, systemNowDate]);
 
   useEffect(() => {
     const configIdSet = new Set(systemConfigAnnouncementIds.map(String));
@@ -676,6 +931,74 @@ export default function AnnouncementPage() {
                 data={filteredAnnouncements}
                 emptyMessage="ไม่มีประกาศในขณะนี้"
               />
+            )}
+          </div>
+        </div>
+
+        {/* Evaluation Windows Section */}
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+          <div className="px-6 py-4 border-b border-gray-200">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-indigo-100 rounded-lg">
+                <CalendarClock size={20} className="text-indigo-600" />
+              </div>
+              <div>
+                <h2 className="text-lg font-semibold text-gray-800">รอบการพิจารณา</h2>
+                <p className="text-sm text-gray-600">
+                  รอบการพิจารณาขอทุนส่งเสริมการวิจัยและนวัตกรรม และทุนอุดหนุนกิจกรรม
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="p-6">
+            {loadingInstallments ? (
+              <div className="flex items-center justify-center py-8 text-gray-600">
+                <div className="w-8 h-8 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin"></div>
+                <span className="ml-2">กำลังโหลด...</span>
+              </div>
+            ) : nextInstallmentDisplay ? (
+              <div className="space-y-6">
+                <div className="rounded-xl border border-indigo-100 bg-indigo-50 p-5 shadow-sm">
+                  <p className="text-sm font-medium text-indigo-700">รอบถัดไป</p>
+                  <div className="mt-2 space-y-2">
+                    <p className="text-2xl font-semibold text-indigo-900">
+                      รอบพิจารณาครั้งที่ {formatInstallmentNumber(nextInstallmentDisplay.installmentNumber)}
+                    </p>
+                    <p className="text-lg text-indigo-800">{nextInstallmentDisplay.cutoffLabel}</p>
+                    {nextInstallmentDisplay.yearLabel ? (
+                      <p className="text-sm text-indigo-700">
+                        ปีงบประมาณ {nextInstallmentDisplay.yearLabel}
+                      </p>
+                    ) : null}
+                    {nextInstallmentDisplay.countdownLabel ? (
+                      <span className="inline-flex w-fit items-center gap-2 rounded-full bg-white px-3 py-1 text-sm font-medium text-indigo-700 shadow-sm">
+                        {nextInstallmentDisplay.countdownLabel}
+                      </span>
+                    ) : null}
+                  </div>
+                </div>
+              </div>
+            ) : latestPastInstallmentDisplay ? (
+              <div className="rounded-lg border border-amber-200 bg-amber-50 p-5 text-amber-800">
+                <p className="text-base font-semibold">ยังไม่มีรอบถัดไปในระบบ</p>
+                <p className="mt-2 text-sm">
+                  รอบล่าสุดที่บันทึกคือรอบที่ {formatInstallmentNumber(latestPastInstallmentDisplay.installmentNumber)}
+                  {" "}
+                  เมื่อวันที่ {latestPastInstallmentDisplay.cutoffLabel}
+                  {latestPastInstallmentDisplay.yearLabel
+                    ? ` (ปีงบประมาณ ${latestPastInstallmentDisplay.yearLabel})`
+                    : ""}
+                  .
+                </p>
+                {latestPastInstallmentDisplay.countdownLabel ? (
+                  <p className="mt-2 text-sm">{latestPastInstallmentDisplay.countdownLabel}</p>
+                ) : null}
+              </div>
+            ) : (
+              <div className="py-10 text-center text-sm text-gray-500">
+                ยังไม่มีข้อมูลงวดการพิจารณาในระบบ
+              </div>
             )}
           </div>
         </div>

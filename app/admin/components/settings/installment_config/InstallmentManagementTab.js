@@ -276,7 +276,7 @@ const InstallmentManagementTab = ({ years = [] }) => {
     } catch (err) {
       console.error("Failed to load installment periods", err);
       setError(err);
-      Swal.fire("เกิดข้อผิดพลาด", err?.message || "ไม่สามารถโหลดข้อมูลงวดได้", "error");
+      Swal.fire("เกิดข้อผิดพลาด", err?.message || "ไม่สามารถโหลดข้อมูลรอบการพิจารณาได้", "error");
     } finally {
       setLoading(false);
     }
@@ -367,7 +367,7 @@ const InstallmentManagementTab = ({ years = [] }) => {
 
   const copyDisabledReason = useMemo(() => {
     if (!selectedYearId) return "กรุณาเลือกปีงบประมาณก่อน";
-    if (!periods?.length) return "ปีที่เลือกยังไม่มีงวดให้คัดลอก";
+    if (!periods?.length) return "ปีที่เลือกยังไม่มีรอบการพิจารณาให้คัดลอก";
     return null;
   }, [selectedYearId, periods]);
 
@@ -387,13 +387,13 @@ const InstallmentManagementTab = ({ years = [] }) => {
       Number.isNaN(installmentNumber) ||
       !installmentOptions.includes(installmentNumber)
     ) {
-      Swal.fire("ข้อมูลไม่ครบ", "กรุณาเลือกเลขงวดระหว่าง 1-5", "warning");
+      Swal.fire("ข้อมูลไม่ครบ", "กรุณาเลือกเลขรอบการพิจารณาระหว่าง 1-5", "warning");
       return false;
     }
 
     const cutoff = String(formData.cutoff_date || "").trim();
     if (!cutoff || !/^\d{4}-\d{2}-\d{2}$/.test(cutoff)) {
-      Swal.fire("ข้อมูลไม่ครบ", "กรุณาเลือกวันตัดงวดจากปฏิทิน", "warning");
+      Swal.fire("ข้อมูลไม่ครบ", "กรุณาเลือกวันตัดรอบการพิจารณาจากปฏิทิน", "warning");
       return false;
     }
 
@@ -436,16 +436,16 @@ const InstallmentManagementTab = ({ years = [] }) => {
       setSubmitting(true);
       if (editingPeriod?.installment_period_id) {
         await adminInstallmentAPI.update(editingPeriod.installment_period_id, payload);
-        Swal.fire("สำเร็จ", "แก้ไขวันตัดงวดเรียบร้อย", "success");
+        Swal.fire("สำเร็จ", "แก้ไขวันตัดรอบการพิจารณาเรียบร้อย", "success");
       } else {
         await adminInstallmentAPI.create(payload);
-        Swal.fire("สำเร็จ", "เพิ่มวันตัดงวดเรียบร้อย", "success");
+        Swal.fire("สำเร็จ", "เพิ่มวันตัดรอบการพิจารณาเรียบร้อย", "success");
       }
       loadPeriods();
       handleCloseForm();
     } catch (err) {
       console.error("Failed to save installment period", err);
-      Swal.fire("เกิดข้อผิดพลาด", err?.message || "ไม่สามารถบันทึกวันตัดงวดได้", "error");
+      Swal.fire("เกิดข้อผิดพลาด", err?.message || "ไม่สามารถบันทึกวันตัดรอบการพิจารณาได้", "error");
     } finally {
       setSubmitting(false);
     }
@@ -456,7 +456,7 @@ const InstallmentManagementTab = ({ years = [] }) => {
 
     const confirmed = await Swal.fire({
       title: "ยืนยันการลบ?",
-      text: `ต้องการลบงวดที่ ${period.installment_number || ""} หรือไม่?`,
+      text: `ต้องการลบรอบการพิจารณาที่ ${period.installment_number || ""} หรือไม่?`,
       icon: "warning",
       showCancelButton: true,
       confirmButtonText: "ลบ",
@@ -468,11 +468,11 @@ const InstallmentManagementTab = ({ years = [] }) => {
 
     try {
       await adminInstallmentAPI.remove(period.installment_period_id);
-      Swal.fire("สำเร็จ", "ลบวันตัดงวดเรียบร้อย", "success");
+      Swal.fire("สำเร็จ", "ลบวันตัดรอบการพิจารณาเรียบร้อย", "success");
       loadPeriods();
     } catch (err) {
       console.error("Failed to delete installment period", err);
-      Swal.fire("เกิดข้อผิดพลาด", err?.message || "ไม่สามารถลบวันตัดงวดได้", "error");
+      Swal.fire("เกิดข้อผิดพลาด", err?.message || "ไม่สามารถลบวันตัดรอบการพิจารณาได้", "error");
     }
   };
 
@@ -492,7 +492,7 @@ const InstallmentManagementTab = ({ years = [] }) => {
       );
       Swal.fire(
         "สำเร็จ",
-        nextActive ? "เปิดใช้งานงวดเรียบร้อย" : "ปิดใช้งานงวดเรียบร้อย",
+        nextActive ? "เปิดใช้งานรอบการพิจารณาเรียบร้อย" : "ปิดใช้งานรอบการพิจารณาเรียบร้อย",
         "success"
       );
     } catch (err) {
@@ -547,7 +547,7 @@ const InstallmentManagementTab = ({ years = [] }) => {
             } />
             <div>
               <p class="font-medium text-gray-800">เพิ่มไปยังปีที่มีอยู่</p>
-              <p class="text-sm text-gray-600 mt-1">เพิ่มงวดไปยังปีที่เลือกโดยไม่สร้างปีใหม่</p>
+              <p class="text-sm text-gray-600 mt-1">เพิ่มรอบการพิจารณาไปยังปีที่เลือกโดยไม่สร้างปีใหม่</p>
             </div>
           </label>
           <select id="copy-existing-year-select" class="swal2-select mt-3" ${
@@ -561,7 +561,7 @@ const InstallmentManagementTab = ({ years = [] }) => {
     `;
 
     const { value, isConfirmed } = await Swal.fire({
-      title: `คัดลอกงวดจาก ${selectedYearTitle}`,
+      title: `คัดลอกรอบการพิจารณาจาก ${selectedYearTitle}`,
       html: dialogHtml,
       focusConfirm: false,
       showCancelButton: true,
@@ -683,8 +683,8 @@ const InstallmentManagementTab = ({ years = [] }) => {
       const message =
         response?.message ||
         (value.mode === "existing"
-          ? `คัดลอกงวดไปยังปี ${value.year} เรียบร้อย`
-          : `สร้างปี ${value.year} และคัดลอกงวดเรียบร้อย`);
+          ? `คัดลอกรอบการพิจารณาไปยังปี ${value.year} เรียบร้อย`
+          : `สร้างปี ${value.year} และคัดลอกรอบการพิจารณาเรียบร้อย`);
 
       await Swal.fire("สำเร็จ", message, "success");
 
@@ -697,7 +697,7 @@ const InstallmentManagementTab = ({ years = [] }) => {
       }
     } catch (err) {
       console.error("Failed to copy installment periods", err);
-      Swal.fire("เกิดข้อผิดพลาด", err?.message || "ไม่สามารถคัดลอกงวดได้", "error");
+      Swal.fire("เกิดข้อผิดพลาด", err?.message || "ไม่สามารถคัดลอกรอบการพิจารณาได้", "error");
     } finally {
       setCopying(false);
     }
@@ -722,8 +722,8 @@ const InstallmentManagementTab = ({ years = [] }) => {
         icon={CalendarRange}
         iconBgClass="bg-indigo-100"
         iconColorClass="text-indigo-600"
-        title="ตั้งค่าวันตัดงวดของทุน"
-        description="กำหนดเลขงวดและวันตัดต่อปี เพื่อใช้คำนวณงวดอัตโนมัติในการยื่นขอทุน"
+        title="ตั้งค่าวันตัดรอบการพิจารณาของทุน"
+        description="กำหนดเลขรอบการพิจารณาและวันตัดต่อปี เพื่อใช้คำนวณรอบการพิจารณาอัตโนมัติในการยื่นขอทุน"
         actions={
           <div className="flex flex-wrap items-center gap-2">
             <button
@@ -750,7 +750,7 @@ const InstallmentManagementTab = ({ years = [] }) => {
               className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-sm text-white transition-colors hover:bg-blue-700"
             >
               <Plus size={16} />
-              เพิ่มวันตัดงวด
+              เพิ่มวันตัดรอบการพิจารณา
             </button>
           </div>
         }
@@ -777,8 +777,8 @@ const InstallmentManagementTab = ({ years = [] }) => {
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">เลขงวด</th>
-                <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">วันตัดงวด</th>
+                <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">เลขรอบการพิจารณา</th>
+                <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">วันตัดรอบการพิจารณา</th>
                 <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">ชื่อ/คำอธิบาย</th>
                 <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">หมายเหตุ</th>
                 <th className="px-4 py-3 text-center text-sm font-semibold text-gray-700">สถานะ</th>
@@ -795,7 +795,7 @@ const InstallmentManagementTab = ({ years = [] }) => {
               ) : periods.length ? (
                 periods.map((period) => (
                   <tr key={period.installment_period_id || period.installment_number}>
-                    <td className="px-4 py-3 text-sm font-medium text-gray-900">งวดที่ {period.installment_number ?? "-"}</td>
+                    <td className="px-4 py-3 text-sm font-medium text-gray-900">รอบการพิจารณาที่ {period.installment_number ?? "-"}</td>
                     <td className="px-4 py-3 text-sm text-gray-700">{toThaiDate(period.cutoff_date)}</td>
                     <td className="px-4 py-3 text-sm text-gray-700">{period.name || "-"}</td>
                     <td className="px-4 py-3 text-sm text-gray-700 whitespace-pre-line">{period.remark || "-"}</td> 
@@ -835,7 +835,7 @@ const InstallmentManagementTab = ({ years = [] }) => {
                     {error
                       ? "เกิดข้อผิดพลาดในการโหลดข้อมูล"
                       : selectedYearId
-                      ? "ยังไม่มีการตั้งค่างวดสำหรับปีนี้"
+                      ? "ยังไม่มีการตั้งค่ารอบการพิจารณาสำหรับปีนี้"
                       : "กรุณาเลือกปีงบประมาณเพื่อดูรายการ"}
                   </td>
                 </tr>
@@ -879,8 +879,8 @@ const InstallmentManagementTab = ({ years = [] }) => {
         onClose={handleCloseForm}
         title={
           editingPeriod
-            ? `แก้ไขงวดที่ ${editingPeriod.installment_number ?? ""}`
-            : "เพิ่มวันตัดงวดใหม่"
+            ? `แก้ไขรอบการพิจารณาที่ ${editingPeriod.installment_number ?? ""}`
+            : "เพิ่มวันตัดรอบการพิจารณาใหม่"
         }
         formData={formData}
         onChange={handleFormChange}

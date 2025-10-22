@@ -1,6 +1,6 @@
 // FundSettingsContent.js - Updated Main Component with SweetAlert2
 import React, { useState, useEffect } from "react";
-import { Settings, Calendar, CalendarRange, DollarSign, PencilLine, FileText, FileStack } from "lucide-react";
+import { Settings, Calendar, CalendarRange, DollarSign, PencilLine, FileText, FileStack, ListChecks } from "lucide-react";
 import Swal from 'sweetalert2';
 
 // Import separated components
@@ -9,6 +9,7 @@ import StatusBadge from "@/app/admin/components/settings/StatusBadge";
 import YearManagementTab from "@/app/admin/components/settings/years_config/YearManagementTab";
 import FundManagementTab from "@/app/admin/components/settings/funds_config/FundManagementTab";
 import RewardConfigManager from "@/app/admin/components/settings/reward_config/RewardConfigManager";
+import EndOfContractManager from "@/app/admin/components/settings/end_of_contract_config/EndOfContractManager";
 import SystemConfigSettings from "@/app/admin/components/settings/system_config/SystemConfigSettings";
 import AnnouncementManager from "@/app/admin/components/settings/announcement_config/AnnouncementManager";
 import DocumentTypeManager from "@/app/admin/components/settings/document_config/DocumentTypeManager";
@@ -27,8 +28,9 @@ import systemConfigAPI from "@/app/lib/system_config_api";
 const TAB_ITEMS = [
   { id: "funds", label: "จัดการทุน", icon: DollarSign },
   { id: "years", label: "จัดการปีงบประมาณ", icon: Calendar },
-  { id: "installments", label: "ตั้งค่าวันตัดงวด", icon: CalendarRange },
+  { id: "installments", label: "ตั้งค่าวันตัดรอบการพิจารณา", icon: CalendarRange },
   { id: "reward-config", label: "จัดการเงินรางวัล", icon: Settings },
+  { id: "reward-terms", label: "ข้อตกลงเงินรางวัล", icon: ListChecks },
   { id: "system", label: "ตั้งค่าระบบ", icon: PencilLine },
   { id: "announcements", label: "ประกาศ/ไฟล์", icon: FileText },
   { id: "document-types", label: "ตั้งค่าเอกสารทุนแนบ", icon: FileStack },
@@ -1384,6 +1386,8 @@ export default function FundSettingsContent({ onNavigate }) {
         return <InstallmentManagementTab years={years} />;
       case "reward-config":
         return <RewardConfigManager />;
+      case "reward-terms":
+        return <EndOfContractManager />;
       case "system":
         return <SystemConfigSettings />;
       case "announcements":
