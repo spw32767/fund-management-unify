@@ -23,10 +23,11 @@ import {
   RefreshCw,
   Trash2,
   Undo2,
+  Loader2,
 } from "lucide-react";
 import PageLayout from "../common/PageLayout";
 import SimpleCard from "../common/SimpleCard";
-import apiClient, { systemAPI, authAPI } from '../../../lib/api';
+import apiClient, { systemAPI, authAPI, endOfContractAPI } from '../../../lib/api';
 import { fundInstallmentAPI } from '../../../lib/fund_installment_api';
 import {
   submissionAPI,
@@ -91,6 +92,75 @@ const clampCurrencyValue = (rawValue) => {
   }
 
   return rawValue;
+};
+
+const normalizeEndOfContractTerm = (item, index = 0) => {
+  if (!item || typeof item !== 'object') {
+    return null;
+  }
+
+  const content = typeof item.content === 'string' ? item.content.trim() : '';
+  if (!content) {
+    return null;
+  }
+
+  const rawId =
+    item.eoc_id ?? item.id ?? item.term_id ?? item.termId ?? item.termID ?? index + 1;
+  const parsedId = Number(rawId);
+  const resolvedId = Number.isFinite(parsedId) ? parsedId : index + 1;
+
+  const rawOrder = item.display_order ?? item.order ?? item.displayOrder ?? index + 1;
+  const parsedOrder = Number(rawOrder);
+  const resolvedOrder = Number.isFinite(parsedOrder) ? parsedOrder : index + 1;
+
+  return {
+    eoc_id: resolvedId,
+    content,
+    display_order: resolvedOrder,
+  };
+};
+
+const normalizeEndOfContractList = (input) => {
+  let list = [];
+  if (Array.isArray(input)) {
+    list = input;
+  } else if (input && typeof input === 'object') {
+    if (Array.isArray(input.data)) list = input.data;
+    else if (Array.isArray(input.items)) list = input.items;
+    else if (Array.isArray(input.terms)) list = input.terms;
+    else if (Array.isArray(input.end_of_contract)) list = input.end_of_contract;
+  }
+
+  return list
+    .map((item, index) => normalizeEndOfContractTerm(item, index))
+    .filter(Boolean)
+    .sort((a, b) => {
+      const orderDiff = (a.display_order ?? 0) - (b.display_order ?? 0);
+      if (orderDiff !== 0) {
+        return orderDiff;
+      }
+      return (a.eoc_id ?? 0) - (b.eoc_id ?? 0);
+    });
+};
+
+const buildTermAcknowledgements = (terms, previous = {}) => {
+  if (!Array.isArray(terms)) {
+    return {};
+  }
+
+  const next = {};
+  terms.forEach((term, index) => {
+    if (!term || typeof term !== 'object') {
+      return;
+    }
+
+    const key = String(
+      term.eoc_id ?? term.id ?? term.term_id ?? term.termId ?? term.termID ?? term.display_order ?? index,
+    );
+    next[key] = Boolean(previous[key]);
+  });
+
+  return next;
 };
 
 const normalizeStatusCode = (value) => {
@@ -1436,11 +1506,10 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
   const [detachedDocumentIds, setDetachedDocumentIds] = useState([]);
   const [documentReplacements, setDocumentReplacements] = useState({});
   const [reviewComments, setReviewComments] = useState({ admin: null, head: null });
-
-  const [declarations, setDeclarations] = useState({
-    confirmNoPreviousFunding: false,
-    agreeToRegulations: false
-  });
+  const [endOfContractTerms, setEndOfContractTerms] = useState([]);
+  const [termAcknowledgements, setTermAcknowledgements] = useState({});
+  const [termsLoading, setTermsLoading] = useState(false);
+  const [termsError, setTermsError] = useState('');
 
   // External funding sources
   const [externalFundings, setExternalFundings] = useState([])
@@ -1516,11 +1585,6 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
       university_fund_ref: '',
     });
 
-    setDeclarations({
-      confirmNoPreviousFunding: false,
-      agreeToRegulations: false,
-    });
-
     setCoauthors([]);
     setUploadedFiles({});
     setOtherDocuments([]);
@@ -1530,13 +1594,13 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
     setCurrentSubmissionId(null);
     setPrefilledSubmissionId(null);
     setPreviewAcknowledged(false);
+    setTermAcknowledgements(() => buildTermAcknowledgements(endOfContractTerms, {}));
   }, [
     categoryId,
     lockedBudgetYearId,
     normalizedInitialYearId,
     setCoauthors,
     setCurrentSubmissionId,
-    setDeclarations,
     setErrors,
     setExternalFundingFiles,
     setExternalFundings,
@@ -1545,6 +1609,7 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
     setPreviewAcknowledged,
     setUploadedFiles,
     years,
+    endOfContractTerms,
   ]);
 
   const computeDocumentRequirements = useCallback(
@@ -1575,6 +1640,38 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
     },
     [],
   );
+
+  const loadEndOfContractTerms = useCallback(async () => {
+    setTermsLoading(true);
+    setTermsError('');
+    try {
+      const response = await endOfContractAPI.getTerms();
+      const list = normalizeEndOfContractList(response);
+      setEndOfContractTerms(list);
+      setTermAcknowledgements((prev) => buildTermAcknowledgements(list, prev));
+    } catch (error) {
+      console.error('Failed to load end-of-contract terms:', error);
+      const message =
+        error?.response?.data?.error ||
+        error?.message ||
+        'ไม่สามารถโหลดเงื่อนไข/ข้อตกลงได้';
+      setTermsError(message);
+      setEndOfContractTerms([]);
+      setTermAcknowledgements({});
+    } finally {
+      setTermsLoading(false);
+    }
+  }, []);
+  useEffect(() => {
+    loadEndOfContractTerms().catch((error) => {
+      console.error('Failed to fetch end-of-contract terms:', error);
+    });
+  }, [loadEndOfContractTerms]);
+
+  useEffect(() => {
+    setTermAcknowledgements((prev) => buildTermAcknowledgements(endOfContractTerms, prev));
+  }, [endOfContractTerms]);
+
   useEffect(() => {
     let ro = false;
 
@@ -2347,11 +2444,7 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
           });
         }
 
-        setDeclarations((prev) => ({
-          ...prev,
-          confirmNoPreviousFunding: (detail.has_university_funding ?? '').toString().toLowerCase() !== 'yes',
-          agreeToRegulations: true,
-        }));
+        setTermAcknowledgements(() => buildTermAcknowledgements(endOfContractTerms, {}));
 
         if (detail.main_annoucement != null || detail.reward_announcement != null) {
           setAnnouncementLock((prev) => ({
@@ -2427,6 +2520,7 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
       categoryId,
       resetForm,
       yearId,
+      endOfContractTerms,
     ]
   );
 
@@ -5889,12 +5983,21 @@ const showSubmissionConfirmation = async () => {
       return;
     }
 
-    if (!declarations.confirmNoPreviousFunding || !declarations.agreeToRegulations) {
-      Toast.fire({
-        icon: 'warning',
-        title: 'กรุณายืนยันข้อตกลงทั้งสองข้อก่อนส่งคำร้อง'
+    if (!isReadOnly) {
+      const pendingAcknowledgements = endOfContractTerms.filter((term, index) => {
+        const key = String(
+          term.eoc_id ?? term.id ?? term.term_id ?? term.termId ?? term.termID ?? term.display_order ?? index,
+        );
+        return !termAcknowledgements[key];
       });
-      return;
+
+      if (pendingAcknowledgements.length > 0) {
+        Toast.fire({
+          icon: 'warning',
+          title: 'กรุณายืนยันข้อตกลงทั้งหมดก่อนส่งคำร้อง'
+        });
+        return;
+      }
     }
 
     const requiredValidation = validateRequiredFields();
@@ -8170,47 +8273,60 @@ const showSubmissionConfirmation = async () => {
               <p className="text-sm font-medium text-gray-700 mb-4">
                 ข้าพเจ้าขอรับรองว่า
               </p>
-              <div className="space-y-4">
-                <div className="flex items-start gap-3">
-                  <input
-                    id="confirmNoPreviousFunding"
-                    type="checkbox"
-                    className="mt-1 h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 focus:border-blue-500"
-                    checked={declarations.confirmNoPreviousFunding}
-                    onChange={(e) =>
-                      setDeclarations(prev => ({
-                        ...prev,
-                        confirmNoPreviousFunding: e.target.checked
-                      }))
-                    }
-                    aria-required="true"
-                  />
-                  <label htmlFor="confirmNoPreviousFunding" className="text-sm text-gray-700 leading-relaxed">
-                    ผลงานตีพิมพ์ที่ขอรับการสนับสนุน 
-                    <span className="font-bold underline">ไม่เคย</span>
-                    ได้รับการจัดสรรทุนของมหาวิทยาลัย และทุนส่งเสริมการวิจัยจากกองทุนวิจัย นวัตกรรม และบริการวิชาการ วิทยาลัยการคอมพิวเตอร์
-                  </label>
+              {termsLoading ? (
+                <div className="flex items-center gap-2 text-sm text-gray-500">
+                  <Loader2 className="h-4 w-4 animate-spin" /> กำลังโหลดเงื่อนไข/ข้อตกลง...
                 </div>
-
-                <div className="flex items-start gap-3">
-                  <input
-                    id="agreeToRegulations"
-                    type="checkbox"
-                    className="mt-1 h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 focus:border-blue-500"
-                    checked={declarations.agreeToRegulations}
-                    onChange={(e) =>
-                      setDeclarations(prev => ({
-                        ...prev,
-                        agreeToRegulations: e.target.checked
-                      }))
-                    }
-                    aria-required="true"
-                  />
-                  <label htmlFor="agreeToRegulations" className="text-sm text-gray-700 leading-relaxed">
-                    จะปฏิบัติตามระเบียบมหาวิทยาลัยขอนแก่น ว่าด้วยกองทุนวิจัยในระดับคณะ พ.ศ. 2561 รวมถึงหลักเกณฑ์และประกาศอื่นใดที่เกี่ยวข้องทุกประการ
-                  </label>
+              ) : termsError ? (
+                <p className="text-sm text-red-600">{termsError}</p>
+              ) : endOfContractTerms.length === 0 ? (
+                <p className="text-sm text-gray-500">ยังไม่มีเงื่อนไข/ข้อตกลงให้ยืนยัน</p>
+              ) : isReadOnly ? (
+                <ol className="list-decimal space-y-2 pl-5 text-sm text-gray-700">
+                  {endOfContractTerms.map((term) => (
+                    <li
+                      key={`reward-term-${term.eoc_id}`}
+                      className="leading-relaxed whitespace-pre-line"
+                    >
+                      {term.content}
+                    </li>
+                  ))}
+                </ol>
+              ) : (
+                <div className="space-y-4">
+                  {endOfContractTerms.map((term, index) => {
+                    const key = String(
+                      term.eoc_id ?? term.id ?? term.term_id ?? term.termId ?? term.termID ?? term.display_order ?? index,
+                    );
+                    const checked = Boolean(termAcknowledgements[key]);
+                    return (
+                      <div key={`reward-term-${key}`} className="flex items-start gap-3">
+                        <input
+                          id={`reward-term-${key}`}
+                          type="checkbox"
+                          className="mt-1 h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 focus:border-blue-500"
+                          checked={checked}
+                          onChange={(e) =>
+                            setTermAcknowledgements((prev) => ({
+                              ...prev,
+                              [key]: e.target.checked,
+                            }))
+                          }
+                          disabled={isSubmitting}
+                          aria-required="true"
+                        />
+                        <label
+                          htmlFor={`reward-term-${key}`}
+                          className="text-sm text-gray-700 leading-relaxed whitespace-pre-line"
+                        >
+                          <span className="font-semibold mr-1">{index + 1}.</span>
+                          {term.content}
+                        </label>
+                      </div>
+                    );
+                  })}
                 </div>
-              </div>
+              )}
             </div>
 
             <div>
