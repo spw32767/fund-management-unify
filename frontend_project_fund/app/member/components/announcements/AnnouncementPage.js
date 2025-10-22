@@ -955,15 +955,15 @@ export default function AnnouncementPage() {
         </div>
 
         {/* Evaluation Windows Section */}
-        <div className="bg-white rounded-lg shadow-sm border border-indigo-200">
-          <div className="px-6 py-4 border-b border-indigo-100 bg-indigo-50/60">
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+          <div className="px-6 py-4 border-b border-gray-200">
             <div className="flex items-center gap-3">
               <div className="p-2 bg-indigo-100 rounded-lg">
                 <CalendarClock size={20} className="text-indigo-600" />
               </div>
               <div>
                 <h2 className="text-lg font-semibold text-gray-800">การแจ้งเตือน รอบการพิจารณา</h2>
-                <p className="text-sm text-gray-700">
+                <p className="text-sm text-gray-600">
                   อ้างอิงจากตาราง <code className="rounded bg-indigo-100 px-1 py-0.5">fund_installment_periods</code>
                 </p>
               </div>
