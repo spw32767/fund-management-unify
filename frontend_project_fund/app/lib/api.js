@@ -861,6 +861,28 @@ export const fundFormAPI = {
   }
 };
 
+// ==================== END OF CONTRACT TERMS API METHODS ====================
+
+export const endOfContractAPI = {
+  async getTerms() {
+    try {
+      const response = await apiClient.get('/end-of-contract');
+      if (Array.isArray(response)) {
+        return response;
+      }
+      if (response && typeof response === 'object') {
+        if (Array.isArray(response.data)) return response.data;
+        if (Array.isArray(response.items)) return response.items;
+        if (Array.isArray(response.terms)) return response.terms;
+      }
+      return [];
+    } catch (error) {
+      console.error('Error fetching end-of-contract terms:', error);
+      throw error;
+    }
+  },
+};
+
 // ==================== DOCUMENT TYPES API METHODS ====================
 
 export const documentTypesAPI = {
