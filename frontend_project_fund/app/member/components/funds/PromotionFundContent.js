@@ -2,7 +2,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { TrendingUp, FileText, Search, Download, X, Info, Clock, AlertTriangle } from "lucide-react";
+import { TrendingUp, FileText, Search, Download, X, Info, Clock, AlertTriangle, Calendar } from "lucide-react";
 import PageLayout from "../common/PageLayout";
 import { teacherAPI } from '../../../lib/member_api';
 import { targetRolesUtils, filterFundsByRole } from '../../../lib/target_roles_utils';
@@ -697,6 +697,23 @@ export default function PromotionFundContent({ onNavigate }) {
     return null;
   };
 
+  const resolvedYear =
+    normalizeYearValue(selectedYear) ||
+    normalizeYearValue(currentYear) ||
+    (years.length ? normalizeYearValue(years[0]?.year) : null);
+
+  const yearDisplayLabel = yearsLoading
+    ? "กำลังโหลด..."
+    : resolvedYear || "ไม่พบปีงบประมาณ";
+
+  const yearDisplayIsAvailable = !yearsLoading && !!resolvedYear;
+
+  const yearDisplayHelperText = yearsLoading
+    ? "กำลังโหลดปีงบประมาณจากระบบ"
+    : yearDisplayIsAvailable
+      ? "ระบบกำหนดปีงบประมาณให้อัตโนมัติ"
+      : "ไม่พบปีงบประมาณที่เปิดใช้งาน";
+
   if (loading) {
     return (
       <div className="flex justify-center items-center h-64">
@@ -839,28 +856,28 @@ export default function PromotionFundContent({ onNavigate }) {
 
       {/* Control Bar */}
       <div className="mb-6 bg-white rounded-lg shadow-sm p-4">
-        <div className="flex flex-col md:flex-row gap-4 items-center justify-between">
-          {/* Year Selector */}
-          <div className="flex items-center gap-2">
-            <label className="text-sm font-medium text-gray-700">ปีงบประมาณ:</label>
-            <select
-              className="px-3 py-2 text-gray-700 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-              value={selectedYear}
-              onChange={(e) => setSelectedYear(e.target.value)}
-              disabled
-            >
-              {yearsLoading ? (
-                <option>กำลังโหลด...</option>
-              ) : years.length > 0 ? (
-                years.map((year) => (
-                  <option key={year.year_id} value={year.year}>
-                    {year.year}
-                  </option>
-                ))
-              ) : (
-                <option value="">ไม่พบปีงบประมาณ</option>
-              )}
-            </select>
+        <div className="flex flex-col md:flex-row gap-4 items-start md:items-center justify-between">
+          {/* Year Display */}
+          <div className="flex flex-col items-start gap-1">
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium text-gray-700">ปีงบประมาณ:</span>
+              <div
+                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-sm font-semibold ${
+                  yearDisplayIsAvailable
+                    ? 'bg-blue-50 border-blue-200 text-blue-700'
+                    : 'bg-gray-100 border-gray-200 text-gray-500'
+                }`}
+                title={yearDisplayIsAvailable ? 'ระบบกำหนดปีงบประมาณให้อัตโนมัติ' : undefined}
+              >
+                <Calendar
+                  size={16}
+                  className={yearDisplayIsAvailable ? 'text-blue-500' : 'text-gray-400'}
+                  aria-hidden="true"
+                />
+                <span>{yearDisplayLabel}</span>
+              </div>
+            </div>
+            <span className="text-xs text-gray-500">{yearDisplayHelperText}</span>
           </div>
 
           {/* Search and Filter */}
