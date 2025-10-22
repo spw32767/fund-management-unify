@@ -2,10 +2,104 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { FileText, Eye, Download, Bell, BookOpen } from "lucide-react";
+import { FileText, Eye, Download, Bell, BookOpen, CalendarClock } from "lucide-react";
 import apiClient, { announcementAPI, fundFormAPI, systemAPI } from "../../../lib/api";
 import { systemConfigAPI } from "../../../lib/system_config_api";
 import DataTable from "../../../admin/components/common/DataTable";
+
+const SLOT_METADATA = {
+  main: {
+    label: "หลักเกณฑ์การใช้จ่ายเงินกองทุน",
+    description: "ช่วงเวลารับคำร้องสำหรับประกาศหลักเกณฑ์การใช้จ่ายเงินกองทุน",
+  },
+  reward: {
+    label: "ทุนอุดหนุนกิจกรรม",
+    description: "ช่วงเวลารับคำร้องในหมวดทุนอุดหนุนกิจกรรม",
+  },
+  activity_support: {
+    label: "ทุนส่งเสริมวิจัย",
+    description: "ช่วงเวลารับคำร้องในหมวดทุนส่งเสริมวิจัย",
+  },
+  conference: {
+    label: "ประชุมวิชาการ",
+    description: "ช่วงเวลารับคำร้องสำหรับการเข้าร่วมประชุมวิชาการ",
+  },
+  service: {
+    label: "บริการวิชาการ",
+    description: "ช่วงเวลารับคำร้องสำหรับงานบริการวิชาการ",
+  },
+};
+
+const parseISODate = (value) => {
+  if (!value) return null;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+};
+
+const formatThaiDateTime = (value) => {
+  const date = parseISODate(value);
+  if (!date) {
+    return "ยังไม่กำหนด";
+  }
+
+  return date.toLocaleString("th-TH", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+};
+
+const getWindowStatusInfo = (startISO, endISO, nowTime) => {
+  const startDate = parseISODate(startISO);
+  const endDate = parseISODate(endISO);
+  const startTime = startDate ? startDate.getTime() : null;
+  const endTime = endDate ? endDate.getTime() : null;
+
+  if (startTime == null && endTime == null) {
+    return {
+      label: "ยังไม่กำหนด",
+      badgeClass: "bg-gray-100 text-gray-600",
+      borderClass: "border-gray-200",
+      backgroundClass: "bg-white",
+    };
+  }
+
+  if (startTime != null && nowTime < startTime) {
+    return {
+      label: "รอเปิดรอบ",
+      badgeClass: "bg-amber-100 text-amber-800",
+      borderClass: "border-amber-200",
+      backgroundClass: "bg-white",
+    };
+  }
+
+  if (endTime != null && nowTime > endTime) {
+    return {
+      label: "สิ้นสุดรอบ",
+      badgeClass: "bg-gray-200 text-gray-700",
+      borderClass: "border-gray-200",
+      backgroundClass: "bg-white",
+    };
+  }
+
+  if ((startTime == null || nowTime >= startTime) && (endTime == null || nowTime <= endTime)) {
+    return {
+      label: "อยู่ในช่วงพิจารณา",
+      badgeClass: "bg-green-100 text-green-700",
+      borderClass: "border-green-200 ring-1 ring-green-100",
+      backgroundClass: "bg-white",
+    };
+  }
+
+  return {
+    label: "กำลังดำเนินการ",
+    badgeClass: "bg-blue-100 text-blue-700",
+    borderClass: "border-blue-200",
+    backgroundClass: "bg-white",
+  };
+};
 
 export default function AnnouncementPage() {
   const [announcements, setAnnouncements] = useState([]);
@@ -20,6 +114,9 @@ export default function AnnouncementPage() {
   const [years, setYears] = useState([]);
   const [yearsLoading, setYearsLoading] = useState(false);
   const [currentYearLabel, setCurrentYearLabel] = useState(null);
+  const [windowSchedules, setWindowSchedules] = useState([]);
+  const [systemNow, setSystemNow] = useState(null);
+  const [loadingWindowSchedules, setLoadingWindowSchedules] = useState(true);
 
   useEffect(() => {
     loadAnnouncements();
@@ -108,6 +205,7 @@ export default function AnnouncementPage() {
 
   const loadSystemConfig = async () => {
     try {
+      setLoadingWindowSchedules(true);
       const rawConfig = await systemConfigAPI.getWindow();
       const normalized = systemConfigAPI.normalizeWindow(rawConfig);
 
@@ -148,6 +246,34 @@ export default function AnnouncementPage() {
 
       setSystemConfigAnnouncementIds(Array.from(configIds));
 
+      const nowISO = normalized?.now ?? new Date().toISOString();
+      setSystemNow(nowISO);
+
+      const windows = slotWindows.map((slot) => {
+        const slotWindow = normalized?.[`${slot}_window`] ?? {};
+        const startISO = slotWindow?.start_date ?? normalized?.[`${slot}_start_date`] ?? null;
+        const endISO = slotWindow?.end_date ?? normalized?.[`${slot}_end_date`] ?? null;
+        const announcementIdRaw =
+          slotWindow?.id ??
+          (slot === "main"
+            ? normalized?.main_annoucement
+            : normalized?.[`${slot}_announcement`]);
+
+        const announcementId =
+          announcementIdRaw != null && announcementIdRaw !== ""
+            ? String(announcementIdRaw)
+            : null;
+
+        return {
+          slot,
+          start_date: startISO,
+          end_date: endISO,
+          announcement_id: announcementId,
+        };
+      });
+
+      setWindowSchedules(windows);
+
       const normalizedCurrentYear =
         normalized?.current_year != null && normalized.current_year !== ""
           ? String(normalized.current_year)
@@ -159,6 +285,10 @@ export default function AnnouncementPage() {
     } catch (error) {
       console.error("Error loading system config:", error);
       setSystemConfigAnnouncementIds([]);
+      setWindowSchedules([]);
+      setSystemNow(null);
+    } finally {
+      setLoadingWindowSchedules(false);
     }
   };
 
@@ -302,6 +432,51 @@ export default function AnnouncementPage() {
 
     return null;
   };
+
+  const decoratedWindowSchedules = useMemo(() => {
+    if (!Array.isArray(windowSchedules) || windowSchedules.length === 0) {
+      return [];
+    }
+
+    const nowDate = parseISODate(systemNow) ?? new Date();
+    const nowTime = Number.isNaN(nowDate.getTime()) ? Date.now() : nowDate.getTime();
+
+    const announcementTitleMap = new Map();
+    (announcements || []).forEach((announcement) => {
+      const id = extractAnnouncementId(announcement);
+      if (!id) return;
+      const displayTitle =
+        announcement?.title || announcement?.file_name || `ประกาศ #${id}`;
+      if (!announcementTitleMap.has(String(id))) {
+        announcementTitleMap.set(String(id), displayTitle);
+      }
+    });
+
+    return windowSchedules.map((window) => {
+      const meta = SLOT_METADATA[window.slot] ?? {
+        label: window.slot,
+        description: null,
+      };
+      const statusInfo = getWindowStatusInfo(window.start_date, window.end_date, nowTime);
+      const announcementTitle = window.announcement_id
+        ? announcementTitleMap.get(window.announcement_id) ||
+          `ประกาศ #${window.announcement_id}`
+        : null;
+
+      return {
+        slot: window.slot,
+        label: meta.label,
+        description: meta.description,
+        startDate: window.start_date,
+        endDate: window.end_date,
+        status: statusInfo.label,
+        badgeClass: statusInfo.badgeClass,
+        borderClass: statusInfo.borderClass,
+        backgroundClass: statusInfo.backgroundClass,
+        announcementTitle,
+      };
+    });
+  }, [windowSchedules, announcements, systemNow]);
 
   useEffect(() => {
     const configIdSet = new Set(systemConfigAnnouncementIds.map(String));
@@ -676,6 +851,72 @@ export default function AnnouncementPage() {
                 data={filteredAnnouncements}
                 emptyMessage="ไม่มีประกาศในขณะนี้"
               />
+            )}
+          </div>
+        </div>
+
+        {/* Evaluation Windows Section */}
+        <div className="bg-white rounded-lg shadow-sm border border-indigo-200">
+          <div className="px-6 py-4 border-b border-indigo-100">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-indigo-100 rounded-lg">
+                <CalendarClock size={20} className="text-indigo-600" />
+              </div>
+              <div>
+                <h2 className="text-lg font-semibold text-gray-800">การแจ้งเตือน รอบการพิจารณา</h2>
+                <p className="text-sm text-gray-600">ติดตามสถานะการเปิด-ปิดรอบของแต่ละหมวดกองทุน</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="p-6">
+            {loadingWindowSchedules ? (
+              <div className="flex items-center justify-center py-8 text-gray-600">
+                <div className="w-8 h-8 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin"></div>
+                <span className="ml-2">กำลังโหลด...</span>
+              </div>
+            ) : decoratedWindowSchedules.length > 0 ? (
+              <div className="grid gap-4 lg:grid-cols-2">
+                {decoratedWindowSchedules.map((window) => (
+                  <div
+                    key={window.slot}
+                    className={`rounded-lg border p-4 transition-colors ${window.borderClass} ${window.backgroundClass}`}
+                  >
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <h3 className="text-base font-semibold text-gray-800">{window.label}</h3>
+                        {window.description && (
+                          <p className="mt-1 text-sm text-gray-500">{window.description}</p>
+                        )}
+                      </div>
+                      <span
+                        className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ${window.badgeClass}`}
+                      >
+                        {window.status}
+                      </span>
+                    </div>
+
+                    <div className="mt-4 grid gap-4 text-sm sm:grid-cols-2">
+                      <div>
+                        <p className="text-xs font-medium uppercase tracking-wide text-gray-500">เปิดรอบ</p>
+                        <p className="mt-1 text-gray-800">{formatThaiDateTime(window.startDate)}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs font-medium uppercase tracking-wide text-gray-500">ปิดรอบ</p>
+                        <p className="mt-1 text-gray-800">{formatThaiDateTime(window.endDate)}</p>
+                      </div>
+                    </div>
+
+                    {window.announcementTitle ? (
+                      <div className="mt-4 rounded-md border border-indigo-100 bg-indigo-50 px-3 py-2 text-sm text-indigo-700">
+                        อ้างอิงประกาศ: {window.announcementTitle}
+                      </div>
+                    ) : null}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="py-10 text-center text-sm text-gray-500">ยังไม่มีการตั้งค่ารอบการพิจารณา</div>
             )}
           </div>
         </div>
