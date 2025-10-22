@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ListChecks,
   PlusCircle,
@@ -78,6 +78,7 @@ const EndOfContractManager = () => {
   const [savingOrder, setSavingOrder] = useState(false);
   const [orderDirty, setOrderDirty] = useState(false);
   const [draggingId, setDraggingId] = useState(null);
+  const initialOrderRef = useRef([]);
 
   const [modalOpen, setModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState("create");
@@ -87,6 +88,19 @@ const EndOfContractManager = () => {
   const orderedTerms = useMemo(() => {
     return normalizeTermList(terms);
   }, [terms]);
+
+  useEffect(() => {
+    const initialIds = initialOrderRef.current;
+    const currentIds = orderedTerms.map((item) => item.eoc_id);
+
+    if (initialIds.length !== currentIds.length) {
+      setOrderDirty(true);
+      return;
+    }
+
+    const hasChanges = currentIds.some((id, index) => id !== initialIds[index]);
+    setOrderDirty(hasChanges);
+  }, [initialOrderRef, orderedTerms]);
 
   const showSuccess = useCallback((message) => {
     Toast.fire({ icon: "success", title: message });
@@ -100,7 +114,9 @@ const EndOfContractManager = () => {
     setLoading(true);
     try {
       const response = await adminAPI.getEndOfContractTerms();
-      setTerms(normalizeTermList(response));
+      const normalized = normalizeTermList(response);
+      initialOrderRef.current = normalized.map((item) => item.eoc_id);
+      setTerms(normalized);
       setOrderDirty(false);
     } catch (error) {
       console.error("Failed to load end-of-contract terms:", error);
@@ -109,7 +125,7 @@ const EndOfContractManager = () => {
       setLoading(false);
       setDraggingId(null);
     }
-  }, [showError]);
+  }, [initialOrderRef, showError]);
 
   useEffect(() => {
     loadTerms().catch((error) => {
@@ -221,13 +237,10 @@ const EndOfContractManager = () => {
       const [moved] = newList.splice(currentIndex, 1);
       newList.splice(targetIndex, 0, moved);
 
-      const resequenced = newList.map((item, index) => ({
+      return newList.map((item, index) => ({
         ...item,
         display_order: index + 1,
       }));
-
-      setOrderDirty(true);
-      return resequenced;
     });
   }, []);
 
@@ -250,7 +263,6 @@ const EndOfContractManager = () => {
         return;
       }
 
-      let updated = false;
       setTerms((prev) => {
         const list = normalizeTermList(prev);
         const fromIndex = list.findIndex((item) => item.eoc_id === draggingId);
@@ -264,17 +276,11 @@ const EndOfContractManager = () => {
         const [moved] = reordered.splice(fromIndex, 1);
         reordered.splice(toIndex, 0, moved);
 
-        updated = true;
-
         return reordered.map((item, index) => ({
           ...item,
           display_order: index + 1,
         }));
       });
-
-      if (updated) {
-        setOrderDirty(true);
-      }
 
       if (event?.dataTransfer) {
         event.dataTransfer.dropEffect = "move";
