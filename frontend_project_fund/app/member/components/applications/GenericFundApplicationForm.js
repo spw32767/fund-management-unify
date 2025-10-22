@@ -2142,14 +2142,29 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
       confirmButtonColor: '#3085d6'
     });
 
-    const targetPage = resolveCategoryPageFromOrigin(categoryPage) || 'research-fund';
+    const resolvedCategoryPage = resolveCategoryPageFromOrigin(categoryPage);
+    const targetPage = navigationTarget || resolvedCategoryPage || 'research-fund';
+    const navigationData = (() => {
+      if (targetPage === 'promotion-fund' || targetPage === 'research-fund') {
+        if (effectiveFundContext && Object.keys(effectiveFundContext).length > 0) {
+          return { ...effectiveFundContext, submissionId: null, originPage: targetPage };
+        }
+        return { originPage: targetPage };
+      }
+      if (targetPage === 'applications') {
+        return { originPage: targetPage };
+      }
+      if (targetPage) {
+        return { originPage: targetPage };
+      }
+      return undefined;
+    })();
+
     if (onNavigate) {
-      const navigationData = effectiveFundContext && Object.keys(effectiveFundContext).length > 0
-        ? { ...effectiveFundContext, submissionId: null, originPage: targetPage }
-        : { originPage: targetPage };
       onNavigate(targetPage, navigationData);
     } else {
-      router.push(`/member?initialPage=${targetPage}`);
+      const fallbackPage = targetPage || 'research-fund';
+      router.push(`/member?initialPage=${fallbackPage}`);
     }
   };
 
