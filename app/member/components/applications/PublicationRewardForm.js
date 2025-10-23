@@ -5379,6 +5379,25 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
       return;
     }
 
+    const missingDraftFields = [];
+    if (!formData.author_status) {
+      missingDraftFields.push({
+        fieldKey: 'author_status',
+        refOrId: 'author_status',
+      });
+    }
+    if (!formData.journal_quartile) {
+      missingDraftFields.push({
+        fieldKey: 'journal_quartile',
+        refOrId: 'journal_quartile',
+      });
+    }
+
+    if (missingDraftFields.length > 0) {
+      handleValidationErrors(missingDraftFields);
+      return;
+    }
+
     try {
       setSaving(true);
 
@@ -5646,16 +5665,28 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
       title: 'ลบร่างเรียบร้อยแล้ว'
     });
 
-    const targetPage = 'promotion-fund';
+    const targetPage = navigationTarget || 'promotion-fund';
+    const navigationData = (() => {
+      if (targetPage === 'promotion-fund') {
+        return {
+          originPage: targetPage,
+          category_id: resolvedCategoryId,
+          year_id: resolvedYearId,
+        };
+      }
+      if (targetPage === 'applications') {
+        return { originPage: targetPage };
+      }
+      if (targetPage) {
+        return { originPage: targetPage };
+      }
+      return undefined;
+    })();
     if (onNavigate) {
-      const payload = {
-        originPage: targetPage,
-        category_id: resolvedCategoryId,
-        year_id: resolvedYearId,
-      };
-      onNavigate(targetPage, payload);
+      onNavigate(targetPage, navigationData);
     } else {
-      router.push(`/member?initialPage=${targetPage}`);
+      const fallbackPage = targetPage || 'promotion-fund';
+      router.push(`/member?initialPage=${fallbackPage}`);
     }
   };
   // =================================================================

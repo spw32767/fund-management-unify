@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ListChecks,
   PlusCircle,
@@ -77,6 +77,8 @@ const EndOfContractManager = () => {
   const [loading, setLoading] = useState(false);
   const [savingOrder, setSavingOrder] = useState(false);
   const [orderDirty, setOrderDirty] = useState(false);
+  const [draggingId, setDraggingId] = useState(null);
+  const initialOrderRef = useRef([]);
 
   const [modalOpen, setModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState("create");
@@ -86,6 +88,19 @@ const EndOfContractManager = () => {
   const orderedTerms = useMemo(() => {
     return normalizeTermList(terms);
   }, [terms]);
+
+  useEffect(() => {
+    const initialIds = initialOrderRef.current;
+    const currentIds = orderedTerms.map((item) => item.eoc_id);
+
+    if (initialIds.length !== currentIds.length) {
+      setOrderDirty(true);
+      return;
+    }
+
+    const hasChanges = currentIds.some((id, index) => id !== initialIds[index]);
+    setOrderDirty(hasChanges);
+  }, [initialOrderRef, orderedTerms]);
 
   const showSuccess = useCallback((message) => {
     Toast.fire({ icon: "success", title: message });
@@ -99,15 +114,18 @@ const EndOfContractManager = () => {
     setLoading(true);
     try {
       const response = await adminAPI.getEndOfContractTerms();
-      setTerms(normalizeTermList(response));
+      const normalized = normalizeTermList(response);
+      initialOrderRef.current = normalized.map((item) => item.eoc_id);
+      setTerms(normalized);
       setOrderDirty(false);
     } catch (error) {
       console.error("Failed to load end-of-contract terms:", error);
       showError("ไม่สามารถโหลดข้อตกลงได้");
     } finally {
       setLoading(false);
+      setDraggingId(null);
     }
-  }, [showError]);
+  }, [initialOrderRef, showError]);
 
   useEffect(() => {
     loadTerms().catch((error) => {
@@ -219,14 +237,60 @@ const EndOfContractManager = () => {
       const [moved] = newList.splice(currentIndex, 1);
       newList.splice(targetIndex, 0, moved);
 
-      const resequenced = newList.map((item, index) => ({
+      return newList.map((item, index) => ({
         ...item,
         display_order: index + 1,
       }));
-
-      setOrderDirty(true);
-      return resequenced;
     });
+  }, []);
+
+  const handleDragStart = useCallback((event, termId) => {
+    setDraggingId(termId);
+    if (event?.dataTransfer) {
+      event.dataTransfer.effectAllowed = "move";
+      try {
+        event.dataTransfer.setData("text/plain", String(termId));
+      } catch (err) {
+        // บราวเซอร์บางตัวอาจไม่รองรับ setData
+      }
+    }
+  }, []);
+
+  const handleDragOver = useCallback(
+    (event, targetId) => {
+      event.preventDefault();
+      if (draggingId == null || draggingId === targetId) {
+        return;
+      }
+
+      setTerms((prev) => {
+        const list = normalizeTermList(prev);
+        const fromIndex = list.findIndex((item) => item.eoc_id === draggingId);
+        const toIndex = list.findIndex((item) => item.eoc_id === targetId);
+
+        if (fromIndex === -1 || toIndex === -1 || fromIndex === toIndex) {
+          return prev;
+        }
+
+        const reordered = list.slice();
+        const [moved] = reordered.splice(fromIndex, 1);
+        reordered.splice(toIndex, 0, moved);
+
+        return reordered.map((item, index) => ({
+          ...item,
+          display_order: index + 1,
+        }));
+      });
+
+      if (event?.dataTransfer) {
+        event.dataTransfer.dropEffect = "move";
+      }
+    },
+    [draggingId]
+  );
+
+  const handleDragEnd = useCallback(() => {
+    setDraggingId(null);
   }, []);
 
   const handleSaveOrder = useCallback(async () => {
@@ -263,31 +327,51 @@ const EndOfContractManager = () => {
     }
   }, [loadTerms, orderDirty, orderedTerms, showError, showSuccess]);
 
+  const isRefreshDisabled = loading || savingOrder;
+  const isSaveEnabled = orderDirty && orderedTerms.length > 0;
+  const refreshButtonClasses = `inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition ${
+    isRefreshDisabled
+      ? "border border-gray-200 bg-gray-50 text-gray-400 disabled:opacity-100"
+      : "border border-green-200 text-green-600 hover:bg-green-50"
+  } disabled:cursor-not-allowed`;
+  const saveButtonClasses = `inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition ${
+    isSaveEnabled || savingOrder
+      ? "border border-blue-200 text-blue-600 hover:bg-blue-50 disabled:opacity-70"
+      : "border border-blue-200 text-blue-600 hover:bg-blue-50 disabled:opacity-70"
+  } disabled:cursor-not-allowed`;
+  const operationButtonBaseClasses =
+    "inline-flex items-center gap-1 rounded-lg border px-3 py-1 text-xs font-medium transition focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-60";
+  const moveOperationButtonClasses =
+    `${operationButtonBaseClasses} border-emerald-200 text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700 focus-visible:ring-2 focus-visible:ring-emerald-100 focus-visible:ring-offset-2`;
+  const editOperationButtonClasses =
+    `${operationButtonBaseClasses} border-blue-200 text-blue-600 hover:bg-blue-50 hover:text-blue-700 focus-visible:ring-2 focus-visible:ring-blue-100 focus-visible:ring-offset-2`;
+  const deleteOperationButtonClasses =
+    `${operationButtonBaseClasses} border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700 focus-visible:ring-2 focus-visible:ring-red-100 focus-visible:ring-offset-2`;
+
   const actionButtons = (
     <>
-      {orderDirty ? (
-        <button
-          type="button"
-          onClick={handleSaveOrder}
-          disabled={savingOrder || orderedTerms.length === 0}
-          className="inline-flex items-center gap-2 rounded-md bg-green-600 px-3 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          {savingOrder ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-          {savingOrder ? "กำลังบันทึก" : "บันทึกการเรียงลำดับ"}
-        </button>
-      ) : null}
       <button
         type="button"
         onClick={loadTerms}
-        disabled={loading || savingOrder}
-        className="inline-flex items-center gap-2 rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
+        disabled={isRefreshDisabled}
+        className={refreshButtonClasses}
       >
-        <RefreshCcw className="h-4 w-4" /> รีเฟรช
+        {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCcw className="h-4 w-4" />}
+        รีเฟรช
+      </button>
+      <button
+        type="button"
+        onClick={handleSaveOrder}
+        disabled={!isSaveEnabled || savingOrder}
+        className={saveButtonClasses}
+      >
+        {savingOrder ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+        {savingOrder ? "กำลังบันทึก" : "บันทึกการเรียงลำดับ"}
       </button>
       <button
         type="button"
         onClick={openCreateModal}
-        className="inline-flex items-center gap-2 rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700"
+        className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-blue-700"
       >
         <PlusCircle className="h-4 w-4" /> เพิ่มข้อตกลง
       </button>
@@ -314,46 +398,66 @@ const EndOfContractManager = () => {
               {orderedTerms.map((term, index) => (
                 <div
                   key={term.eoc_id}
-                  className="flex flex-col gap-3 rounded-lg border border-gray-200 bg-white p-4 shadow-sm transition hover:shadow-md md:flex-row md:items-start md:justify-between"
+                  draggable={
+                    orderedTerms.length > 1 && !loading && !savingOrder
+                  }
+                  onDragStart={(event) => handleDragStart(event, term.eoc_id)}
+                  onDragOver={(event) => handleDragOver(event, term.eoc_id)}
+                  onDragEnd={handleDragEnd}
+                  className={`flex flex-col gap-3 rounded-lg border bg-white p-4 shadow-sm transition md:flex-row md:items-start md:justify-between ${
+                    draggingId === term.eoc_id
+                      ? "border-blue-200 ring-2 ring-blue-100"
+                      : "border-gray-200 hover:shadow-md"
+                  } ${
+                    orderedTerms.length > 1 && !loading && !savingOrder
+                      ? draggingId === term.eoc_id
+                        ? "cursor-grabbing"
+                        : "cursor-grab"
+                      : ""
+                  }`}
                 >
                   <div className="md:flex-1">
                     <div className="text-xs font-semibold uppercase text-gray-500">ข้อที่ {index + 1}</div>
                     <p className="mt-1 whitespace-pre-line text-sm leading-relaxed text-gray-800">{term.content}</p>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
                     <button
                       type="button"
                       onClick={() => handleMoveTerm(term.eoc_id, "up")}
                       disabled={index === 0 || loading || savingOrder}
-                      className="inline-flex items-center justify-center rounded-md border border-gray-200 p-2 text-gray-600 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
+                      className={moveOperationButtonClasses}
                       aria-label="เลื่อนขึ้น"
                     >
                       <ArrowUp className="h-4 w-4" />
+                      <span>เลื่อนขึ้น</span>
                     </button>
                     <button
                       type="button"
                       onClick={() => handleMoveTerm(term.eoc_id, "down")}
                       disabled={index === orderedTerms.length - 1 || loading || savingOrder}
-                      className="inline-flex items-center justify-center rounded-md border border-gray-200 p-2 text-gray-600 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
+                      className={moveOperationButtonClasses}
                       aria-label="เลื่อนลง"
                     >
                       <ArrowDown className="h-4 w-4" />
+                      <span>เลื่อนลง</span>
                     </button>
                     <button
                       type="button"
                       onClick={() => openEditModal(term)}
-                      className="inline-flex items-center justify-center rounded-md border border-gray-200 p-2 text-gray-600 hover:bg-gray-50"
+                      className={editOperationButtonClasses}
                       aria-label="แก้ไข"
                     >
                       <Pencil className="h-4 w-4" />
+                      <span>แก้ไข</span>
                     </button>
                     <button
                       type="button"
                       onClick={() => handleDeleteTerm(term)}
-                      className="inline-flex items-center justify-center rounded-md border border-red-200 p-2 text-red-600 hover:bg-red-50"
+                      className={deleteOperationButtonClasses}
                       aria-label="ลบ"
                     >
                       <Trash2 className="h-4 w-4" />
+                      <span>ลบ</span>
                     </button>
                   </div>
                 </div>
