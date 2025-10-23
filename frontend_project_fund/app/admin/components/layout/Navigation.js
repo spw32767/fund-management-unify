@@ -1,7 +1,7 @@
 // app/admin/components/layout/Navigation.js
 "use client";
 
-import { 
+import {
   LayoutDashboard,
   DollarSign,
   FileText,
@@ -48,7 +48,13 @@ export default function Navigation({
       id: 'applications-list',
       label: 'รายการการขอทุน',
       icon: FileText,
-      hasSubmenu: false    
+      hasSubmenu: false
+    },
+    {
+      id: 'legacy-submissions',
+      label: 'จัดการคำร้อง (ข้อมูลเก่า)',
+      icon: ClipboardCheck,
+      hasSubmenu: false
     },
     {
       id: 'fund-settings',

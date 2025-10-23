@@ -11,7 +11,8 @@ import ResearchFundContent from "./components/funds/ResearchFundContent";
 import PromotionFundContent from "./components/funds/PromotionFundContent";
 import FundSettingsContent from "./components/settings";
 import UnderDevelopmentContent from "./components/common/UnderDevelopmentContent";
-import SubmissionsManagement from "./components/submissions/SubmissionsManagement"
+import SubmissionsManagement from "./components/submissions/SubmissionsManagement";
+import LegacySubmissionManager from "./components/submissions/legacy/LegacySubmissionManager";
 import AdminPublicationsImport from "./components/settings/announcement_config/AdminPublicationsImport";
 import ApprovalRecords from "./components/approves/ApprovalRecords";
 
@@ -35,6 +36,8 @@ function AdminPageContent() {
         return <PromotionFundContent onNavigate={handleNavigate} />;
       case 'applications-list':
         return <SubmissionsManagement currentPage={handleNavigate} />;
+      case 'legacy-submissions':
+        return <LegacySubmissionManager />;
       case 'fund-settings':
         return <FundSettingsContent onNavigate={handleNavigate} />;
       case 'approval-records':
@@ -52,6 +55,7 @@ function AdminPageContent() {
       'research-fund': 'ทุนส่งเสริมงานวิจัย',
       'promotion-fund': 'ทุนอุดหนุนกิจกรรม',
       'applications-list': 'รายการการขอทุน',
+      'legacy-submissions': 'จัดการคำร้อง (ข้อมูลเก่า)',
       'fund-settings': 'ตั้งค่าทุน',
       'approval-records': 'บันทึกข้อมูลการอนุมัติทุน'
     };
