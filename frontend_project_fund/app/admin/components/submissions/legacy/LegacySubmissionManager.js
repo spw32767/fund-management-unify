@@ -963,8 +963,11 @@ export default function LegacySubmissionManager() {
 
   const renderDocumentTypeOptions = useMemo(
     () =>
-      documentTypes.map((type) => (
-        <option key={type.document_type_id ?? type.id} value={type.document_type_id ?? type.id}>
+      documentTypes.map((type, index) => (
+        <option
+          key={`${type.document_type_id ?? type.id ?? "document-type"}-${index}`}
+          value={type.document_type_id ?? type.id}
+        >
           {type.document_type_name || type.name || `ประเภทเอกสาร ${type.document_type_id ?? type.id}`}
         </option>
       )),
@@ -978,9 +981,9 @@ export default function LegacySubmissionManager() {
       icon={FileSpreadsheet}
       loading={metaLoading || statusLoading}
     >
-      <div className="grid gap-6 lg:grid-cols-[380px_1fr]">
-        <div className="bg-white border rounded-lg shadow-sm">
-          <div className="flex items-center justify-between px-4 py-3 border-b">
+      <div className="space-y-6">
+        <section className="bg-white border rounded-lg shadow-sm">
+          <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 border-b">
             <div>
               <h2 className="text-sm font-semibold text-gray-700">รายการคำร้อง</h2>
               <p className="text-xs text-gray-500">กรองคำร้องและเลือกเพื่อดูรายละเอียด</p>
@@ -1003,104 +1006,107 @@ export default function LegacySubmissionManager() {
             </div>
           </div>
 
-          <div className="px-4 py-4 border-b space-y-3">
-            <div>
-              <label className="text-xs font-medium text-gray-600">ปีงบประมาณ</label>
-              <select
-                value={filters.year_id}
-                onChange={(e) => handleFilterChange("year_id", e.target.value)}
-                className="mt-1 w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm"
-              >
-                <option value="">ทั้งหมด</option>
-                {years.map((year) => (
-                  <option key={year.year_id ?? year.id} value={year.year_id ?? year.id}>
-                    {year.year ?? year.name ?? year.year_id}
-                  </option>
-                ))}
-              </select>
+          <div className="px-4 py-4 border-b border-gray-100">
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+              <div>
+                <label className="text-xs font-medium text-gray-600">ปีงบประมาณ</label>
+                <select
+                  value={filters.year_id}
+                  onChange={(e) => handleFilterChange("year_id", e.target.value)}
+                  className="mt-1 w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm"
+                >
+                  <option value="">ทั้งหมด</option>
+                  {years.map((year, index) => (
+                    <option key={`${year.year_id ?? year.id ?? "year"}-${index}`} value={year.year_id ?? year.id}>
+                      {year.year ?? year.name ?? year.year_id}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="text-xs font-medium text-gray-600">ประเภทคำร้อง</label>
+                <select
+                  value={filters.submission_type}
+                  onChange={(e) => handleFilterChange("submission_type", e.target.value)}
+                  className="mt-1 w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm"
+                >
+                  <option value="">ทั้งหมด</option>
+                  {SUBMISSION_TYPE_OPTIONS.map((option, index) => (
+                    <option key={`${option.value}-${index}`} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="text-xs font-medium text-gray-600">สถานะคำร้อง</label>
+                <select
+                  value={filters.status_id}
+                  onChange={(e) => handleFilterChange("status_id", e.target.value)}
+                  className="mt-1 w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm"
+                >
+                  <option value="">ทั้งหมด</option>
+                  {statusOptions.map((status, index) => (
+                    <option key={`${status.application_status_id}-${index}`} value={status.application_status_id}>
+                      {status.status_name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="text-xs font-medium text-gray-600">หมวดทุน</label>
+                <select
+                  value={filters.category_id}
+                  onChange={(e) => handleFilterChange("category_id", e.target.value)}
+                  className="mt-1 w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm"
+                >
+                  <option value="">ทั้งหมด</option>
+                  {categories.map((category, index) => (
+                    <option key={`${category.category_id}-${index}`} value={category.category_id}>
+                      {category.category_name || `หมวด ${category.category_id}`}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="md:col-span-2 xl:col-span-3">
+                <label className="text-xs font-medium text-gray-600">ค้นหาเลขคำร้อง</label>
+                <input
+                  type="text"
+                  value={filters.search}
+                  onChange={(e) => handleFilterChange("search", e.target.value)}
+                  placeholder="กรอกเลขที่คำร้อง"
+                  className="mt-1 w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm"
+                />
+              </div>
             </div>
 
-            <div>
-              <label className="text-xs font-medium text-gray-600">ประเภทคำร้อง</label>
-              <select
-                value={filters.submission_type}
-                onChange={(e) => handleFilterChange("submission_type", e.target.value)}
-                className="mt-1 w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm"
-              >
-                <option value="">ทั้งหมด</option>
-                {SUBMISSION_TYPE_OPTIONS.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="text-xs font-medium text-gray-600">สถานะคำร้อง</label>
-              <select
-                value={filters.status_id}
-                onChange={(e) => handleFilterChange("status_id", e.target.value)}
-                className="mt-1 w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm"
-              >
-                <option value="">ทั้งหมด</option>
-                {statusOptions.map((status) => (
-                  <option key={status.application_status_id} value={status.application_status_id}>
-                    {status.status_name}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="text-xs font-medium text-gray-600">หมวดทุน</label>
-              <select
-                value={filters.category_id}
-                onChange={(e) => handleFilterChange("category_id", e.target.value)}
-                className="mt-1 w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm"
-              >
-                <option value="">ทั้งหมด</option>
-                {categories.map((category) => (
-                  <option key={category.category_id} value={category.category_id}>
-                    {category.category_name || `หมวด ${category.category_id}`}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="text-xs font-medium text-gray-600">ค้นหาเลขคำร้อง</label>
-              <input
-                type="text"
-                value={filters.search}
-                onChange={(e) => handleFilterChange("search", e.target.value)}
-                placeholder="กรอกเลขที่คำร้อง"
-                className="mt-1 w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm"
-              />
-            </div>
-
-            <div className="flex items-center gap-2 pt-2">
+            <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:justify-end">
               <button
                 type="button"
                 onClick={handleApplyFilters}
-                className="inline-flex flex-1 items-center justify-center gap-1 rounded-md bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700"
+                className="inline-flex items-center justify-center gap-1 rounded-md bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700"
               >
                 <Search className="h-4 w-4" /> ค้นหา
               </button>
               <button
                 type="button"
                 onClick={handleResetFilters}
-                className="inline-flex flex-1 items-center justify-center gap-1 rounded-md border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-100"
+                className="inline-flex items-center justify-center gap-1 rounded-md border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-100"
               >
                 ล้างตัวกรอง
               </button>
             </div>
           </div>
 
-          <div className="max-h-[60vh] overflow-y-auto">
-            {listLoading ? (
-              <div className="flex items-center justify-center py-12">
-                <LoadingSpinner size="large" />
+          <div className="border-t border-gray-100">
+            <div className="max-h-[60vh] overflow-y-auto">
+              {listLoading ? (
+                <div className="flex items-center justify-center py-12">
+                  <LoadingSpinner size="large" />
               </div>
             ) : items.length === 0 ? (
               <div className="px-4 py-8 text-center text-sm text-gray-500">
@@ -1152,10 +1158,11 @@ export default function LegacySubmissionManager() {
                 </tbody>
               </table>
             )}
+            </div>
           </div>
-        </div>
+        </section>
 
-        <div className="bg-white border rounded-lg shadow-sm">
+        <section className="bg-white border rounded-lg shadow-sm">
           <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 border-b">
             <div>
               <h2 className="text-sm font-semibold text-gray-700">
@@ -1213,8 +1220,8 @@ export default function LegacySubmissionManager() {
                         onChange={(e) => handleFormChange("submission_type", e.target.value)}
                         className="mt-1 w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm"
                       >
-                        {SUBMISSION_TYPE_OPTIONS.map((option) => (
-                          <option key={option.value} value={option.value}>
+                        {SUBMISSION_TYPE_OPTIONS.map((option, index) => (
+                          <option key={`${option.value}-${index}`} value={option.value}>
                             {option.label}
                           </option>
                         ))}
@@ -1253,8 +1260,8 @@ export default function LegacySubmissionManager() {
                         className="mt-1 w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm"
                       >
                         <option value="">เลือกปีงบประมาณ</option>
-                        {years.map((year) => (
-                          <option key={year.year_id ?? year.id} value={year.year_id ?? year.id}>
+                        {years.map((year, index) => (
+                          <option key={`${year.year_id ?? year.id ?? "year"}-${index}`} value={year.year_id ?? year.id}>
                             {year.year ?? year.name ?? year.year_id}
                           </option>
                         ))}
@@ -1268,8 +1275,8 @@ export default function LegacySubmissionManager() {
                         className="mt-1 w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm"
                       >
                         <option value="">เลือกสถานะ</option>
-                        {statusOptions.map((status) => (
-                          <option key={status.application_status_id} value={status.application_status_id}>
+                        {statusOptions.map((status, index) => (
+                          <option key={`${status.application_status_id}-${index}`} value={status.application_status_id}>
                             {status.status_name}
                           </option>
                         ))}
@@ -1283,8 +1290,8 @@ export default function LegacySubmissionManager() {
                         className="mt-1 w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm"
                       >
                         <option value="">เลือกหมวดทุน</option>
-                        {categories.map((category) => (
-                          <option key={category.category_id} value={category.category_id}>
+                        {categories.map((category, index) => (
+                          <option key={`${category.category_id}-${index}`} value={category.category_id}>
                             {category.category_name || `หมวด ${category.category_id}`}
                           </option>
                         ))}
@@ -1298,8 +1305,8 @@ export default function LegacySubmissionManager() {
                         className="mt-1 w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm"
                       >
                         <option value="">เลือกประเภทย่อย</option>
-                        {filteredSubcategories.map((sub) => (
-                          <option key={sub.subcategory_id} value={sub.subcategory_id}>
+                        {filteredSubcategories.map((sub, index) => (
+                          <option key={`${sub.subcategory_id}-${index}`} value={sub.subcategory_id}>
                             {sub.subcategory_name || `ประเภทย่อย ${sub.subcategory_id}`}
                           </option>
                         ))}
@@ -1313,8 +1320,8 @@ export default function LegacySubmissionManager() {
                         className="mt-1 w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm"
                       >
                         <option value="">เลือกงบประมาณ</option>
-                        {availableBudgets.map((budget) => (
-                          <option key={budget.subcategory_budget_id} value={budget.subcategory_budget_id}>
+                        {availableBudgets.map((budget, index) => (
+                          <option key={`${budget.subcategory_budget_id}-${index}`} value={budget.subcategory_budget_id}>
                             {`${budget.level || ""} ${formatCurrency(budget.allocated_amount)}`.trim()}
                           </option>
                         ))}
@@ -1771,8 +1778,8 @@ export default function LegacySubmissionManager() {
                                   onChange={(e) => handleParticipantChange(index, "role", e.target.value)}
                                   className="mt-1 w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm"
                                 >
-                                  {PARTICIPANT_ROLE_OPTIONS.map((option) => (
-                                    <option key={option.value} value={option.value}>
+                                  {PARTICIPANT_ROLE_OPTIONS.map((option, index) => (
+                                    <option key={`${option.value}-${index}`} value={option.value}>
                                       {option.label}
                                     </option>
                                   ))}
@@ -1845,9 +1852,9 @@ export default function LegacySubmissionManager() {
                   </div>
                   {searchResults.length > 0 && (
                     <div className="mt-3 space-y-2">
-                      {searchResults.map((user) => (
+                      {searchResults.map((user, index) => (
                         <div
-                          key={user.UserID ?? user.user_id}
+                          key={`${user.UserID ?? user.user_id ?? "user"}-${index}`}
                           className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-gray-200 bg-white px-3 py-2"
                         >
                           <div>
@@ -1878,11 +1885,11 @@ export default function LegacySubmissionManager() {
               </div>
             ) : (
               <div className="py-16 text-center text-sm text-gray-500">
-                เลือกคำร้องจากรายการทางซ้ายเพื่อดูรายละเอียด หรือกด "สร้างใหม่" เพื่อเพิ่มข้อมูลย้อนหลัง
+                เลือกคำร้องจากรายการด้านบนเพื่อดูรายละเอียด หรือกด "สร้างใหม่" เพื่อเพิ่มข้อมูลย้อนหลัง
               </div>
             )}
           </div>
-        </div>
+        </section>
       </div>
     </PageLayout>
   );
