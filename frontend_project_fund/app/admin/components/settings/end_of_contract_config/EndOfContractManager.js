@@ -340,9 +340,13 @@ const EndOfContractManager = () => {
       : "border border-gray-200 bg-gray-50 text-gray-400 disabled:opacity-100"
   } disabled:cursor-not-allowed`;
   const operationButtonBaseClasses =
-    "inline-flex h-10 w-10 items-center justify-center rounded-lg border bg-white text-gray-500 shadow-sm transition hover:shadow focus:outline-none focus:ring-2 focus:ring-blue-100 disabled:cursor-not-allowed disabled:border-gray-200 disabled:bg-gray-50 disabled:text-gray-300 disabled:opacity-60 disabled:shadow-none";
-  const neutralOperationButtonClasses = `${operationButtonBaseClasses} border-gray-200 hover:border-gray-300 hover:bg-gray-50 hover:text-gray-700`;
-  const deleteOperationButtonClasses = `${operationButtonBaseClasses} border-red-200 text-red-500 hover:border-red-300 hover:bg-red-50 hover:text-red-600`;
+    "inline-flex items-center gap-1 rounded-lg border px-3 py-1 text-xs font-medium transition focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-60";
+  const moveOperationButtonClasses =
+    `${operationButtonBaseClasses} border-emerald-200 text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700 focus-visible:ring-2 focus-visible:ring-emerald-100 focus-visible:ring-offset-2`;
+  const editOperationButtonClasses =
+    `${operationButtonBaseClasses} border-blue-200 text-blue-600 hover:bg-blue-50 hover:text-blue-700 focus-visible:ring-2 focus-visible:ring-blue-100 focus-visible:ring-offset-2`;
+  const deleteOperationButtonClasses =
+    `${operationButtonBaseClasses} border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700 focus-visible:ring-2 focus-visible:ring-red-100 focus-visible:ring-offset-2`;
 
   const actionButtons = (
     <>
@@ -416,32 +420,35 @@ const EndOfContractManager = () => {
                     <div className="text-xs font-semibold uppercase text-gray-500">ข้อที่ {index + 1}</div>
                     <p className="mt-1 whitespace-pre-line text-sm leading-relaxed text-gray-800">{term.content}</p>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
                     <button
                       type="button"
                       onClick={() => handleMoveTerm(term.eoc_id, "up")}
                       disabled={index === 0 || loading || savingOrder}
-                      className={neutralOperationButtonClasses}
+                      className={moveOperationButtonClasses}
                       aria-label="เลื่อนขึ้น"
                     >
                       <ArrowUp className="h-4 w-4" />
+                      <span>เลื่อนขึ้น</span>
                     </button>
                     <button
                       type="button"
                       onClick={() => handleMoveTerm(term.eoc_id, "down")}
                       disabled={index === orderedTerms.length - 1 || loading || savingOrder}
-                      className={neutralOperationButtonClasses}
+                      className={moveOperationButtonClasses}
                       aria-label="เลื่อนลง"
                     >
                       <ArrowDown className="h-4 w-4" />
+                      <span>เลื่อนลง</span>
                     </button>
                     <button
                       type="button"
                       onClick={() => openEditModal(term)}
-                      className={neutralOperationButtonClasses}
+                      className={editOperationButtonClasses}
                       aria-label="แก้ไข"
                     >
                       <Pencil className="h-4 w-4" />
+                      <span>แก้ไข</span>
                     </button>
                     <button
                       type="button"
@@ -450,6 +457,7 @@ const EndOfContractManager = () => {
                       aria-label="ลบ"
                     >
                       <Trash2 className="h-4 w-4" />
+                      <span>ลบ</span>
                     </button>
                   </div>
                 </div>
