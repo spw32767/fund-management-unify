@@ -339,6 +339,10 @@ const EndOfContractManager = () => {
       ? "border border-blue-200 text-blue-600 hover:bg-blue-50 disabled:opacity-70"
       : "border border-gray-200 bg-gray-50 text-gray-400 disabled:opacity-100"
   } disabled:cursor-not-allowed`;
+  const operationButtonBaseClasses =
+    "inline-flex h-10 w-10 items-center justify-center rounded-lg border bg-white text-gray-500 shadow-sm transition hover:shadow focus:outline-none focus:ring-2 focus:ring-blue-100 disabled:cursor-not-allowed disabled:border-gray-200 disabled:bg-gray-50 disabled:text-gray-300 disabled:opacity-60 disabled:shadow-none";
+  const neutralOperationButtonClasses = `${operationButtonBaseClasses} border-gray-200 hover:border-gray-300 hover:bg-gray-50 hover:text-gray-700`;
+  const deleteOperationButtonClasses = `${operationButtonBaseClasses} border-red-200 text-red-500 hover:border-red-300 hover:bg-red-50 hover:text-red-600`;
 
   const actionButtons = (
     <>
@@ -417,7 +421,7 @@ const EndOfContractManager = () => {
                       type="button"
                       onClick={() => handleMoveTerm(term.eoc_id, "up")}
                       disabled={index === 0 || loading || savingOrder}
-                      className="inline-flex items-center justify-center rounded-md border border-gray-200 p-2 text-gray-600 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
+                      className={neutralOperationButtonClasses}
                       aria-label="เลื่อนขึ้น"
                     >
                       <ArrowUp className="h-4 w-4" />
@@ -426,7 +430,7 @@ const EndOfContractManager = () => {
                       type="button"
                       onClick={() => handleMoveTerm(term.eoc_id, "down")}
                       disabled={index === orderedTerms.length - 1 || loading || savingOrder}
-                      className="inline-flex items-center justify-center rounded-md border border-gray-200 p-2 text-gray-600 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
+                      className={neutralOperationButtonClasses}
                       aria-label="เลื่อนลง"
                     >
                       <ArrowDown className="h-4 w-4" />
@@ -434,7 +438,7 @@ const EndOfContractManager = () => {
                     <button
                       type="button"
                       onClick={() => openEditModal(term)}
-                      className="inline-flex items-center justify-center rounded-md border border-gray-200 p-2 text-gray-600 hover:bg-gray-50"
+                      className={neutralOperationButtonClasses}
                       aria-label="แก้ไข"
                     >
                       <Pencil className="h-4 w-4" />
@@ -442,7 +446,7 @@ const EndOfContractManager = () => {
                     <button
                       type="button"
                       onClick={() => handleDeleteTerm(term)}
-                      className="inline-flex items-center justify-center rounded-md border border-red-200 p-2 text-red-600 hover:bg-red-50"
+                      className={deleteOperationButtonClasses}
                       aria-label="ลบ"
                     >
                       <Trash2 className="h-4 w-4" />
