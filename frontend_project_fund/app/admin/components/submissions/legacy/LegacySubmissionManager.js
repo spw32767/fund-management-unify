@@ -1120,7 +1120,7 @@ export default function LegacySubmissionManager() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {items.map((record) => {
+                  {items.map((record, index) => {
                     const submission = record.submission || {};
                     const id = submission.submission_id;
                     const applicant = displayUserName(submission.user, userCache[submission.user_id]);
@@ -1132,7 +1132,7 @@ export default function LegacySubmissionManager() {
 
                     return (
                       <tr
-                        key={id}
+                        key={id ? `${id}-${index}` : `row-${index}`}
                         onClick={() => handleSelectItem(id)}
                         className={`cursor-pointer ${isActive ? "bg-blue-50" : "hover:bg-gray-50"}`}
                       >
