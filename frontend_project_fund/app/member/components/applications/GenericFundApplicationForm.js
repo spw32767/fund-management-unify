@@ -17,6 +17,19 @@ import { submissionAPI, documentAPI, fileAPI} from '../../../lib/member_api';
 import { statusService } from '../../../lib/status_service';
 import { systemConfigAPI } from '../../../lib/system_config_api';
 
+// SweetAlert2 configuration
+const Toast = Swal.mixin({
+  toast: true,
+  position: 'top-end',
+  showConfirmButton: false,
+  timer: 3000,
+  timerProgressBar: true,
+  didOpen: (toast) => {
+    toast.onmouseenter = Swal.stopTimer;
+    toast.onmouseleave = Swal.resumeTimer;
+  }
+});
+
 // Match backend utils.StatusCodeDeptHeadPending for initial submission status
 const DEPT_HEAD_PENDING_STATUS_CODE = '5';
 const DEPT_HEAD_PENDING_STATUS_NAME_HINT = 'อยู่ระหว่างการพิจารณาจากหัวหน้าสาขา';
@@ -371,11 +384,10 @@ function FileUpload({ onFileSelect, accept, multiple = false, error, compact = f
     });
 
     if (acceptedFiles.length !== files.length) {
-      Swal.fire({
+      Toast.fire({
         icon: 'warning',
         title: 'ไฟล์ไม่ถูกต้อง',
-        text: 'กรุณาอัปโหลดเฉพาะไฟล์ PDF',
-        confirmButtonColor: '#3085d6'
+        text: 'กรุณาอัปโหลดเฉพาะไฟล์ PDF'
       });
     }
 
@@ -399,11 +411,10 @@ function FileUpload({ onFileSelect, accept, multiple = false, error, compact = f
     });
 
     if (acceptedFiles.length !== files.length) {
-      Swal.fire({
+      Toast.fire({
         icon: 'warning',
         title: 'ไฟล์ไม่ถูกต้อง',
-        text: 'กรุณาอัปโหลดเฉพาะไฟล์ PDF',
-        confirmButtonColor: '#3085d6'
+        text: 'กรุณาอัปโหลดเฉพาะไฟล์ PDF'
       });
     }
 
@@ -1590,21 +1601,19 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
     const documentEntry = serverDocuments?.[key];
 
     if (!documentEntry) {
-      Swal.fire({
+      Toast.fire({
         icon: 'warning',
         title: 'ไม่พบไฟล์',
         text: 'ไม่พบไฟล์บนเซิร์ฟเวอร์สำหรับเอกสารนี้',
-        confirmButtonColor: '#3085d6',
       });
       return;
     }
 
     if (!documentEntry.file_id) {
-      Swal.fire({
+      Toast.fire({
         icon: 'error',
         title: 'ดาวน์โหลดไม่สำเร็จ',
         text: 'ไม่พบข้อมูลไฟล์สำหรับดาวน์โหลด',
-        confirmButtonColor: '#d33',
       });
       return;
     }
@@ -1620,11 +1629,10 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
       );
     } catch (error) {
       console.error('Failed to download document:', error);
-      Swal.fire({
+      Toast.fire({
         icon: 'error',
         title: 'ดาวน์โหลดไม่สำเร็จ',
         text: error?.message || 'ไม่สามารถดาวน์โหลดไฟล์ได้',
-        confirmButtonColor: '#d33',
       });
     }
   };
@@ -2072,20 +2080,18 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
 
       Swal.close();
       setHasDraft(true);
-      Swal.fire({
+      Toast.fire({
         icon: 'success',
         title: 'บันทึกร่างเรียบร้อยแล้ว',
-        text: 'ระบบได้บันทึกร่างคำร้องของคุณบนเซิร์ฟเวอร์แล้ว',
-        confirmButtonColor: '#3085d6'
+        html: '<small>ระบบได้บันทึกร่างคำร้องของคุณบนเซิร์ฟเวอร์แล้ว</small>'
       });
     } catch (error) {
       console.error('Error saving draft:', error);
       Swal.close();
-      Swal.fire({
+      Toast.fire({
         icon: 'error',
         title: 'เกิดข้อผิดพลาด',
-        text: error?.message || 'ไม่สามารถบันทึกร่างได้ โปรดลองอีกครั้ง',
-        confirmButtonColor: '#d33'
+        text: error?.message || 'ไม่สามารถบันทึกร่างได้ โปรดลองอีกครั้ง'
       });
     } finally {
       setSaving(false);
@@ -2136,20 +2142,34 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
     resetAttachmentsPreview();
     setHasDraft(false);
 
-    Swal.fire({
+    Toast.fire({
       icon: 'success',
-      title: 'ลบร่างเรียบร้อยแล้ว',
-      confirmButtonColor: '#3085d6'
+      title: 'ลบร่างเรียบร้อยแล้ว'
     });
 
-    const targetPage = resolveCategoryPageFromOrigin(categoryPage) || 'research-fund';
+    const resolvedCategoryPage = resolveCategoryPageFromOrigin(categoryPage);
+    const targetPage = navigationTarget || resolvedCategoryPage || 'research-fund';
+    const navigationData = (() => {
+      if (targetPage === 'promotion-fund' || targetPage === 'research-fund') {
+        if (effectiveFundContext && Object.keys(effectiveFundContext).length > 0) {
+          return { ...effectiveFundContext, submissionId: null, originPage: targetPage };
+        }
+        return { originPage: targetPage };
+      }
+      if (targetPage === 'applications') {
+        return { originPage: targetPage };
+      }
+      if (targetPage) {
+        return { originPage: targetPage };
+      }
+      return undefined;
+    })();
+
     if (onNavigate) {
-      const navigationData = effectiveFundContext && Object.keys(effectiveFundContext).length > 0
-        ? { ...effectiveFundContext, submissionId: null, originPage: targetPage }
-        : { originPage: targetPage };
       onNavigate(targetPage, navigationData);
     } else {
-      router.push(`/member?initialPage=${targetPage}`);
+      const fallbackPage = targetPage || 'research-fund';
+      router.push(`/member?initialPage=${fallbackPage}`);
     }
   };
 
