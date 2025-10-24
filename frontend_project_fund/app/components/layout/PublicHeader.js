@@ -2,6 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import AppLogo from '../common/AppLogo';
 
 export default function PublicHeader() {
   const router = useRouter();
@@ -10,9 +11,7 @@ export default function PublicHeader() {
     <header className="border-b border-white/20 backdrop-blur bg-white/70">
       <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
         <Link href="/" className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-600 to-purple-600 text-white shadow-lg">
-            <span className="text-lg font-semibold">F</span>
-          </div>
+          <AppLogo size={48} withFrame={false} className="h-12 w-12" priority />
           <div className="text-left">
             <p className="text-sm font-semibold text-gray-900">ระบบบริหารจัดการทุนวิจัย</p>
             <p className="text-xs text-gray-500">Faculty of Engineering, KKU</p>

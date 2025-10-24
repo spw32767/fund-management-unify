@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from './contexts/AuthContext';
 import PublicHeader from './components/layout/PublicHeader';
+import AppLogo from './components/common/AppLogo';
 
 export default function HomePage() {
   const router = useRouter();
@@ -31,7 +32,7 @@ export default function HomePage() {
 
   const redirectBasedOnRole = (userData) => {
     const userRole = userData.role_id || userData.role;
-    
+
     // ใช้ setTimeout เพื่อให้มั่นใจว่า state update เสร็จแล้ว
     setTimeout(() => {
       if (
@@ -56,18 +57,12 @@ export default function HomePage() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-purple-50">
         <div className="text-center">
-          <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-blue-600 to-purple-600 rounded-2xl mb-4 shadow-lg">
-            <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center">
-              <div className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-                F
-              </div>
-            </div>
-          </div>
-          
+          <AppLogo size={80} priority className="mb-4" />
+
           <h1 className="text-2xl font-bold text-gray-900 mb-2">
             ระบบบริหารจัดการทุนวิจัย
           </h1>
-          
+
           <div className="flex items-center justify-center gap-2 text-gray-600">
             <div className="w-6 h-6 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin"></div>
             <span>กำลังตรวจสอบสิทธิ์...</span>
