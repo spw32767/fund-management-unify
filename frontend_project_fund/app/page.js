@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from './contexts/AuthContext';
+import PublicHeader from './components/layout/PublicHeader';
 
 export default function HomePage() {
   const router = useRouter();
@@ -16,14 +17,12 @@ export default function HomePage() {
         return;
       }
 
-      setCheckingAuth(false);
-
       if (isAuthenticated && user) {
         // ถ้า user ล็อกอินแล้ว ให้ redirect ตาม role
         redirectBasedOnRole(user);
       } else {
-        // ถ้ายังไม่ล็อกอิน ให้ไปหน้า login
-        router.replace('/login');
+        // ถ้ายังไม่ล็อกอิน แสดงหน้า Landing Page
+        setCheckingAuth(false);
       }
     };
 
@@ -74,6 +73,34 @@ export default function HomePage() {
             <span>กำลังตรวจสอบสิทธิ์...</span>
           </div>
         </div>
+      </div>
+    );
+  }
+
+  // แสดง Landing Page สำหรับผู้ใช้ที่ยังไม่ล็อกอิน
+  if (!isAuthenticated || !user) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
+        <PublicHeader />
+        <main className="mx-auto flex min-h-[calc(100vh-5rem)] max-w-4xl flex-col items-center justify-center px-6 text-center">
+          <span className="mb-4 inline-flex items-center gap-2 rounded-full bg-white/70 px-4 py-1 text-sm font-medium text-blue-700 shadow-sm">
+            <span className="inline-flex h-2 w-2 rounded-full bg-blue-600"></span>
+            Under Development
+          </span>
+          <h1 className="mb-4 text-4xl font-bold tracking-tight text-gray-900 sm:text-5xl">
+            ระบบกำลังอยู่ในระหว่างการพัฒนา
+          </h1>
+          <p className="mb-8 max-w-2xl text-base text-gray-600 sm:text-lg">
+            หน้านี้จะพร้อมให้ใช้งานเร็ว ๆ นี้ ขณะนี้ทีมงานกำลังพัฒนาฟังก์ชันการใช้งานเพื่อให้ผู้ใช้ได้รับประสบการณ์ที่ดีที่สุด
+          </p>
+          <button
+            type="button"
+            onClick={() => router.push('/login')}
+            className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-blue-600 to-purple-600 px-6 py-3 text-base font-semibold text-white shadow-lg shadow-purple-500/20 transition hover:scale-[1.02] hover:shadow-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+          >
+            เข้าสู่ระบบ
+          </button>
+        </main>
       </div>
     );
   }
