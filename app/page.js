@@ -1,39 +1,39 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from './contexts/AuthContext';
+import PublicHeader from './components/public/PublicHeader';
+import PublicNavigation from './components/public/PublicNavigation';
+import UnderDevelopmentContent from './member/components/common/UnderDevelopmentContent';
+
+const PAGE_TITLES = {
+  home: 'หน้าหลัก',
+};
 
 export default function HomePage() {
   const router = useRouter();
   const { isAuthenticated, user, isLoading } = useAuth();
-  const [checkingAuth, setCheckingAuth] = useState(true);
+  const [redirecting, setRedirecting] = useState(false);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [currentPage, setCurrentPage] = useState('home');
 
   useEffect(() => {
-    const checkAuthentication = async () => {
-      // รอให้ AuthContext โหลดเสร็จก่อน
-      if (isLoading) {
-        return;
-      }
+    if (isLoading) {
+      return;
+    }
 
-      setCheckingAuth(false);
-
-      if (isAuthenticated && user) {
-        // ถ้า user ล็อกอินแล้ว ให้ redirect ตาม role
-        redirectBasedOnRole(user);
-      } else {
-        // ถ้ายังไม่ล็อกอิน ให้ไปหน้า login
-        router.replace('/login');
-      }
-    };
-
-    checkAuthentication();
+    if (isAuthenticated && user) {
+      setRedirecting(true);
+      redirectBasedOnRole(user);
+    } else {
+      setRedirecting(false);
+    }
   }, [isAuthenticated, user, isLoading, router]);
 
   const redirectBasedOnRole = (userData) => {
     const userRole = userData.role_id || userData.role;
-    
-    // ใช้ setTimeout เพื่อให้มั่นใจว่า state update เสร็จแล้ว
+
     setTimeout(() => {
       if (
         userRole === 1 ||
@@ -52,8 +52,30 @@ export default function HomePage() {
     }, 100);
   };
 
-  // แสดง loading screen ขณะตรวจสอบ authentication
-  if (isLoading || checkingAuth) {
+  const handleNavigate = (page) => {
+    setCurrentPage(page);
+    setIsMenuOpen(false);
+  };
+
+  const currentPageTitle = useMemo(() => {
+    return PAGE_TITLES[currentPage] || 'หน้าหลัก';
+  }, [currentPage]);
+
+  const renderPageContent = () => {
+    switch (currentPage) {
+      case 'home':
+      default:
+        return (
+          <UnderDevelopmentContent
+            currentPage={currentPage}
+            title={PAGE_TITLES[currentPage] || 'หน้าหลัก'}
+            breadcrumbs={[{ label: currentPageTitle }]}
+          />
+        );
+    }
+  };
+
+  if (isLoading || redirecting) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-purple-50">
         <div className="text-center">
@@ -64,11 +86,11 @@ export default function HomePage() {
               </div>
             </div>
           </div>
-          
+
           <h1 className="text-2xl font-bold text-gray-900 mb-2">
             ระบบบริหารจัดการทุนวิจัย
           </h1>
-          
+
           <div className="flex items-center justify-center gap-2 text-gray-600">
             <div className="w-6 h-6 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin"></div>
             <span>กำลังตรวจสอบสิทธิ์...</span>
@@ -78,6 +100,39 @@ export default function HomePage() {
     );
   }
 
-  // ไม่ควรถึงจุดนี้ เพราะจะ redirect ไปแล้ว
-  return null;
+  return (
+    <div className="min-h-screen bg-gray-100">
+      <PublicHeader
+        isOpen={isMenuOpen}
+        setIsOpen={setIsMenuOpen}
+        currentPageTitle={currentPageTitle}
+        Navigation={({ closeMenu }) => (
+          <PublicNavigation
+            currentPage={currentPage}
+            onNavigate={handleNavigate}
+            closeMenu={closeMenu}
+          />
+        )}
+      />
+
+      <div className="flex mt-20 min-h-[calc(100vh-5rem)]">
+        <div className="hidden md:block w-64 bg-white border-r border-gray-300 fixed h-[calc(100vh-5rem)] overflow-y-auto shadow-sm">
+          <div className="p-5">
+            <div className="mb-6">
+              <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wider">
+                เมนูหลัก
+              </h2>
+            </div>
+            <PublicNavigation currentPage={currentPage} onNavigate={handleNavigate} />
+          </div>
+        </div>
+
+        <div className="md:ml-64 flex-1">
+          <div className="px-8 pb-8">
+            {renderPageContent()}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 }
