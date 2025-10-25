@@ -1,14 +1,20 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
 
+const NAV_ITEMS = [
+  { label: 'หน้าแรก', href: '/' },
+  { label: 'ข้อมูลทุน', href: '/projects' }
+];
+
 export default function PublicHeader() {
   const router = useRouter();
+  const pathname = usePathname();
 
   return (
-    <header className="border-b border-white/20 backdrop-blur bg-white/70">
+    <header className="border-b border-white/20 bg-white/70 backdrop-blur">
       <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
         <Link href="/" className="flex items-center gap-3">
           <div className="relative h-12 w-12">
@@ -27,8 +33,24 @@ export default function PublicHeader() {
           </div>
         </Link>
 
-        <nav className="hidden items-center gap-6 text-sm font-medium text-gray-600 md:flex">
-          <span className="rounded-full bg-white/60 px-3 py-1 text-gray-400">กำลังพัฒนา</span>
+        <nav className="hidden items-center gap-4 text-sm font-medium text-gray-600 md:flex">
+          {NAV_ITEMS.map((item) => {
+            const isActive = pathname === item.href;
+
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={`rounded-full px-4 py-2 transition ${
+                  isActive
+                    ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg shadow-purple-500/20'
+                    : 'text-gray-600 hover:bg-white/80 hover:text-gray-900'
+                }`}
+              >
+                {item.label}
+              </Link>
+            );
+          })}
         </nav>
 
         <button
