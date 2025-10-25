@@ -10,6 +10,7 @@ import {
   CircleDollarSign,
   PieChart,
   RefreshCcw,
+  ShieldCheck,
 } from "lucide-react";
 
 import PageLayout from "../common/PageLayout";
@@ -18,12 +19,12 @@ import SimpleCard from "../common/SimpleCard";
 import MonthlyChart from "./MonthlyChart";
 import BudgetSummary from "./BudgetSummary";
 import adminAPI from "../../../lib/admin_api";
+import EligibilitySummary from "./EligibilitySummary";
 import {
   formatCurrency,
   formatNumber,
   formatThaiDateFromBEString,
   formatThaiDateTime,
-  formatThaiMonthShort,
 } from "@/app/utils/format";
 
 const MAX_PENDING_DISPLAY = 5;
@@ -285,14 +286,14 @@ export default function DashboardContent({ onNavigate }) {
     [stats]
   );
 
-  const monthlyStats = useMemo(() => {
-    const trends = Array.isArray(stats?.monthly_trends) ? stats.monthly_trends : [];
-    const recent = trends.slice(-6);
-    return recent.map((item) => ({
-      month: formatThaiMonthShort(item?.month ?? ""),
-      applications: Number(item?.total_applications ?? item?.applications ?? 0),
-      approved: Number(item?.approved ?? 0),
-    }));
+  const trendBreakdown = useMemo(() => {
+    const base = stats?.trend_breakdown && typeof stats.trend_breakdown === "object"
+      ? stats.trend_breakdown
+      : {};
+    const fallbackMonthly = Array.isArray(stats?.monthly_trends)
+      ? { monthly: stats.monthly_trends }
+      : {};
+    return { ...fallbackMonthly, ...base };
   }, [stats]);
 
   const budgetOverview = useMemo(() => {
@@ -306,6 +307,11 @@ export default function DashboardContent({ onNavigate }) {
       remaining,
     };
   }, [overview]);
+
+  const quotaSummary = useMemo(
+    () => (Array.isArray(stats?.quota_summary) ? stats.quota_summary : []),
+    [stats]
+  );
 
   const currentDate = stats?.current_date
     ? formatThaiDateFromBEString(stats.current_date)
@@ -346,18 +352,27 @@ export default function DashboardContent({ onNavigate }) {
         <div className="space-y-8">
           <OverviewCards overview={overview} currentDate={currentDate} onNavigate={onNavigate} />
 
-          <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-            <SimpleCard title="แนวโน้มการยื่นคำร้อง" icon={TrendingUp}>
-              <MonthlyChart data={monthlyStats} />
+          <div className="grid grid-cols-1 xl:grid-cols-4 gap-6">
+            <SimpleCard
+              title="แนวโน้มการยื่นคำร้อง"
+              icon={TrendingUp}
+              className="xl:col-span-2"
+            >
+              <MonthlyChart breakdown={trendBreakdown} defaultMode="monthly" />
             </SimpleCard>
 
-            <SimpleCard title="สรุปการใช้งบประมาณ" icon={PieChart}>
+            <SimpleCard
+              title="สรุปการใช้งบประมาณ"
+              icon={PieChart}
+              className="xl:col-span-1"
+            >
               <BudgetSummary budget={budgetOverview} />
             </SimpleCard>
 
             <SimpleCard
               title="หมวดหมู่การใช้งบสูงสุด"
               icon={CircleDollarSign}
+              className="xl:col-span-1"
               action={(
                 <button
                   type="button"
@@ -369,6 +384,14 @@ export default function DashboardContent({ onNavigate }) {
               )}
             >
               <CategoryBudgetTable categories={categoryBudgets.slice(0, 5)} />
+            </SimpleCard>
+
+            <SimpleCard
+              title="สิทธิ์และโควตาการใช้ทุน"
+              icon={ShieldCheck}
+              className="xl:col-span-4"
+            >
+              <EligibilitySummary items={quotaSummary} />
             </SimpleCard>
           </div>
 
