@@ -2,9 +2,9 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Image from 'next/image';
 import { useAuth } from './contexts/AuthContext';
 import PublicHeader from './components/layout/PublicHeader';
-import AppLogo from './components/common/AppLogo';
 
 export default function HomePage() {
   const router = useRouter();
@@ -57,7 +57,16 @@ export default function HomePage() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-purple-50">
         <div className="text-center">
-          <AppLogo size={80} priority className="mb-4" />
+          <div className="relative mb-4 h-20 w-20">
+            <Image
+              src="/image_icon/fund_cpkku_logo.png"
+              alt="โลโก้ระบบบริหารจัดการทุนวิจัย"
+              fill
+              sizes="80px"
+              className="object-contain"
+              priority
+            />
+          </div>
 
           <h1 className="text-2xl font-bold text-gray-900 mb-2">
             ระบบบริหารจัดการทุนวิจัย

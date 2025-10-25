@@ -3,9 +3,9 @@
 
 import { useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
+import Image from "next/image";
 import { useAuth } from "../contexts/AuthContext";
 import UnauthorizedPage from "./UnauthorizedPage";
-import AppLogo from "./common/AppLogo";
 
 const ROLE_NAME_BY_ID = {
   1: 'teacher',
@@ -122,7 +122,16 @@ export default function AuthGuard({
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-purple-50">
         <div className="text-center">
-          <AppLogo size={64} priority className="mb-4" />
+          <div className="relative mb-4 h-16 w-16">
+            <Image
+              src="/image_icon/fund_cpkku_logo.png"
+              alt="โลโก้ระบบบริหารจัดการทุนวิจัย"
+              fill
+              sizes="64px"
+              className="object-contain"
+              priority
+            />
+          </div>
 
           <h2 className="text-xl font-semibold text-gray-800 mb-2">
             กำลังตรวจสอบสิทธิ์...

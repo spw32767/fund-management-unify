@@ -2,10 +2,10 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import Image from 'next/image';
 import { Eye, EyeOff, LogIn, AlertCircle, Lock, Mail, CheckCircle, Wifi, WifiOff } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { healthAPI, AuthError, NetworkError } from '../lib/api';
-import AppLogo from '../components/common/AppLogo';
 
 export default function LoginPage() {
   const { login, isLoading, error, clearError, isAuthenticated, user } = useAuth();
@@ -113,7 +113,14 @@ export default function LoginPage() {
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-purple-50">
         <div className="text-center">
           <div className="inline-flex items-center justify-center w-20 h-20 rounded-2xl bg-gradient-to-br from-blue-600 to-purple-600 mb-4 shadow-lg">
-            <AppLogo size={56} withFrame={false} className="h-14 w-14" priority />
+            <Image
+              src="/image_icon/fund_cpkku_logo.png"
+              alt="โลโก้ระบบบริหารจัดการทุนวิจัย"
+              width={56}
+              height={56}
+              className="h-14 w-14 object-contain"
+              priority
+            />
           </div>
           
           <h1 className="text-2xl font-bold text-gray-900 mb-2">
@@ -135,7 +142,14 @@ export default function LoginPage() {
         {/* Header */}
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center w-20 h-20 rounded-2xl bg-gradient-to-br from-blue-600 to-purple-600 mb-4 shadow-lg">
-            <AppLogo size={56} withFrame={false} className="h-14 w-14" priority />
+            <Image
+              src="/image_icon/fund_cpkku_logo.png"
+              alt="โลโก้ระบบบริหารจัดการทุนวิจัย"
+              width={56}
+              height={56}
+              className="h-14 w-14 object-contain"
+              priority
+            />
           </div>
           
           <h1 className="text-3xl font-bold text-gray-900 mb-2">

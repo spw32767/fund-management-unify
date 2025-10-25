@@ -2,7 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import AppLogo from '../common/AppLogo';
+import Image from 'next/image';
 
 export default function PublicHeader() {
   const router = useRouter();
@@ -11,7 +11,16 @@ export default function PublicHeader() {
     <header className="border-b border-white/20 backdrop-blur bg-white/70">
       <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
         <Link href="/" className="flex items-center gap-3">
-          <AppLogo size={48} withFrame={false} className="h-12 w-12" priority />
+          <div className="relative h-12 w-12">
+            <Image
+              src="/image_icon/fund_cpkku_logo.png"
+              alt="โลโก้ระบบบริหารจัดการทุนวิจัย"
+              fill
+              sizes="48px"
+              className="object-contain"
+              priority
+            />
+          </div>
           <div className="text-left">
             <p className="text-sm font-semibold text-gray-900">ระบบบริหารจัดการทุนวิจัย</p>
             <p className="text-xs text-gray-500">Faculty of Engineering, KKU</p>
