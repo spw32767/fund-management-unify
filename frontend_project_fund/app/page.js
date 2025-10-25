@@ -65,7 +65,12 @@ export default function HomePage() {
     switch (currentPage) {
       case 'home':
       default:
-        return <UnderDevelopmentContent currentPage={currentPage} />;
+        return (
+          <UnderDevelopmentContent
+            currentPage={currentPage}
+            title={PAGE_TITLES[currentPage] || 'หน้าหลัก'}
+          />
+        );
     }
   };
 
