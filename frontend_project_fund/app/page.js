@@ -69,6 +69,7 @@ export default function HomePage() {
           <UnderDevelopmentContent
             currentPage={currentPage}
             title={PAGE_TITLES[currentPage] || 'หน้าหลัก'}
+            breadcrumbs={[{ label: currentPageTitle }]}
           />
         );
     }

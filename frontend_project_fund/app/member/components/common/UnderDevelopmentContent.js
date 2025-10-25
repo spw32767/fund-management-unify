@@ -4,23 +4,28 @@
 import { Construction, ArrowLeft } from "lucide-react";
 import PageLayout from "./PageLayout";
 
-export default function UnderDevelopmentContent({ 
-  currentPage, 
+export default function UnderDevelopmentContent({
+  currentPage,
   title = null,
-  description = null 
+  description = null,
+  breadcrumbs
 }) {
   const pageTitle = title || currentPage;
   const pageDescription = description || "หน้านี้อยู่ระหว่างการพัฒนา";
+  const pageBreadcrumbs =
+    breadcrumbs !== undefined
+      ? breadcrumbs
+      : [
+          { label: "หน้าแรก", href: "/teacher" },
+          { label: pageTitle }
+        ];
 
   return (
     <PageLayout
       title={pageTitle}
       subtitle={pageDescription}
       icon={Construction}
-      breadcrumbs={[
-        { label: "หน้าแรก", href: "/teacher" },
-        { label: pageTitle }
-      ]}
+      breadcrumbs={pageBreadcrumbs}
     >
       <div className="bg-white rounded-lg shadow-sm p-8">
         <div className="text-center py-12">
