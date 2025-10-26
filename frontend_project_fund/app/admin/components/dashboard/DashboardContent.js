@@ -11,6 +11,11 @@ import {
   PieChart,
   RefreshCcw,
   ShieldCheck,
+  BadgeCheck,
+  ListChecks,
+  CalendarClock,
+  Activity as ActivityIcon,
+  Award,
 } from "lucide-react";
 
 import PageLayout from "../common/PageLayout";
@@ -20,6 +25,11 @@ import MonthlyChart from "./MonthlyChart";
 import BudgetSummary from "./BudgetSummary";
 import adminAPI from "../../../lib/admin_api";
 import EligibilitySummary from "./EligibilitySummary";
+import StatusPipeline from "./StatusPipeline";
+import FinancialHighlights from "./FinancialHighlights";
+import UpcomingDeadlines from "./UpcomingDeadlines";
+import ActivityFeed from "./ActivityFeed";
+import TopContributors from "./TopContributors";
 import {
   formatCurrency,
   formatNumber,
@@ -36,6 +46,8 @@ function OverviewCards({ overview, currentDate, onNavigate }) {
     const totalUsers = Number(overview?.total_users ?? 0);
     const usedBudget = Number(overview?.used_budget ?? 0);
     const totalBudget = Number(overview?.total_budget ?? 0);
+    const approvalRate = Number(overview?.approval_rate ?? 0);
+    const remainingBudget = Number(overview?.remaining_budget ?? Math.max(totalBudget - usedBudget, 0));
 
     return [
       {
@@ -69,6 +81,18 @@ function OverviewCards({ overview, currentDate, onNavigate }) {
         icon: PieChart,
         gradient: "from-slate-500 to-gray-700",
       },
+      {
+        label: "คงเหลืองบประมาณ",
+        value: formatCurrency(remainingBudget),
+        icon: CircleDollarSign,
+        gradient: "from-teal-500 to-emerald-600",
+      },
+      {
+        label: "อัตราการอนุมัติ",
+        value: Number.isFinite(approvalRate) ? `${approvalRate.toFixed(1)}%` : "-",
+        icon: BadgeCheck,
+        gradient: "from-indigo-500 to-purple-600",
+      },
     ];
   }, [overview, onNavigate]);
 
@@ -85,7 +109,7 @@ function OverviewCards({ overview, currentDate, onNavigate }) {
         </div>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6 gap-4">
         {cards.map((card, index) => {
           const CardWrapper = card.onClick ? "button" : "div";
           return (
@@ -296,6 +320,35 @@ export default function DashboardContent({ onNavigate }) {
     return { ...fallbackMonthly, ...base };
   }, [stats]);
 
+  const statusBreakdown = useMemo(
+    () => (stats?.status_breakdown && typeof stats.status_breakdown === "object"
+      ? stats.status_breakdown
+      : {}),
+    [stats]
+  );
+
+  const financialOverview = useMemo(
+    () => (stats?.financial_overview && typeof stats.financial_overview === "object"
+      ? stats.financial_overview
+      : {}),
+    [stats]
+  );
+
+  const upcomingPeriods = useMemo(
+    () => (Array.isArray(stats?.upcoming_periods) ? stats.upcoming_periods : []),
+    [stats]
+  );
+
+  const activityFeed = useMemo(
+    () => (Array.isArray(stats?.activity_feed) ? stats.activity_feed : []),
+    [stats]
+  );
+
+  const topUsers = useMemo(
+    () => (Array.isArray(stats?.top_users) ? stats.top_users : []),
+    [stats]
+  );
+
   const budgetOverview = useMemo(() => {
     const total = Number(overview?.total_budget ?? 0);
     const used = Number(overview?.used_budget ?? 0);
@@ -352,27 +405,45 @@ export default function DashboardContent({ onNavigate }) {
         <div className="space-y-8">
           <OverviewCards overview={overview} currentDate={currentDate} onNavigate={onNavigate} />
 
-          <div className="grid grid-cols-1 xl:grid-cols-4 gap-6">
+          <div className="grid grid-cols-1 2xl:grid-cols-3 gap-6">
+            <SimpleCard
+              title="สถานะคำร้องทั้งระบบ"
+              icon={ListChecks}
+              className="2xl:col-span-2"
+            >
+              <StatusPipeline breakdown={statusBreakdown} />
+            </SimpleCard>
+
+            <SimpleCard
+              title="กำหนดปิดรอบทุนที่ใกล้มาถึง"
+              icon={CalendarClock}
+            >
+              <UpcomingDeadlines periods={upcomingPeriods} />
+            </SimpleCard>
+          </div>
+
+          <div className="grid grid-cols-1 2xl:grid-cols-3 gap-6">
             <SimpleCard
               title="แนวโน้มการยื่นคำร้อง"
               icon={TrendingUp}
-              className="xl:col-span-2"
+              className="2xl:col-span-2"
             >
               <MonthlyChart breakdown={trendBreakdown} defaultMode="monthly" />
             </SimpleCard>
 
             <SimpleCard
-              title="สรุปการใช้งบประมาณ"
-              icon={PieChart}
-              className="xl:col-span-1"
+              title="สถานะการเงินและการอนุมัติ"
+              icon={CircleDollarSign}
             >
-              <BudgetSummary budget={budgetOverview} />
+              <FinancialHighlights data={financialOverview} overview={overview} />
             </SimpleCard>
+          </div>
 
+          <div className="grid grid-cols-1 2xl:grid-cols-3 gap-6">
             <SimpleCard
               title="หมวดหมู่การใช้งบสูงสุด"
               icon={CircleDollarSign}
-              className="xl:col-span-1"
+              className="2xl:col-span-2"
               action={(
                 <button
                   type="button"
@@ -383,35 +454,61 @@ export default function DashboardContent({ onNavigate }) {
                 </button>
               )}
             >
-              <CategoryBudgetTable categories={categoryBudgets.slice(0, 5)} />
+              <CategoryBudgetTable categories={categoryBudgets.slice(0, 6)} />
             </SimpleCard>
 
             <SimpleCard
-              title="สิทธิ์และโควตาการใช้ทุน"
-              icon={ShieldCheck}
-              className="xl:col-span-4"
+              title="สรุปการใช้งบประมาณ"
+              icon={PieChart}
             >
-              <EligibilitySummary items={quotaSummary} />
+              <BudgetSummary budget={budgetOverview} />
             </SimpleCard>
           </div>
 
-          <Card
-            title="คำร้องที่รอดำเนินการ"
-            collapsible={false}
-            action={
-              pendingApplications.length > MAX_PENDING_DISPLAY && (
-                <button
-                  type="button"
-                  onClick={() => onNavigate?.("applications-list")}
-                  className="text-sm text-blue-600 hover:text-blue-700"
-                >
-                  ดูทั้งหมด {formatNumber(pendingApplications.length)} รายการ →
-                </button>
-              )
-            }
-          >
-            <PendingApplicationsList applications={pendingApplications} />
-          </Card>
+          <div className="grid grid-cols-1 2xl:grid-cols-3 gap-6">
+            <SimpleCard
+              title="สิทธิ์และโควตาการใช้ทุน"
+              icon={ShieldCheck}
+              className="2xl:col-span-2"
+            >
+              <EligibilitySummary items={quotaSummary} />
+            </SimpleCard>
+
+            <SimpleCard
+              title="ผู้ใช้งานที่มีกิจกรรมสูงสุด"
+              icon={Award}
+            >
+              <TopContributors users={topUsers} />
+            </SimpleCard>
+          </div>
+
+          <div className="grid grid-cols-1 2xl:grid-cols-3 gap-6">
+            <Card
+              title="คำร้องที่รอดำเนินการ"
+              collapsible={false}
+              className="2xl:col-span-2"
+              action={
+                pendingApplications.length > MAX_PENDING_DISPLAY && (
+                  <button
+                    type="button"
+                    onClick={() => onNavigate?.("applications-list")}
+                    className="text-sm text-blue-600 hover:text-blue-700"
+                  >
+                    ดูทั้งหมด {formatNumber(pendingApplications.length)} รายการ →
+                  </button>
+                )
+              }
+            >
+              <PendingApplicationsList applications={pendingApplications} />
+            </Card>
+
+            <SimpleCard
+              title="กิจกรรมล่าสุดในระบบ"
+              icon={ActivityIcon}
+            >
+              <ActivityFeed items={activityFeed} />
+            </SimpleCard>
+          </div>
         </div>
       )}
     </PageLayout>
