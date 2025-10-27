@@ -635,9 +635,9 @@ export const adminAPI = {
   },
 
   // Get system statistics
-  async getSystemStats() {
+  async getSystemStats(params = {}) {
     try {
-      const response = await apiClient.get('/admin/dashboard/stats');
+      const response = await apiClient.get('/admin/dashboard/stats', params);
       return response;
     } catch (error) {
       console.error('Error fetching system stats:', error);
