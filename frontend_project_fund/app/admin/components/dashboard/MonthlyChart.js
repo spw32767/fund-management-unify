@@ -184,7 +184,7 @@ function buildChartConfig(dataset) {
             return `ทุนวิจัย: ${formatNumber(value)} รายการ`;
           }
           if (seriesIndex === 1) {
-            return `เงินรางวัลเผยแพร่: ${formatNumber(value)} รายการ`;
+            return `เงินรางวัลตีพิมพ์: ${formatNumber(value)} รายการ`;
           }
           const approvalAmount = point?.totalApprovedAmount ?? 0;
           return `อนุมัติแล้ว: ${formatNumber(value)} รายการ (ยอดเงิน ${formatCurrency(approvalAmount)})`;
@@ -204,7 +204,7 @@ function buildChartConfig(dataset) {
       data: fundSeries,
     },
     {
-      name: "เงินรางวัลเผยแพร่",
+      name: "เงินรางวัลตีพิมพ์",
       type: "column",
       data: rewardSeries,
     },
@@ -323,7 +323,7 @@ export default function MonthlyChart({ breakdown = {}, defaultMode = "monthly" }
         <div className="rounded-lg border border-blue-100 bg-blue-50 p-4">
           <p className="text-xs font-semibold text-blue-600 uppercase tracking-wide">คำร้องทั้งหมด</p>
           <p className="mt-2 text-xl font-semibold text-blue-700">{formatNumber(totals.applications)}</p>
-          <p className="text-xs text-blue-600 mt-1">ทุนวิจัย {formatNumber(totals.fundTotal)} / เงินรางวัล {formatNumber(totals.rewardTotal)}</p>
+          <p className="text-xs text-blue-600 mt-1">ทุนวิจัย {formatNumber(totals.fundTotal)} / เงินรางวัลตีพิมพ์ {formatNumber(totals.rewardTotal)}</p>
         </div>
         <div className="rounded-lg border border-emerald-100 bg-emerald-50 p-4">
           <p className="text-xs font-semibold text-emerald-600 uppercase tracking-wide">อนุมัติแล้ว</p>
