@@ -1,30 +1,33 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
+import dynamic from "next/dynamic";
 import { BarChart3, TrendingUp } from "lucide-react";
 
 import { formatCurrency, formatNumber, formatThaiMonthShort } from "@/app/utils/format";
 
+const ApexChart = dynamic(() => import("react-apexcharts"), { ssr: false });
+
 const MODE_CONFIG = {
   monthly: {
     label: "รายเดือน",
-    description: "ข้อมูลย้อนหลัง 12 เดือน",
+    description: "ข้อมูลย้อนหลัง 12 เดือนตามช่วงที่เลือก",
     optionLabel: "รายเดือน (12 เดือน)",
     limit: 12,
   },
   yearly: {
     label: "รายปี",
-    description: "สรุปคำร้อง 5 ปีล่าสุด",
+    description: "สรุปคำร้องแต่ละปี",
     optionLabel: "รายปี",
   },
   quarterly: {
     label: "รายไตรมาส",
-    description: "ข้อมูลย้อนหลัง 8 ไตรมาส",
+    description: "ภาพรวมตามไตรมาส",
     optionLabel: "รายไตรมาส",
   },
   installment: {
     label: "ตามรอบการพิจารณา",
-    description: "รอบตัดสินทุนของปีปัจจุบัน",
+    description: "การยื่นและอนุมัติในแต่ละรอบทุน",
     optionLabel: "รอบการพิจารณา",
   },
 };
@@ -41,7 +44,7 @@ function deriveLabel(item, mode) {
   if (mode === "yearly") {
     const rawYear = Number(item?.year ?? item?.period ?? 0);
     if (!rawYear) return String(item?.year ?? item?.period ?? "-");
-    const thaiYear = rawYear + 543;
+    const thaiYear = rawYear >= 2400 ? rawYear : rawYear + 543;
     return `พ.ศ. ${thaiYear}`;
   }
 
@@ -99,6 +102,123 @@ function normaliseDataset(rawData = [], mode = "monthly") {
   });
 }
 
+function buildChartConfig(dataset) {
+  const categories = dataset.map((item) => item.label);
+  const fundSeries = dataset.map((item) => item.fundTotal);
+  const rewardSeries = dataset.map((item) => item.rewardTotal);
+  const approvedSeries = dataset.map((item) => item.approved);
+
+  const options = {
+    chart: {
+      type: "line",
+      stacked: false,
+      toolbar: { show: false },
+      animations: { easing: "easeinout" },
+    },
+    stroke: {
+      width: [0, 0, 3],
+      curve: "smooth",
+    },
+    plotOptions: {
+      bar: {
+        columnWidth: "45%",
+        borderRadius: 6,
+      },
+    },
+    dataLabels: {
+      enabled: false,
+    },
+    xaxis: {
+      categories,
+      axisBorder: { show: false },
+      axisTicks: { show: false },
+      labels: {
+        style: {
+          colors: "#6b7280",
+          fontSize: "12px",
+        },
+        rotateAlways: categories.some((label) => label.length > 18),
+      },
+    },
+    yaxis: [
+      {
+        title: {
+          text: "จำนวนคำร้อง",
+          style: { color: "#1f2937" },
+        },
+        labels: {
+          style: { colors: "#6b7280" },
+        },
+        min: 0,
+        forceNiceScale: true,
+      },
+      {
+        opposite: true,
+        title: {
+          text: "จำนวนที่อนุมัติ",
+          style: { color: "#047857" },
+        },
+        labels: {
+          style: { colors: "#6b7280" },
+        },
+        min: 0,
+        forceNiceScale: true,
+      },
+    ],
+    legend: {
+      position: "top",
+      horizontalAlign: "left",
+      fontSize: "12px",
+      labels: {
+        colors: "#374151",
+      },
+    },
+    colors: ["#2563eb", "#10b981", "#f97316"],
+    tooltip: {
+      shared: true,
+      intersect: false,
+      y: {
+        formatter(value, { seriesIndex, dataPointIndex }) {
+          const point = dataset[dataPointIndex];
+          if (seriesIndex === 0) {
+            return `ทุนวิจัย: ${formatNumber(value)} รายการ`;
+          }
+          if (seriesIndex === 1) {
+            return `เงินรางวัลเผยแพร่: ${formatNumber(value)} รายการ`;
+          }
+          const approvalAmount = point?.totalApprovedAmount ?? 0;
+          return `อนุมัติแล้ว: ${formatNumber(value)} รายการ (ยอดเงิน ${formatCurrency(approvalAmount)})`;
+        },
+      },
+    },
+    grid: {
+      borderColor: "#e5e7eb",
+      strokeDashArray: 4,
+    },
+  };
+
+  const series = [
+    {
+      name: "ทุนวิจัย",
+      type: "column",
+      data: fundSeries,
+    },
+    {
+      name: "เงินรางวัลเผยแพร่",
+      type: "column",
+      data: rewardSeries,
+    },
+    {
+      name: "อนุมัติแล้ว",
+      type: "line",
+      data: approvedSeries,
+      yAxisIndex: 1,
+    },
+  ];
+
+  return { options, series };
+}
+
 export default function MonthlyChart({ breakdown = {}, defaultMode = "monthly" }) {
   const availableModes = useMemo(() => {
     return Object.entries(MODE_CONFIG)
@@ -113,29 +233,12 @@ export default function MonthlyChart({ breakdown = {}, defaultMode = "monthly" }
 
   const [mode, setMode] = useState(() => initialMode);
 
-  useEffect(() => {
-    if (!availableModes.length) return;
-    if (!availableModes.includes(mode)) {
-      setMode(availableModes[0]);
-    }
-  }, [availableModes, mode]);
-
-  useEffect(() => {
-    if (!availableModes.length) return;
-    if (availableModes.includes(initialMode)) {
-      setMode(initialMode);
-    }
-  }, [initialMode, availableModes]);
-
   const normalizedData = useMemo(
     () => normaliseDataset(breakdown?.[mode] ?? breakdown?.monthly ?? [], mode),
     [breakdown, mode]
   );
 
-  const maxValue = normalizedData.length > 0
-    ? Math.max(...normalizedData.map((d) => d.applications))
-    : 0;
-  const scale = maxValue > 0 ? 220 / maxValue : 1;
+  const chartConfig = useMemo(() => buildChartConfig(normalizedData), [normalizedData]);
 
   const totals = useMemo(() => {
     return normalizedData.reduce(
@@ -175,14 +278,11 @@ export default function MonthlyChart({ breakdown = {}, defaultMode = "monthly" }
     );
   }
 
-  const showScrollbar = normalizedData.length > 8;
-
   return (
     <div className="flex flex-col gap-6">
-      {/* Chart Header */}
       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
         <div className="flex items-center gap-2 text-gray-600">
-          <BarChart3 size={20} />
+          <TrendingUp size={20} />
           <div className="flex flex-col">
             <span className="text-sm font-medium">{chartLabel}</span>
             <span className="text-xs text-gray-500">{chartDescription}</span>
@@ -202,7 +302,7 @@ export default function MonthlyChart({ breakdown = {}, defaultMode = "monthly" }
             >
               {availableModes.map((key) => (
                 <option key={key} value={key}>
-                  {MODE_CONFIG[key]?.optionLabel ?? MODE_CONFIG[key]?.label ?? key}
+                  {MODE_CONFIG[key]?.optionLabel || key}
                 </option>
               ))}
             </select>
@@ -210,127 +310,36 @@ export default function MonthlyChart({ breakdown = {}, defaultMode = "monthly" }
         )}
       </div>
 
-      {/* Bar Chart */}
-      <div className={`relative h-64 ${showScrollbar ? "overflow-x-auto" : ""}`}>
-        <div className={`absolute inset-0 flex items-end ${showScrollbar ? "min-w-[640px]" : ""} px-2 gap-3`}>
-          {normalizedData.map((stat, index) => (
-            <div key={`${stat.label}-${index}`} className="flex flex-col items-center flex-1 min-w-[64px]">
-              {/* Values on top of bars */}
-              <div className="mb-2 text-center">
-                <div className="text-xs font-semibold text-gray-700">
-                  {formatNumber(stat.applications)}
-                </div>
-                <div className="text-[11px] text-green-600">
-                  ({formatNumber(stat.approved)})
-                </div>
-              </div>
-
-              {/* Bars */}
-              <div className="relative w-full flex flex-col items-center">
-                {/* Total Applications Bar */}
-                <div
-                  className="w-12 bg-blue-500 rounded-t-md transition-all duration-500 hover:bg-blue-600 relative group"
-                  style={{ height: `${stat.applications * scale}px` }}
-                >
-                  <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 bg-gray-800 text-white text-[11px] rounded px-2 py-1 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
-                    ยื่นคำร้อง: {formatNumber(stat.applications)}
-                  </div>
-                </div>
-
-                {/* Approved Bar (overlay) */}
-                <div
-                  className="w-12 bg-green-500 absolute bottom-0 rounded-b-md transition-all duration-500 hover:bg-green-600 group"
-                  style={{ height: `${stat.approved * scale}px` }}
-                >
-                  <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 bg-gray-800 text-white text-[11px] rounded px-2 py-1 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
-                    อนุมัติ: {formatNumber(stat.approved)}
-                  </div>
-                </div>
-              </div>
-
-              {/* Period Label */}
-              <span className="mt-2 text-xs text-gray-600 font-medium text-center">
-                {stat.label}
-              </span>
-            </div>
-          ))}
-        </div>
-
-        {/* Y-axis grid lines */}
-        <div className="absolute inset-0 flex flex-col justify-end pointer-events-none">
-          {[0, 25, 50, 75, 100].map((percentage) => (
-            <div
-              key={percentage}
-              className="border-t border-gray-200 border-dashed"
-              style={{ height: `${percentage}%` }}
-            >
-              <span className="absolute left-0 -mt-2 text-xs text-gray-400">
-                {formatNumber(Math.round((maxValue * percentage) / 100))}
-              </span>
-            </div>
-          ))}
-        </div>
+      <div className="w-full">
+        <ApexChart
+          options={chartConfig.options}
+          series={chartConfig.series}
+          type="line"
+          height={340}
+        />
       </div>
 
-      {/* Legend */}
-      <div className="flex flex-wrap justify-center gap-6 mt-2 text-sm text-gray-600">
-        <div className="flex items-center gap-2">
-          <div className="w-4 h-4 bg-blue-500 rounded" />
-          <span>ยื่นคำร้อง</span>
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-sm">
+        <div className="rounded-lg border border-blue-100 bg-blue-50 p-4">
+          <p className="text-xs font-semibold text-blue-600 uppercase tracking-wide">คำร้องทั้งหมด</p>
+          <p className="mt-2 text-xl font-semibold text-blue-700">{formatNumber(totals.applications)}</p>
+          <p className="text-xs text-blue-600 mt-1">ทุนวิจัย {formatNumber(totals.fundTotal)} / เงินรางวัล {formatNumber(totals.rewardTotal)}</p>
         </div>
-        <div className="flex items-center gap-2">
-          <div className="w-4 h-4 bg-green-500 rounded" />
-          <span>อนุมัติ</span>
+        <div className="rounded-lg border border-emerald-100 bg-emerald-50 p-4">
+          <p className="text-xs font-semibold text-emerald-600 uppercase tracking-wide">อนุมัติแล้ว</p>
+          <p className="mt-2 text-xl font-semibold text-emerald-700">{formatNumber(totals.approved)}</p>
+          <p className="text-xs text-emerald-600 mt-1">อัตรา {approvalRate}%</p>
         </div>
-      </div>
-
-      {/* Summary Stats */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 p-4 bg-gray-50 rounded-lg">
-        <div className="text-center">
-          <p className="text-2xl font-bold text-blue-600">{formatNumber(totals.applications)}</p>
-          <p className="text-xs text-gray-600">คำร้องทั้งหมด</p>
+        <div className="rounded-lg border border-amber-100 bg-amber-50 p-4">
+          <p className="text-xs font-semibold text-amber-600 uppercase tracking-wide">ยอดคำร้องทั้งหมด</p>
+          <p className="mt-2 text-xl font-semibold text-amber-700">{formatCurrency(totals.totalRequested)}</p>
+          <p className="text-xs text-amber-600 mt-1">รวมคำร้องที่ยื่น</p>
         </div>
-        <div className="text-center sm:border-x border-gray-200">
-          <p className="text-2xl font-bold text-green-600">{formatNumber(totals.approved)}</p>
-          <p className="text-xs text-gray-600">อนุมัติ</p>
+        <div className="rounded-lg border border-purple-100 bg-purple-50 p-4">
+          <p className="text-xs font-semibold text-purple-600 uppercase tracking-wide">ยอดอนุมัติ</p>
+          <p className="mt-2 text-xl font-semibold text-purple-700">{formatCurrency(totals.totalApprovedAmount)}</p>
+          <p className="text-xs text-purple-600 mt-1">รวมวงเงินที่อนุมัติแล้ว</p>
         </div>
-        <div className="text-center">
-          <p className="text-2xl font-bold text-purple-600">{approvalRate}%</p>
-          <p className="text-xs text-gray-600">อัตราอนุมัติ</p>
-        </div>
-      </div>
-
-      {/* Breakdown */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs sm:text-sm text-gray-600">
-        <div className="flex flex-col gap-1">
-          <span className="font-medium text-gray-700">จำแนกตามประเภทคำร้อง</span>
-          <div className="flex items-center justify-between">
-            <span>ทุนวิจัย</span>
-            <span className="font-semibold text-blue-600">{formatNumber(totals.fundTotal)}</span>
-          </div>
-          <div className="flex items-center justify-between">
-            <span>เงินรางวัลผลงานตีพิมพ์</span>
-            <span className="font-semibold text-emerald-600">{formatNumber(totals.rewardTotal)}</span>
-          </div>
-        </div>
-        <div className="flex flex-col gap-1">
-          <span className="font-medium text-gray-700">ภาพรวมจำนวนเงิน (บาท)</span>
-          <div className="flex items-center justify-between">
-            <span>วงเงินที่ขอ</span>
-            <span className="font-semibold text-blue-600">{formatCurrency(totals.totalRequested)}</span>
-          </div>
-          <div className="flex items-center justify-between">
-            <span>วงเงินที่อนุมัติ</span>
-            <span className="font-semibold text-green-600">{formatCurrency(totals.totalApprovedAmount)}</span>
-          </div>
-        </div>
-      </div>
-
-      <div className="flex items-center gap-2 text-sm text-gray-600">
-        <TrendingUp size={16} className="text-green-600" />
-        <span>
-          อัตราอนุมัติโดยรวมอยู่ที่ <span className="font-semibold text-green-600">{approvalRate}%</span>
-        </span>
       </div>
     </div>
   );

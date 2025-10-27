@@ -3,9 +3,9 @@
 import { formatThaiDateTime } from "@/app/utils/format";
 
 const STATUS_LABELS = {
-  upcoming: { label: "กำลังเปิดรับ", className: "bg-emerald-100 text-emerald-700 border border-emerald-200" },
-  due_soon: { label: "ใกล้ถึงกำหนด", className: "bg-amber-100 text-amber-700 border border-amber-200" },
-  overdue: { label: "เลยกำหนด", className: "bg-rose-100 text-rose-700 border border-rose-200" },
+  open: { label: "กำลังเปิดรับ", className: "bg-emerald-100 text-emerald-700 border border-emerald-200" },
+  not_yet: { label: "ยังไม่เปิดรับ", className: "bg-blue-100 text-blue-700 border border-blue-200" },
+  closed: { label: "เลยกำหนด", className: "bg-rose-100 text-rose-700 border border-rose-200" },
 };
 
 function formatRemainingDays(days) {
@@ -31,7 +31,7 @@ export default function UpcomingDeadlines({ periods = [] }) {
     <div className="space-y-4">
       {items.map((period) => {
         const key = `${period.year || ""}-${period.installment || period.name}`;
-        const statusMeta = STATUS_LABELS[period.status] || STATUS_LABELS.upcoming;
+        const statusMeta = STATUS_LABELS[period.status] || STATUS_LABELS.open;
         const remainingLabel = formatRemainingDays(Number(period.days_remaining));
         const cutoffLabel = formatThaiDateTime(period.cutoff_datetime || period.cutoff_date);
 
