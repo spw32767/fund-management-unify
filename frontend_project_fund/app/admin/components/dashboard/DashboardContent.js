@@ -495,6 +495,10 @@ export default function DashboardContent({ onNavigate }) {
 
       if (typeof window !== "undefined") {
         const quotaSummary = Array.isArray(payload?.quota_summary) ? payload.quota_summary : [];
+        const quotaViewRows = Array.isArray(payload?.quota_usage_view_rows)
+          ? payload.quota_usage_view_rows
+          : [];
+
         if (quotaSummary.length) {
           // eslint-disable-next-line no-console
           console.groupCollapsed(
@@ -503,24 +507,48 @@ export default function DashboardContent({ onNavigate }) {
             "color: inherit;"
           );
           // eslint-disable-next-line no-console
-          console.table(quotaSummary.map((item) => ({
-            category: item?.category_name,
-            subcategory: item?.subcategory_name,
-            allocated: item?.allocated_amount,
-            used: item?.used_amount,
-            remaining: item?.remaining_budget,
-            maxGrants: item?.max_grants,
-            usedGrants: item?.used_grants,
-            remainingGrants: item?.remaining_grants,
-            year: item?.year,
-          })));
+          console.table(
+            quotaSummary.map((item) => ({
+              category: item?.category_name,
+              subcategory: item?.subcategory_name,
+              allocated: item?.allocated_amount,
+              used: item?.used_amount,
+              remaining: item?.remaining_budget,
+              maxGrants: item?.max_grants,
+              usedGrants: item?.used_grants,
+              remainingGrants: item?.remaining_grants,
+              year: item?.year,
+            }))
+          );
           // eslint-disable-next-line no-console
           console.log("filters", query);
           // eslint-disable-next-line no-console
           console.groupEnd();
         } else {
           // eslint-disable-next-line no-console
-          console.warn("[AdminDashboard] quota summary is empty", { filters: query, raw: payload?.quota_summary });
+          console.warn("[AdminDashboard] quota summary is empty", {
+            filters: query,
+            raw: payload?.quota_summary,
+          });
+        }
+
+        if (quotaViewRows.length) {
+          // eslint-disable-next-line no-console
+          console.groupCollapsed(
+            "%c[AdminDashboard]%c quota usage view rows",
+            "color: #2563eb; font-weight: 600;",
+            "color: inherit;"
+          );
+          // eslint-disable-next-line no-console
+          console.table(quotaViewRows);
+          // eslint-disable-next-line no-console
+          console.groupEnd();
+        } else {
+          // eslint-disable-next-line no-console
+          console.warn("[AdminDashboard] quota usage view rows are empty", {
+            filters: query,
+            raw: payload?.quota_usage_view_rows,
+          });
         }
       }
 

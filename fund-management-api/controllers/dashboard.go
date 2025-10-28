@@ -573,6 +573,9 @@ func getAdminDashboard(filter dashboardFilter, options dashboardFilterOptions) m
 	stats["category_budgets"] = buildAdminCategoryBudgets(filter, statusSets)
 	stats["pending_applications"] = buildAdminPendingApplications(filter, statusSets)
 	stats["quota_summary"] = buildAdminQuotaSummary(filter, statusSets)
+	if viewRows := collectQuotaUsageViewRows(filter); len(viewRows) > 0 {
+		stats["quota_usage_view_rows"] = viewRows
+	}
 
 	if statusBreakdown := buildAdminStatusBreakdown(filter); len(statusBreakdown) > 0 {
 		stats["status_breakdown"] = statusBreakdown
@@ -1255,7 +1258,7 @@ func buildAdminQuotaSummary(filter dashboardFilter, statuses dashboardStatusSets
 	return summaries
 }
 
-func logQuotaUsageViewData(filter dashboardFilter) {
+func collectQuotaUsageViewRows(filter dashboardFilter) []map[string]interface{} {
 	query := config.DB.Table("v_subcategory_user_usage_total usage")
 
 	if !filter.IncludeAll && len(filter.YearIDs) > 0 {
@@ -1263,11 +1266,16 @@ func logQuotaUsageViewData(filter dashboardFilter) {
 	}
 
 	var rows []map[string]interface{}
-	if err := query.Limit(25).Find(&rows).Error; err != nil {
+	if err := query.Limit(50).Find(&rows).Error; err != nil {
 		fmt.Printf("[dashboard] failed to query v_subcategory_user_usage_total: %v\n", err)
-		return
+		return []map[string]interface{}{}
 	}
 
+	return rows
+}
+
+func logQuotaUsageViewData(filter dashboardFilter) {
+	rows := collectQuotaUsageViewRows(filter)
 	if len(rows) == 0 {
 		fmt.Printf("[dashboard] v_subcategory_user_usage_total returned no rows for filter: %+v\n", filter.toMap())
 		return
