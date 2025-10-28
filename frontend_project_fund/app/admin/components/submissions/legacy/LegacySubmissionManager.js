@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   FileSpreadsheet,
   Loader2,
@@ -334,6 +334,11 @@ export default function LegacySubmissionManager() {
   const [searchResults, setSearchResults] = useState([]);
   const [searching, setSearching] = useState(false);
   const [userCache, setUserCache] = useState({});
+  const userCacheRef = useRef({});
+
+  useEffect(() => {
+    userCacheRef.current = userCache;
+  }, [userCache]);
 
   const statusOptions = useMemo(() => (Array.isArray(statuses) ? statuses : []), [statuses]);
 
@@ -415,7 +420,7 @@ export default function LegacySubmissionManager() {
       new Set(
         ids
           .map((id) => Number(id))
-          .filter((id) => Number.isFinite(id) && id > 0 && !userCache[id])
+          .filter((id) => Number.isFinite(id) && id > 0 && !userCacheRef.current[id])
       )
     );
     if (!unique.length) return;
@@ -435,7 +440,7 @@ export default function LegacySubmissionManager() {
     } catch (error) {
       console.warn("Failed to fetch user details", error);
     }
-  }, [userCache]);
+  }, []);
 
   const convertSubmissionToForm = useCallback((submission = {}) => ({
     submission_type: submission.submission_type || "fund_application",
@@ -523,6 +528,25 @@ export default function LegacySubmissionManager() {
         const paginationData = response?.pagination ?? {};
 
         const normalizedList = Array.isArray(list) ? list : [];
+        const updates = {};
+        const idsToFetch = [];
+
+        normalizedList.forEach((record) => {
+          const submission = record?.submission || {};
+          if (submission.user) {
+            const normalized = normalizeUser(submission.user);
+            if (normalized) updates[normalized.user_id] = normalized;
+          }
+          const userId = Number(submission.user_id);
+          if (Number.isFinite(userId) && userId > 0) {
+            idsToFetch.push(userId);
+          }
+        });
+
+        if (Object.keys(updates).length) {
+          setUserCache((prev) => ({ ...prev, ...updates }));
+        }
+
         setItems(normalizedList);
         setPagination({
           current_page: paginationData.current_page ?? page,
@@ -530,6 +554,10 @@ export default function LegacySubmissionManager() {
           total_pages: paginationData.total_pages ?? 1,
           total_count: paginationData.total_count ?? normalizedList.length,
         });
+
+        if (idsToFetch.length) {
+          await fetchUsersByIds(idsToFetch);
+        }
 
         if (!preserveSelection) {
           const firstId = normalizedList?.[0]?.submission?.submission_id;
@@ -547,7 +575,7 @@ export default function LegacySubmissionManager() {
         setListLoading(false);
       }
     },
-    [filters, perPage, isCreating]
+    [filters, perPage, isCreating, fetchUsersByIds]
   );
 
   const fetchDetail = useCallback(
