@@ -353,6 +353,19 @@ export default function LegacySubmissionManager() {
     if (record.submission?.user) {
       const normalized = normalizeUser(record.submission.user);
       if (normalized) updates[normalized.user_id] = normalized;
+    } else if (record.submission) {
+      const userId = Number(record.submission.user_id);
+      const fallbackName = typeof record.submission.applicant_name === "string" ? record.submission.applicant_name.trim() : "";
+      const fallbackEmail = typeof record.submission.applicant_email === "string" ? record.submission.applicant_email.trim() : "";
+      if (Number.isFinite(userId) && userId > 0 && fallbackName) {
+        updates[userId] = {
+          user_id: userId,
+          user_fname: "",
+          user_lname: "",
+          email: fallbackEmail,
+          name: fallbackName,
+        };
+      }
     }
     (record.submission_users || []).forEach((entry) => {
       if (entry.user) {
@@ -1129,7 +1142,8 @@ export default function LegacySubmissionManager() {
                   {items.map((record, index) => {
                     const submission = record.submission || {};
                     const id = submission.submission_id;
-                    const applicant = displayUserName(submission.user, userCache[submission.user_id]);
+                    const applicantName = typeof submission.applicant_name === "string" ? submission.applicant_name.trim() : "";
+                    const applicant = applicantName || displayUserName(submission.user, userCache[submission.user_id]);
                     const statusLabelValue = getLabelById(submission.status_id) || "-";
                     const categoryName = submission.category?.category_name || submission.category_name || "-";
                     const subcategoryName = submission.subcategory?.subcategory_name || submission.subcategory_name || "-";
