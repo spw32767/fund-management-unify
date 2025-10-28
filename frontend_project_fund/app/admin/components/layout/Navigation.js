@@ -26,12 +26,12 @@ export default function Navigation({
   const router = useRouter();
 
   const menuItems = [
-    // {
-    //   id: 'dashboard',
-    //   label: 'แดชบอร์ด',
-    //   icon: LayoutDashboard,
-    //   hasSubmenu: false
-    // },
+    {
+      id: 'dashboard',
+      label: 'แดชบอร์ด',
+      icon: LayoutDashboard,
+      hasSubmenu: false
+    },
     {
       id: 'research-fund',
       label: 'ทุนส่งเสริมงานวิจัย',
