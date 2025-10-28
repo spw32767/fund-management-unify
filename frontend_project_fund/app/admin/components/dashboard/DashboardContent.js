@@ -493,6 +493,37 @@ export default function DashboardContent({ onNavigate }) {
       const payload = response?.stats || response || {};
       setStats(payload);
 
+      if (typeof window !== "undefined") {
+        const quotaSummary = Array.isArray(payload?.quota_summary) ? payload.quota_summary : [];
+        if (quotaSummary.length) {
+          // eslint-disable-next-line no-console
+          console.groupCollapsed(
+            "%c[AdminDashboard]%c quota summary",
+            "color: #2563eb; font-weight: 600;",
+            "color: inherit;"
+          );
+          // eslint-disable-next-line no-console
+          console.table(quotaSummary.map((item) => ({
+            category: item?.category_name,
+            subcategory: item?.subcategory_name,
+            allocated: item?.allocated_amount,
+            used: item?.used_amount,
+            remaining: item?.remaining_budget,
+            maxGrants: item?.max_grants,
+            usedGrants: item?.used_grants,
+            remainingGrants: item?.remaining_grants,
+            year: item?.year,
+          })));
+          // eslint-disable-next-line no-console
+          console.log("filters", query);
+          // eslint-disable-next-line no-console
+          console.groupEnd();
+        } else {
+          // eslint-disable-next-line no-console
+          console.warn("[AdminDashboard] quota summary is empty", { filters: query, raw: payload?.quota_summary });
+        }
+      }
+
       const serverFilter = normalizeServerFilter(payload?.selected_filter, params);
       if (serverFilter) {
         const next = normalizeFilterForScope(serverFilter, payload?.filter_options || {});
