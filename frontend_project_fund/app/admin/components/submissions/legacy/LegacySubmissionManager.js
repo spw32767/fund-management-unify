@@ -1167,8 +1167,11 @@ export default function LegacySubmissionManager() {
                     const createdAt = formatDateDisplay(submission.created_at);
                     const journalName =
                       submission.publication_reward_journal_name ??
-                      submission.publication_reward_detail?.journal_name ??
-                      submission.fund_application_detail?.journal_name ??
+                      (submission.submission_type === "publication_reward"
+                        ? submission.publication_reward_detail?.paper_title
+                        : submission.submission_type === "fund_application"
+                        ? submission.fund_application_detail?.project_title
+                        : null) ??
                       "-";
                     const isActive = !isCreating && selectedId === id;
 
