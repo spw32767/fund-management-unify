@@ -50,7 +50,6 @@ const createEmptyForm = () => ({
   approved_by: "",
   approved_at: "",
   submitted_at: "",
-  installment_number_at_submit: "",
   admin_approved_by: "",
   admin_approved_at: "",
   head_approved_by: "",
@@ -199,7 +198,6 @@ const buildSubmissionPayload = (form, documents, participants) => {
   applyOptionalInt("approved_by", form.approved_by);
   applyOptionalDate("approved_at", form.approved_at);
   applyOptionalDate("submitted_at", form.submitted_at);
-  applyOptionalInt("installment_number_at_submit", form.installment_number_at_submit);
   applyOptionalInt("admin_approved_by", form.admin_approved_by);
   applyOptionalDate("admin_approved_at", form.admin_approved_at);
   applyOptionalInt("head_approved_by", form.head_approved_by);
@@ -458,7 +456,6 @@ export default function LegacySubmissionManager() {
     approved_by: submission.approved_by != null ? String(submission.approved_by) : "",
     approved_at: formatDateTimeInput(submission.approved_at),
     submitted_at: formatDateTimeInput(submission.submitted_at),
-    installment_number_at_submit: submission.installment_number_at_submit != null ? String(submission.installment_number_at_submit) : "",
     admin_approved_by: submission.admin_approved_by != null ? String(submission.admin_approved_by) : "",
     admin_approved_at: formatDateTimeInput(submission.admin_approved_at),
     head_approved_by: submission.head_approved_by != null ? String(submission.head_approved_by) : "",
@@ -1520,15 +1517,6 @@ export default function LegacySubmissionManager() {
                         type="datetime-local"
                         value={form.submitted_at}
                         onChange={(e) => handleFormChange("submitted_at", e.target.value)}
-                        className="mt-1 w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-xs font-medium text-gray-600">ลำดับงวด (ขณะส่ง)</label>
-                      <input
-                        type="number"
-                        value={form.installment_number_at_submit}
-                        onChange={(e) => handleFormChange("installment_number_at_submit", e.target.value)}
                         className="mt-1 w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm"
                       />
                     </div>
