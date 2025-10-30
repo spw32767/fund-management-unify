@@ -34,6 +34,8 @@ const PARTICIPANT_ROLE_OPTIONS = [
   { value: "coordinator", label: "ผู้ประสานงาน" },
 ];
 
+const DEFAULT_PAGE_SIZE = 100;
+
 const pad = (value) => String(value).padStart(2, "0");
 
 const createEmptyForm = () => ({
@@ -311,7 +313,14 @@ export default function LegacySubmissionManager() {
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [items, setItems] = useState([]);
-  const [pagination, setPagination] = useState({ current_page: 1, per_page: 25, total_pages: 1, total_count: 0 });
+  const [pagination, setPagination] = useState({
+    current_page: 1,
+    per_page: DEFAULT_PAGE_SIZE,
+    total_pages: 1,
+    total_count: 0,
+    has_next: false,
+    has_prev: false,
+  });
   const [filters, setFilters] = useState({
     year_id: "",
     submission_type: "",
@@ -505,13 +514,11 @@ export default function LegacySubmissionManager() {
       user: row.user || null,
     })), []);
 
-  const perPage = 25;
-
   const fetchList = useCallback(
     async (page = 1, preserveSelection = false) => {
       setListLoading(true);
       try {
-        const params = { page, limit: perPage };
+        const params = { page, limit: DEFAULT_PAGE_SIZE };
         Object.entries(filters).forEach(([key, value]) => {
           if (value !== "" && value !== null && value !== undefined) {
             params[key] = value;
@@ -524,11 +531,20 @@ export default function LegacySubmissionManager() {
 
         const normalizedList = Array.isArray(list) ? list : [];
         setItems(normalizedList);
+        const currentPage = paginationData.current_page ?? page;
+        const perPage = paginationData.per_page ?? DEFAULT_PAGE_SIZE;
+        const totalPages = paginationData.total_pages ?? 1;
+        const totalCount = paginationData.total_count ?? normalizedList.length;
+        const hasNext = paginationData.has_next ?? currentPage < totalPages;
+        const hasPrev = paginationData.has_prev ?? currentPage > 1;
+
         setPagination({
-          current_page: paginationData.current_page ?? page,
-          per_page: paginationData.per_page ?? perPage,
-          total_pages: paginationData.total_pages ?? 1,
-          total_count: paginationData.total_count ?? normalizedList.length,
+          current_page: currentPage,
+          per_page: perPage,
+          total_pages: totalPages,
+          total_count: totalCount,
+          has_next: hasNext,
+          has_prev: hasPrev,
         });
 
         if (!preserveSelection) {
@@ -547,7 +563,7 @@ export default function LegacySubmissionManager() {
         setListLoading(false);
       }
     },
-    [filters, perPage, isCreating]
+    [filters, isCreating]
   );
 
   const fetchDetail = useCallback(
@@ -631,11 +647,25 @@ export default function LegacySubmissionManager() {
     fetchList(1, false);
   };
 
+  const handlePageChange = (nextPage) => {
+    if (!nextPage) return;
+    const target = Number(nextPage);
+    if (!Number.isFinite(target)) return;
+    const totalPages = Math.max(pagination.total_pages || 1, 1);
+    if (target < 1 || target > totalPages) return;
+    fetchList(target, false);
+  };
+
   const handleSelectItem = (id) => {
     if (!id) return;
     setSelectedId(id);
     setIsCreating(false);
   };
+
+  const pageStart = pagination.total_count === 0 ? 0 : (pagination.current_page - 1) * pagination.per_page + 1;
+  const pageEnd =
+    pagination.total_count === 0 ? 0 : pageStart + Math.max(items.length - 1, 0);
+  const pageEndDisplay = pagination.total_count === 0 ? 0 : Math.min(pagination.total_count, pageEnd);
 
   const startCreateNew = () => {
     setIsCreating(true);
@@ -1119,6 +1149,7 @@ export default function LegacySubmissionManager() {
                     <th className="px-4 py-2">ID</th>
                     <th className="px-4 py-2">เลขคำร้อง</th>
                     <th className="px-4 py-2">ประเภท</th>
+                    <th className="px-4 py-2">วารสาร/แหล่งตีพิมพ์ (Journal)</th>
                     <th className="px-4 py-2">ผู้ยื่น</th>
                     <th className="px-4 py-2">สถานะ</th>
                     <th className="px-4 py-2">หมวด / ประเภทย่อย</th>
@@ -1134,6 +1165,11 @@ export default function LegacySubmissionManager() {
                     const categoryName = submission.category?.category_name || submission.category_name || "-";
                     const subcategoryName = submission.subcategory?.subcategory_name || submission.subcategory_name || "-";
                     const createdAt = formatDateDisplay(submission.created_at);
+                    const journalName =
+                      submission.publication_reward_journal_name ??
+                      submission.publication_reward_detail?.journal_name ??
+                      submission.fund_application_detail?.journal_name ??
+                      "-";
                     const isActive = !isCreating && selectedId === id;
 
                     return (
@@ -1145,6 +1181,7 @@ export default function LegacySubmissionManager() {
                         <td className="px-4 py-2 text-gray-600">{id}</td>
                         <td className="px-4 py-2 font-medium text-gray-800">{submission.submission_number || "-"}</td>
                         <td className="px-4 py-2 text-gray-600">{typeLabel(submission.submission_type)}</td>
+                        <td className="px-4 py-2 text-gray-600">{journalName || "-"}</td>
                         <td className="px-4 py-2 text-gray-600">{applicant}</td>
                         <td className="px-4 py-2 text-gray-600">{statusLabelValue}</td>
                         <td className="px-4 py-2 text-gray-600">
@@ -1159,6 +1196,34 @@ export default function LegacySubmissionManager() {
               </table>
             )}
             </div>
+            {!listLoading && pagination.total_count > 0 && (
+              <div className="flex flex-col gap-2 border-t border-gray-100 px-4 py-3 text-xs text-gray-600 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  แสดง {pageStart}-{pageEndDisplay} จาก {pagination.total_count} รายการ
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handlePageChange(pagination.current_page - 1)}
+                    disabled={!pagination.has_prev}
+                    className="inline-flex items-center rounded border border-gray-300 px-2 py-1 text-xs font-medium text-gray-700 hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    ก่อนหน้า
+                  </button>
+                  <span>
+                    หน้า {pagination.current_page} / {pagination.total_pages || 1}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => handlePageChange(pagination.current_page + 1)}
+                    disabled={!pagination.has_next}
+                    className="inline-flex items-center rounded border border-gray-300 px-2 py-1 text-xs font-medium text-gray-700 hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    ถัดไป
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </section>
 
