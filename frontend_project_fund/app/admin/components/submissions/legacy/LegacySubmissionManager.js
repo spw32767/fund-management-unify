@@ -34,7 +34,7 @@ const PARTICIPANT_ROLE_OPTIONS = [
   { value: "coordinator", label: "ผู้ประสานงาน" },
 ];
 
-const DEFAULT_PAGE_SIZE = 100;
+const DEFAULT_PAGE_SIZE = 50;
 
 const pad = (value) => String(value).padStart(2, "0");
 
@@ -1160,15 +1160,23 @@ export default function LegacySubmissionManager() {
                   {items.map((record, index) => {
                     const submission = record.submission || {};
                     const id = submission.submission_id;
-                    const applicant = displayUserName(submission.user, userCache[submission.user_id]);
+                    const applicantName =
+                      typeof submission.applicant_name === "string"
+                        ? submission.applicant_name.trim()
+                        : "";
+                    const applicant =
+                      applicantName || displayUserName(submission.user, userCache[submission.user_id]);
                     const statusLabelValue = getLabelById(submission.status_id) || "-";
                     const categoryName = submission.category?.category_name || submission.category_name || "-";
                     const subcategoryName = submission.subcategory?.subcategory_name || submission.subcategory_name || "-";
                     const createdAt = formatDateDisplay(submission.created_at);
                     const journalName =
                       submission.publication_reward_journal_name ??
-                      submission.publication_reward_detail?.journal_name ??
-                      submission.fund_application_detail?.journal_name ??
+                      (submission.submission_type === "publication_reward"
+                        ? submission.publication_reward_detail?.paper_title
+                        : submission.submission_type === "fund_application"
+                        ? submission.fund_application_detail?.project_title
+                        : null) ??
                       "-";
                     const isActive = !isCreating && selectedId === id;
 
