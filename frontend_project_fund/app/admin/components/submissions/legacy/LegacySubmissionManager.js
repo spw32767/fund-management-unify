@@ -344,6 +344,46 @@ export default function LegacySubmissionManager() {
   const [searching, setSearching] = useState(false);
   const [userCache, setUserCache] = useState({});
 
+  const filteredItems = useMemo(() => {
+    const query = filters.search?.trim().toLowerCase();
+    if (!query) return items;
+
+    return items.filter((record) => {
+      const submission = record.submission || {};
+      const applicant = displayUserName(submission.user, userCache[submission.user_id]);
+      const statusLabelValue = getLabelById(submission.status_id) || "";
+      const categoryName = submission.category?.category_name || submission.category_name || "";
+      const subcategoryName = submission.subcategory?.subcategory_name || submission.subcategory_name || "";
+      const journalName =
+        submission.publication_reward_journal_name ||
+        submission.publication_reward_detail?.journal_name ||
+        submission.fund_application_detail?.journal_name ||
+        "";
+      const submissionTypeLabel =
+        SUBMISSION_TYPE_OPTIONS.find((option) => option.value === submission.submission_type)?.label || "";
+      const createdAtDisplay = formatDateDisplay(submission.created_at);
+
+      const searchableText = [
+        submission.submission_id,
+        submission.submission_number,
+        submission.submission_type,
+        submissionTypeLabel,
+        journalName,
+        applicant,
+        statusLabelValue,
+        categoryName,
+        subcategoryName,
+        createdAtDisplay,
+        submission.created_at,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+
+      return searchableText.includes(query);
+    });
+  }, [filters.search, getLabelById, items, userCache]);
+
   const statusOptions = useMemo(() => (Array.isArray(statuses) ? statuses : []), [statuses]);
 
   const filteredSubcategories = useMemo(() => {
@@ -1103,12 +1143,12 @@ export default function LegacySubmissionManager() {
               </div>
 
               <div className="md:col-span-2 xl:col-span-3">
-                <label className="text-xs font-medium text-gray-600">ค้นหาเลขคำร้อง</label>
+                <label className="text-xs font-medium text-gray-600">ค้นหารายการ</label>
                 <input
                   type="text"
                   value={filters.search}
                   onChange={(e) => handleFilterChange("search", e.target.value)}
-                  placeholder="กรอกเลขที่คำร้อง"
+                  placeholder="กรอกคำค้น เช่น เลขคำร้อง ผู้ยื่น สถานะ หรือหัวข้อ"
                   className="mt-1 w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm"
                 />
               </div>
@@ -1137,12 +1177,12 @@ export default function LegacySubmissionManager() {
               {listLoading ? (
                 <div className="flex items-center justify-center py-12">
                   <LoadingSpinner size="large" />
-              </div>
-            ) : items.length === 0 ? (
-              <div className="px-4 py-8 text-center text-sm text-gray-500">
-                ไม่พบคำร้องตามเงื่อนไขที่เลือก
-              </div>
-            ) : (
+                </div>
+              ) : filteredItems.length === 0 ? (
+                <div className="px-4 py-8 text-center text-sm text-gray-500">
+                  ไม่พบคำร้องตามเงื่อนไขที่เลือก
+                </div>
+              ) : (
               <table className="min-w-full divide-y divide-gray-200 text-sm">
                 <thead className="bg-gray-50">
                   <tr className="text-left text-xs font-medium uppercase tracking-wide text-gray-600">
@@ -1157,7 +1197,7 @@ export default function LegacySubmissionManager() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {items.map((record, index) => {
+                  {filteredItems.map((record, index) => {
                     const submission = record.submission || {};
                     const id = submission.submission_id;
                     const applicant = displayUserName(submission.user, userCache[submission.user_id]);
