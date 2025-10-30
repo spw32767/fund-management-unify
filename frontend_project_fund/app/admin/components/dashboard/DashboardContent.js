@@ -509,6 +509,7 @@ export default function DashboardContent({ onNavigate }) {
           // eslint-disable-next-line no-console
           console.table(
             quotaSummary.map((item) => ({
+              user: item?.user_name || item?.userName,
               category: item?.category_name,
               subcategory: item?.subcategory_name,
               allocated: item?.allocated_amount,

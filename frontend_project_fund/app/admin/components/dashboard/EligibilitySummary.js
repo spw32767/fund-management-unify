@@ -9,16 +9,24 @@ function normalizeItems(items = []) {
     const remainingBudget = Number(item?.remaining_budget ?? 0);
     const maxGrants = Number(item?.max_grants ?? 0);
     const usedGrants = Number(item?.used_grants ?? 0);
-    const remainingGrants = Number(item?.remaining_grants ?? Math.max(maxGrants - usedGrants, 0));
+    const remainingGrants = Number(
+      item?.remaining_grants ?? (maxGrants > 0 ? Math.max(maxGrants - usedGrants, 0) : 0)
+    );
+    const userId = item?.user_id ?? item?.userId ?? null;
+    const userName = item?.user_name ?? item?.userName ?? "-";
+    const year = item?.year ?? item?.year_label ?? "";
 
     const usagePercent = allocatedAmount > 0
       ? Math.min((usedAmount / allocatedAmount) * 100, 999)
       : 0;
 
     return {
-      key: `${item?.category_name || ""}-${item?.subcategory_name || ""}`,
+      key: `${item?.category_name || ""}-${item?.subcategory_name || ""}-${userId ?? "unknown"}`,
       categoryName: item?.category_name ?? "-",
       subcategoryName: item?.subcategory_name ?? "-",
+      year,
+      userId,
+      userName,
       allocatedAmount,
       usedAmount,
       remainingBudget: remainingBudget < 0 ? 0 : remainingBudget,
@@ -48,7 +56,7 @@ export default function EligibilitySummary({ items = [] }) {
       <table className="min-w-full text-sm">
         <thead>
           <tr className="text-left text-gray-500">
-            <th className="py-2 pr-4 font-medium">หมวด / ประเภทย่อย</th>
+            <th className="py-2 pr-4 font-medium">ผู้ขอทุน / ทุนย่อย</th>
             <th className="py-2 px-4 font-medium text-center">ใช้สิทธิ์แล้ว</th>
             <th className="py-2 px-4 font-medium text-right">งบที่ใช้ไป</th>
             <th className="py-2 pl-4 font-medium text-right">คงเหลืองบ</th>
@@ -59,17 +67,23 @@ export default function EligibilitySummary({ items = [] }) {
             const grantLabel = row.maxGrants > 0
               ? `${formatNumber(row.usedGrants)} / ${formatNumber(row.maxGrants)}`
               : formatNumber(row.usedGrants);
+            const remainingGrantLabel = row.maxGrants > 0
+              ? `${formatNumber(row.remainingGrants)} สิทธิ์คงเหลือ`
+              : "ไม่จำกัดสิทธิ์ต่อปี";
 
             return (
               <tr key={row.key} className="text-gray-700">
                 <td className="py-3 pr-4 align-top">
-                  <p className="font-semibold text-gray-900">{row.subcategoryName}</p>
-                  <p className="text-xs text-gray-500">{row.categoryName}</p>
+                  <div className="flex flex-col gap-0.5">
+                    <p className="font-semibold text-gray-900">{row.userName}</p>
+                    <p className="text-xs text-gray-500">{row.subcategoryName}</p>
+                    <p className="text-xs text-gray-400">{row.categoryName}{row.year ? ` • ปี ${row.year}` : ""}</p>
+                  </div>
                 </td>
                 <td className="py-3 px-4 text-center">
                   <div className="flex flex-col items-center gap-1">
                     <span className="font-semibold text-blue-600">{grantLabel}</span>
-                    <span className="text-xs text-gray-500">{formatNumber(row.remainingGrants)} สิทธิ์คงเหลือ</span>
+                    <span className="text-xs text-gray-500">{remainingGrantLabel}</span>
                   </div>
                 </td>
                 <td className="py-3 px-4 text-right">
