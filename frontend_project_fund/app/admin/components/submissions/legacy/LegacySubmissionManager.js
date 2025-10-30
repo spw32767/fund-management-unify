@@ -1103,12 +1103,12 @@ export default function LegacySubmissionManager() {
               </div>
 
               <div className="md:col-span-2 xl:col-span-3">
-                <label className="text-xs font-medium text-gray-600">ค้นหาเลขคำร้อง</label>
+                <label className="text-xs font-medium text-gray-600">ค้นหาข้อมูลคำร้อง</label>
                 <input
                   type="text"
                   value={filters.search}
                   onChange={(e) => handleFilterChange("search", e.target.value)}
-                  placeholder="กรอกเลขที่คำร้อง"
+                  placeholder="กรอกคำค้นหา (เช่น เลขคำร้อง, ชื่อผู้ยื่น, สถานะ)"
                   className="mt-1 w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm"
                 />
               </div>
