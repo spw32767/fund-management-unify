@@ -135,6 +135,150 @@ const formatCurrency = (value) => {
 const extractErrorMessage = (error) =>
   error?.response?.data?.error || error?.message || "เกิดข้อผิดพลาด";
 
+class DocumentValidationError extends Error {
+  constructor(message, errors = []) {
+    super(message);
+    this.name = "DocumentValidationError";
+    this.errors = errors;
+  }
+}
+
+const prepareDocumentPayload = (documents = []) => {
+  const errors = documents.map(() => ({}));
+  let hasErrors = false;
+  const payload = [];
+
+  documents.forEach((doc, index) => {
+    const rowErrors = {};
+    const rawFileId =
+      typeof doc.file_id === "string" ? doc.file_id.trim() : doc.file_id;
+    const rawDocTypeId =
+      typeof doc.document_type_id === "string"
+        ? doc.document_type_id.trim()
+        : doc.document_type_id;
+
+    const fileId = Number(rawFileId);
+    if (rawFileId === "" || rawFileId === null || rawFileId === undefined) {
+      rowErrors.file_id = "กรุณาระบุรหัสไฟล์";
+    } else if (!Number.isFinite(fileId) || fileId <= 0) {
+      rowErrors.file_id = "รหัสไฟล์ต้องเป็นตัวเลขมากกว่า 0";
+    }
+
+    const documentTypeId = Number(rawDocTypeId);
+    if (
+      rawDocTypeId === "" ||
+      rawDocTypeId === null ||
+      rawDocTypeId === undefined
+    ) {
+      rowErrors.document_type_id = "กรุณาเลือกประเภทเอกสาร";
+    } else if (!Number.isFinite(documentTypeId) || documentTypeId <= 0) {
+      rowErrors.document_type_id = "ประเภทเอกสารไม่ถูกต้อง";
+    }
+
+    const normalized = {
+      document_id: doc.document_id ?? undefined,
+      file_id: Number.isFinite(fileId) ? fileId : undefined,
+      document_type_id: Number.isFinite(documentTypeId)
+        ? documentTypeId
+        : undefined,
+      original_name: null,
+      description: null,
+      display_order: undefined,
+      is_required: Boolean(doc.is_required),
+      is_verified: Boolean(doc.is_verified),
+      verified_by: null,
+      verified_at: null,
+      external_funding_id: null,
+      created_at: null,
+    };
+
+    const storedPath =
+      typeof doc.stored_path === "string" ? doc.stored_path.trim() : "";
+    if (storedPath) {
+      normalized.stored_path = storedPath;
+    } else if (doc.stored_path === "") {
+      normalized.stored_path = null;
+    }
+
+    const originalName =
+      typeof doc.original_name === "string" ? doc.original_name.trim() : "";
+    normalized.original_name = originalName || null;
+
+    const description =
+      typeof doc.description === "string" ? doc.description.trim() : "";
+    normalized.description = description || null;
+
+    const displayOrderRaw =
+      typeof doc.display_order === "string"
+        ? doc.display_order.trim()
+        : doc.display_order;
+    if (
+      displayOrderRaw !== "" &&
+      displayOrderRaw !== null &&
+      displayOrderRaw !== undefined
+    ) {
+      const displayOrder = Number(displayOrderRaw);
+      if (Number.isFinite(displayOrder) && displayOrder > 0) {
+        normalized.display_order = displayOrder;
+      } else {
+        rowErrors.display_order = "ลำดับการแสดงผลต้องเป็นตัวเลขมากกว่า 0";
+      }
+    }
+
+    const verifiedByRaw =
+      typeof doc.verified_by === "string"
+        ? doc.verified_by.trim()
+        : doc.verified_by;
+    if (
+      verifiedByRaw !== "" &&
+      verifiedByRaw !== null &&
+      verifiedByRaw !== undefined
+    ) {
+      const verifiedBy = Number(verifiedByRaw);
+      if (Number.isFinite(verifiedBy) && verifiedBy > 0) {
+        normalized.verified_by = verifiedBy;
+      } else {
+        rowErrors.verified_by = "รหัสผู้ตรวจสอบต้องเป็นตัวเลขมากกว่า 0";
+      }
+    }
+
+    const verifiedAt =
+      typeof doc.verified_at === "string" ? doc.verified_at.trim() : "";
+    normalized.verified_at = verifiedAt || null;
+
+    const externalFundingRaw =
+      typeof doc.external_funding_id === "string"
+        ? doc.external_funding_id.trim()
+        : doc.external_funding_id;
+    if (
+      externalFundingRaw !== "" &&
+      externalFundingRaw !== null &&
+      externalFundingRaw !== undefined
+    ) {
+      const externalFundingId = Number(externalFundingRaw);
+      if (Number.isFinite(externalFundingId) && externalFundingId > 0) {
+        normalized.external_funding_id = externalFundingId;
+      } else {
+        rowErrors.external_funding_id =
+          "รหัสทุนภายนอกต้องเป็นตัวเลขมากกว่า 0";
+      }
+    }
+
+    const createdAt =
+      typeof doc.created_at === "string" ? doc.created_at.trim() : "";
+    normalized.created_at = createdAt || null;
+
+    if (Object.keys(rowErrors).length > 0) {
+      errors[index] = rowErrors;
+      hasErrors = true;
+    }
+
+    payload.push(normalized);
+  });
+
+  return { payload, errors, hasErrors };
+};
+
 const buildSubmissionPayload = (form, documents, participants) => {
   const clear = new Set();
   const submission = {
@@ -228,48 +372,14 @@ const buildSubmissionPayload = (form, documents, participants) => {
     submission.updated_at = form.updated_at;
   }
 
-  const documentPayload = (documents || []).map((doc, index) => {
-    if (!doc.file_id || !doc.document_type_id) {
-      throw new Error(`กรุณาระบุไฟล์และประเภทเอกสารสำหรับรายการเอกสารที่ ${index + 1}`);
-    }
-    const fileId = Number(doc.file_id);
-    const docTypeId = Number(doc.document_type_id);
-    if (!Number.isFinite(fileId) || !Number.isFinite(docTypeId)) {
-      throw new Error(`กรุณากรอกเลขที่ไฟล์และประเภทเอกสารให้ถูกต้อง (เอกสารที่ ${index + 1})`);
-    }
-
-    const payload = {
-      document_id: doc.document_id ?? undefined,
-      file_id: fileId,
-      document_type_id: docTypeId,
-      original_name: doc.original_name?.trim() || null,
-      description: doc.description?.trim() || "",
-      display_order: doc.display_order ? Number(doc.display_order) : index + 1,
-      is_required: Boolean(doc.is_required),
-      is_verified: Boolean(doc.is_verified),
-      verified_by: doc.verified_by ? Number(doc.verified_by) : null,
-      verified_at: doc.verified_at || null,
-      external_funding_id: doc.external_funding_id ? Number(doc.external_funding_id) : null,
-      created_at: doc.created_at || null,
-    };
-
-    const storedPath = typeof doc.stored_path === "string" ? doc.stored_path.trim() : "";
-    if (storedPath) {
-      payload.stored_path = storedPath;
-    }
-
-    if (Number.isNaN(payload.display_order)) {
-      payload.display_order = index + 1;
-    }
-    if (payload.verified_by != null && Number.isNaN(payload.verified_by)) {
-      throw new Error(`กรุณากรอกข้อมูลผู้ตรวจสอบเอกสารให้ถูกต้อง (เอกสารที่ ${index + 1})`);
-    }
-    if (payload.external_funding_id != null && Number.isNaN(payload.external_funding_id)) {
-      payload.external_funding_id = null;
-    }
-
-    return payload;
-  });
+  const { payload: documentPayload, errors: documentErrors, hasErrors } =
+    prepareDocumentPayload(documents || []);
+  if (hasErrors) {
+    throw new DocumentValidationError(
+      "กรุณากรอกข้อมูลเอกสารให้ครบถ้วนก่อนบันทึก",
+      documentErrors
+    );
+  }
 
   const participantPayload = (participants || [])
     .filter((participant) => participant.user_id && String(participant.user_id).trim())
@@ -337,6 +447,7 @@ export default function LegacySubmissionManager() {
   const [isCreating, setIsCreating] = useState(false);
   const [form, setForm] = useState(() => createEmptyForm());
   const [documents, setDocuments] = useState([]);
+  const [documentErrors, setDocumentErrors] = useState([]);
   const [documentLoading, setDocumentLoading] = useState({});
   const [participants, setParticipants] = useState([]);
   const [searchQuery, setSearchQuery] = useState("");
@@ -579,7 +690,9 @@ export default function LegacySubmissionManager() {
         }
         cacheUsersFromRecord(record);
         setForm(convertSubmissionToForm(record.submission));
-        setDocuments(convertDocuments(record.documents || []));
+        const convertedDocs = convertDocuments(record.documents || []);
+        setDocuments(convertedDocs);
+        setDocumentErrors(convertedDocs.map(() => ({})));
         setDocumentLoading({});
         setParticipants(convertParticipants(record.submission_users || []));
       } catch (error) {
@@ -595,6 +708,15 @@ export default function LegacySubmissionManager() {
   useEffect(() => {
     fetchMetadata();
   }, [fetchMetadata]);
+
+  useEffect(() => {
+    setDocumentErrors((prev) => {
+      if (prev.length === documents.length) {
+        return prev;
+      }
+      return documents.map((_, index) => prev[index] || {});
+    });
+  }, [documents]);
 
   useEffect(() => {
     if (!metaLoading) {
@@ -672,6 +794,7 @@ export default function LegacySubmissionManager() {
     setSelectedId(null);
     setForm(createEmptyForm());
     setDocuments([]);
+    setDocumentErrors([]);
     setDocumentLoading({});
     setParticipants([]);
   };
@@ -705,6 +828,16 @@ export default function LegacySubmissionManager() {
           }
         }
         return updated;
+      })
+    );
+    setDocumentErrors((prev) =>
+      prev.map((error, idx) => {
+        if (idx !== index || !error || Object.keys(error).length === 0) {
+          return error;
+        }
+        const updated = { ...error };
+        delete updated[field];
+        return Object.keys(updated).length ? updated : {};
       })
     );
     if (field === "file_id") {
@@ -747,10 +880,12 @@ export default function LegacySubmissionManager() {
         verifier: null,
       },
     ]);
+    setDocumentErrors((prev) => [...prev, {}]);
   };
 
   const removeDocument = (index) => {
     setDocuments((prev) => prev.filter((_, idx) => idx !== index));
+    setDocumentErrors((prev) => prev.filter((_, idx) => idx !== index));
     setDocumentLoading((prev) => {
       if (!prev || Object.keys(prev).length === 0) {
         return prev;
@@ -926,6 +1061,7 @@ export default function LegacySubmissionManager() {
   const handleSave = async () => {
     try {
       const payload = buildSubmissionPayload(form, documents, participants);
+      setDocumentErrors(documents.map(() => ({})));
       setSaving(true);
       if (isCreating) {
         const response = await legacySubmissionAPI.create(payload);
@@ -937,7 +1073,9 @@ export default function LegacySubmissionManager() {
         if (newId) {
           setSelectedId(newId);
           setForm(convertSubmissionToForm(record.submission));
-          setDocuments(convertDocuments(record.documents || []));
+          const convertedDocs = convertDocuments(record.documents || []);
+          setDocuments(convertedDocs);
+          setDocumentErrors(convertedDocs.map(() => ({})));
           setParticipants(convertParticipants(record.submission_users || []));
         }
         await fetchList(1, true);
@@ -947,11 +1085,18 @@ export default function LegacySubmissionManager() {
         toast.success("บันทึกข้อมูลคำร้องแล้ว");
         cacheUsersFromRecord(record);
         setForm(convertSubmissionToForm(record.submission));
-        setDocuments(convertDocuments(record.documents || []));
+        const convertedDocs = convertDocuments(record.documents || []);
+        setDocuments(convertedDocs);
+        setDocumentErrors(convertedDocs.map(() => ({})));
         setParticipants(convertParticipants(record.submission_users || []));
         await fetchList(pagination.current_page || 1, true);
       }
     } catch (error) {
+      if (error instanceof DocumentValidationError) {
+        setDocumentErrors(error.errors || []);
+        toast.error(error.message);
+        return;
+      }
       console.error("Failed to save submission", error);
       toast.error(extractErrorMessage(error));
     } finally {
@@ -970,6 +1115,7 @@ export default function LegacySubmissionManager() {
       setIsCreating(false);
       setForm(createEmptyForm());
       setDocuments([]);
+      setDocumentErrors([]);
       setParticipants([]);
       await fetchList(1, false);
     } catch (error) {
@@ -1287,10 +1433,13 @@ export default function LegacySubmissionManager() {
                   <h3 className="text-sm font-semibold text-gray-700">ข้อมูลคำร้อง</h3>
                   <div className="mt-3 grid gap-4 md:grid-cols-2">
                     <div>
-                      <label className="text-xs font-medium text-gray-600">ประเภทคำร้อง</label>
+                      <label className="text-xs font-medium text-gray-600">
+                        ประเภทคำร้อง <span className="text-red-500">*</span>
+                      </label>
                       <select
                         value={form.submission_type}
                         onChange={(e) => handleFormChange("submission_type", e.target.value)}
+                        aria-required="true"
                         className="mt-1 w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm"
                       >
                         {SUBMISSION_TYPE_OPTIONS.map((option, index) => (
@@ -1311,11 +1460,14 @@ export default function LegacySubmissionManager() {
                       />
                     </div>
                     <div>
-                      <label className="text-xs font-medium text-gray-600">ผู้ยื่นคำร้อง (User ID)</label>
+                      <label className="text-xs font-medium text-gray-600">
+                        ผู้ยื่นคำร้อง (User ID) <span className="text-red-500">*</span>
+                      </label>
                       <input
                         type="number"
                         value={form.user_id}
                         onChange={(e) => handleFormChange("user_id", e.target.value)}
+                        aria-required="true"
                         className="mt-1 w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm"
                       />
                       {applicantInfo && (
@@ -1326,10 +1478,13 @@ export default function LegacySubmissionManager() {
                       )}
                     </div>
                     <div>
-                      <label className="text-xs font-medium text-gray-600">ปีงบประมาณ</label>
+                      <label className="text-xs font-medium text-gray-600">
+                        ปีงบประมาณ <span className="text-red-500">*</span>
+                      </label>
                       <select
                         value={form.year_id}
                         onChange={(e) => handleFormChange("year_id", e.target.value)}
+                        aria-required="true"
                         className="mt-1 w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm"
                       >
                         <option value="">เลือกปีงบประมาณ</option>
@@ -1341,10 +1496,13 @@ export default function LegacySubmissionManager() {
                       </select>
                     </div>
                     <div>
-                      <label className="text-xs font-medium text-gray-600">สถานะคำร้อง</label>
+                      <label className="text-xs font-medium text-gray-600">
+                        สถานะคำร้อง <span className="text-red-500">*</span>
+                      </label>
                       <select
                         value={form.status_id}
                         onChange={(e) => handleFormChange("status_id", e.target.value)}
+                        aria-required="true"
                         className="mt-1 w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm"
                       >
                         <option value="">เลือกสถานะ</option>
@@ -1638,166 +1796,200 @@ export default function LegacySubmissionManager() {
                     {documents.length === 0 ? (
                       <p className="text-sm text-gray-500">ยังไม่มีเอกสารแนบ</p>
                     ) : (
-                      documents.map((doc, index) => (
-                        <div key={index} className="rounded-md border border-gray-200 bg-gray-50 p-4">
-                          <div className="flex items-start justify-between">
-                            <div className="text-sm font-semibold text-gray-700">เอกสารลำดับที่ {index + 1}</div>
-                            <button
-                              type="button"
-                              onClick={() => removeDocument(index)}
-                              className="inline-flex items-center gap-1 rounded-md border border-red-200 px-2 py-1 text-xs text-red-600 hover:bg-red-50"
-                            >
-                              <Trash2 className="h-4 w-4" /> ลบ
-                            </button>
-                          </div>
-                          <div className="mt-3 grid gap-3 md:grid-cols-2">
-                            <div>
-                              <label className="text-xs font-medium text-gray-600">ประเภทเอกสาร</label>
-                              <select
-                                value={doc.document_type_id}
-                                onChange={(e) => handleDocumentChange(index, "document_type_id", e.target.value)}
-                                className="mt-1 w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm"
+                      documents.map((doc, index) => {
+                        const docError = documentErrors[index] || {};
+                        const hasRowError = docError && Object.keys(docError).length > 0;
+                        const docKey = doc.document_id ? `doc-${doc.document_id}` : `new-${index}`;
+                        return (
+                          <div
+                            key={docKey}
+                            className={`rounded-md border ${hasRowError ? "border-red-300 bg-red-50" : "border-gray-200 bg-gray-50"} p-4`}
+                          >
+                            <div className="flex items-start justify-between">
+                              <div className="text-sm font-semibold text-gray-700">เอกสารลำดับที่ {index + 1}</div>
+                              <button
+                                type="button"
+                                onClick={() => removeDocument(index)}
+                                className="inline-flex items-center gap-1 rounded-md border border-red-200 px-2 py-1 text-xs text-red-600 hover:bg-red-50"
                               >
-                                <option value="">เลือกประเภทเอกสาร</option>
-                                {renderDocumentTypeOptions}
-                              </select>
+                                <Trash2 className="h-4 w-4" /> ลบ
+                              </button>
                             </div>
-                            <div>
-                              <label className="text-xs font-medium text-gray-600">รหัสไฟล์ (file_id)</label>
-                              <div className="mt-1 flex items-center gap-2">
+                            <div className="mt-3 grid gap-3 md:grid-cols-2">
+                              <div>
+                                <label className="text-xs font-medium text-gray-600">
+                                  ประเภทเอกสาร <span className="text-red-500">*</span>
+                                </label>
+                                <select
+                                  value={doc.document_type_id}
+                                  onChange={(e) => handleDocumentChange(index, "document_type_id", e.target.value)}
+                                  aria-invalid={Boolean(docError.document_type_id)}
+                                  aria-required="true"
+                                  className={`mt-1 w-full rounded-md border px-2 py-1.5 text-sm focus:outline-none ${docError.document_type_id ? "border-red-500 focus:border-red-500 focus:ring-1 focus:ring-red-500" : "border-gray-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"}`}
+                                >
+                                  <option value="">เลือกประเภทเอกสาร</option>
+                                  {renderDocumentTypeOptions}
+                                </select>
+                                {docError.document_type_id ? (
+                                  <p className="mt-1 text-xs text-red-600">{docError.document_type_id}</p>
+                                ) : null}
+                              </div>
+                              <div>
+                                <label className="text-xs font-medium text-gray-600">
+                                  รหัสไฟล์ (file_id) <span className="text-red-500">*</span>
+                                </label>
+                                <div className="mt-1 flex items-center gap-2">
+                                  <input
+                                    type="number"
+                                    value={doc.file_id}
+                                    onChange={(e) => handleDocumentChange(index, "file_id", e.target.value)}
+                                    aria-invalid={Boolean(docError.file_id)}
+                                    aria-required="true"
+                                    className={`flex-1 rounded-md border px-2 py-1.5 text-sm focus:outline-none ${docError.file_id ? "border-red-500 focus:border-red-500 focus:ring-1 focus:ring-red-500" : "border-gray-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"}`}
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => handleFetchFileMetadata(index)}
+                                    disabled={Boolean(documentLoading[index])}
+                                    className="inline-flex items-center gap-1 rounded-md border border-gray-300 px-2.5 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-70"
+                                  >
+                                    {documentLoading[index] ? (
+                                      <Loader2 className="h-4 w-4 animate-spin" />
+                                    ) : (
+                                      "ตรวจสอบ"
+                                    )}
+                                  </button>
+                                </div>
+                                {docError.file_id ? (
+                                  <p className="mt-1 text-xs text-red-600">{docError.file_id}</p>
+                                ) : null}
+                                <div className="mt-1 space-y-0.5 text-xs text-gray-500">
+                                  {doc.file ? (
+                                    <>
+                                      <div>ชื่อไฟล์: {doc.file.original_name || "-"}</div>
+                                      <div>Path จากระบบ: {doc.file.stored_path || "-"}</div>
+                                    </>
+                                  ) : null}
+                                  {!doc.file && doc.stored_path ? (
+                                    <div>Path ปัจจุบัน: {doc.stored_path}</div>
+                                  ) : null}
+                                </div>
+                              </div>
+                              <div className="md:col-span-2">
+                                <label className="text-xs font-medium text-gray-600">ตำแหน่งไฟล์ (stored_path)</label>
+                                <input
+                                  type="text"
+                                  value={doc.stored_path}
+                                  onChange={(e) => handleDocumentChange(index, "stored_path", e.target.value)}
+                                  className="mt-1 w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                  placeholder="เช่น ./uploads/users/123/submissions/456/document.pdf"
+                                />
+                                <p className="mt-1 text-xs text-gray-500">
+                                  ระบุ path ให้ตรงกับไฟล์ที่จัดเก็บบนเซิร์ฟเวอร์ หากปล่อยว่างจะใช้งาน path เดิมจากฐานข้อมูล
+                                </p>
+                              </div>
+                              <div>
+                                <label className="text-xs font-medium text-gray-600">ชื่อไฟล์ที่ต้องการแสดง</label>
+                                <input
+                                  type="text"
+                                  value={doc.original_name}
+                                  onChange={(e) => handleDocumentChange(index, "original_name", e.target.value)}
+                                  className="mt-1 w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                />
+                              </div>
+                              <div>
+                                <label className="text-xs font-medium text-gray-600">ลำดับการแสดงผล</label>
                                 <input
                                   type="number"
-                                  value={doc.file_id}
-                                  onChange={(e) => handleDocumentChange(index, "file_id", e.target.value)}
-                                  className="flex-1 rounded-md border border-gray-300 px-2 py-1.5 text-sm"
+                                  value={doc.display_order}
+                                  onChange={(e) => handleDocumentChange(index, "display_order", e.target.value)}
+                                  aria-invalid={Boolean(docError.display_order)}
+                                  className={`mt-1 w-full rounded-md border px-2 py-1.5 text-sm focus:outline-none ${docError.display_order ? "border-red-500 focus:border-red-500 focus:ring-1 focus:ring-red-500" : "border-gray-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"}`}
                                 />
-                                <button
-                                  type="button"
-                                  onClick={() => handleFetchFileMetadata(index)}
-                                  disabled={Boolean(documentLoading[index])}
-                                  className="inline-flex items-center gap-1 rounded-md border border-gray-300 px-2.5 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-70"
-                                >
-                                  {documentLoading[index] ? (
-                                    <Loader2 className="h-4 w-4 animate-spin" />
-                                  ) : (
-                                    "ตรวจสอบ"
-                                  )}
-                                </button>
-                              </div>
-                              <div className="mt-1 space-y-0.5 text-xs text-gray-500">
-                                {doc.file ? (
-                                  <>
-                                    <div>ชื่อไฟล์: {doc.file.original_name || "-"}</div>
-                                    <div>Path จากระบบ: {doc.file.stored_path || "-"}</div>
-                                  </>
-                                ) : null}
-                                {!doc.file && doc.stored_path ? (
-                                  <div>Path ปัจจุบัน: {doc.stored_path}</div>
+                                {docError.display_order ? (
+                                  <p className="mt-1 text-xs text-red-600">{docError.display_order}</p>
                                 ) : null}
                               </div>
-                            </div>
-                            <div className="md:col-span-2">
-                              <label className="text-xs font-medium text-gray-600">ตำแหน่งไฟล์ (stored_path)</label>
-                              <input
-                                type="text"
-                                value={doc.stored_path}
-                                onChange={(e) => handleDocumentChange(index, "stored_path", e.target.value)}
-                                className="mt-1 w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm"
-                                placeholder="เช่น ./uploads/users/123/submissions/456/document.pdf"
-                              />
-                              <p className="mt-1 text-xs text-gray-500">
-                                ระบุ path ให้ตรงกับไฟล์ที่จัดเก็บบนเซิร์ฟเวอร์ หากปล่อยว่างจะใช้งาน path เดิมจากฐานข้อมูล
-                              </p>
-                            </div>
-                            <div>
-                              <label className="text-xs font-medium text-gray-600">ชื่อไฟล์ที่ต้องการแสดง</label>
-                              <input
-                                type="text"
-                                value={doc.original_name}
-                                onChange={(e) => handleDocumentChange(index, "original_name", e.target.value)}
-                                className="mt-1 w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm"
-                              />
-                            </div>
-                            <div>
-                              <label className="text-xs font-medium text-gray-600">ลำดับการแสดงผล</label>
-                              <input
-                                type="number"
-                                value={doc.display_order}
-                                onChange={(e) => handleDocumentChange(index, "display_order", e.target.value)}
-                                className="mt-1 w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm"
-                              />
-                            </div>
-                            <div className="flex items-center gap-4">
-                              <label className="inline-flex items-center gap-2 text-xs text-gray-600">
+                              <div className="flex items-center gap-4">
+                                <label className="inline-flex items-center gap-2 text-xs text-gray-600">
+                                  <input
+                                    type="checkbox"
+                                    checked={doc.is_required}
+                                    onChange={() => handleDocumentToggle(index, "is_required")}
+                                    className="h-4 w-4 rounded border-gray-300"
+                                  />
+                                  จำเป็นต้องมี
+                                </label>
+                                <label className="inline-flex items-center gap-2 text-xs text-gray-600">
+                                  <input
+                                    type="checkbox"
+                                    checked={doc.is_verified}
+                                    onChange={() => handleDocumentToggle(index, "is_verified")}
+                                    className="h-4 w-4 rounded border-gray-300"
+                                  />
+                                  ตรวจสอบแล้ว
+                                </label>
+                              </div>
+                              <div>
+                                <label className="text-xs font-medium text-gray-600">ผู้ตรวจสอบ</label>
                                 <input
-                                  type="checkbox"
-                                  checked={doc.is_required}
-                                  onChange={() => handleDocumentToggle(index, "is_required")}
-                                  className="h-4 w-4 rounded border-gray-300"
+                                  type="number"
+                                  value={doc.verified_by}
+                                  onChange={(e) => handleDocumentChange(index, "verified_by", e.target.value)}
+                                  aria-invalid={Boolean(docError.verified_by)}
+                                  className={`mt-1 w-full rounded-md border px-2 py-1.5 text-sm focus:outline-none ${docError.verified_by ? "border-red-500 focus:border-red-500 focus:ring-1 focus:ring-red-500" : "border-gray-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"}`}
                                 />
-                                จำเป็นต้องมี
-                              </label>
-                              <label className="inline-flex items-center gap-2 text-xs text-gray-600">
+                                {doc.verifier && (
+                                  <p className="mt-1 text-xs text-gray-500">{displayUserName(doc.verifier, userCache[doc.verified_by])}</p>
+                                )}
+                                {docError.verified_by ? (
+                                  <p className="mt-1 text-xs text-red-600">{docError.verified_by}</p>
+                                ) : null}
+                              </div>
+                              <div>
+                                <label className="text-xs font-medium text-gray-600">วันที่ตรวจสอบ</label>
                                 <input
-                                  type="checkbox"
-                                  checked={doc.is_verified}
-                                  onChange={() => handleDocumentToggle(index, "is_verified")}
-                                  className="h-4 w-4 rounded border-gray-300"
+                                  type="datetime-local"
+                                  value={doc.verified_at}
+                                  onChange={(e) => handleDocumentChange(index, "verified_at", e.target.value)}
+                                  className="mt-1 w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
                                 />
-                                ตรวจสอบแล้ว
-                              </label>
-                            </div>
-                            <div>
-                              <label className="text-xs font-medium text-gray-600">ผู้ตรวจสอบ</label>
-                              <input
-                                type="number"
-                                value={doc.verified_by}
-                                onChange={(e) => handleDocumentChange(index, "verified_by", e.target.value)}
-                                className="mt-1 w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm"
-                              />
-                              {doc.verifier && (
-                                <p className="mt-1 text-xs text-gray-500">{displayUserName(doc.verifier, userCache[doc.verified_by])}</p>
-                              )}
-                            </div>
-                            <div>
-                              <label className="text-xs font-medium text-gray-600">วันที่ตรวจสอบ</label>
-                              <input
-                                type="datetime-local"
-                                value={doc.verified_at}
-                                onChange={(e) => handleDocumentChange(index, "verified_at", e.target.value)}
-                                className="mt-1 w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm"
-                              />
-                            </div>
-                            <div>
-                              <label className="text-xs font-medium text-gray-600">รหัสแหล่งเงิน (external)</label>
-                              <input
-                                type="number"
-                                value={doc.external_funding_id}
-                                onChange={(e) => handleDocumentChange(index, "external_funding_id", e.target.value)}
-                                className="mt-1 w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm"
-                              />
-                            </div>
-                            <div>
-                              <label className="text-xs font-medium text-gray-600">วันที่แนบ</label>
-                              <input
-                                type="datetime-local"
-                                value={doc.created_at}
-                                onChange={(e) => handleDocumentChange(index, "created_at", e.target.value)}
-                                className="mt-1 w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm"
-                              />
-                            </div>
-                            <div className="md:col-span-2">
-                              <label className="text-xs font-medium text-gray-600">คำอธิบาย</label>
-                              <textarea
-                                rows={2}
-                                value={doc.description}
-                                onChange={(e) => handleDocumentChange(index, "description", e.target.value)}
-                                className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
-                              />
+                              </div>
+                              <div>
+                                <label className="text-xs font-medium text-gray-600">รหัสแหล่งเงิน (external)</label>
+                                <input
+                                  type="number"
+                                  value={doc.external_funding_id}
+                                  onChange={(e) => handleDocumentChange(index, "external_funding_id", e.target.value)}
+                                  aria-invalid={Boolean(docError.external_funding_id)}
+                                  className={`mt-1 w-full rounded-md border px-2 py-1.5 text-sm focus:outline-none ${docError.external_funding_id ? "border-red-500 focus:border-red-500 focus:ring-1 focus:ring-red-500" : "border-gray-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"}`}
+                                />
+                                {docError.external_funding_id ? (
+                                  <p className="mt-1 text-xs text-red-600">{docError.external_funding_id}</p>
+                                ) : null}
+                              </div>
+                              <div>
+                                <label className="text-xs font-medium text-gray-600">วันที่แนบ</label>
+                                <input
+                                  type="datetime-local"
+                                  value={doc.created_at}
+                                  onChange={(e) => handleDocumentChange(index, "created_at", e.target.value)}
+                                  className="mt-1 w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                />
+                              </div>
+                              <div className="md:col-span-2">
+                                <label className="text-xs font-medium text-gray-600">คำอธิบาย</label>
+                                <textarea
+                                  rows={2}
+                                  value={doc.description}
+                                  onChange={(e) => handleDocumentChange(index, "description", e.target.value)}
+                                  className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                />
+                              </div>
                             </div>
                           </div>
-                        </div>
-                      ))
+                        );
+                      })
                     )}
                   </div>
                 </section>
