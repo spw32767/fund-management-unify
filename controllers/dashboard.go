@@ -572,9 +572,11 @@ func getAdminDashboard(filter dashboardFilter, options dashboardFilterOptions) m
 	stats["overview"] = buildAdminOverview(filter, statusSets)
 	stats["category_budgets"] = buildAdminCategoryBudgets(filter, statusSets)
 	stats["pending_applications"] = buildAdminPendingApplications(filter, statusSets)
-	stats["quota_summary"] = buildAdminQuotaSummary(filter, statusSets)
-	if viewRows := collectQuotaUsageViewRows(filter); len(viewRows) > 0 {
-		stats["quota_usage_view_rows"] = viewRows
+
+	quotaUsageRows := collectQuotaUsageViewRows(filter)
+	stats["quota_summary"] = buildAdminQuotaSummary(filter, statusSets, quotaUsageRows)
+	if len(quotaUsageRows) > 0 {
+		stats["quota_usage_view_rows"] = quotaUsageRows
 	}
 
 	if statusBreakdown := buildAdminStatusBreakdown(filter); len(statusBreakdown) > 0 {
@@ -1133,10 +1135,17 @@ func buildAdminPendingApplications(filter dashboardFilter, statuses dashboardSta
 	return pendingApplications
 }
 
-func buildAdminQuotaSummary(filter dashboardFilter, statuses dashboardStatusSets) []map[string]interface{} {
-	logQuotaUsageViewData(filter)
+func buildAdminQuotaSummary(filter dashboardFilter, statuses dashboardStatusSets, rawViewRows []map[string]interface{}) []map[string]interface{} {
+	logQuotaUsageViewData(filter, rawViewRows)
 
 	viewUsage := fetchUsageAggregatesFromView(filter)
+	if len(viewUsage) == 0 && len(rawViewRows) > 0 {
+		if fallback := convertUsageRowsToAggregates(rawViewRows); len(fallback) > 0 {
+			fmt.Printf("[dashboard] using raw usage view rows as fallback aggregates for quota summary\n")
+			viewUsage = fallback
+		}
+	}
+
 	approvedUsage := fetchApprovedUsageByUser(filter, statuses)
 
 	usageByKey := make(map[string]usageAggregate, len(viewUsage))
@@ -1400,12 +1409,12 @@ func buildAdminQuotaSummary(filter dashboardFilter, statuses dashboardStatusSets
 }
 
 func fetchUsageAggregatesFromView(filter dashboardFilter) []usageAggregate {
-	query := config.DB.Table("v_subcategory_user_usage_total usage").
-		Select("usage.year_id, usage.subcategory_id, usage.user_id, SUM(usage.used_grants) AS used_grants, SUM(usage.used_amount) AS used_amount").
-		Group("usage.year_id, usage.subcategory_id, usage.user_id")
+	query := config.DB.Table("v_subcategory_user_usage_total usage_view").
+		Select("usage_view.year_id, usage_view.subcategory_id, usage_view.user_id, SUM(usage_view.used_grants) AS used_grants, SUM(usage_view.used_amount) AS used_amount").
+		Group("usage_view.year_id, usage_view.subcategory_id, usage_view.user_id")
 
 	if !filter.IncludeAll && len(filter.YearIDs) > 0 {
-		query = query.Where("usage.year_id IN ?", filter.YearIDs)
+		query = query.Where("usage_view.year_id IN ?", filter.YearIDs)
 	}
 
 	var rows []usageAggregate
@@ -1422,14 +1431,34 @@ func fetchUsageAggregatesFromView(filter dashboardFilter) []usageAggregate {
 }
 
 func collectQuotaUsageViewRows(filter dashboardFilter) []map[string]interface{} {
-	query := config.DB.Table("v_subcategory_user_usage_total usage")
+	query := config.DB.Table("v_subcategory_user_usage_total usage_view").
+		Select(`usage_view.year_id,
+    usage_view.subcategory_id,
+    usage_view.user_id,
+    usage_view.used_grants,
+    usage_view.used_amount,
+    y.year,
+    fsc.subcategory_name,
+    fc.category_id,
+    fc.category_name,
+    TRIM(CONCAT(COALESCE(u.user_fname,''),' ',COALESCE(u.user_lname,''))) AS user_name,
+    COALESCE(sb.allocated_amount,0) AS allocated_amount,
+    COALESCE(sb.max_grants,0) AS max_grants,
+    COALESCE(sb.remaining_grant,0) AS remaining_grants,
+    COALESCE(sb.max_amount_per_year,0) AS max_amount_per_year,
+    COALESCE(sb.max_amount_per_grant,0) AS max_amount_per_grant`).
+		Joins("LEFT JOIN fund_subcategories fsc ON usage_view.subcategory_id = fsc.subcategory_id").
+		Joins("LEFT JOIN fund_categories fc ON fsc.category_id = fc.category_id").
+		Joins("LEFT JOIN years y ON usage_view.year_id = y.year_id").
+		Joins("LEFT JOIN subcategory_budgets sb ON sb.subcategory_id = fsc.subcategory_id AND sb.record_scope = 'overall' AND sb.deleted_at IS NULL").
+		Joins("LEFT JOIN users u ON usage_view.user_id = u.user_id")
 
 	if !filter.IncludeAll && len(filter.YearIDs) > 0 {
-		query = query.Where("usage.year_id IN ?", filter.YearIDs)
+		query = query.Where("usage_view.year_id IN ?", filter.YearIDs)
 	}
 
 	var rows []map[string]interface{}
-	if err := query.Limit(50).Find(&rows).Error; err != nil {
+	if err := query.Limit(100).Find(&rows).Error; err != nil {
 		fmt.Printf("[dashboard] failed to query v_subcategory_user_usage_total: %v\n", err)
 		return []map[string]interface{}{}
 	}
@@ -1437,8 +1466,7 @@ func collectQuotaUsageViewRows(filter dashboardFilter) []map[string]interface{} 
 	return rows
 }
 
-func logQuotaUsageViewData(filter dashboardFilter) {
-	rows := collectQuotaUsageViewRows(filter)
+func logQuotaUsageViewData(filter dashboardFilter, rows []map[string]interface{}) {
 	if len(rows) == 0 {
 		fmt.Printf("[dashboard] v_subcategory_user_usage_total returned no rows for filter: %+v\n", filter.toMap())
 		return
@@ -1451,6 +1479,116 @@ func logQuotaUsageViewData(filter dashboardFilter) {
 		}
 		fmt.Printf("[dashboard] usage_view_row[%d]: %v\n", idx, row)
 	}
+}
+
+func convertUsageRowsToAggregates(rows []map[string]interface{}) []usageAggregate {
+	aggregates := make([]usageAggregate, 0, len(rows))
+	for _, row := range rows {
+		yearID := parseIntValue(row["year_id"])
+		subcategoryID := parseIntValue(row["subcategory_id"])
+		userID := parseIntValue(row["user_id"])
+		usedGrants := parseFloatValue(row["used_grants"])
+		usedAmount := parseFloatValue(row["used_amount"])
+
+		if yearID == 0 || subcategoryID == 0 || userID == 0 {
+			continue
+		}
+
+		aggregates = append(aggregates, usageAggregate{
+			YearID:        yearID,
+			SubcategoryID: subcategoryID,
+			UserID:        userID,
+			UsedGrants:    usedGrants,
+			UsedAmount:    usedAmount,
+		})
+	}
+	return aggregates
+}
+
+func parseIntValue(value interface{}) int {
+	switch v := value.(type) {
+	case nil:
+		return 0
+	case int:
+		return v
+	case int8:
+		return int(v)
+	case int16:
+		return int(v)
+	case int32:
+		return int(v)
+	case int64:
+		return int(v)
+	case uint:
+		return int(v)
+	case uint8:
+		return int(v)
+	case uint16:
+		return int(v)
+	case uint32:
+		return int(v)
+	case uint64:
+		return int(v)
+	case float32:
+		return int(v)
+	case float64:
+		return int(v)
+	case []byte:
+		if parsed, err := strconv.Atoi(string(v)); err == nil {
+			return parsed
+		}
+		if parsed, err := strconv.ParseFloat(string(v), 64); err == nil {
+			return int(parsed)
+		}
+	case string:
+		if parsed, err := strconv.Atoi(strings.TrimSpace(v)); err == nil {
+			return parsed
+		}
+		if parsed, err := strconv.ParseFloat(strings.TrimSpace(v), 64); err == nil {
+			return int(parsed)
+		}
+	}
+	return 0
+}
+
+func parseFloatValue(value interface{}) float64 {
+	switch v := value.(type) {
+	case nil:
+		return 0
+	case float32:
+		return float64(v)
+	case float64:
+		return v
+	case int:
+		return float64(v)
+	case int8:
+		return float64(v)
+	case int16:
+		return float64(v)
+	case int32:
+		return float64(v)
+	case int64:
+		return float64(v)
+	case uint:
+		return float64(v)
+	case uint8:
+		return float64(v)
+	case uint16:
+		return float64(v)
+	case uint32:
+		return float64(v)
+	case uint64:
+		return float64(v)
+	case []byte:
+		if parsed, err := strconv.ParseFloat(string(v), 64); err == nil {
+			return parsed
+		}
+	case string:
+		if parsed, err := strconv.ParseFloat(strings.TrimSpace(v), 64); err == nil {
+			return parsed
+		}
+	}
+	return 0
 }
 
 type usageAggregate struct {
