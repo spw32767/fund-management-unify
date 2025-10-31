@@ -10,13 +10,17 @@ function normalizeItems(items = []) {
     const maxGrants = Number(item?.max_grants ?? 0);
     const usedGrants = Number(item?.used_grants ?? 0);
     const remainingGrants = Number(item?.remaining_grants ?? Math.max(maxGrants - usedGrants, 0));
+    const userId = Number(item?.user_id ?? 0);
+    const rawUserName = typeof item?.user_name === "string" ? item.user_name.trim() : "";
+    const userName = rawUserName || (userId ? `ผู้ใช้ #${userId}` : "ไม่ระบุชื่อ");
+    const yearValue = item?.year ? String(item.year) : "";
 
     const usagePercent = allocatedAmount > 0
       ? Math.min((usedAmount / allocatedAmount) * 100, 999)
       : 0;
 
     return {
-      key: `${item?.category_name || ""}-${item?.subcategory_name || ""}`,
+      key: `${userId || userName}-${item?.subcategory_id ?? item?.subcategory_name ?? item?.category_name ?? ""}-${yearValue}`,
       categoryName: item?.category_name ?? "-",
       subcategoryName: item?.subcategory_name ?? "-",
       allocatedAmount,
@@ -26,14 +30,22 @@ function normalizeItems(items = []) {
       usedGrants,
       remainingGrants,
       usagePercent,
+      userId,
+      userName,
+      year: yearValue,
     };
   });
 }
 
 export default function EligibilitySummary({ items = [] }) {
   const normalized = normalizeItems(items)
-    .sort((a, b) => b.usagePercent - a.usagePercent)
-    .slice(0, 6);
+    .sort((a, b) => {
+      if (b.usedAmount === a.usedAmount) {
+        return b.usedGrants - a.usedGrants;
+      }
+      return b.usedAmount - a.usedAmount;
+    })
+    .slice(0, 10);
 
   if (!normalized.length) {
     return (
@@ -48,7 +60,8 @@ export default function EligibilitySummary({ items = [] }) {
       <table className="min-w-full text-sm">
         <thead>
           <tr className="text-left text-gray-500">
-            <th className="py-2 pr-4 font-medium">หมวด / ประเภทย่อย</th>
+            <th className="py-2 pr-4 font-medium">ผู้ใช้</th>
+            <th className="py-2 px-4 font-medium">ทุนที่ใช้</th>
             <th className="py-2 px-4 font-medium text-center">ใช้สิทธิ์แล้ว</th>
             <th className="py-2 px-4 font-medium text-right">งบที่ใช้ไป</th>
             <th className="py-2 pl-4 font-medium text-right">คงเหลืองบ</th>
@@ -57,19 +70,33 @@ export default function EligibilitySummary({ items = [] }) {
         <tbody className="divide-y divide-gray-100">
           {normalized.map((row) => {
             const grantLabel = row.maxGrants > 0
-              ? `${formatNumber(row.usedGrants)} / ${formatNumber(row.maxGrants)}`
-              : formatNumber(row.usedGrants);
+              ? `${formatNumber(row.usedGrants)} / ${formatNumber(row.maxGrants)} ครั้ง`
+              : `${formatNumber(row.usedGrants)} ครั้ง`;
 
             return (
               <tr key={row.key} className="text-gray-700">
                 <td className="py-3 pr-4 align-top">
+                  <p className="font-semibold text-gray-900">{row.userName}</p>
+                  {row.year && (
+                    <p className="text-xs text-gray-500">ปีงบประมาณ {row.year}</p>
+                  )}
+                </td>
+                <td className="py-3 px-4 align-top">
                   <p className="font-semibold text-gray-900">{row.subcategoryName}</p>
                   <p className="text-xs text-gray-500">{row.categoryName}</p>
                 </td>
                 <td className="py-3 px-4 text-center">
                   <div className="flex flex-col items-center gap-1">
                     <span className="font-semibold text-blue-600">{grantLabel}</span>
-                    <span className="text-xs text-gray-500">{formatNumber(row.remainingGrants)} สิทธิ์คงเหลือ</span>
+                    {row.maxGrants > 0 ? (
+                      <span className="text-xs text-gray-500">
+                        เหลือ {formatNumber(row.remainingGrants)} สิทธิ์
+                      </span>
+                    ) : row.remainingGrants > 0 ? (
+                      <span className="text-xs text-gray-500">
+                        เหลือ {formatNumber(row.remainingGrants)} ครั้ง
+                      </span>
+                    ) : null}
                   </div>
                 </td>
                 <td className="py-3 px-4 text-right">

@@ -583,6 +583,42 @@ export default function DashboardContent({ onNavigate }) {
     () => (Array.isArray(stats?.category_budgets) ? stats.category_budgets : []),
     [stats]
   );
+
+  const subcategoryMetadataMap = useMemo(() => {
+    const map = new Map();
+    categoryBudgets.forEach((category) => {
+      const subcategories = Array.isArray(category?.subcategories) ? category.subcategories : [];
+      subcategories.forEach((item) => {
+        if (!item?.subcategory_id) {
+          return;
+        }
+
+        const subcategoryId = Number(item.subcategory_id);
+        if (!Number.isFinite(subcategoryId) || subcategoryId <= 0) {
+          return;
+        }
+
+        const categoryId = Number(category?.category_id ?? item?.category_id ?? 0) || null;
+        const allocatedAmount = Number(item?.allocated_amount ?? item?.allocated_budget ?? 0);
+        const maxGrants = Number(item?.max_grants ?? 0);
+        const remainingGrant = Number(item?.remaining_grant ?? 0);
+        const year = category?.year ?? item?.year ?? "";
+        const yearId = category?.year_id ?? item?.year_id ?? null;
+
+        map.set(subcategoryId, {
+          categoryId,
+          categoryName: item?.category_name ?? category?.category_name ?? "",
+          subcategoryName: item?.subcategory_name ?? "",
+          allocatedAmount,
+          maxGrants,
+          remainingGrant,
+          year,
+          yearId,
+        });
+      });
+    });
+    return map;
+  }, [categoryBudgets]);
   const pendingApplications = useMemo(
     () => (Array.isArray(stats?.pending_applications) ? stats.pending_applications : []),
     [stats]
@@ -617,10 +653,83 @@ export default function DashboardContent({ onNavigate }) {
     [stats]
   );
 
-  const quotaSummary = useMemo(
-    () => (Array.isArray(stats?.quota_summary) ? stats.quota_summary : []),
+  const quotaUsageRows = useMemo(
+    () => (Array.isArray(stats?.quota_usage_view_rows) ? stats.quota_usage_view_rows : []),
     [stats]
   );
+
+  const quotaSummary = useMemo(() => {
+    const summary = Array.isArray(stats?.quota_summary) ? stats.quota_summary : [];
+    if (summary.length > 0) {
+      return summary;
+    }
+
+    if (!quotaUsageRows.length) {
+      return [];
+    }
+
+    const parseNumber = (value) => {
+      const numeric = Number(value);
+      return Number.isFinite(numeric) ? numeric : 0;
+    };
+
+    return quotaUsageRows.map((row) => {
+      const subcategoryId = Number(row?.subcategory_id ?? 0);
+      const metadata = subcategoryMetadataMap.get(subcategoryId);
+
+      const usedAmount = parseNumber(row?.used_amount);
+      const usedGrants = parseNumber(row?.used_grants);
+
+      const rawAllocated = metadata
+        ? parseNumber(metadata.allocatedAmount)
+        : parseNumber(row?.allocated_amount);
+      const budgetLimit = rawAllocated > 0 ? rawAllocated : usedAmount;
+
+      const maxGrants = metadata ? parseNumber(metadata.maxGrants) : parseNumber(row?.max_grants);
+      let remainingGrants = metadata
+        ? parseNumber(metadata.remainingGrant)
+        : parseNumber(row?.remaining_grants);
+      if (!Number.isFinite(remainingGrants) || remainingGrants <= 0) {
+        remainingGrants = maxGrants > 0 ? Math.max(maxGrants - usedGrants, 0) : 0;
+      }
+
+      let remainingBudget = parseNumber(row?.remaining_budget);
+      if (!Number.isFinite(remainingBudget) || remainingBudget <= 0) {
+        remainingBudget = budgetLimit > 0 ? Math.max(budgetLimit - usedAmount, 0) : 0;
+      }
+
+      const userId = Number(row?.user_id ?? 0);
+      let userName = typeof row?.user_name === "string" ? row.user_name.trim() : "";
+      if (!userName) {
+        userName = userId ? `ผู้ใช้ #${userId}` : "ไม่ระบุชื่อ";
+      }
+
+      const categoryId = metadata?.categoryId ?? (Number(row?.category_id ?? 0) || null);
+      const categoryName = metadata?.categoryName ?? row?.category_name ?? "";
+      const subcategoryName = metadata?.subcategoryName ?? row?.subcategory_name ?? "";
+      const yearValue = row?.year ?? metadata?.year ?? "";
+      const yearId = metadata?.yearId ?? row?.year_id ?? null;
+
+      return {
+        year: yearValue,
+        year_id: yearId,
+        user_id: userId,
+        user_name: userName,
+        category_id: categoryId,
+        category_name: categoryName,
+        subcategory_id: subcategoryId,
+        subcategory_name: subcategoryName,
+        allocated_amount: budgetLimit > 0 ? budgetLimit : usedAmount,
+        used_amount: usedAmount,
+        remaining_budget: remainingBudget,
+        max_grants: maxGrants,
+        used_grants: usedGrants,
+        remaining_grants: remainingGrants,
+        max_amount_per_year: parseNumber(row?.max_amount_per_year),
+        max_amount_per_grant: parseNumber(row?.max_amount_per_grant),
+      };
+    });
+  }, [stats, quotaUsageRows, subcategoryMetadataMap]);
 
   const currentDate = stats?.current_date
     ? formatThaiDateFromBEString(stats.current_date)
