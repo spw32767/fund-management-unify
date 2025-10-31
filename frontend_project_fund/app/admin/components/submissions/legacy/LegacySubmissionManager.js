@@ -132,6 +132,33 @@ const formatCurrency = (value) => {
   return new Intl.NumberFormat("th-TH", { style: "currency", currency: "THB" }).format(Number(value));
 };
 
+const extractFileNameFromPath = (value) => {
+  if (!value) return "";
+  const normalized = String(value).replace(/\\+/g, "/");
+  const segments = normalized.split("/").filter(Boolean);
+  return segments[segments.length - 1] || "";
+};
+
+const inferFolderTypeFromPath = (value) => {
+  if (!value) return "";
+  const normalized = String(value).toLowerCase();
+  if (normalized.includes("/temp/") || normalized.includes("\\temp\\")) {
+    return "temp";
+  }
+  if (
+    normalized.includes("/submissions/") ||
+    normalized.includes("\\submissions\\") ||
+    normalized.includes("/submission/") ||
+    normalized.includes("\\submission\\")
+  ) {
+    return "submission";
+  }
+  if (normalized.includes("/users/") || normalized.includes("\\users\\")) {
+    return "user";
+  }
+  return "";
+};
+
 const extractErrorMessage = (error) =>
   error?.response?.data?.error || error?.message || "เกิดข้อผิดพลาด";
 
@@ -228,44 +255,116 @@ const buildSubmissionPayload = (form, documents, participants) => {
     submission.updated_at = form.updated_at;
   }
 
-  const documentPayload = (documents || []).map((doc, index) => {
-    if (!doc.file_id || !doc.document_type_id) {
-      throw new Error(`กรุณาระบุไฟล์และประเภทเอกสารสำหรับรายการเอกสารที่ ${index + 1}`);
+  const toNullableString = (value) => {
+    if (value === null || value === undefined) {
+      return null;
     }
-    const fileId = Number(doc.file_id);
+    const trimmed = String(value).trim();
+    return trimmed ? trimmed : null;
+  };
+
+  const toNullableNumber = (value) => {
+    if (value === null || value === undefined || value === "") {
+      return null;
+    }
+    const num = Number(value);
+    return Number.isFinite(num) ? num : null;
+  };
+
+  const documentPayload = (documents || []).map((doc, index) => {
     const docTypeId = Number(doc.document_type_id);
-    if (!Number.isFinite(fileId) || !Number.isFinite(docTypeId)) {
-      throw new Error(`กรุณากรอกเลขที่ไฟล์และประเภทเอกสารให้ถูกต้อง (เอกสารที่ ${index + 1})`);
+    if (!Number.isFinite(docTypeId) || docTypeId <= 0) {
+      throw new Error(`กรุณากรอกประเภทเอกสารให้ถูกต้อง (เอกสารที่ ${index + 1})`);
+    }
+
+    const rawFileId = doc.file_id != null ? String(doc.file_id).trim() : "";
+    const storedPathCandidate = toNullableString(doc.stored_path);
+    const hasExistingFileId = rawFileId !== "";
+
+    if (!hasExistingFileId && !storedPathCandidate) {
+      throw new Error(`กรุณาระบุตำแหน่งไฟล์หรือรหัสไฟล์สำหรับรายการเอกสารที่ ${index + 1}`);
+    }
+
+    let fileId = null;
+    if (hasExistingFileId) {
+      fileId = Number(rawFileId);
+      if (!Number.isFinite(fileId) || fileId <= 0) {
+        throw new Error(`กรุณากรอกรหัสไฟล์ให้ถูกต้อง (เอกสารที่ ${index + 1})`);
+      }
     }
 
     const payload = {
       document_id: doc.document_id ?? undefined,
-      file_id: fileId,
       document_type_id: docTypeId,
-      original_name: doc.original_name?.trim() || null,
-      description: doc.description?.trim() || "",
-      display_order: doc.display_order ? Number(doc.display_order) : index + 1,
+      file_id: fileId,
+      description: toNullableString(doc.description),
+      display_order: toNullableNumber(doc.display_order) ?? index + 1,
       is_required: Boolean(doc.is_required),
       is_verified: Boolean(doc.is_verified),
-      verified_by: doc.verified_by ? Number(doc.verified_by) : null,
-      verified_at: doc.verified_at || null,
-      external_funding_id: doc.external_funding_id ? Number(doc.external_funding_id) : null,
-      created_at: doc.created_at || null,
+      verified_by: toNullableNumber(doc.verified_by),
+      verified_at: toNullableString(doc.verified_at),
+      external_funding_id: toNullableNumber(doc.external_funding_id),
+      created_at: toNullableString(doc.created_at),
     };
-
-    const storedPath = typeof doc.stored_path === "string" ? doc.stored_path.trim() : "";
-    if (storedPath) {
-      payload.stored_path = storedPath;
-    }
 
     if (Number.isNaN(payload.display_order)) {
       payload.display_order = index + 1;
     }
+
     if (payload.verified_by != null && Number.isNaN(payload.verified_by)) {
       throw new Error(`กรุณากรอกข้อมูลผู้ตรวจสอบเอกสารให้ถูกต้อง (เอกสารที่ ${index + 1})`);
     }
     if (payload.external_funding_id != null && Number.isNaN(payload.external_funding_id)) {
       payload.external_funding_id = null;
+    }
+
+    const storedPath = storedPathCandidate;
+    if (storedPath) {
+      payload.stored_path = storedPath;
+    }
+
+    const originalName = toNullableString(doc.original_name);
+    if (originalName) {
+      payload.original_name = originalName;
+    }
+
+    if (!hasExistingFileId) {
+      const derivedName = originalName || toNullableString(doc.file_name) || extractFileNameFromPath(storedPath);
+      if (!derivedName) {
+        throw new Error(`กรุณากรอกชื่อไฟล์สำหรับรายการเอกสารที่ ${index + 1}`);
+      }
+
+      let uploadedBy = toNullableNumber(doc.uploaded_by);
+      if (uploadedBy == null) {
+        uploadedBy = submission.user_id;
+      }
+      if (!Number.isFinite(uploadedBy) || uploadedBy <= 0) {
+        throw new Error(`กรุณากรอกผู้เพิ่มไฟล์ให้ถูกต้อง (เอกสารที่ ${index + 1})`);
+      }
+
+      const fileSize = toNullableNumber(doc.file_size);
+      if (fileSize != null && !Number.isFinite(fileSize)) {
+        throw new Error(`กรุณากรอกขนาดไฟล์ให้ถูกต้อง (เอกสารที่ ${index + 1})`);
+      }
+
+      const mimeType = toNullableString(doc.mime_type);
+      const uploadedAt = toNullableString(doc.uploaded_at);
+      const folderType = toNullableString(doc.folder_type) || inferFolderTypeFromPath(storedPath);
+      const metadata = toNullableString(doc.metadata);
+      const fileName = toNullableString(doc.file_name) || derivedName;
+
+      payload.new_file = {
+        original_name: derivedName,
+        stored_path: storedPath,
+        file_name: fileName,
+        mime_type: mimeType,
+        file_size: fileSize,
+        uploaded_by: uploadedBy,
+        uploaded_at: uploadedAt,
+        folder_type: folderType || null,
+        metadata,
+        is_public: Boolean(doc.is_public),
+      };
     }
 
     return payload;
@@ -491,6 +590,7 @@ export default function LegacySubmissionManager() {
       document_type_name: doc.document_type?.document_type_name || doc.document_type_name || "",
       stored_path: doc.file?.stored_path || doc.stored_path || "",
       original_name: doc.original_name || "",
+      file_name: doc.file?.file_name || doc.file?.original_name || doc.file_name || doc.original_name || "",
       description: doc.description || "",
       display_order: doc.display_order != null ? String(doc.display_order) : "",
       is_required: Boolean(doc.is_required),
@@ -499,6 +599,26 @@ export default function LegacySubmissionManager() {
       verified_at: formatDateTimeInput(doc.verified_at),
       created_at: formatDateTimeInput(doc.created_at),
       external_funding_id: doc.external_funding_id != null ? String(doc.external_funding_id) : "",
+      mime_type: doc.file?.mime_type || doc.mime_type || "",
+      file_size:
+        doc.file?.file_size != null
+          ? String(doc.file.file_size)
+          : doc.file_size != null
+          ? String(doc.file_size)
+          : "",
+      uploaded_by:
+        doc.file?.uploaded_by != null
+          ? String(doc.file.uploaded_by)
+          : doc.uploaded_by != null
+          ? String(doc.uploaded_by)
+          : "",
+      uploaded_at: formatDateTimeInput(doc.file?.uploaded_at || doc.uploaded_at),
+      folder_type:
+        doc.file?.folder_type ||
+        doc.folder_type ||
+        inferFolderTypeFromPath(doc.file?.stored_path || doc.stored_path || ""),
+      metadata: doc.file?.metadata || doc.metadata || "",
+      is_public: doc.file ? Boolean(doc.file.is_public) : Boolean(doc.is_public),
       file: doc.file || null,
       verifier: doc.verifier || null,
     })), []);
@@ -735,6 +855,7 @@ export default function LegacySubmissionManager() {
         document_type_name: "",
         stored_path: "",
         original_name: "",
+        file_name: "",
         description: "",
         display_order: String(prev.length + 1),
         is_required: false,
@@ -743,6 +864,13 @@ export default function LegacySubmissionManager() {
         verified_at: "",
         created_at: "",
         external_funding_id: "",
+        mime_type: "",
+        file_size: "",
+        uploaded_by: "",
+        uploaded_at: "",
+        folder_type: "submission",
+        metadata: "",
+        is_public: false,
         file: null,
         verifier: null,
       },
@@ -804,10 +932,27 @@ export default function LegacySubmissionManager() {
           }
           const existingPath = typeof doc.stored_path === "string" ? doc.stored_path.trim() : "";
           const resolvedPath = existingPath || file.stored_path || "";
+          const fallbackName = file.original_name || file.file_name || extractFileNameFromPath(resolvedPath);
           return {
             ...doc,
             file,
             stored_path: resolvedPath,
+            original_name: doc.original_name || file.original_name || fallbackName || doc.original_name,
+            file_name: doc.file_name || file.file_name || file.original_name || fallbackName || "",
+            mime_type: doc.mime_type || file.mime_type || "",
+            file_size:
+              doc.file_size ||
+              (file.file_size != null ? String(file.file_size) : ""),
+            uploaded_by:
+              doc.uploaded_by ||
+              (file.uploaded_by != null ? String(file.uploaded_by) : ""),
+            uploaded_at: doc.uploaded_at || formatDateTimeInput(file.uploaded_at),
+            folder_type:
+              doc.folder_type ||
+              file.folder_type ||
+              inferFolderTypeFromPath(resolvedPath),
+            metadata: doc.metadata || file.metadata || "",
+            is_public: typeof file.is_public === "boolean" ? file.is_public : doc.is_public,
           };
         })
       );
@@ -1708,6 +1853,91 @@ export default function LegacySubmissionManager() {
                               <p className="mt-1 text-xs text-gray-500">
                                 ระบุ path ให้ตรงกับไฟล์ที่จัดเก็บบนเซิร์ฟเวอร์ หากปล่อยว่างจะใช้งาน path เดิมจากฐานข้อมูล
                               </p>
+                            </div>
+                            <div className="md:col-span-2 grid gap-3 md:grid-cols-3">
+                              <div>
+                                <label className="text-xs font-medium text-gray-600">ชื่อไฟล์ในระบบ (file_name)</label>
+                                <input
+                                  type="text"
+                                  value={doc.file_name}
+                                  onChange={(e) => handleDocumentChange(index, "file_name", e.target.value)}
+                                  className="mt-1 w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm"
+                                  placeholder="เช่น document.pdf"
+                                />
+                              </div>
+                              <div>
+                                <label className="text-xs font-medium text-gray-600">ชนิดไฟล์ (mime_type)</label>
+                                <input
+                                  type="text"
+                                  value={doc.mime_type}
+                                  onChange={(e) => handleDocumentChange(index, "mime_type", e.target.value)}
+                                  className="mt-1 w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm"
+                                  placeholder="application/pdf"
+                                />
+                              </div>
+                              <div>
+                                <label className="text-xs font-medium text-gray-600">ขนาดไฟล์ (ไบต์)</label>
+                                <input
+                                  type="number"
+                                  value={doc.file_size}
+                                  onChange={(e) => handleDocumentChange(index, "file_size", e.target.value)}
+                                  className="mt-1 w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm"
+                                  min="0"
+                                />
+                              </div>
+                            </div>
+                            <div className="md:col-span-2 grid gap-3 md:grid-cols-2">
+                              <div>
+                                <label className="text-xs font-medium text-gray-600">ผู้เพิ่มไฟล์ (uploaded_by)</label>
+                                <input
+                                  type="number"
+                                  value={doc.uploaded_by}
+                                  onChange={(e) => handleDocumentChange(index, "uploaded_by", e.target.value)}
+                                  className="mt-1 w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm"
+                                  min="1"
+                                />
+                              </div>
+                              <div>
+                                <label className="text-xs font-medium text-gray-600">วันที่เพิ่มไฟล์ (uploaded_at)</label>
+                                <input
+                                  type="datetime-local"
+                                  value={doc.uploaded_at}
+                                  onChange={(e) => handleDocumentChange(index, "uploaded_at", e.target.value)}
+                                  className="mt-1 w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm"
+                                />
+                              </div>
+                            </div>
+                            <div className="md:col-span-2 grid gap-3 md:grid-cols-2">
+                              <div>
+                                <label className="text-xs font-medium text-gray-600">ประเภทโฟลเดอร์ (folder_type)</label>
+                                <input
+                                  type="text"
+                                  value={doc.folder_type}
+                                  onChange={(e) => handleDocumentChange(index, "folder_type", e.target.value)}
+                                  className="mt-1 w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm"
+                                  placeholder="เช่น submission หรือ temp"
+                                />
+                              </div>
+                              <div>
+                                <label className="text-xs font-medium text-gray-600">Metadata (ถ้ามี)</label>
+                                <input
+                                  type="text"
+                                  value={doc.metadata}
+                                  onChange={(e) => handleDocumentChange(index, "metadata", e.target.value)}
+                                  className="mt-1 w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm"
+                                />
+                              </div>
+                            </div>
+                            <div>
+                              <label className="inline-flex items-center gap-2 text-xs text-gray-600">
+                                <input
+                                  type="checkbox"
+                                  checked={Boolean(doc.is_public)}
+                                  onChange={() => handleDocumentToggle(index, "is_public")}
+                                  className="h-4 w-4 rounded border-gray-300"
+                                />
+                                เปิดให้เข้าถึงสาธารณะ (is_public)
+                              </label>
                             </div>
                             <div>
                               <label className="text-xs font-medium text-gray-600">ชื่อไฟล์ที่ต้องการแสดง</label>
