@@ -622,6 +622,11 @@ export default function DashboardContent({ onNavigate }) {
     [stats]
   );
 
+  const quotaUsageViewRows = useMemo(
+    () => (Array.isArray(stats?.quota_usage_view_rows) ? stats.quota_usage_view_rows : []),
+    [stats]
+  );
+
   const currentDate = stats?.current_date
     ? formatThaiDateFromBEString(stats.current_date)
     : null;
@@ -758,7 +763,7 @@ export default function DashboardContent({ onNavigate }) {
               icon={ShieldCheck}
               className="2xl:col-span-3"
             >
-              <EligibilitySummary items={quotaSummary} />
+              <EligibilitySummary summary={quotaSummary} usageRows={quotaUsageViewRows} />
             </SimpleCard>
           </div>
 
