@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { ChevronDown, ChevronRight, Search } from "lucide-react";
 
 import { formatCurrency, formatNumber } from "@/app/utils/format";
@@ -111,25 +111,11 @@ function buildUserGroups(entries = []) {
         userId: entry.userId,
         userName: entry.userName,
         rows: [],
-        totals: {
-          allocatedAmount: 0,
-          usedAmount: 0,
-          remainingBudget: 0,
-          maxGrants: 0,
-          usedGrants: 0,
-          remainingGrants: 0,
-        },
       });
     }
 
     const group = groups.get(key);
     group.rows.push(entry);
-    group.totals.allocatedAmount += entry.allocatedAmount;
-    group.totals.usedAmount += entry.usedAmount;
-    group.totals.remainingBudget += entry.remainingBudget;
-    group.totals.maxGrants += entry.maxGrants;
-    group.totals.usedGrants += entry.usedGrants;
-    group.totals.remainingGrants += entry.remainingGrants;
   });
 
   return Array.from(groups.values()).map((group) => ({
@@ -145,7 +131,12 @@ export default function EligibilitySummary({ summary = [], usageRows = [] }) {
   );
 
   const userGroups = useMemo(
-    () => buildUserGroups(normalized).sort((a, b) => b.totals.usedAmount - a.totals.usedAmount),
+    () =>
+      buildUserGroups(normalized).sort((a, b) => {
+        const aName = a.userName || "";
+        const bName = b.userName || "";
+        return aName.localeCompare(bName, "th");
+      }),
     [normalized]
   );
 
@@ -199,138 +190,96 @@ export default function EligibilitySummary({ summary = [], usageRows = [] }) {
         </p>
       </div>
 
-      <div className="overflow-hidden rounded-xl border border-gray-200">
-        <table className="min-w-full text-sm">
-          <thead>
-            <tr className="bg-gray-50 text-left text-gray-500">
-              <th className="py-3 pl-4 pr-2 font-medium">ผู้ใช้</th>
-              <th className="py-3 px-4 font-medium">ทุนที่ใช้</th>
-              <th className="py-3 px-4 text-center font-medium">จำนวนครั้งที่ใช้</th>
-              <th className="py-3 px-4 text-right font-medium">งบที่ใช้ไป</th>
-              <th className="py-3 pr-4 text-right font-medium">งบคงเหลือ</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-100">
-            {filteredGroups.length === 0 ? (
-              <tr>
-                <td colSpan={5} className="py-8 text-center text-gray-500">
-                  ไม่พบผู้ใช้ที่ตรงกับคำค้นหา
-                </td>
-              </tr>
-            ) : (
-              filteredGroups.map((group) => {
-                const isExpanded = expandedKeys.has(group.key);
-                const totals = group.totals;
-                const grantLabel = totals.maxGrants > 0
-                  ? `${formatNumber(totals.usedGrants)} / ${formatNumber(totals.maxGrants)}`
-                  : formatNumber(totals.usedGrants);
-                const usagePercent = totals.allocatedAmount > 0
-                  ? Math.min((totals.usedAmount / totals.allocatedAmount) * 100, 999)
-                  : 0;
+      {filteredGroups.length === 0 ? (
+        <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 py-8 text-center text-sm text-gray-500">
+          ไม่พบผู้ใช้ที่ตรงกับคำค้นหา
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {filteredGroups.map((group) => {
+            const isExpanded = expandedKeys.has(group.key);
 
-                return (
-                  <Fragment key={group.key}>
-                    <tr className="text-gray-700 transition hover:bg-gray-50">
-                      <td className="py-3 pl-4 pr-2">
-                        <button
-                          type="button"
-                          onClick={() => handleToggle(group.key)}
-                          className="mr-3 inline-flex h-7 w-7 items-center justify-center rounded-full border border-gray-300 bg-white text-gray-500 hover:border-blue-500 hover:text-blue-600"
-                          aria-expanded={isExpanded}
-                          aria-label={isExpanded ? "ย่อรายละเอียด" : "ขยายรายละเอียด"}
-                        >
-                          {isExpanded ? (
-                            <ChevronDown className="h-4 w-4" />
-                          ) : (
-                            <ChevronRight className="h-4 w-4" />
-                          )}
-                        </button>
-                        <div>
-                          <p className="font-semibold text-gray-900">{group.userName}</p>
-                          <p className="text-xs text-gray-500">ใช้สิทธิ์ {formatNumber(group.rows.length)} ทุน</p>
-                        </div>
-                      </td>
-                      <td className="py-3 px-4">
-                        <div className="flex flex-col gap-1">
-                          <span className="font-semibold text-gray-900">รวม {formatNumber(group.rows.length)} ทุน</span>
-                          <span className="text-xs text-gray-500">สิทธิ์รวม {formatCurrency(totals.allocatedAmount)}</span>
-                        </div>
-                      </td>
-                      <td className="py-3 px-4 text-center">
-                        <div className="flex flex-col items-center gap-1">
-                          <span className="font-semibold text-blue-600">{grantLabel}</span>
-                          <span className="text-xs text-gray-500">{formatNumber(totals.remainingGrants)} สิทธิ์คงเหลือ</span>
-                        </div>
-                      </td>
-                      <td className="py-3 px-4 text-right">
-                        <div className="flex flex-col items-end gap-1">
-                          <span className="font-semibold text-emerald-600">{formatCurrency(totals.usedAmount)}</span>
-                          <div className="h-2 w-28 overflow-hidden rounded-full bg-gray-200">
-                            <div
-                              className="h-full bg-gradient-to-r from-emerald-400 to-emerald-600"
-                              style={{ width: `${Math.min(usagePercent, 100)}%` }}
-                            />
-                          </div>
-                          <span className="text-xs text-gray-500">{usagePercent.toFixed(1)}%</span>
-                        </div>
-                      </td>
-                      <td className="py-3 pr-4 text-right text-gray-700">
-                        <span className="font-semibold">{formatCurrency(totals.remainingBudget)}</span>
-                        <p className="text-xs text-gray-500">งบประมาณคงเหลือ</p>
-                      </td>
-                    </tr>
-                    {isExpanded && (
-                      <tr>
-                        <td colSpan={5} className="bg-gray-50 px-6 pb-5">
-                          <div className="mt-4 space-y-4">
-                            {group.rows.map((row) => {
-                              const detailGrantLabel = row.maxGrants > 0
-                                ? `${formatNumber(row.usedGrants)} / ${formatNumber(row.maxGrants)}`
-                                : formatNumber(row.usedGrants);
+            return (
+              <div
+                key={group.key}
+                className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm"
+              >
+                <button
+                  type="button"
+                  onClick={() => handleToggle(group.key)}
+                  className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left transition hover:bg-gray-50"
+                  aria-expanded={isExpanded}
+                  aria-controls={`${group.key}-details`}
+                >
+                  <div className="flex items-center gap-3">
+                    <span className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-gray-300 bg-white text-gray-500">
+                      {isExpanded ? (
+                        <ChevronDown className="h-4 w-4" />
+                      ) : (
+                        <ChevronRight className="h-4 w-4" />
+                      )}
+                    </span>
+                    <div>
+                      <p className="font-semibold text-gray-900">{group.userName}</p>
+                      <p className="text-xs text-gray-500">ใช้สิทธิ์ {formatNumber(group.rows.length)} ทุน</p>
+                    </div>
+                  </div>
+                  <div className="text-xs text-gray-400">
+                    {isExpanded ? "ย่อรายละเอียด" : "ขยายรายละเอียด"}
+                  </div>
+                </button>
 
-                              return (
-                                <div
-                                  key={row.key}
-                                  className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm"
-                                >
-                                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                                    <div>
-                                      <p className="font-medium text-gray-900">{row.subcategoryName}</p>
-                                      <p className="text-xs text-gray-500">{row.categoryName}</p>
-                                    </div>
-                                    <div className="flex flex-col gap-3 text-right sm:flex-row sm:items-center sm:gap-6">
-                                      <div>
-                                        <p className="font-semibold text-blue-600">{detailGrantLabel}</p>
-                                        <p className="text-xs text-gray-500">ใช้สิทธิ์</p>
-                                      </div>
-                                      <div>
-                                        <p className="font-semibold text-gray-900">{formatCurrency(row.allocatedAmount)}</p>
-                                        <p className="text-xs text-gray-500">สิทธิ์รวม</p>
-                                      </div>
-                                      <div>
-                                        <p className="font-semibold text-emerald-600">{formatCurrency(row.usedAmount)}</p>
-                                        <p className="text-xs text-gray-500">งบที่ใช้ไป</p>
-                                      </div>
-                                      <div>
-                                        <p className="font-semibold text-gray-700">{formatCurrency(row.remainingBudget)}</p>
-                                        <p className="text-xs text-gray-500">งบคงเหลือ</p>
-                                      </div>
-                                    </div>
-                                  </div>
+                {isExpanded && (
+                  <div
+                    id={`${group.key}-details`}
+                    className="border-t border-gray-100 bg-gray-50 px-4 py-5"
+                  >
+                    <div className="space-y-4">
+                      {group.rows.map((row) => {
+                        const grantLabel = row.maxGrants > 0
+                          ? `${formatNumber(row.usedGrants)} / ${formatNumber(row.maxGrants)}`
+                          : formatNumber(row.usedGrants);
+
+                        return (
+                          <div
+                            key={row.key}
+                            className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm"
+                          >
+                            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                              <div>
+                                <p className="font-medium text-gray-900">{row.subcategoryName}</p>
+                                <p className="text-xs text-gray-500">{row.categoryName}</p>
+                              </div>
+                              <div className="grid grid-cols-2 gap-3 text-sm sm:flex sm:items-center sm:gap-6">
+                                <div>
+                                  <p className="font-semibold text-blue-600">{grantLabel}</p>
+                                  <p className="text-xs text-gray-500">ใช้สิทธิ์</p>
                                 </div>
-                              );
-                            })}
+                                <div>
+                                  <p className="font-semibold text-gray-900">{formatCurrency(row.allocatedAmount)}</p>
+                                  <p className="text-xs text-gray-500">สิทธิ์รวม</p>
+                                </div>
+                                <div>
+                                  <p className="font-semibold text-emerald-600">{formatCurrency(row.usedAmount)}</p>
+                                  <p className="text-xs text-gray-500">งบที่ใช้ไป</p>
+                                </div>
+                                <div>
+                                  <p className="font-semibold text-gray-700">{formatCurrency(row.remainingBudget)}</p>
+                                  <p className="text-xs text-gray-500">งบคงเหลือ</p>
+                                </div>
+                              </div>
+                            </div>
                           </div>
-                        </td>
-                      </tr>
-                    )}
-                  </Fragment>
-                );
-              })
-            )}
-          </tbody>
-        </table>
-      </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
