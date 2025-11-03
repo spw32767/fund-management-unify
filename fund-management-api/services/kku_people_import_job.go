@@ -404,13 +404,6 @@ func (s *KkuPeopleImportJobService) acquireLock(ctx context.Context, lockName st
 	}, nil
 }
 
-func persistentContext(ctx context.Context) context.Context {
-	if ctx == nil {
-		return context.Background()
-	}
-	return context.WithoutCancel(ctx)
-}
-
 func firstNonEmpty(values ...string) string {
 	for _, v := range values {
 		if strings.TrimSpace(v) != "" {
