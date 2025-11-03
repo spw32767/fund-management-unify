@@ -225,7 +225,46 @@ func (s *KkuPeopleImportJobService) executeScript(ctx context.Context, debug boo
 	}
 
 	cmd := exec.CommandContext(ctx, py, args...)
-	cmd.Env = append(os.Environ(), "HEADLESS=1")
+
+	envMap := make(map[string]string)
+	for _, kv := range os.Environ() {
+		if kv == "" {
+			continue
+		}
+		parts := strings.SplitN(kv, "=", 2)
+		key := parts[0]
+		val := ""
+		if len(parts) > 1 {
+			val = parts[1]
+		}
+		envMap[key] = val
+	}
+
+	envMap["HEADLESS"] = "1"
+
+	if browser := strings.TrimSpace(os.Getenv("KKU_PEOPLE_BROWSER")); browser != "" {
+		envMap["BROWSER"] = browser
+	} else if _, ok := envMap["BROWSER"]; !ok {
+		envMap["BROWSER"] = "chrome"
+	}
+
+	if chromeBinary := strings.TrimSpace(os.Getenv("KKU_PEOPLE_CHROME_BINARY")); chromeBinary != "" {
+		envMap["CHROME_BINARY"] = chromeBinary
+	}
+
+	if chromeDriver := strings.TrimSpace(os.Getenv("KKU_PEOPLE_CHROMEDRIVER")); chromeDriver != "" {
+		envMap["CHROMEDRIVER_PATH"] = chromeDriver
+	}
+
+	if edgeDriver := strings.TrimSpace(os.Getenv("KKU_PEOPLE_EDGE_DRIVER")); edgeDriver != "" {
+		envMap["EDGE_DRIVER_PATH"] = edgeDriver
+	}
+
+	env := make([]string, 0, len(envMap))
+	for key, val := range envMap {
+		env = append(env, fmt.Sprintf("%s=%s", key, val))
+	}
+	cmd.Env = env
 
 	stdoutPipe, err := cmd.StdoutPipe()
 	if err != nil {

@@ -8,7 +8,9 @@ from bs4 import BeautifulSoup
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.options import Options as ChromeOptions
+from selenium.webdriver.chrome.service import Service as ChromeService
 from selenium.webdriver.edge.options import Options as EdgeOptions
+from selenium.webdriver.edge.service import Service as EdgeService
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 
@@ -24,6 +26,15 @@ except Exception:
 def eprint(*a, **k): print(*a, file=sys.stderr, **k)
 
 # ========== WebDriver ==========
+def _first_non_empty(*values):
+    for value in values:
+        if not value:
+            continue
+        trimmed = value.strip()
+        if trimmed:
+            return trimmed
+    return ""
+
 def _chrome_driver(headless=True):
     opts = ChromeOptions()
     if headless: opts.add_argument("--headless=new")
@@ -44,7 +55,18 @@ def _chrome_driver(headless=True):
         if not os.path.isfile(chrome_bin):
             raise FileNotFoundError(f"CHROME_BINARY not found: {chrome_bin}")
         opts.binary_location = chrome_bin
-    drv = webdriver.Chrome(options=opts)
+    service = None
+    driver_path = _first_non_empty(
+        os.environ.get("CHROMEDRIVER"),
+        os.environ.get("CHROMEDRIVER_PATH"),
+        os.environ.get("CHROME_DRIVER"),
+        os.environ.get("CHROME_DRIVER_PATH"),
+    )
+    if driver_path:
+        if not os.path.isfile(driver_path):
+            raise FileNotFoundError(f"Chrome driver not found: {driver_path}")
+        service = ChromeService(executable_path=driver_path)
+    drv = webdriver.Chrome(options=opts, service=service)
     try:
         drv.execute_cdp_cmd(
             "Page.addScriptToEvaluateOnNewDocument",
@@ -62,18 +84,48 @@ def _edge_driver(headless=True):
     opts.add_argument("--disable-gpu")
     opts.add_argument("--window-size=1400,1000")
     opts.add_argument("--lang=th-TH,th;q=0.9,en-US;q=0.8,en;q=0.7")
-    return webdriver.Edge(options=opts)
+    service = None
+    driver_path = _first_non_empty(
+        os.environ.get("EDGEDRIVER"),
+        os.environ.get("EDGEDRIVER_PATH"),
+        os.environ.get("EDGE_DRIVER"),
+        os.environ.get("EDGE_DRIVER_PATH"),
+        os.environ.get("MS_EDGE_DRIVER"),
+    )
+    if driver_path:
+        if not os.path.isfile(driver_path):
+            raise FileNotFoundError(f"Edge driver not found: {driver_path}")
+        service = EdgeService(executable_path=driver_path)
+    return webdriver.Edge(options=opts, service=service)
 
 def make_driver():
     headless_env = os.environ.get("HEADLESS", "").strip().lower()
     headless = not (headless_env in ("0","false","no"))
-    prefer = os.environ.get("BROWSER","auto").lower()
-    if prefer in ("chrome","auto"):
+    prefer = os.environ.get("BROWSER", "chrome").strip().lower()
+
+    errors = []
+
+    if prefer in ("chrome", "auto"):
         try:
             return _chrome_driver(headless=headless)
-        except Exception:
-            if prefer == "chrome": raise
-    return _edge_driver(headless=headless)
+        except Exception as exc:
+            errors.append(("chrome", exc))
+            if prefer == "chrome":
+                raise
+
+    if prefer in ("edge", "auto"):
+        try:
+            return _edge_driver(headless=headless)
+        except Exception as exc:
+            errors.append(("edge", exc))
+            if prefer == "edge":
+                raise
+
+    if errors:
+        names = ", ".join(f"{name}: {err}" for name, err in errors)
+        raise RuntimeError(f"failed to initialize webdriver ({names})") from errors[-1][1]
+
+    raise RuntimeError("unsupported BROWSER preference")
 
 def wait_ready(driver, timeout=30):
     WebDriverWait(driver, timeout).until(
