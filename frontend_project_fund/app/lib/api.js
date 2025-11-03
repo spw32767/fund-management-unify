@@ -1008,4 +1008,16 @@ export const usersAPI = {
   },
 };
 
+export const kkuPeopleAPI = {
+  async run({ dry_run = false, debug = false } = {}) {
+    return apiClient.post('/admin/kku-people/scrape', { dry_run, debug });
+  },
+  async getStatus() {
+    return apiClient.get('/admin/kku-people/status');
+  },
+  async getLogs(params = {}) {
+    return apiClient.get('/admin/kku-people/logs', params);
+  },
+};
+
 export { apiClient };
