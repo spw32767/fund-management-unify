@@ -265,10 +265,12 @@ class APIClient {
 
       // Handle other errors
       if (!response.ok) {
+        const details = data && typeof data === 'object' ? data : null;
+        const message = this.composeServerErrorMessage(details, response.status);
         if (response.status >= 500) {
-          throw new NetworkError(data.error || 'Server error occurred');
+          throw new NetworkError(message, details);
         } else {
-          throw new APIError(data.error || 'Request failed', response.status, data.code);
+          throw new APIError(message, response.status, details?.code, details);
         }
       }
 
@@ -288,9 +290,53 @@ class APIClient {
       if (error instanceof TypeError && error.message.includes('fetch')) {
         throw new NetworkError('Unable to connect to server. Please check your connection.');
       }
-      
+
       throw new NetworkError('Network error: ' + error.message);
     }
+  }
+
+  composeServerErrorMessage(details, status) {
+    const fallback = status >= 500 ? 'Server error occurred' : 'Request failed';
+    if (!details || typeof details !== 'object') {
+      return fallback;
+    }
+
+    const parts = [];
+    const errorMessage = typeof details.error === 'string' ? details.error.trim() : '';
+    if (errorMessage) {
+      parts.push(errorMessage);
+    }
+
+    if (details.exit_code !== undefined && details.exit_code !== null) {
+      parts.push(`exit code ${details.exit_code}`);
+    }
+
+    const stderr = typeof details.stderr === 'string' ? details.stderr.trim() : '';
+    if (stderr) {
+      parts.push(`stderr: ${this.truncateForDisplay(stderr)}`);
+    }
+
+    const stdout = typeof details.stdout === 'string' ? details.stdout.trim() : '';
+    if (stdout) {
+      parts.push(`stdout: ${this.truncateForDisplay(stdout)}`);
+    }
+
+    if (parts.length === 0) {
+      return fallback;
+    }
+
+    return parts.join(' • ');
+  }
+
+  truncateForDisplay(text, limit = 240) {
+    if (typeof text !== 'string') {
+      return '';
+    }
+    const trimmed = text.trim();
+    if (trimmed.length <= limit) {
+      return trimmed;
+    }
+    return `${trimmed.slice(0, limit)}…`;
   }
 
   // ==================== BASIC HTTP METHODS ====================
@@ -490,31 +536,32 @@ class APIClient {
 
 // Custom Error Classes
 class APIError extends Error {
-  constructor(message, status, code) {
+  constructor(message, status, code, details = null) {
     super(message);
     this.name = 'APIError';
     this.status = status;
     this.code = code;
+    this.details = details;
   }
 }
 
 class AuthError extends APIError {
-  constructor(message) {
-    super(message, 401, 'AUTH_ERROR');
+  constructor(message, details = null) {
+    super(message, 401, 'AUTH_ERROR', details);
     this.name = 'AuthError';
   }
 }
 
 class PermissionError extends APIError {
-  constructor(message) {
-    super(message, 403, 'PERMISSION_ERROR');
+  constructor(message, details = null) {
+    super(message, 403, 'PERMISSION_ERROR', details);
     this.name = 'PermissionError';
   }
 }
 
 class NetworkError extends APIError {
-  constructor(message) {
-    super(message, 0, 'NETWORK_ERROR');
+  constructor(message, details = null) {
+    super(message, 0, 'NETWORK_ERROR', details);
     this.name = 'NetworkError';
   }
 }
@@ -1005,6 +1052,18 @@ export const usersAPI = {
     return apiClient.post(`/admin/users/${encodeURIComponent(userId)}/scholar-author`, {
       author_id: authorId,
     });
+  },
+};
+
+export const kkuPeopleAPI = {
+  async run({ dry_run = false, debug = false } = {}) {
+    return apiClient.post('/admin/kku-people/scrape', { dry_run, debug });
+  },
+  async getStatus() {
+    return apiClient.get('/admin/kku-people/status');
+  },
+  async getLogs(params = {}) {
+    return apiClient.get('/admin/kku-people/logs', params);
   },
 };
 

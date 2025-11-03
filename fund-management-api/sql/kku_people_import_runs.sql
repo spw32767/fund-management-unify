@@ -1,0 +1,25 @@
+-- Schema for kku_people_import_runs table used by the admin KKU People scraper UI
+CREATE TABLE IF NOT EXISTS `kku_people_import_runs` (
+  `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT,
+  `trigger_source` varchar(64) NOT NULL,
+  `dry_run` tinyint(1) NOT NULL DEFAULT 0,
+  `status` enum('running','success','failed') NOT NULL DEFAULT 'running',
+  `error_message` text DEFAULT NULL,
+  `started_at` datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  `finished_at` datetime(6) DEFAULT NULL,
+  `duration_seconds` double DEFAULT NULL,
+  `fetched_count` int UNSIGNED NOT NULL DEFAULT 0,
+  `created_count` int UNSIGNED NOT NULL DEFAULT 0,
+  `updated_count` int UNSIGNED NOT NULL DEFAULT 0,
+  `failed_count` int UNSIGNED NOT NULL DEFAULT 0,
+  `exit_code` int DEFAULT NULL,
+  `stdout` longtext,
+  `stderr` longtext,
+  `created_at` datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  `updated_at` datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
+  `deleted_at` datetime(6) DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `idx_kku_people_import_runs_status` (`status`),
+  KEY `idx_kku_people_import_runs_started_at` (`started_at`),
+  KEY `idx_kku_people_import_runs_deleted_at` (`deleted_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
