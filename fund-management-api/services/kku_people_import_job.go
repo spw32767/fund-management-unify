@@ -213,14 +213,13 @@ func (s *KkuPeopleImportJobService) Run(ctx context.Context, input *KkuPeopleImp
 
 func (s *KkuPeopleImportJobService) executeScript(ctx context.Context, debug bool) ([]rawKkuPerson, []byte, []byte, *int, error) {
 	py := firstNonEmpty(os.Getenv("VENV_PY"), "python3")
-	script := firstNonEmpty(os.Getenv("KKU_PEOPLE_SCRIPT"), os.Getenv("CP_PROFILE_SCRIPT"), "scripts/scrape_kku_people.py")
-	if !filepath.IsAbs(script) {
-		if wd, err := os.Getwd(); err == nil {
-			script = filepath.Join(wd, script)
-		}
+	scriptPath := firstNonEmpty(os.Getenv("KKU_PEOPLE_SCRIPT"), os.Getenv("CP_PROFILE_SCRIPT"), "scripts/scrape_kku_people.py")
+	resolvedScript, err := resolveKkuPeopleScriptPath(scriptPath)
+	if err != nil {
+		return nil, nil, nil, nil, err
 	}
 
-	args := []string{script}
+	args := []string{resolvedScript}
 	if debug {
 		args = append(args, "--debug")
 	}
@@ -411,4 +410,62 @@ func firstNonEmpty(values ...string) string {
 		}
 	}
 	return ""
+}
+
+func resolveKkuPeopleScriptPath(raw string) (string, error) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return "", errors.New("script path is empty")
+	}
+
+	var candidates []string
+	seen := make(map[string]struct{})
+	addCandidate := func(path string) {
+		if strings.TrimSpace(path) == "" {
+			return
+		}
+		cleaned := filepath.Clean(path)
+		if _, exists := seen[cleaned]; exists {
+			return
+		}
+		seen[cleaned] = struct{}{}
+		candidates = append(candidates, cleaned)
+	}
+
+	if filepath.IsAbs(raw) {
+		addCandidate(raw)
+	} else {
+		addCandidate(raw)
+
+		if wd, err := os.Getwd(); err == nil {
+			addCandidate(filepath.Join(wd, raw))
+			addCandidate(filepath.Join(wd, "fund-management-api", raw))
+		}
+
+		if exePath, err := os.Executable(); err == nil {
+			exeDir := filepath.Dir(exePath)
+			addCandidate(filepath.Join(exeDir, raw))
+			addCandidate(filepath.Join(filepath.Dir(exeDir), raw))
+			addCandidate(filepath.Join(exeDir, "scripts", filepath.Base(raw)))
+			addCandidate(filepath.Join(filepath.Dir(exeDir), "scripts", filepath.Base(raw)))
+		}
+
+		if envRoot := strings.TrimSpace(os.Getenv("KKU_PEOPLE_SCRIPT_ROOT")); envRoot != "" {
+			addCandidate(filepath.Join(envRoot, raw))
+			addCandidate(filepath.Join(envRoot, filepath.Base(raw)))
+		}
+
+		addCandidate(filepath.Join("fund-management-api", raw))
+		addCandidate(filepath.Join("..", "fund-management-api", raw))
+		addCandidate(filepath.Join("scripts", filepath.Base(raw)))
+	}
+
+	for _, candidate := range candidates {
+		info, err := os.Stat(candidate)
+		if err == nil && !info.IsDir() {
+			return candidate, nil
+		}
+	}
+
+	return "", fmt.Errorf("kku people script not found; checked: %s", strings.Join(candidates, ", "))
 }
