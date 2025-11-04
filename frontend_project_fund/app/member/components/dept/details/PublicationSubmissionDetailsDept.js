@@ -1800,6 +1800,14 @@ export default function PublicationSubmissionDetailsDept({ submissionId, onBack 
     }
     await deptHeadAPI.recommendSubmission(submission.submission_id, body);
 
+    try {
+      await notificationsAPI.notifyDeptHeadRecommended(submission.submission_id, {
+        comment: typeof headComment === 'string' ? headComment.trim() : '',
+      });
+    } catch (notifyErr) {
+      console.warn('notifyDeptHeadRecommended failed:', notifyErr);
+    }
+
     // reload details หลังบันทึก
     const res = await deptHeadAPI.getSubmissionDetails(submission.submission_id);
     const data = res?.submission || res || {};
@@ -1826,6 +1834,15 @@ export default function PublicationSubmissionDetailsDept({ submissionId, onBack 
       payload.announce_reference = trimmedRef;
     }
     await deptHeadAPI.rejectSubmission(submission.submission_id, payload);
+
+    try {
+      await notificationsAPI.notifyDeptHeadNotRecommended(submission.submission_id, {
+        reason: typeof reason === 'string' ? reason.trim() : '',
+        comment: typeof headComment === 'string' ? headComment.trim() : '',
+      });
+    } catch (notifyErr) {
+      console.warn('notifyDeptHeadNotRecommended failed:', notifyErr);
+    }
 
     // reload details หลังบันทึก
     const res = await deptHeadAPI.getSubmissionDetails(submission.submission_id);
