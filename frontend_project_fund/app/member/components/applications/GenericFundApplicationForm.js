@@ -2289,7 +2289,11 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
         }
 
         try {
-          await notificationsAPI.notifySubmissionSubmitted(submissionId);
+          const submitterDisplayName =
+            typeof formData?.name === 'string' ? formData.name.trim() : '';
+          await notificationsAPI.notifySubmissionSubmitted(submissionId, {
+            submitter_name: submitterDisplayName,
+          });
         } catch (notifyError) {
           console.warn('notifySubmissionSubmitted failed:', notifyError);
         }
