@@ -15,6 +15,7 @@ import Card from '../../common/Card';
 import StatusBadge from '../../common/StatusBadge';
 import deptHeadAPI from '@/app/lib/dept_head_api';
 import apiClient from '@/app/lib/api';
+import { notificationsAPI } from '@/app/lib/notifications_api';
 import { toast } from 'react-hot-toast';
 import { useStatusMap } from '@/app/hooks/useStatusMap';
 import { PDFDocument } from 'pdf-lib';
@@ -1105,6 +1106,14 @@ export default function GeneralSubmissionDetailsDept({ submissionId, onBack }) {
       body.announce_reference = trimmedRef;
     }
     await deptHeadAPI.recommendSubmission(submission.submission_id, body);
+
+    try {
+      await notificationsAPI.notifyDeptHeadRecommended(submission.submission_id, {
+        comment: typeof headComment === 'string' ? headComment.trim() : '',
+      });
+    } catch (notifyErr) {
+      console.warn('notifyDeptHeadRecommended failed:', notifyErr);
+    }
     // refresh
     const res = await deptHeadAPI.getSubmissionDetails(submission.submission_id);
     let data = res?.submission || res;
@@ -1132,6 +1141,15 @@ export default function GeneralSubmissionDetailsDept({ submissionId, onBack }) {
       payload.announce_reference = trimmedRef;
     }
     await deptHeadAPI.rejectSubmission(submission.submission_id, payload);
+
+    try {
+      await notificationsAPI.notifyDeptHeadNotRecommended(submission.submission_id, {
+        reason: typeof reason === 'string' ? reason.trim() : '',
+        comment: typeof headComment === 'string' ? headComment.trim() : '',
+      });
+    } catch (notifyErr) {
+      console.warn('notifyDeptHeadNotRecommended failed:', notifyErr);
+    }
     // refresh
     const res = await deptHeadAPI.getSubmissionDetails(submission.submission_id);
     let data = res?.submission || res;
