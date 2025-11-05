@@ -39,8 +39,21 @@ export const notificationsAPI = {
    * (เรียกหลัง submitSubmission(submissionId) สำเร็จ)
    * -> แจ้ง ผู้ยื่น + หัวหน้าสาขาปัจจุบัน
    */
-  async notifySubmissionSubmitted(submissionId) {
-    return apiClient.post(`/notifications/events/submissions/${submissionId}/submitted`);
+  async notifySubmissionSubmitted(submissionId, details = {}) {
+    const payload = {};
+    if (details && typeof details === 'object') {
+      const submitterName = typeof details.submitter_name === 'string'
+        ? details.submitter_name.trim()
+        : '';
+      if (submitterName) {
+        payload.submitter_name = submitterName;
+      }
+    }
+
+    return apiClient.post(
+      `/notifications/events/submissions/${submissionId}/submitted`,
+      payload
+    );
   },
 
   /**

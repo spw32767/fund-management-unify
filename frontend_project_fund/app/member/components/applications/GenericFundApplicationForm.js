@@ -8,6 +8,7 @@ import PageLayout from "../common/PageLayout";
 import SimpleCard from "../common/SimpleCard";
 import { authAPI, systemAPI, documentTypesAPI } from '../../../lib/api';
 import { fundInstallmentAPI } from '../../../lib/fund_installment_api';
+import { notificationsAPI } from '../../../lib/notifications_api';
 import { PDFDocument } from "pdf-lib";
 import { useRouter } from "next/navigation";
 
@@ -2285,6 +2286,16 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
           await submissionAPI.mergeSubmissionDocuments(submissionId);
         } catch (mergeError) {
           console.error('Failed to merge submission documents:', mergeError);
+        }
+
+        try {
+          const submitterDisplayName =
+            typeof formData?.name === 'string' ? formData.name.trim() : '';
+          await notificationsAPI.notifySubmissionSubmitted(submissionId, {
+            submitter_name: submitterDisplayName,
+          });
+        } catch (notifyError) {
+          console.warn('notifySubmissionSubmitted failed:', notifyError);
         }
       }
 

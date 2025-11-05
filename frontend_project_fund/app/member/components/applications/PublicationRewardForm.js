@@ -6437,7 +6437,21 @@ const showSubmissionConfirmation = async () => {
       }
 
       try {
-        await notificationsAPI.notifySubmissionSubmitted(submissionId);
+        const submitterDisplayName = (() => {
+          if (!currentUser) {
+            return '';
+          }
+          const parts = resolveUserNameParts(currentUser);
+          const combined = [parts.prefix, parts.firstName, parts.lastName]
+            .filter(Boolean)
+            .join(' ')
+            .trim();
+          return (parts.displayName || combined || '').trim();
+        })();
+
+        await notificationsAPI.notifySubmissionSubmitted(submissionId, {
+          submitter_name: submitterDisplayName,
+        });
       } catch (e) {
         console.warn('notifySubmissionSubmitted failed:', e);
       }
