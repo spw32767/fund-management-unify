@@ -2444,12 +2444,20 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
     );
   }
 
-  const pageTitle = `ยื่นขอ ${effectiveFundContext?.subcategory_name || 'ทุน'}`;
+  const fundDisplayName = firstNonEmptyString(
+    effectiveFundContext?.subcategory?.fund_full_name,
+    effectiveFundContext?.subcategory?.fund_name,
+    effectiveFundContext?.subcategory?.subcategory_name,
+    effectiveFundContext?.fund_full_name,
+    effectiveFundContext?.fund_name,
+    effectiveFundContext?.subcategory_name,
+  );
+  const pageTitle = `ยื่นขอ ${fundDisplayName || 'ทุน'}`;
   const pageSubtitle = 'กรุณากรอกข้อมูลให้ครบถ้วนก่อนส่งคำร้องเพื่อเข้าสู่การพิจารณา';
   const breadcrumbs = [
     { label: 'หน้าแรก', href: '/member' },
     { label: 'ทุนวิจัย', href: '/member?tab=research-fund' },
-    { label: effectiveFundContext?.subcategory_name || 'ยื่นคำร้อง' }
+    { label: fundDisplayName || 'ยื่นคำร้อง' }
   ];
   const pendingStatusName = pendingStatus?.name || 'กำลังโหลดสถานะ...';
   const pendingStatusCode = pendingStatus?.code ?? '—';
