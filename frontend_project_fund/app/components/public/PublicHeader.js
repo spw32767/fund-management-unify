@@ -49,6 +49,9 @@ export default function PublicHeader({
     router.push("/login");
   };
 
+  const loginButtonBaseClass =
+    "inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-blue-600 to-purple-600 text-sm font-semibold text-white shadow-lg shadow-blue-500/30 transition hover:-translate-y-0.5 hover:shadow-xl";
+
   const handleToggleMenu = () => {
     setIsOpen?.((prev) => !prev);
   };
@@ -136,7 +139,7 @@ export default function PublicHeader({
         <div className="hidden md:flex items-center gap-3">
           <button
             onClick={handleLogin}
-            className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white rounded-lg bg-gradient-to-r from-blue-500 to-purple-500 shadow-sm hover:shadow-md transition-shadow"
+            className={`${loginButtonBaseClass} px-6 py-2.5`}
           >
             <LogIn size={18} />
             <span>เข้าสู่ระบบ</span>
@@ -169,7 +172,7 @@ export default function PublicHeader({
             <div className="mb-6 p-4 bg-gray-50 rounded-lg md:hidden">
               <button
                 onClick={handleLogin}
-                className="w-full inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-semibold text-white rounded-lg bg-gradient-to-r from-blue-500 to-purple-500 shadow-sm hover:shadow-md transition-shadow"
+                className={`${loginButtonBaseClass} w-full justify-center px-6 py-3`}
               >
                 <LogIn size={18} />
                 <span>เข้าสู่ระบบ</span>
