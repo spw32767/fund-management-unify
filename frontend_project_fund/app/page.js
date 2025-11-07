@@ -78,6 +78,7 @@ export default function HomePage() {
             appDisplayName={APP_DISPLAY_NAME}
             tagline={WELCOME_TAGLINE}
             onLogin={handleLogin}
+            pageTitle={currentPageTitle}
           />
         );
     }
