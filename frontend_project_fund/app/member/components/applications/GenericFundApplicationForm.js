@@ -744,6 +744,63 @@ const firstValidNumber = (...values) => {
   return null;
 };
 
+const resolveFundContextIdentifiers = (context) => {
+  const safeContext = context || {};
+
+  const yearId = firstValidNumber(
+    safeContext.year_id,
+    safeContext.YearID,
+    safeContext.yearId,
+    safeContext?.subcategory?.year_id,
+    safeContext?.subcategory?.YearID,
+    safeContext?.subcategory?.yearId,
+  );
+
+  const categoryId = firstValidNumber(
+    safeContext.category_id,
+    safeContext.CategoryID,
+    safeContext.categoryId,
+    safeContext?.subcategory?.category_id,
+    safeContext?.subcategory?.CategoryID,
+    safeContext?.subcategory?.categoryId,
+    safeContext?.subcategory?.category?.category_id,
+    safeContext?.subcategory?.category?.CategoryID,
+    safeContext?.subcategory?.category?.categoryId,
+  );
+
+  const subcategoryId = firstValidNumber(
+    safeContext.subcategory_id,
+    safeContext.SubcategoryID,
+    safeContext.subcategoryId,
+    safeContext?.subcategory?.subcategory_id,
+    safeContext?.subcategory?.SubcategoryID,
+    safeContext?.subcategory?.subcategoryId,
+    safeContext?.subcategory?.subcategorie_id,
+    safeContext?.subcategory?.id,
+  );
+
+  const budgetId = firstValidNumber(
+    safeContext.subcategory_budget_id,
+    safeContext.SubcategoryBudgetID,
+    safeContext.subcategoryBudgetId,
+    safeContext?.subcategory?.subcategory_budget_id,
+    safeContext?.subcategory?.SubcategoryBudgetID,
+    safeContext?.subcategory?.subcategoryBudgetId,
+    safeContext?.subcategory?.budget_id,
+    safeContext?.subcategory_budget_id,
+    safeContext?.subcategory_budget?.subcategory_budget_id,
+    safeContext?.subcategory_budget?.SubcategoryBudgetID,
+    safeContext?.subcategory_budget?.subcategoryBudgetId,
+  );
+
+  return {
+    yearId: yearId ?? null,
+    categoryId: categoryId ?? null,
+    subcategoryId: subcategoryId ?? null,
+    budgetId: budgetId ?? null,
+  };
+};
+
 const pickFirstObject = (...values) => {
   for (const value of values) {
     if (value && typeof value === 'object') {
@@ -2024,10 +2081,12 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
       await new Promise(resolve => setTimeout(resolve, 300));
 
       let submissionId = currentSubmissionId;
-      const contextYearId = effectiveFundContext?.year_id ?? null;
-      const contextCategoryId = effectiveFundContext?.category_id ?? null;
-      const contextSubcategoryId = effectiveFundContext?.subcategory_id ?? null;
-      const contextBudgetId = effectiveFundContext?.subcategory_budget_id ?? null;
+      const {
+        yearId: contextYearId,
+        categoryId: contextCategoryId,
+        subcategoryId: contextSubcategoryId,
+        budgetId: contextBudgetId,
+      } = resolveFundContextIdentifiers(effectiveFundContext);
       if (!submissionId) {
         const payload = {
           submission_type: 'fund_application',
@@ -2193,10 +2252,12 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
       setSubmitting(true);
 
       let submissionId = currentSubmissionId;
-      const contextYearId = effectiveFundContext?.year_id ?? null;
-      const contextCategoryId = effectiveFundContext?.category_id ?? null;
-      const contextSubcategoryId = effectiveFundContext?.subcategory_id ?? null;
-      const contextBudgetId = effectiveFundContext?.subcategory_budget_id ?? null;
+      const {
+        yearId: contextYearId,
+        categoryId: contextCategoryId,
+        subcategoryId: contextSubcategoryId,
+        budgetId: contextBudgetId,
+      } = resolveFundContextIdentifiers(effectiveFundContext);
       if (!submissionId) {
         let statusForSubmission = pendingStatus;
         if (!statusForSubmission?.id) {
@@ -2383,12 +2444,20 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
     );
   }
 
-  const pageTitle = `ยื่นขอ ${effectiveFundContext?.subcategory_name || 'ทุน'}`;
+  const fundDisplayName = firstNonEmptyString(
+    effectiveFundContext?.subcategory?.fund_full_name,
+    effectiveFundContext?.subcategory?.fund_name,
+    effectiveFundContext?.subcategory?.subcategory_name,
+    effectiveFundContext?.fund_full_name,
+    effectiveFundContext?.fund_name,
+    effectiveFundContext?.subcategory_name,
+  );
+  const pageTitle = `ยื่นขอ ${fundDisplayName || 'ทุน'}`;
   const pageSubtitle = 'กรุณากรอกข้อมูลให้ครบถ้วนก่อนส่งคำร้องเพื่อเข้าสู่การพิจารณา';
   const breadcrumbs = [
     { label: 'หน้าแรก', href: '/member' },
     { label: 'ทุนวิจัย', href: '/member?tab=research-fund' },
-    { label: effectiveFundContext?.subcategory_name || 'ยื่นคำร้อง' }
+    { label: fundDisplayName || 'ยื่นคำร้อง' }
   ];
   const pendingStatusName = pendingStatus?.name || 'กำลังโหลดสถานะ...';
   const pendingStatusCode = pendingStatus?.code ?? '—';
