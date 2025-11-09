@@ -3,6 +3,7 @@ fund-api
 *.exe
 *.out
 *.test
+!.env.test
 .env
 
 # Go coverage / build artifacts
