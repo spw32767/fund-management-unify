@@ -113,38 +113,38 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md mx-auto">
-        {/* Header */}
-        <div className="text-center mb-8">
-          <div className="flex items-center justify-center gap-6 mb-4">
-            <Image
-              src="/image_icon/iconcpkku.png"
-              alt="CPKKU Icon"
-              width={72}
-              height={72}
-              className="object-contain"
-              priority
-            />
-            <Image
-              src="/image_icon/fund_cpkku_logo.png"
-              alt="Fund CPKKU Logo"
-              width={72}
-              height={72}
-              className="object-contain"
-              priority
-            />
-          </div>
-
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">
-            เข้าสู่ระบบ
-          </h1>
-
-          <p className="text-gray-600">
-            ระบบบริหารจัดการทุนวิจัย
-          </p>
-        </div>
-
         {/* Login Form */}
         <div className="bg-white shadow-xl rounded-2xl p-8 border border-gray-100">
+          {/* Header */}
+          <div className="text-center mb-8">
+            <div className="flex items-center justify-center gap-6 mb-4">
+              <Image
+                src="/image_icon/iconcpkku.png"
+                alt="CPKKU Icon"
+                width={96}
+                height={96}
+                className="object-contain"
+                priority
+              />
+              <Image
+                src="/image_icon/fund_cpkku_logo.png"
+                alt="Fund CPKKU Logo"
+                width={96}
+                height={96}
+                className="object-contain"
+                priority
+              />
+            </div>
+
+            <h1 className="text-3xl font-bold text-gray-900 mb-2">
+              เข้าสู่ระบบ
+            </h1>
+
+            <p className="text-gray-600">
+              ระบบบริหารจัดการทุนวิจัย
+            </p>
+          </div>
+
           <form onSubmit={handleSubmit} className="space-y-6">
             {/* Email Field */}
             <div>
