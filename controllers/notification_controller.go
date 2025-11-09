@@ -4,7 +4,9 @@ import (
 	"fmt"
 	"html/template"
 	"log"
+	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -230,11 +232,66 @@ func getApprovedAmountDisplay(db *gorm.DB, sub submissionLite) (string, bool) {
 }
 
 func appBaseURL() string {
-	base := os.Getenv("APP_BASE_URL")
-	if base == "" {
-		base = "http://10.198.110.27:3000/"
+	return chooseBaseURL(os.Getenv("APP_BASE_URL"), true)
+}
+
+func normalizeBaseURL(candidate string) string {
+	trimmed := strings.TrimSpace(candidate)
+	if trimmed == "" {
+		return ""
 	}
-	return base
+	if !strings.HasSuffix(trimmed, "/") {
+		trimmed += "/"
+	}
+	return trimmed
+}
+
+func chooseBaseURL(raw string, preferPublic bool) string {
+	raw = strings.TrimSpace(raw)
+	candidates := parseLogoList(raw)
+	if len(candidates) == 0 {
+		if raw != "" {
+			candidates = append(candidates, raw)
+		}
+	}
+
+	var fallback string
+	for _, candidate := range candidates {
+		normalized := normalizeBaseURL(candidate)
+		if normalized == "" {
+			continue
+		}
+		if fallback == "" {
+			fallback = normalized
+		}
+		if !preferPublic || isPublicBaseURL(normalized) {
+			return normalized
+		}
+	}
+
+	return fallback
+}
+
+func isPublicBaseURL(candidate string) bool {
+	u, err := url.Parse(candidate)
+	if err != nil {
+		return false
+	}
+	host := u.Hostname()
+	if host == "" {
+		return false
+	}
+	if strings.EqualFold(host, "localhost") {
+		return false
+	}
+	if ip := net.ParseIP(host); ip != nil {
+		return !ip.IsLoopback()
+	}
+	return true
+}
+
+func appBackendBaseURL() string {
+	return chooseBaseURL(os.Getenv("APP_BACKEND_BASE_URL"), true)
 }
 
 type emailMetaItem struct {
