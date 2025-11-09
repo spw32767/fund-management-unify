@@ -1,29 +1,21 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import Image from 'next/image';
 import { useRouter } from 'next/navigation';
-import { Eye, EyeOff, LogIn, AlertCircle, Lock, Mail, CheckCircle, Wifi, WifiOff } from 'lucide-react';
+import { Eye, EyeOff, LogIn, AlertCircle, Lock, Mail, KeyRound } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
-import { healthAPI, AuthError, NetworkError } from '../lib/api';
 
 export default function LoginPage() {
   const { login, isLoading, error, clearError, isAuthenticated, user } = useAuth();
   const router = useRouter();
-  
+
   const [formData, setFormData] = useState({
     email: '',
     password: ''
   });
   const [showPassword, setShowPassword] = useState(false);
-  const [rememberMe, setRememberMe] = useState(false);
-  const [serverStatus, setServerStatus] = useState(null);
-  const [checkingServer, setCheckingServer] = useState(true);
   const [redirecting, setRedirecting] = useState(false);
-
-  // Check server health on component mount
-  useEffect(() => {
-    checkServerHealth();
-  }, []);
 
   // Redirect if already authenticated - แก้ไขให้ใช้ Next.js router
   useEffect(() => {
@@ -32,22 +24,6 @@ export default function LoginPage() {
       redirectBasedOnRole();
     }
   }, [isAuthenticated, user, redirecting]);
-
-  // Check server health
-  const checkServerHealth = async () => {
-    setCheckingServer(true);
-    try {
-      const health = await healthAPI.check();
-      setServerStatus({ status: 'online', message: health.message });
-    } catch (error) {
-      setServerStatus({ 
-        status: 'offline', 
-        message: 'ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้' 
-      });
-    } finally {
-      setCheckingServer(false);
-    }
-  };
 
   // แก้ไขการ redirect ให้ใช้ Next.js router และตรวจสอบ role ให้แม่นยำ
   const redirectBasedOnRole = () => {
@@ -89,7 +65,7 @@ export default function LoginPage() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
+
     if (!formData.email || !formData.password) {
       return;
     }
@@ -105,6 +81,8 @@ export default function LoginPage() {
       // Error จะถูก handle ใน AuthContext แล้ว
     }
   };
+
+  const handleSSOLogin = () => {};
 
   // แสดง loading screen ขณะ redirecting
   if (redirecting) {
@@ -133,57 +111,40 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-md mx-auto">
-        {/* Header */}
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-blue-600 to-purple-600 rounded-2xl mb-4 shadow-lg">
-            <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center">
-              <div className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-                F
-              </div>
-            </div>
-          </div>
-          
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">
-            เข้าสู่ระบบ
-          </h1>
-          
-          <p className="text-gray-600">
-            ระบบบริหารจัดการทุนวิจัย
-          </p>
-        </div>
-
-        {/* Server Status */}
-        <div className="mb-6">
-          <div className={`flex items-center gap-2 p-3 rounded-lg border ${
-            checkingServer 
-              ? 'bg-gray-50 border-gray-200' 
-              : serverStatus?.status === 'online'
-                ? 'bg-green-50 border-green-200 text-green-800'
-                : 'bg-red-50 border-red-200 text-red-800'
-          }`}>
-            {checkingServer ? (
-              <>
-                <div className="w-4 h-4 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin"></div>
-                <span className="text-sm text-gray-600">ตรวจสอบสถานะเซิร์ฟเวอร์...</span>
-              </>
-            ) : serverStatus?.status === 'online' ? (
-              <>
-                <CheckCircle className="w-4 h-4" />
-                <span className="text-sm">เชื่อมต่อเซิร์ฟเวอร์สำเร็จ</span>
-              </>
-            ) : (
-              <>
-                <WifiOff className="w-4 h-4" />
-                <span className="text-sm">{serverStatus?.message}</span>
-              </>
-            )}
-          </div>
-        </div>
-
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 px-4 sm:px-6 lg:px-8 py-12 flex items-center justify-center">
+      <div className="w-full max-w-md">
         {/* Login Form */}
         <div className="bg-white shadow-xl rounded-2xl p-8 border border-gray-100">
+          {/* Header */}
+          <div className="text-center mb-8">
+            <div className="flex items-center justify-center gap-6 mb-4">
+              <Image
+                src="/image_icon/iconcpkku.png"
+                alt="CPKKU Icon"
+                width={175}
+                height={100}
+                className="object-contain"
+                priority
+              />
+              <Image
+                src="/image_icon/fund_cpkku_logo.png"
+                alt="Fund CPKKU Logo"
+                width={100}
+                height={100}
+                className="object-contain"
+                priority
+              />
+            </div>
+
+            <h1 className="text-2xl font-bold text-gray-900 mb-2">
+              เข้าสู่ระบบ
+            </h1>
+
+            <p className="text-gray-600">
+              ระบบบริหารจัดการทุนวิจัย
+            </p>
+          </div>
+
           <form onSubmit={handleSubmit} className="space-y-6">
             {/* Email Field */}
             <div>
@@ -240,22 +201,13 @@ export default function LoginPage() {
                   )}
                 </button>
               </div>
-            </div>
-
-            {/* Remember Me */}
-            <div className="flex items-center justify-between">
-              <div className="flex items-center">
-                <input
-                  id="remember-me"
-                  name="remember-me"
-                  type="checkbox"
-                  checked={rememberMe}
-                  onChange={(e) => setRememberMe(e.target.checked)}
-                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                />
-                <label htmlFor="remember-me" className="ml-2 block text-sm text-gray-700">
-                  จดจำการเข้าสู่ระบบ
-                </label>
+              <div className="flex justify-end mt-2">
+                <button
+                  type="button"
+                  className="text-sm font-medium text-blue-600 hover:text-blue-700"
+                >
+                  ลืมรหัสผ่าน?
+                </button>
               </div>
             </div>
 
@@ -274,7 +226,7 @@ export default function LoginPage() {
             {/* Submit Button */}
             <button
               type="submit"
-              disabled={isLoading || serverStatus?.status !== 'online'}
+              disabled={isLoading}
               className="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-xl text-white bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 shadow-lg"
             >
               {isLoading ? (
@@ -289,6 +241,26 @@ export default function LoginPage() {
                 </>
               )}
             </button>
+
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+                <span className="w-full border-t border-gray-200" aria-hidden="true"></span>
+              </div>
+              <div className="relative flex justify-center text-sm">
+                <span className="px-2 bg-white text-gray-500">หรือเข้าสู่ระบบด้วย</span>
+              </div>
+            </div>
+
+            <div>
+              <button
+                type="button"
+                className="w-full flex items-center justify-center gap-3 py-3 px-4 border border-gray-200 rounded-xl text-sm font-medium text-gray-700 hover:border-blue-400 hover:text-blue-600 transition-colors duration-200"
+                onClick={handleSSOLogin}
+              >
+                <KeyRound className="w-5 h-5" />
+                SSO
+              </button>
+            </div>
           </form>
         </div>
 

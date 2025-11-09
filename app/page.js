@@ -5,11 +5,15 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from './contexts/AuthContext';
 import PublicHeader from './components/public/PublicHeader';
 import PublicNavigation from './components/public/PublicNavigation';
-import UnderDevelopmentContent from './member/components/common/UnderDevelopmentContent';
+import PublicWelcomeContent from './components/public/PublicWelcomeContent';
 
 const PAGE_TITLES = {
   home: 'หน้าหลัก',
 };
+
+const APP_DISPLAY_NAME = 'ระบบบริหารจัดการทุนวิจัย';
+const WELCOME_TAGLINE =
+  'ระบบกลางสำหรับบริหารจัดการทุนวิจัยของวิทยาลัยการคอมพิวเตอร์ มหาวิทยาลัยขอนแก่น';
 
 export default function HomePage() {
   const router = useRouter();
@@ -61,15 +65,20 @@ export default function HomePage() {
     return PAGE_TITLES[currentPage] || 'หน้าหลัก';
   }, [currentPage]);
 
+  const handleLogin = () => {
+    router.push('/login');
+  };
+
   const renderPageContent = () => {
     switch (currentPage) {
       case 'home':
       default:
         return (
-          <UnderDevelopmentContent
-            currentPage={currentPage}
-            title={PAGE_TITLES[currentPage] || 'หน้าหลัก'}
-            breadcrumbs={[{ label: currentPageTitle }]}
+          <PublicWelcomeContent
+            appDisplayName={APP_DISPLAY_NAME}
+            tagline={WELCOME_TAGLINE}
+            onLogin={handleLogin}
+            pageTitle={currentPageTitle}
           />
         );
     }
@@ -87,9 +96,7 @@ export default function HomePage() {
             </div>
           </div>
 
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">
-            ระบบบริหารจัดการทุนวิจัย
-          </h1>
+          <h1 className="text-2xl font-bold text-gray-900 mb-2">{APP_DISPLAY_NAME}</h1>
 
           <div className="flex items-center justify-center gap-2 text-gray-600">
             <div className="w-6 h-6 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin"></div>
@@ -128,9 +135,7 @@ export default function HomePage() {
         </div>
 
         <div className="md:ml-64 flex-1">
-          <div className="px-8 pb-8">
-            {renderPageContent()}
-          </div>
+          <div className="px-8 pb-8">{renderPageContent()}</div>
         </div>
       </div>
     </div>
