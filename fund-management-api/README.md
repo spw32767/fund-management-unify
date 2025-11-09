@@ -56,7 +56,7 @@ Set at minimum the following variables (see `.env.example` for the full list):
 - `GIN_MODE=release` in production
 - `JWT_SECRET`, `JWT_EXPIRE_HOURS`, `REFRESH_TOKEN_EXPIRE_HOURS`
 - `UPLOAD_PATH` (directory for uploaded files)
-- Email/notification settings if used (`SMTP_*`, `APP_BASE_URL`)
+- Email/notification settings if used (`SMTP_*`, `APP_BASE_URL`, `APP_BACKEND_BASE_URL`)
 
 Ensure the directories referenced by `UPLOAD_PATH` and `LOG_FILE` exist and are writable by the service user.
 
