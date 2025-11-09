@@ -244,7 +244,7 @@ func appBaseURL() string {
 		}
 	}
 
-	return "http://10.198.110.27:3000/"
+	return ""
 }
 
 func normalizeBaseURL(candidate string) string {
