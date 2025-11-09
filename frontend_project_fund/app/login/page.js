@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
-import { Eye, EyeOff, LogIn, AlertCircle, Lock, Mail } from 'lucide-react';
+import { Eye, EyeOff, LogIn, AlertCircle, Lock, Mail, KeyRound } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 
 export default function LoginPage() {
@@ -111,8 +111,8 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-md mx-auto">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 px-4 sm:px-6 lg:px-8 py-12 flex items-center justify-center">
+      <div className="w-full max-w-md">
         {/* Login Form */}
         <div className="bg-white shadow-xl rounded-2xl p-8 border border-gray-100">
           {/* Header */}
@@ -257,13 +257,7 @@ export default function LoginPage() {
                 className="w-full flex items-center justify-center gap-3 py-3 px-4 border border-gray-200 rounded-xl text-sm font-medium text-gray-700 hover:border-blue-400 hover:text-blue-600 transition-colors duration-200"
                 onClick={handleSSOLogin}
               >
-                <Image
-                  src="/image_icon/iconcpkku.png"
-                  alt="SSO Icon"
-                  width={20}
-                  height={20}
-                  className="object-contain"
-                />
+                <KeyRound className="w-5 h-5" />
                 SSO
               </button>
             </div>
