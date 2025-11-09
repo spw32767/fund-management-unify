@@ -1,8 +1,9 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import Image from 'next/image';
 import { useRouter } from 'next/navigation';
-import { Eye, EyeOff, LogIn, AlertCircle, Lock, Mail, Key } from 'lucide-react';
+import { Eye, EyeOff, LogIn, AlertCircle, Lock, Mail } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 
 export default function LoginPage() {
@@ -114,10 +115,29 @@ export default function LoginPage() {
       <div className="max-w-md mx-auto">
         {/* Header */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-blue-600 to-purple-600 rounded-2xl mb-4 shadow-lg">
-            <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center">
-              <div className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-                F
+          <div className="flex items-center justify-center gap-6 mb-4">
+            <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-blue-600 to-purple-600 rounded-2xl shadow-lg">
+              <div className="relative w-14 h-14 bg-white rounded-xl flex items-center justify-center">
+                <Image
+                  src="/image_icon/fund_cpkku_logo.png"
+                  alt="Fund CPKKU Logo"
+                  fill
+                  sizes="56px"
+                  className="object-contain"
+                  priority
+                />
+              </div>
+            </div>
+            <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-blue-600 to-purple-600 rounded-2xl shadow-lg">
+              <div className="relative w-14 h-14 bg-white rounded-xl flex items-center justify-center">
+                <Image
+                  src="/image_icon/iconcpkku.png"
+                  alt="CPKKU Icon"
+                  fill
+                  sizes="56px"
+                  className="object-contain"
+                  priority
+                />
               </div>
             </div>
           </div>
@@ -242,10 +262,16 @@ export default function LoginPage() {
             <div>
               <button
                 type="button"
-                className="w-full flex items-center justify-center gap-2 py-3 px-4 border border-gray-200 rounded-xl text-sm font-medium text-gray-700 hover:border-blue-400 hover:text-blue-600 transition-colors duration-200"
+                className="w-full flex items-center justify-center gap-3 py-3 px-4 border border-gray-200 rounded-xl text-sm font-medium text-gray-700 hover:border-blue-400 hover:text-blue-600 transition-colors duration-200"
                 onClick={handleSSOLogin}
               >
-                <Key className="w-5 h-5" />
+                <Image
+                  src="/image_icon/iconcpkku.png"
+                  alt="SSO Icon"
+                  width={20}
+                  height={20}
+                  className="object-contain"
+                />
                 SSO
               </button>
             </div>
