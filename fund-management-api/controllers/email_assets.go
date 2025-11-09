@@ -46,3 +46,25 @@ func renderLogoURL(url string) string {
 	}
 	return fmt.Sprintf(`<img src="%s" alt="ระบบบริหารจัดการทุนวิจัย" style="display:block;height:64px;width:auto;max-width:100%%;object-fit:contain;" />`, escaped)
 }
+
+func parseLogoList(raw string) []string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return nil
+	}
+	parts := strings.FieldsFunc(raw, func(r rune) bool {
+		switch r {
+		case ',', ';', '\n', '\r':
+			return true
+		}
+		return false
+	})
+	out := make([]string, 0, len(parts))
+	for _, part := range parts {
+		trimmed := strings.TrimSpace(part)
+		if trimmed != "" {
+			out = append(out, trimmed)
+		}
+	}
+	return out
+}
