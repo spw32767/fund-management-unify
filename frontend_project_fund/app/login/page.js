@@ -116,30 +116,22 @@ export default function LoginPage() {
         {/* Header */}
         <div className="text-center mb-8">
           <div className="flex items-center justify-center gap-6 mb-4">
-            <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-blue-600 to-purple-600 rounded-2xl shadow-lg">
-              <div className="relative w-14 h-14 bg-white rounded-xl flex items-center justify-center">
-                <Image
-                  src="/image_icon/fund_cpkku_logo.png"
-                  alt="Fund CPKKU Logo"
-                  fill
-                  sizes="56px"
-                  className="object-contain"
-                  priority
-                />
-              </div>
-            </div>
-            <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-blue-600 to-purple-600 rounded-2xl shadow-lg">
-              <div className="relative w-14 h-14 bg-white rounded-xl flex items-center justify-center">
-                <Image
-                  src="/image_icon/iconcpkku.png"
-                  alt="CPKKU Icon"
-                  fill
-                  sizes="56px"
-                  className="object-contain"
-                  priority
-                />
-              </div>
-            </div>
+            <Image
+              src="/image_icon/iconcpkku.png"
+              alt="CPKKU Icon"
+              width={72}
+              height={72}
+              className="object-contain"
+              priority
+            />
+            <Image
+              src="/image_icon/fund_cpkku_logo.png"
+              alt="Fund CPKKU Logo"
+              width={72}
+              height={72}
+              className="object-contain"
+              priority
+            />
           </div>
 
           <h1 className="text-3xl font-bold text-gray-900 mb-2">
