@@ -70,6 +70,13 @@ mysql -u <db_user> -p<db_password> <db_name> < ../fund_cpkku_v42.sql
 
 Run migrations again whenever a new SQL dump or migration script is added to the repository.
 
+> **Password reset token patch**: the password reset flow introduced a `user_agent` column on `user_tokens`. Apply the SQL in
+> `scripts/sql/20250110_add_user_agent_to_user_tokens.sql` to existing databases:
+>
+> ```bash
+> mysql -u <db_user> -p<db_password> <db_name> < scripts/sql/20250110_add_user_agent_to_user_tokens.sql
+> ```
+
 ## 5. Build and Run
 
 ```bash
