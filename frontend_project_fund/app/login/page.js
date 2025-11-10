@@ -113,6 +113,20 @@ export default function LoginPage() {
   const handleSSOLogin = () => {};
 
   const handleModeChange = (nextMode) => {
+    if (nextMode === 'forgot') {
+      router.push('/forgot-password');
+      return;
+    }
+
+    if (nextMode === 'reset') {
+      const tokenParam = searchParams?.get('token') || resetForm.token.trim();
+      const target = tokenParam
+        ? `/reset-password?token=${encodeURIComponent(tokenParam)}`
+        : '/reset-password';
+      router.push(target);
+      return;
+    }
+
     if (nextMode !== 'login' && error) {
       clearError();
     }
@@ -126,13 +140,8 @@ export default function LoginPage() {
         new_password: '',
         confirm_password: ''
       }));
-    } else if (nextMode === 'forgot') {
-      setForgotStatus({ message: '', error: '' });
-    } else if (nextMode === 'reset') {
-      setResetStatus({ message: '', error: '' });
+      setMode('login');
     }
-
-    setMode(nextMode);
   };
 
   const handleForgotSubmit = async (event) => {
@@ -235,13 +244,9 @@ export default function LoginPage() {
   useEffect(() => {
     const tokenParam = searchParams?.get('token');
     if (tokenParam) {
-      setResetForm(prev => ({
-        ...prev,
-        token: tokenParam
-      }));
-      setMode('reset');
+      router.replace(`/reset-password?token=${encodeURIComponent(tokenParam)}`);
     }
-  }, [searchParams]);
+  }, [searchParams, router]);
 
   // แสดง loading screen ขณะ redirecting
   if (redirecting) {
