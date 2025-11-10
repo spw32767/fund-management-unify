@@ -5,11 +5,13 @@ import Image from 'next/image';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Lock, KeyRound, CheckCircle2, AlertCircle, ArrowLeft, Eye, EyeOff } from 'lucide-react';
 import { passwordAPI, APIError, NetworkError } from '../lib/api';
+import Swal from 'sweetalert2';
 
 export default function ResetPasswordPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [form, setForm] = useState({ token: '', new_password: '', confirm_password: '' });
+  const [token, setToken] = useState('');
+  const [form, setForm] = useState({ new_password: '', confirm_password: '' });
   const [status, setStatus] = useState({ message: '', error: '' });
   const [loading, setLoading] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
@@ -18,7 +20,10 @@ export default function ResetPasswordPage() {
   useEffect(() => {
     const tokenParam = searchParams?.get('token');
     if (tokenParam) {
-      setForm(prev => ({ ...prev, token: tokenParam }));
+      setToken(tokenParam);
+      setStatus(prev => ({ ...prev, error: '' }));
+    } else {
+      setStatus({ message: '', error: 'ไม่พบโทเคนสำหรับตั้งรหัสผ่านใหม่ กรุณาตรวจสอบลิงก์อีกครั้ง' });
     }
   }, [searchParams]);
 
@@ -32,8 +37,8 @@ export default function ResetPasswordPage() {
 
     setStatus({ message: '', error: '' });
 
-    if (!form.token.trim()) {
-      setStatus({ message: '', error: 'กรุณากรอกโทเคนสำหรับตั้งรหัสผ่านใหม่' });
+    if (!token.trim()) {
+      setStatus({ message: '', error: 'ไม่พบโทเคนสำหรับตั้งรหัสผ่านใหม่ กรุณาเปิดลิงก์จากอีเมลอีกครั้ง' });
       return;
     }
 
@@ -51,18 +56,32 @@ export default function ResetPasswordPage() {
 
     try {
       await passwordAPI.resetPassword({
-        token: form.token.trim(),
+        token: token.trim(),
         new_password: form.new_password,
         confirm_password: form.confirm_password,
       });
 
-      setStatus({ message: 'ตั้งรหัสผ่านใหม่เรียบร้อยแล้ว กรุณาเข้าสู่ระบบด้วยรหัสผ่านใหม่', error: '' });
-      setForm({ token: '', new_password: '', confirm_password: '' });
+      setForm({ new_password: '', confirm_password: '' });
+      setToken('');
+
+      await Swal.fire({
+        icon: 'success',
+        title: 'ตั้งรหัสผ่านใหม่เรียบร้อย',
+        text: 'คุณสามารถเข้าสู่ระบบด้วยรหัสผ่านใหม่ได้ทันที',
+        confirmButtonText: 'ไปที่หน้าเข้าสู่ระบบ',
+      });
+
+      router.replace('/login');
     } catch (err) {
-      const message =
+      let message =
         err instanceof NetworkError || err instanceof APIError
           ? err.message
           : 'ไม่สามารถตั้งรหัสผ่านใหม่ได้ในขณะนี้';
+
+      if (err instanceof APIError && err.status === 400 && /expired/i.test(err.message || '')) {
+        message = 'ลิงก์สำหรับตั้งรหัสผ่านนี้หมดอายุแล้ว กรุณาขอรับลิงก์ใหม่อีกครั้ง';
+      }
+
       setStatus({ message: '', error: message });
     } finally {
       setLoading(false);
@@ -124,13 +143,15 @@ export default function ResetPasswordPage() {
                   id="token"
                   name="token"
                   type="text"
-                  required
-                  value={form.token}
-                  onChange={handleChange}
-                  className="block w-full pl-10 pr-3 py-3 text-gray-600 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
-                  placeholder="กรุณากรอกโทเคน"
+                  readOnly
+                  value={token}
+                  className="block w-full pl-10 pr-3 py-3 text-gray-500 border border-gray-200 rounded-xl bg-gray-100 cursor-not-allowed"
+                  placeholder="ระบบจะกรอกโทเคนอัตโนมัติจากลิงก์ที่ได้รับ"
                 />
               </div>
+              <p className="mt-2 text-xs text-gray-500">
+                ระบบจะใช้โทเคนจากลิงก์ที่คุณได้รับอัตโนมัติ หากลิงก์หมดอายุโปรดขอรับใหม่
+              </p>
             </div>
 
             <div>
@@ -199,7 +220,7 @@ export default function ResetPasswordPage() {
 
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || !token}
               className="w-full flex justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-xl text-white bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 shadow-lg"
             >
               {loading ? (
