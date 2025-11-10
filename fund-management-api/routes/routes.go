@@ -42,8 +42,10 @@ func SetupRoutes(router *gin.Engine) {
 
 			public.GET("/years", controllers.GetActiveYears)
 
-			// Authentication
-			public.POST("/login", controllers.Login)
+                        // Authentication
+                        public.POST("/login", controllers.Login)
+                        public.POST("/password/forgot", controllers.ForgotPassword)
+                        public.POST("/password/reset", controllers.ResetPassword)
 
 			// NEW: Refresh token endpoint (public)
 			public.POST("/refresh", controllers.RefreshTokenWithRefreshToken)

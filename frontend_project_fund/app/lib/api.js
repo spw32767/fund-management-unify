@@ -746,6 +746,18 @@ export const healthAPI = {
   },
 };
 
+// ==================== PASSWORD RESET API METHODS ====================
+
+export const passwordAPI = {
+  async requestReset(payload) {
+    return apiClient.post('/password/forgot', payload);
+  },
+
+  async resetPassword(payload) {
+    return apiClient.post('/password/reset', payload);
+  }
+};
+
 // ==================== EXPORTS ====================
 
 // Export error classes for error handling in components
