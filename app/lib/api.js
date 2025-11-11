@@ -308,8 +308,13 @@ class APIClient {
     const url = `${this.baseURL}${endpoint}`;
     const options = {
       method: 'POST',
-      body: data ? JSON.stringify(data) : null,
     };
+
+    if (data instanceof FormData) {
+      options.body = data;
+    } else if (data !== null && data !== undefined) {
+      options.body = JSON.stringify(data);
+    }
 
     return this.makeRequestWithRetry(url, options);
   }
@@ -319,8 +324,13 @@ class APIClient {
     const url = `${this.baseURL}${endpoint}`;
     const options = {
       method: 'PUT',
-      body: JSON.stringify(data),
     };
+
+    if (data instanceof FormData) {
+      options.body = data;
+    } else if (data !== undefined) {
+      options.body = JSON.stringify(data);
+    }
 
     return this.makeRequestWithRetry(url, options);
   }
