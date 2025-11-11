@@ -10,12 +10,14 @@ import {
   Users,
   Wallet,
   Paperclip,
+  Eye,
 } from "lucide-react";
 import PageLayout from "../common/PageLayout";
 import Card from "../common/Card";
 import EmptyState from "../common/EmptyState";
 import LoadingSpinner from "../common/LoadingSpinner";
 import projectAPI from "@/app/lib/project_api";
+import { apiClient } from "@/app/lib/api";
 
 const formatDate = (value) => {
   if (!value) return "-";
@@ -85,6 +87,39 @@ const getBudgetPlanLabel = (project) => {
     plan?.name_en ||
     "-"
   );
+};
+
+const buildAttachmentUrl = (attachment) => {
+  if (!attachment) {
+    return null;
+  }
+
+  const storedPath = typeof attachment.stored_path === "string"
+    ? attachment.stored_path.trim()
+    : "";
+
+  if (storedPath) {
+    if (/^https?:\/\//i.test(storedPath)) {
+      return storedPath;
+    }
+
+    const normalizedPath = storedPath.startsWith("/")
+      ? storedPath
+      : `/${storedPath}`;
+
+    try {
+      const baseURL = apiClient.baseURL.replace(/\/?api\/v1$/, "");
+      return new URL(normalizedPath, baseURL).href;
+    } catch (error) {
+      console.warn("Failed to resolve attachment stored_path", storedPath, error);
+    }
+  }
+
+  if (attachment.file_id) {
+    return `${apiClient.baseURL}/files/managed/${attachment.file_id}/download`;
+  }
+
+  return null;
 };
 
 export default function ProjectsList() {
@@ -295,94 +330,135 @@ export default function ProjectsList() {
                   <LoadingSpinner size="small" />
                 </div>
               )}
-              {filteredProjects.map((project) => (
-                <Card
-                  key={project.project_id ?? project.project_name}
-                  title={project.project_name || "ไม่พบชื่อโครงการ"}
-                  icon={Briefcase}
-                  collapsible={false}
-                >
-                  <div className="grid gap-5 md:grid-cols-2">
-                    <div className="space-y-4">
-                      <div className="flex items-start gap-3">
-                        <div className="p-2 rounded-full bg-blue-50 text-blue-600">
-                          <Layers size={18} />
+              {filteredProjects.map((project) => {
+                const attachments = Array.isArray(project.attachments)
+                  ? project.attachments
+                  : [];
+
+                return (
+                  <Card
+                    key={project.project_id ?? project.project_name}
+                    title={
+                      <>
+                        <span>{project.project_name || "ไม่พบชื่อโครงการ"}</span>
+                        <span className="block text-sm font-normal text-gray-500">
+                          {formatDate(project.event_date)} · {getProjectTypeLabel(project)}
+                        </span>
+                      </>
+                    }
+                    icon={Briefcase}
+                    defaultCollapsed
+                    bodyClassName="space-y-6"
+                  >
+                    <div className="grid gap-5 md:grid-cols-2">
+                      <div className="space-y-4">
+                        <div className="flex items-start gap-3">
+                          <div className="p-2 rounded-full bg-blue-50 text-blue-600">
+                            <Layers size={18} />
+                          </div>
+                          <div>
+                            <p className="text-sm text-gray-500">ประเภทโครงการ</p>
+                            <p className="text-base font-medium text-gray-900">{getProjectTypeLabel(project)}</p>
+                          </div>
                         </div>
-                        <div>
-                          <p className="text-sm text-gray-500">ประเภทโครงการ</p>
-                          <p className="text-base font-medium text-gray-900">{getProjectTypeLabel(project)}</p>
+
+                        <div className="flex items-start gap-3">
+                          <div className="p-2 rounded-full bg-emerald-50 text-emerald-600">
+                            <Wallet size={18} />
+                          </div>
+                          <div>
+                            <p className="text-sm text-gray-500">แผนงบประมาณ</p>
+                            <p className="text-base font-medium text-gray-900">{getBudgetPlanLabel(project)}</p>
+                            <p className="text-sm text-gray-600 mt-1">งบประมาณ {formatCurrency(project.budget_amount)}</p>
+                          </div>
                         </div>
                       </div>
 
-                      <div className="flex items-start gap-3">
-                        <div className="p-2 rounded-full bg-emerald-50 text-emerald-600">
-                          <Wallet size={18} />
+                      <div className="space-y-4">
+                        <div className="flex items-start gap-3">
+                          <div className="p-2 rounded-full bg-amber-50 text-amber-600">
+                            <CalendarDays size={18} />
+                          </div>
+                          <div>
+                            <p className="text-sm text-gray-500">วันที่จัดโครงการ</p>
+                            <p className="text-base font-medium text-gray-900">{formatDate(project.event_date)}</p>
+                          </div>
                         </div>
-                        <div>
-                          <p className="text-sm text-gray-500">แผนงบประมาณ</p>
-                          <p className="text-base font-medium text-gray-900">{getBudgetPlanLabel(project)}</p>
-                          <p className="text-sm text-gray-600 mt-1">งบประมาณ {formatCurrency(project.budget_amount)}</p>
+
+                        <div className="flex items-start gap-3">
+                          <div className="p-2 rounded-full bg-purple-50 text-purple-600">
+                            <Users size={18} />
+                          </div>
+                          <div>
+                            <p className="text-sm text-gray-500">จำนวนผู้เข้าร่วม</p>
+                            <p className="text-base font-medium text-gray-900">{formatParticipants(project.participants)}</p>
+                          </div>
                         </div>
                       </div>
                     </div>
 
-                    <div className="space-y-4">
-                      <div className="flex items-start gap-3">
-                        <div className="p-2 rounded-full bg-amber-50 text-amber-600">
-                          <CalendarDays size={18} />
-                        </div>
-                        <div>
-                          <p className="text-sm text-gray-500">วันที่จัดโครงการ</p>
-                          <p className="text-base font-medium text-gray-900">{formatDate(project.event_date)}</p>
-                        </div>
+                    {project.notes && (
+                      <div>
+                        <h4 className="text-sm font-semibold text-gray-700 mb-2">รายละเอียดเพิ่มเติม</h4>
+                        <p className="text-gray-700 whitespace-pre-line leading-relaxed">{project.notes}</p>
                       </div>
-
-                      <div className="flex items-start gap-3">
-                        <div className="p-2 rounded-full bg-purple-50 text-purple-600">
-                          <Users size={18} />
-                        </div>
-                        <div>
-                          <p className="text-sm text-gray-500">จำนวนผู้เข้าร่วม</p>
-                          <p className="text-base font-medium text-gray-900">{formatParticipants(project.participants)}</p>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {project.notes && (
-                    <div className="mt-6">
-                      <h4 className="text-sm font-semibold text-gray-700 mb-2">รายละเอียดเพิ่มเติม</h4>
-                      <p className="text-gray-700 whitespace-pre-line leading-relaxed">{project.notes}</p>
-                    </div>
-                  )}
-
-                  <div className="mt-6">
-                    <h4 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
-                      <Paperclip size={18} className="text-gray-500" />
-                      ไฟล์แนบโครงการ
-                    </h4>
-                    {project.attachments?.length ? (
-                      <ul className="space-y-2">
-                        {project.attachments.map((attachment) => (
-                          <li
-                            key={attachment.file_id ?? attachment.original_name}
-                            className="flex items-center justify-between bg-gray-50 border border-gray-200 rounded-md px-3 py-2"
-                          >
-                            <span className="text-sm text-gray-700">{attachment.original_name || "ไฟล์แนบ"}</span>
-                            {formatFileSize(attachment.file_size) && (
-                              <span className="text-xs text-gray-500">{formatFileSize(attachment.file_size)}</span>
-                            )}
-                          </li>
-                        ))}
-                      </ul>
-                    ) : (
-                      <p className="text-sm text-gray-500 italic">
-                        ยังไม่มีไฟล์แนบที่เผยแพร่สำหรับโครงการนี้
-                      </p>
                     )}
-                  </div>
-                </Card>
-              ))}
+
+                    <div>
+                      <h4 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
+                        <Paperclip size={18} className="text-gray-500" />
+                        ไฟล์แนบโครงการ
+                      </h4>
+                      {attachments.length ? (
+                        <ul className="space-y-2">
+                          {attachments.map((attachment, index) => {
+                            const url = buildAttachmentUrl(attachment);
+                            const sizeLabel = formatFileSize(attachment.file_size);
+                            const key =
+                              attachment.file_id ??
+                              attachment.original_name ??
+                              attachment.stored_path ??
+                              `attachment-${index}`;
+
+                            if (url) {
+                              return (
+                                <li key={key}>
+                                  <a
+                                    href={url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="flex items-center justify-between gap-3 rounded-md border border-blue-100 bg-blue-50 px-3 py-2 text-sm text-blue-800 transition hover:border-blue-200 hover:bg-blue-100"
+                                  >
+                                    <span className="flex items-center gap-2 font-medium">
+                                      <Eye size={16} className="text-blue-500" />
+                                      {attachment.original_name || "ไฟล์แนบ"}
+                                    </span>
+                                    <span className="flex items-center gap-2 text-xs text-blue-700">
+                                      {sizeLabel && <span>{sizeLabel}</span>}
+                                      <span className="font-semibold">เปิดไฟล์</span>
+                                    </span>
+                                  </a>
+                                </li>
+                              );
+                            }
+
+                            return (
+                              <li key={key} className="flex items-center justify-between gap-3 rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-600">
+                                <span>{attachment.original_name || "ไฟล์แนบ"}</span>
+                                {sizeLabel && <span className="text-xs text-gray-500">{sizeLabel}</span>}
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      ) : (
+                        <p className="text-sm text-gray-500 italic">
+                          ยังไม่มีไฟล์แนบที่เผยแพร่สำหรับโครงการนี้
+                        </p>
+                      )}
+                    </div>
+                  </Card>
+                );
+              })}
             </div>
           )}
         </div>
