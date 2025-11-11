@@ -421,40 +421,42 @@ func SetupRoutes(router *gin.Engine) {
 					installments.PATCH("/:id/restore", controllers.AdminRestoreFundInstallmentPeriod)
 				}
 
-                                // ========== FUND CATEGORIES MANAGEMENT ==========
-                                categories := admin.Group("/categories")
-                                {
-                                        categories.GET("", controllers.GetAllCategories)                  // GET /api/v1/admin/categories
-                                        categories.POST("", controllers.CreateCategory)                   // POST /api/v1/admin/categories
-                                        categories.PUT("/:id", controllers.UpdateCategory)                // PUT /api/v1/admin/categories/:id
-                                        categories.DELETE("/:id", controllers.DeleteCategory)             // DELETE /api/v1/admin/categories/:id
-                                        categories.PATCH("/:id/toggle", controllers.ToggleCategoryStatus) // PATCH /api/v1/admin/categories/:id/toggle
-                                }
+				// ========== FUND CATEGORIES MANAGEMENT ==========
+				categories := admin.Group("/categories")
+				{
+					categories.GET("", controllers.GetAllCategories)                  // GET /api/v1/admin/categories
+					categories.POST("", controllers.CreateCategory)                   // POST /api/v1/admin/categories
+					categories.PUT("/:id", controllers.UpdateCategory)                // PUT /api/v1/admin/categories/:id
+					categories.DELETE("/:id", controllers.DeleteCategory)             // DELETE /api/v1/admin/categories/:id
+					categories.PATCH("/:id/toggle", controllers.ToggleCategoryStatus) // PATCH /api/v1/admin/categories/:id/toggle
+				}
 
-                                // ========== PROJECT MANAGEMENT ==========
-                                projects := admin.Group("/projects")
-                                {
-                                        projects.GET("", controllers.GetProjects)        // GET /api/v1/admin/projects
-                                        projects.POST("", controllers.CreateProject)     // POST /api/v1/admin/projects
-                                        projects.PUT("/:id", controllers.UpdateProject)  // PUT /api/v1/admin/projects/:id
-                                        projects.DELETE("/:id", controllers.DeleteProject) // DELETE /api/v1/admin/projects/:id
-                                }
+				// ========== PROJECT MANAGEMENT ==========
+				projects := admin.Group("/projects")
+				{
+					projects.GET("", controllers.GetProjects)          // GET /api/v1/admin/projects
+					projects.POST("", controllers.CreateProject)       // POST /api/v1/admin/projects
+					projects.PUT("/:id", controllers.UpdateProject)    // PUT /api/v1/admin/projects/:id
+					projects.DELETE("/:id", controllers.DeleteProject) // DELETE /api/v1/admin/projects/:id
+				}
 
-                                projectTypes := admin.Group("/project-types")
-                                {
-                                        projectTypes.GET("", controllers.GetProjectTypes)           // GET /api/v1/admin/project-types
-                                        projectTypes.POST("", controllers.CreateProjectType)        // POST /api/v1/admin/project-types
-                                        projectTypes.PUT("/:id", controllers.UpdateProjectType)     // PUT /api/v1/admin/project-types/:id
-                                        projectTypes.DELETE("/:id", controllers.DeleteProjectType)  // DELETE /api/v1/admin/project-types/:id
-                                }
+				projectTypes := admin.Group("/project-types")
+				{
+					projectTypes.GET("", controllers.GetProjectTypes)       // GET /api/v1/admin/project-types
+					projectTypes.POST("", controllers.CreateProjectType)    // POST /api/v1/admin/project-types
+					projectTypes.PUT("/:id", controllers.UpdateProjectType) // PUT /api/v1/admin/project-types/:id
+					projectTypes.PUT("/reorder", controllers.ReorderProjectTypes)
+					projectTypes.DELETE("/:id", controllers.DeleteProjectType) // DELETE /api/v1/admin/project-types/:id
+				}
 
-                                projectPlans := admin.Group("/project-budget-plans")
-                                {
-                                        projectPlans.GET("", controllers.GetProjectBudgetPlans)          // GET /api/v1/admin/project-budget-plans
-                                        projectPlans.POST("", controllers.CreateProjectBudgetPlan)       // POST /api/v1/admin/project-budget-plans
-                                        projectPlans.PUT("/:id", controllers.UpdateProjectBudgetPlan)    // PUT /api/v1/admin/project-budget-plans/:id
-                                        projectPlans.DELETE("/:id", controllers.DeleteProjectBudgetPlan) // DELETE /api/v1/admin/project-budget-plans/:id
-                                }
+				projectPlans := admin.Group("/project-budget-plans")
+				{
+					projectPlans.GET("", controllers.GetProjectBudgetPlans)       // GET /api/v1/admin/project-budget-plans
+					projectPlans.POST("", controllers.CreateProjectBudgetPlan)    // POST /api/v1/admin/project-budget-plans
+					projectPlans.PUT("/:id", controllers.UpdateProjectBudgetPlan) // PUT /api/v1/admin/project-budget-plans/:id
+					projectPlans.PUT("/reorder", controllers.ReorderProjectBudgetPlans)
+					projectPlans.DELETE("/:id", controllers.DeleteProjectBudgetPlan) // DELETE /api/v1/admin/project-budget-plans/:id
+				}
 
 				// ========== FUND SUBCATEGORIES MANAGEMENT ==========
 				subcategories := admin.Group("/subcategories")

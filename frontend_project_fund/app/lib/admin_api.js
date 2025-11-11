@@ -1129,6 +1129,15 @@ export const adminAPI = {
     }
   },
 
+  async reorderProjectTypes(order) {
+    try {
+      return await apiClient.put('/admin/project-types/reorder', { order });
+    } catch (error) {
+      console.error('Error reordering project types:', error);
+      throw error;
+    }
+  },
+
   async getProjectBudgetPlans() {
     try {
       const response = await apiClient.get('/admin/project-budget-plans');
@@ -1153,6 +1162,15 @@ export const adminAPI = {
       return await apiClient.put(`/admin/project-budget-plans/${planId}`, planData);
     } catch (error) {
       console.error('Error updating project budget plan:', error);
+      throw error;
+    }
+  },
+
+  async reorderProjectBudgetPlans(order) {
+    try {
+      return await apiClient.put('/admin/project-budget-plans/reorder', { order });
+    } catch (error) {
+      console.error('Error reordering project budget plans:', error);
       throw error;
     }
   },
