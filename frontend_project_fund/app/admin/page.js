@@ -10,6 +10,7 @@ import DashboardContent from "./components/dashboard/DashboardContent";
 import ResearchFundContent from "./components/funds/ResearchFundContent";
 import PromotionFundContent from "./components/funds/PromotionFundContent";
 import FundSettingsContent from "./components/settings";
+import ProjectsContent from "./components/projects/ProjectsContent";
 import UnderDevelopmentContent from "./components/common/UnderDevelopmentContent";
 import SubmissionsManagement from "./components/submissions/SubmissionsManagement";
 import LegacySubmissionManager from "./components/submissions/legacy/LegacySubmissionManager";
@@ -41,6 +42,8 @@ function AdminPageContent() {
         return <LegacySubmissionManager />;
       case 'fund-settings':
         return <FundSettingsContent onNavigate={handleNavigate} />;
+      case 'projects':
+        return <ProjectsContent />;
       case 'approval-records':
         return <ApprovalRecords currentPage={handleNavigate} />;
       case 'publications-import':
@@ -53,14 +56,15 @@ function AdminPageContent() {
   };
 
   const getPageTitle = () => {
-    const titles = {
-      'dashboard': 'แดชบอร์ด',
-      'research-fund': 'ทุนส่งเสริมงานวิจัย',
-      'promotion-fund': 'ทุนอุดหนุนกิจกรรม',
-      'applications-list': 'รายการการขอทุน',
-      'legacy-submissions': 'จัดการคำร้อง (ข้อมูลเก่า)',
-      'fund-settings': 'ตั้งค่าทุน',
-      'approval-records': 'บันทึกข้อมูลการอนุมัติทุน',
+      const titles = {
+        'dashboard': 'แดชบอร์ด',
+        'research-fund': 'ทุนส่งเสริมงานวิจัย',
+        'promotion-fund': 'ทุนอุดหนุนกิจกรรม',
+        'applications-list': 'รายการการขอทุน',
+        'legacy-submissions': 'จัดการคำร้อง (ข้อมูลเก่า)',
+        'fund-settings': 'ตั้งค่าทุน',
+        'projects': 'จัดการโครงการ',
+        'approval-records': 'บันทึกข้อมูลการอนุมัติทุน',
       'kku-people-scraper': 'KKU People Scraper'
     };
     return titles[currentPage] || currentPage;
