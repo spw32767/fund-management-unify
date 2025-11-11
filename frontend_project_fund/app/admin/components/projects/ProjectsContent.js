@@ -12,6 +12,7 @@ import {
   CalendarDays,
   Users,
   FileText,
+  Paperclip,
   GripVertical,
   Save,
 } from "lucide-react";
@@ -45,6 +46,7 @@ const initialProjectForm = {
   budget_amount: "",
   participants: "",
   notes: "",
+  attachment: null,
 };
 
 const initialTypeForm = {
@@ -177,11 +179,33 @@ function ProjectForm({
   plans,
   onClose,
   onChange,
+  onFileChange,
+  onClearAttachment,
   onSubmit,
   saving,
   isEditing,
+  fileInputKey,
+  attachmentFile,
+  existingAttachment,
 }) {
   if (!open) return null;
+
+  const disableTypeSelect = types.length === 0;
+  const disablePlanSelect = plans.length === 0;
+  const selectedTypeInactive =
+    isEditing &&
+    formData.type_id &&
+    types.some(
+      (type) =>
+        type.type_id === Number(formData.type_id) && type.is_active === false
+    );
+  const selectedPlanInactive =
+    isEditing &&
+    formData.plan_id &&
+    plans.some(
+      (plan) =>
+        plan.plan_id === Number(formData.plan_id) && plan.is_active === false
+    );
 
   return (
     <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-6 mb-6">
@@ -228,15 +252,31 @@ function ProjectForm({
             value={formData.type_id}
             onChange={onChange}
             required
-            className="w-full rounded-md border border-gray-300 focus:border-blue-500 focus:ring-blue-500 px-3 py-2"
+            disabled={disableTypeSelect}
+            className={`w-full rounded-md border focus:border-blue-500 focus:ring-blue-500 px-3 py-2 ${
+              disableTypeSelect
+                ? "bg-gray-100 cursor-not-allowed border-gray-200"
+                : "border-gray-300"
+            }`}
           >
             <option value="">-- เลือกประเภท --</option>
             {types.map((type) => (
               <option key={type.type_id} value={type.type_id}>
                 {type.name_th || type.name_en}
+                {type.is_active ? "" : " (ปิดใช้งาน)"}
               </option>
             ))}
           </select>
+          {disableTypeSelect ? (
+            <p className="mt-2 text-xs text-red-500">
+              ไม่มีประเภทโครงการที่เปิดใช้งาน กรุณาเปิดใช้งานก่อนบันทึกโครงการ
+            </p>
+          ) : null}
+          {selectedTypeInactive ? (
+            <p className="mt-2 text-xs text-amber-500">
+              ประเภทที่เลือกถูกปิดใช้งานอยู่ หากต้องการเปลี่ยนกรุณาเลือกประเภทที่เปิดใช้งาน
+            </p>
+          ) : null}
         </div>
 
         <div>
@@ -262,15 +302,31 @@ function ProjectForm({
             value={formData.plan_id}
             onChange={onChange}
             required
-            className="w-full rounded-md border border-gray-300 focus:border-blue-500 focus:ring-blue-500 px-3 py-2"
+            disabled={disablePlanSelect}
+            className={`w-full rounded-md border focus:border-blue-500 focus:ring-blue-500 px-3 py-2 ${
+              disablePlanSelect
+                ? "bg-gray-100 cursor-not-allowed border-gray-200"
+                : "border-gray-300"
+            }`}
           >
             <option value="">-- เลือกแผนงบประมาณ --</option>
             {plans.map((plan) => (
               <option key={plan.plan_id} value={plan.plan_id}>
                 {plan.name_th || plan.name_en}
+                {plan.is_active ? "" : " (ปิดใช้งาน)"}
               </option>
             ))}
           </select>
+          {disablePlanSelect ? (
+            <p className="mt-2 text-xs text-red-500">
+              ไม่มีแผนงบประมาณที่เปิดใช้งาน กรุณาเปิดใช้งานก่อนบันทึกโครงการ
+            </p>
+          ) : null}
+          {selectedPlanInactive ? (
+            <p className="mt-2 text-xs text-amber-500">
+              แผนงบประมาณที่เลือกถูกปิดใช้งานอยู่ หากต้องการเปลี่ยนกรุณาเลือกแผนที่เปิดใช้งาน
+            </p>
+          ) : null}
         </div>
 
         <div>
@@ -303,6 +359,51 @@ function ProjectForm({
             className="w-full rounded-md border border-gray-300 focus:border-blue-500 focus:ring-blue-500 px-3 py-2"
             placeholder="เช่น 120"
           />
+        </div>
+
+        <div className="md:col-span-2">
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            ไฟล์แนบโครงการ (สูงสุด 1 ไฟล์)
+          </label>
+          <input
+            key={fileInputKey}
+            type="file"
+            name="attachment"
+            onChange={onFileChange}
+            accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png"
+            disabled={saving}
+            className="block w-full rounded-md border border-dashed border-gray-300 px-3 py-2 text-sm text-gray-700 focus:border-blue-500 focus:ring-blue-500 file:mr-3 file:rounded-md file:border-0 file:bg-blue-50 file:px-4 file:py-2 file:text-sm file:font-medium file:text-blue-600 hover:file:bg-blue-100 disabled:cursor-not-allowed"
+          />
+          {attachmentFile ? (
+            <div className="mt-3 flex items-center justify-between rounded-md border border-blue-100 bg-blue-50 px-3 py-2 text-sm text-blue-700">
+              <span className="flex items-center gap-2">
+                <Paperclip size={16} />
+                {attachmentFile.name}
+              </span>
+              <button
+                type="button"
+                onClick={onClearAttachment}
+                disabled={saving}
+                className="text-xs font-medium text-blue-600 hover:text-blue-800 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                ล้างไฟล์
+              </button>
+            </div>
+          ) : existingAttachment ? (
+            <div className="mt-3 rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-600">
+              <div className="flex items-center gap-2">
+                <Paperclip size={16} className="text-gray-400" />
+                <span>
+                  ไฟล์ที่บันทึกล่าสุด: {existingAttachment.original_name || existingAttachment.stored_path}
+                </span>
+              </div>
+              <p className="mt-1 text-xs text-gray-400">
+                การเลือกไฟล์ใหม่จะทับไฟล์เดิมโดยอัตโนมัติ
+              </p>
+            </div>
+          ) : (
+            <p className="mt-3 text-sm text-gray-400">ยังไม่ได้เลือกไฟล์แนบ</p>
+          )}
         </div>
 
         <div className="md:col-span-2">
@@ -621,9 +722,12 @@ export default function ProjectsContent() {
   const [projectTypes, setProjectTypes] = useState([]);
   const [budgetPlans, setBudgetPlans] = useState([]);
 
-  const [projectForm, setProjectForm] = useState(initialProjectForm);
+  const [projectForm, setProjectForm] = useState(() => ({
+    ...initialProjectForm,
+  }));
   const [showProjectForm, setShowProjectForm] = useState(false);
   const [editingProject, setEditingProject] = useState(null);
+  const [projectFileKey, setProjectFileKey] = useState(0);
 
   const [typeForm, setTypeForm] = useState(initialTypeForm);
   const [editingType, setEditingType] = useState(null);
@@ -644,6 +748,20 @@ export default function ProjectsContent() {
   const [savingPlanOrder, setSavingPlanOrder] = useState(false);
   const [typeToggleLoading, setTypeToggleLoading] = useState(() => new Set());
   const [planToggleLoading, setPlanToggleLoading] = useState(() => new Set());
+
+  const projectTypeOptions = useMemo(() => {
+    const selectedTypeId = editingProject?.type_id;
+    return projectTypes.filter((type) =>
+      type.is_active || type.type_id === selectedTypeId
+    );
+  }, [projectTypes, editingProject]);
+
+  const budgetPlanOptions = useMemo(() => {
+    const selectedPlanId = editingProject?.plan_id;
+    return budgetPlans.filter((plan) =>
+      plan.is_active || plan.plan_id === selectedPlanId
+    );
+  }, [budgetPlans, editingProject]);
 
   useEffect(() => {
     loadAll();
@@ -679,9 +797,10 @@ export default function ProjectsContent() {
   };
 
   const resetProjectForm = () => {
-    setProjectForm(initialProjectForm);
+    setProjectForm({ ...initialProjectForm });
     setEditingProject(null);
     setShowProjectForm(false);
+    setProjectFileKey((key) => key + 1);
   };
 
   const handleProjectChange = (event) => {
@@ -690,6 +809,22 @@ export default function ProjectsContent() {
       ...prev,
       [name]: value,
     }));
+  };
+
+  const handleProjectFileChange = (event) => {
+    const file = event.target?.files?.[0] ?? null;
+    setProjectForm((prev) => ({
+      ...prev,
+      attachment: file,
+    }));
+  };
+
+  const handleClearProjectAttachment = () => {
+    setProjectForm((prev) => ({
+      ...prev,
+      attachment: null,
+    }));
+    setProjectFileKey((key) => key + 1);
   };
 
   const handleSubmitProject = async (event) => {
@@ -712,33 +847,53 @@ export default function ProjectsContent() {
       return;
     }
 
-    const payload = {
-      project_name: projectForm.project_name.trim(),
-      type_id: Number(projectForm.type_id),
-      event_date: projectForm.event_date,
-      plan_id: Number(projectForm.plan_id),
-      budget_amount: Number(projectForm.budget_amount) || 0,
-      participants: projectForm.participants ? Number(projectForm.participants) : 0,
-      notes: projectForm.notes ? projectForm.notes.trim() : "",
-    };
+    if (!editingProject && !projectForm.attachment) {
+      Toast.fire({ icon: "warning", title: "กรุณาเลือกไฟล์แนบ" });
+      return;
+    }
 
-    if (Number.isNaN(payload.type_id) || Number.isNaN(payload.plan_id)) {
+    const typeId = Number(projectForm.type_id);
+    const planId = Number(projectForm.plan_id);
+    const participantsValue = projectForm.participants
+      ? Number(projectForm.participants)
+      : 0;
+    const budgetValue = Number(projectForm.budget_amount) || 0;
+
+    if (Number.isNaN(typeId) || Number.isNaN(planId)) {
       Toast.fire({ icon: "warning", title: "การเลือกประเภทหรือแผนงบประมาณไม่ถูกต้อง" });
       return;
     }
 
-    if (payload.participants < 0) {
+    if (budgetValue < 0) {
+      Toast.fire({ icon: "warning", title: "งบประมาณต้องมากกว่าหรือเท่ากับ 0" });
+      return;
+    }
+
+    if (participantsValue < 0) {
       Toast.fire({ icon: "warning", title: "จำนวนผู้เข้าร่วมต้องมากกว่าหรือเท่ากับ 0" });
       return;
+    }
+
+    const formPayload = new FormData();
+    formPayload.append("project_name", projectForm.project_name.trim());
+    formPayload.append("type_id", typeId.toString());
+    formPayload.append("event_date", projectForm.event_date);
+    formPayload.append("plan_id", planId.toString());
+    formPayload.append("budget_amount", budgetValue.toString());
+    formPayload.append("participants", participantsValue.toString());
+    formPayload.append("notes", projectForm.notes ? projectForm.notes.trim() : "");
+
+    if (projectForm.attachment) {
+      formPayload.append("attachment", projectForm.attachment);
     }
 
     try {
       setSavingProject(true);
       if (editingProject) {
-        await adminAPI.updateProject(editingProject.project_id, payload);
+        await adminAPI.updateProject(editingProject.project_id, formPayload);
         Toast.fire({ icon: "success", title: "อัปเดตข้อมูลโครงการเรียบร้อย" });
       } else {
-        await adminAPI.createProject(payload);
+        await adminAPI.createProject(formPayload);
         Toast.fire({ icon: "success", title: "บันทึกโครงการใหม่เรียบร้อย" });
       }
       await loadAll();
@@ -765,7 +920,9 @@ export default function ProjectsContent() {
       budget_amount: project.budget_amount?.toString() || "",
       participants: project.participants?.toString() || "",
       notes: project.notes || "",
+      attachment: null,
     });
+    setProjectFileKey((key) => key + 1);
     setShowProjectForm(true);
   };
 
@@ -1157,7 +1314,8 @@ export default function ProjectsContent() {
                   onClick={() => {
                     setShowProjectForm(true);
                     setEditingProject(null);
-                    setProjectForm(initialProjectForm);
+                    setProjectForm({ ...initialProjectForm });
+                    setProjectFileKey((key) => key + 1);
                   }}
                   className="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-blue-600 hover:bg-blue-700 text-white"
                 >
@@ -1169,13 +1327,18 @@ export default function ProjectsContent() {
               <ProjectForm
                 open={showProjectForm}
                 formData={projectForm}
-                types={projectTypes}
-                plans={budgetPlans}
+                types={projectTypeOptions}
+                plans={budgetPlanOptions}
                 onClose={resetProjectForm}
                 onChange={handleProjectChange}
+                onFileChange={handleProjectFileChange}
+                onClearAttachment={handleClearProjectAttachment}
                 onSubmit={handleSubmitProject}
                 saving={savingProject}
                 isEditing={!!editingProject}
+                fileInputKey={projectFileKey}
+                attachmentFile={projectForm.attachment}
+                existingAttachment={editingProject?.attachments?.[0] || null}
               />
 
               <ProjectsTable
