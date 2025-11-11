@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"mime/multipart"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -29,6 +30,110 @@ func ensureAdmin(c *gin.Context) bool {
 	return true
 }
 
+func fetchProjectsWithFilters(c *gin.Context) ([]models.Project, error) {
+	var projects []models.Project
+	query := config.DB.Model(&models.Project{}).
+		Preload("Type").
+		Preload("BudgetPlan").
+		Preload("Attachments", func(db *gorm.DB) *gorm.DB {
+			return db.Where("delete_at IS NULL").Order("display_order ASC, file_id ASC")
+		})
+
+	if typeID := strings.TrimSpace(c.Query("type_id")); typeID != "" {
+		query = query.Where("type_id = ?", typeID)
+	}
+	if planID := strings.TrimSpace(c.Query("plan_id")); planID != "" {
+		query = query.Where("plan_id = ?", planID)
+	}
+
+	if err := query.Order("event_date DESC, project_id DESC").Find(&projects).Error; err != nil {
+		return nil, err
+	}
+
+	return projects, nil
+}
+
+func filterProjectAttachments(attachments []models.ProjectAttachment, includeAll bool) []models.ProjectAttachment {
+	if includeAll {
+		return attachments
+	}
+
+	filtered := make([]models.ProjectAttachment, 0, len(attachments))
+	for _, attachment := range attachments {
+		if attachment.IsPublic {
+			filtered = append(filtered, attachment)
+		}
+	}
+
+	return filtered
+}
+
+func formatProjectAttachmentResponse(attachment models.ProjectAttachment, includeAdminFields bool) gin.H {
+	response := gin.H{
+		"file_id":       attachment.FileID,
+		"project_id":    attachment.ProjectID,
+		"original_name": attachment.OriginalName,
+		"stored_path":   attachment.StoredPath,
+		"file_size":     attachment.FileSize,
+		"mime_type":     attachment.MimeType,
+		"is_public":     attachment.IsPublic,
+		"uploaded_at":   attachment.UploadedAt,
+		"display_order": attachment.DisplayOrder,
+	}
+
+	if attachment.FileID != 0 {
+		response["download_url"] = fmt.Sprintf("/projects/%d/attachments/%d", attachment.ProjectID, attachment.FileID)
+	}
+
+	if includeAdminFields {
+		if attachment.FileHash != nil {
+			response["file_hash"] = attachment.FileHash
+		}
+		if attachment.UploadedBy != nil {
+			response["uploaded_by"] = attachment.UploadedBy
+		}
+		response["create_at"] = attachment.CreateAt
+		response["update_at"] = attachment.UpdateAt
+		if attachment.DeleteAt != nil {
+			response["delete_at"] = attachment.DeleteAt
+		}
+	}
+
+	return response
+}
+
+func formatProjectAttachments(attachments []models.ProjectAttachment, includeAdminFields bool) []gin.H {
+	formatted := make([]gin.H, 0, len(attachments))
+	for _, attachment := range attachments {
+		formatted = append(formatted, formatProjectAttachmentResponse(attachment, includeAdminFields))
+	}
+	return formatted
+}
+
+func formatProjectResponse(project models.Project, includeAdminFields bool, includeAllAttachments bool) gin.H {
+	response := gin.H{
+		"project_id":    project.ProjectID,
+		"project_name":  project.ProjectName,
+		"type_id":       project.TypeID,
+		"type":          project.Type,
+		"plan_id":       project.PlanID,
+		"budget_plan":   project.BudgetPlan,
+		"event_date":    project.EventDate.Format("2006-01-02"),
+		"budget_amount": project.BudgetAmount,
+		"participants":  project.Participants,
+		"notes":         project.Notes,
+		"attachments":   formatProjectAttachments(filterProjectAttachments(project.Attachments, includeAllAttachments), includeAdminFields),
+	}
+
+	if includeAdminFields {
+		response["created_by"] = project.CreatedBy
+		response["created_at"] = project.CreatedAt
+		response["updated_at"] = project.UpdatedAt
+	}
+
+	return response
+}
+
 // ===================== PROJECTS =====================
 
 // GetProjects lists all projects for admin management
@@ -37,44 +142,35 @@ func GetProjects(c *gin.Context) {
 		return
 	}
 
-	var projects []models.Project
-	query := config.DB.Model(&models.Project{}).
-		Preload("Type").
-		Preload("BudgetPlan").
-		Preload("Attachments", func(db *gorm.DB) *gorm.DB {
-			return db.Order("display_order ASC, file_id ASC")
-		})
-
-	if typeID := c.Query("type_id"); typeID != "" {
-		query = query.Where("type_id = ?", typeID)
-	}
-	if planID := c.Query("plan_id"); planID != "" {
-		query = query.Where("plan_id = ?", planID)
-	}
-
-	if err := query.Order("event_date DESC, project_id DESC").Find(&projects).Error; err != nil {
+	projects, err := fetchProjectsWithFilters(c)
+	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch projects"})
 		return
 	}
 
 	responses := make([]gin.H, 0, len(projects))
 	for _, project := range projects {
-		responses = append(responses, gin.H{
-			"project_id":    project.ProjectID,
-			"project_name":  project.ProjectName,
-			"type_id":       project.TypeID,
-			"type":          project.Type,
-			"plan_id":       project.PlanID,
-			"budget_plan":   project.BudgetPlan,
-			"event_date":    project.EventDate.Format("2006-01-02"),
-			"budget_amount": project.BudgetAmount,
-			"participants":  project.Participants,
-			"notes":         project.Notes,
-			"created_by":    project.CreatedBy,
-			"created_at":    project.CreatedAt,
-			"updated_at":    project.UpdatedAt,
-			"attachments":   project.Attachments,
-		})
+		responses = append(responses, formatProjectResponse(project, true, true))
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success":  true,
+		"projects": responses,
+		"total":    len(responses),
+	})
+}
+
+// GetProjectsForMembers lists public projects for authenticated members
+func GetProjectsForMembers(c *gin.Context) {
+	projects, err := fetchProjectsWithFilters(c)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch projects"})
+		return
+	}
+
+	responses := make([]gin.H, 0, len(projects))
+	for _, project := range projects {
+		responses = append(responses, formatProjectResponse(project, false, false))
 	}
 
 	c.JSON(http.StatusOK, gin.H{
@@ -1250,6 +1346,86 @@ func getUploadRoot() string {
 		uploadRoot = "./uploads"
 	}
 	return uploadRoot
+}
+
+// DownloadProjectAttachment streams a public project attachment for viewing
+func DownloadProjectAttachment(c *gin.Context) {
+	projectIDParam := c.Param("projectId")
+	attachmentIDParam := c.Param("fileId")
+
+	projectID, err := strconv.ParseUint(projectIDParam, 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid project id"})
+		return
+	}
+
+	attachmentID, err := strconv.ParseUint(attachmentIDParam, 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid attachment id"})
+		return
+	}
+
+	var attachment models.ProjectAttachment
+	query := config.DB.Where(
+		"project_id = ? AND file_id = ? AND delete_at IS NULL",
+		projectID,
+		attachmentID,
+	)
+
+	if roleIDValue, exists := c.Get("roleID"); !exists || roleIDValue.(int) != 3 {
+		query = query.Where("is_public = ?", true)
+	}
+
+	if err := query.First(&attachment).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Attachment not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to load attachment"})
+		return
+	}
+
+	storedPath := strings.TrimSpace(attachment.StoredPath)
+	if storedPath == "" {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Attachment path missing"})
+		return
+	}
+
+	uploadRoot := filepath.Clean(getUploadRoot())
+	fullPath := filepath.Join(uploadRoot, filepath.FromSlash(storedPath))
+
+	// Prevent path traversal outside the upload root
+	if !strings.HasPrefix(fullPath, uploadRoot+string(os.PathSeparator)) && fullPath != uploadRoot {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid attachment path"})
+		return
+	}
+
+	if _, err := os.Stat(fullPath); err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Attachment not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to read attachment"})
+		return
+	}
+
+	mimeType := strings.TrimSpace(attachment.MimeType)
+	if mimeType == "" {
+		mimeType = utils.GetMimeTypeFromExtension(filepath.Ext(attachment.OriginalName))
+		if mimeType == "" {
+			mimeType = "application/octet-stream"
+		}
+	}
+
+	displayName := strings.TrimSpace(attachment.OriginalName)
+	if displayName == "" {
+		displayName = filepath.Base(fullPath)
+	}
+
+	encodedName := url.PathEscape(displayName)
+	c.Header("Content-Type", mimeType)
+	c.Header("Content-Disposition", fmt.Sprintf("inline; filename=\"%s\"; filename*=UTF-8''%s", displayName, encodedName))
+	c.File(fullPath)
 }
 
 // ensureProjectTypeExists checks if a project type exists
