@@ -19,6 +19,7 @@ import {
 import Swal from "sweetalert2";
 import PageLayout from "@/app/admin/components/common/PageLayout";
 import adminAPI from "@/app/lib/admin_api";
+import apiClient from "@/app/lib/api";
 
 const Toast = Swal.mixin({
   toast: true,
@@ -168,6 +169,17 @@ function ProjectsTable({ projects, onEdit, onDelete }) {
               </td>
               <td className="px-4 py-3 text-center">
                 <div className="flex items-center justify-center gap-3">
+                  {project.attachments?.length ? (
+                    <a
+                      href={buildAttachmentUrl(project.attachments[0])}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 text-emerald-600 hover:text-emerald-700"
+                    >
+                      <FileText size={16} />
+                      ดูไฟล์
+                    </a>
+                  ) : null}
                   <button
                     onClick={() => onEdit(project)}
                     className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-800"
@@ -190,6 +202,40 @@ function ProjectsTable({ projects, onEdit, onDelete }) {
       </table>
     </div>
   );
+}
+
+function buildAttachmentUrl(attachment) {
+  if (!attachment) {
+    return "#";
+  }
+
+  const storedPath =
+    attachment.stored_path ||
+    attachment.storedPath ||
+    attachment.StoredPath ||
+    "";
+  if (!storedPath) {
+    return "#";
+  }
+
+  const normalizedPath = storedPath.startsWith("/uploads/")
+    ? storedPath
+    : `/uploads/${storedPath.replace(/^\/+/, "")}`;
+
+  const base = (apiClient?.baseURL || "").replace(/\/?api\/v1$/, "");
+  const fallbackBase =
+    base || (typeof window !== "undefined" ? window.location.origin : "");
+
+  try {
+    return fallbackBase
+      ? new URL(normalizedPath, fallbackBase).href
+      : normalizedPath;
+  } catch (error) {
+    if (fallbackBase) {
+      return `${fallbackBase.replace(/\/$/, "")}${normalizedPath}`;
+    }
+    return normalizedPath;
+  }
 }
 
 function ProjectForm({
@@ -411,11 +457,20 @@ function ProjectForm({
             </div>
           ) : existingAttachment ? (
             <div className="mt-3 rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-600">
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <Paperclip size={16} className="text-gray-400" />
-                <span>
+                <span className="truncate">
                   ไฟล์ที่บันทึกล่าสุด: {existingAttachment.original_name || existingAttachment.stored_path}
                 </span>
+                <a
+                  href={buildAttachmentUrl(existingAttachment)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="ml-auto inline-flex items-center gap-1 rounded-md border border-emerald-200 bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-700 hover:bg-emerald-100"
+                >
+                  <FileText size={14} />
+                  เปิดไฟล์
+                </a>
               </div>
               <p className="mt-1 text-xs text-gray-400">
                 การเลือกไฟล์ใหม่จะทับไฟล์เดิมโดยอัตโนมัติ
