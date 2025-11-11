@@ -1,17 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import {
-  Briefcase,
-  CalendarDays,
-  Layers,
-  RefreshCcw,
-  Search,
-  Users,
-  Wallet,
-  Paperclip,
-  Eye,
-} from "lucide-react";
+import { Briefcase, RefreshCcw, Search, Paperclip } from "lucide-react";
 import PageLayout from "../common/PageLayout";
 import Card from "../common/Card";
 import EmptyState from "../common/EmptyState";
@@ -89,7 +79,7 @@ const getBudgetPlanLabel = (project) => {
   );
 };
 
-const buildAttachmentUrl = (attachment) => {
+const buildAttachmentUrl = (project, attachment) => {
   if (!attachment) {
     return null;
   }
@@ -98,35 +88,40 @@ const buildAttachmentUrl = (attachment) => {
     ? attachment.stored_path.trim()
     : "";
 
-  if (storedPath) {
-    if (/^https?:\/\//i.test(storedPath)) {
-      return storedPath;
-    }
-
-    const normalizedPath = storedPath.startsWith("/")
-      ? storedPath
-      : `/${storedPath}`;
-
-    try {
-      const baseURL = apiClient.baseURL.replace(/\/?api\/v1$/, "");
-      return new URL(normalizedPath, baseURL).href;
-    } catch (error) {
-      console.warn("Failed to resolve attachment stored_path", storedPath, error);
-    }
+  if (storedPath && /^https?:\/\//i.test(storedPath)) {
+    return storedPath;
   }
 
-  if (attachment.file_id) {
-    return `${apiClient.baseURL}/files/managed/${attachment.file_id}/download`;
+  if (attachment.file_id && project?.project_id != null) {
+    return `${apiClient.baseURL}/projects/${project.project_id}/attachments/${attachment.file_id}`;
+  }
+
+  if (storedPath) {
+    console.warn("Project attachment missing file_id, falling back to stored_path", storedPath);
   }
 
   return null;
 };
+
+const SORT_FIELDS = [
+  { id: "event_date", label: "วันที่จัดโครงการ" },
+  { id: "project_name", label: "ชื่อโครงการ" },
+  { id: "budget_amount", label: "งบประมาณโครงการ" },
+  { id: "participants", label: "จำนวนผู้เข้าร่วม" },
+];
+
+const SORT_DIRECTIONS = [
+  { id: "desc", label: "มาก → น้อย" },
+  { id: "asc", label: "น้อย → มาก" },
+];
 
 export default function ProjectsList() {
   const [projects, setProjects] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [typeFilter, setTypeFilter] = useState("all");
   const [planFilter, setPlanFilter] = useState("all");
+  const [sortField, setSortField] = useState("event_date");
+  const [sortDirection, setSortDirection] = useState("desc");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [lastUpdated, setLastUpdated] = useState(null);
@@ -195,6 +190,45 @@ export default function ProjectsList() {
     });
   }, [projects, normalizedSearch, typeFilter, planFilter]);
 
+  const sortedProjects = useMemo(() => {
+    const projectsToSort = [...filteredProjects];
+
+    const directionMultiplier = sortDirection === "asc" ? 1 : -1;
+
+    const getValue = (project) => {
+      switch (sortField) {
+        case "project_name":
+          return (project.project_name || "").toLowerCase();
+        case "budget_amount":
+          return Number(project.budget_amount) || 0;
+        case "participants":
+          return Number(project.participants) || 0;
+        case "event_date":
+        default: {
+          const date = project.event_date ? new Date(project.event_date) : null;
+          return date && !Number.isNaN(date.getTime()) ? date.getTime() : 0;
+        }
+      }
+    };
+
+    projectsToSort.sort((a, b) => {
+      const aValue = getValue(a);
+      const bValue = getValue(b);
+
+      if (typeof aValue === "string" && typeof bValue === "string") {
+        return aValue.localeCompare(bValue, "th-TH") * directionMultiplier;
+      }
+
+      if (aValue === bValue) {
+        return 0;
+      }
+
+      return aValue > bValue ? directionMultiplier : -directionMultiplier;
+    });
+
+    return projectsToSort;
+  }, [filteredProjects, sortField, sortDirection]);
+
   const typeOptions = useMemo(() => {
     const map = new Map();
     projects.forEach((project) => {
@@ -233,7 +267,7 @@ export default function ProjectsList() {
       {!showInitialLoading && (
         <div className="space-y-6">
           <div className="bg-white shadow-sm rounded-lg p-5 border border-gray-200">
-            <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+            <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-4">
               <div className="relative w-full lg:max-w-md">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
                 <input
@@ -245,32 +279,60 @@ export default function ProjectsList() {
                 />
               </div>
 
-              <div className="flex flex-col sm:flex-row gap-3 w-full lg:w-auto">
-                <select
-                  value={typeFilter}
-                  onChange={(event) => setTypeFilter(event.target.value)}
-                  className="border border-gray-300 rounded-md py-2.5 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                >
-                  <option value="all">ทุกประเภทโครงการ</option>
-                  {typeOptions.map((option) => (
-                    <option key={option.id} value={option.id}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
+              <div className="flex flex-col lg:flex-row gap-3 w-full xl:w-auto">
+                <div className="flex flex-col sm:flex-row gap-3 w-full">
+                  <select
+                    value={typeFilter}
+                    onChange={(event) => setTypeFilter(event.target.value)}
+                    className="border border-gray-300 rounded-md py-2.5 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  >
+                    <option value="all">ทุกประเภทโครงการ</option>
+                    {typeOptions.map((option) => (
+                      <option key={option.id} value={option.id}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
 
-                <select
-                  value={planFilter}
-                  onChange={(event) => setPlanFilter(event.target.value)}
-                  className="border border-gray-300 rounded-md py-2.5 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                >
-                  <option value="all">ทุกแผนงบประมาณ</option>
-                  {planOptions.map((option) => (
-                    <option key={option.id} value={option.id}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
+                  <select
+                    value={planFilter}
+                    onChange={(event) => setPlanFilter(event.target.value)}
+                    className="border border-gray-300 rounded-md py-2.5 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  >
+                    <option value="all">ทุกแผนงบประมาณ</option>
+                    {planOptions.map((option) => (
+                      <option key={option.id} value={option.id}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="flex flex-col sm:flex-row gap-3 w-full lg:w-auto">
+                  <select
+                    value={sortField}
+                    onChange={(event) => setSortField(event.target.value)}
+                    className="border border-gray-300 rounded-md py-2.5 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  >
+                    {SORT_FIELDS.map((option) => (
+                      <option key={option.id} value={option.id}>
+                        เรียงตาม {option.label}
+                      </option>
+                    ))}
+                  </select>
+
+                  <select
+                    value={sortDirection}
+                    onChange={(event) => setSortDirection(event.target.value)}
+                    className="border border-gray-300 rounded-md py-2.5 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  >
+                    {SORT_DIRECTIONS.map((option) => (
+                      <option key={option.id} value={option.id}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
 
                 <button
                   type="button"
@@ -330,7 +392,7 @@ export default function ProjectsList() {
                   <LoadingSpinner size="small" />
                 </div>
               )}
-              {filteredProjects.map((project) => {
+              {sortedProjects.map((project) => {
                 const attachments = Array.isArray(project.attachments)
                   ? project.attachments
                   : [];
@@ -346,53 +408,32 @@ export default function ProjectsList() {
                         </span>
                       </>
                     }
-                    icon={Briefcase}
                     defaultCollapsed
                     bodyClassName="space-y-6"
                   >
                     <div className="grid gap-5 md:grid-cols-2">
                       <div className="space-y-4">
-                        <div className="flex items-start gap-3">
-                          <div className="p-2 rounded-full bg-blue-50 text-blue-600">
-                            <Layers size={18} />
-                          </div>
-                          <div>
-                            <p className="text-sm text-gray-500">ประเภทโครงการ</p>
-                            <p className="text-base font-medium text-gray-900">{getProjectTypeLabel(project)}</p>
-                          </div>
+                        <div>
+                          <p className="text-sm text-gray-500">ประเภทโครงการ</p>
+                          <p className="text-base font-medium text-gray-900">{getProjectTypeLabel(project)}</p>
                         </div>
 
-                        <div className="flex items-start gap-3">
-                          <div className="p-2 rounded-full bg-emerald-50 text-emerald-600">
-                            <Wallet size={18} />
-                          </div>
-                          <div>
-                            <p className="text-sm text-gray-500">แผนงบประมาณ</p>
-                            <p className="text-base font-medium text-gray-900">{getBudgetPlanLabel(project)}</p>
-                            <p className="text-sm text-gray-600 mt-1">งบประมาณ {formatCurrency(project.budget_amount)}</p>
-                          </div>
+                        <div>
+                          <p className="text-sm text-gray-500">แผนงบประมาณ</p>
+                          <p className="text-base font-medium text-gray-900">{getBudgetPlanLabel(project)}</p>
+                          <p className="text-sm text-gray-600 mt-1">งบประมาณ {formatCurrency(project.budget_amount)}</p>
                         </div>
                       </div>
 
                       <div className="space-y-4">
-                        <div className="flex items-start gap-3">
-                          <div className="p-2 rounded-full bg-amber-50 text-amber-600">
-                            <CalendarDays size={18} />
-                          </div>
-                          <div>
-                            <p className="text-sm text-gray-500">วันที่จัดโครงการ</p>
-                            <p className="text-base font-medium text-gray-900">{formatDate(project.event_date)}</p>
-                          </div>
+                        <div>
+                          <p className="text-sm text-gray-500">วันที่จัดโครงการ</p>
+                          <p className="text-base font-medium text-gray-900">{formatDate(project.event_date)}</p>
                         </div>
 
-                        <div className="flex items-start gap-3">
-                          <div className="p-2 rounded-full bg-purple-50 text-purple-600">
-                            <Users size={18} />
-                          </div>
-                          <div>
-                            <p className="text-sm text-gray-500">จำนวนผู้เข้าร่วม</p>
-                            <p className="text-base font-medium text-gray-900">{formatParticipants(project.participants)}</p>
-                          </div>
+                        <div>
+                          <p className="text-sm text-gray-500">จำนวนผู้เข้าร่วม</p>
+                          <p className="text-base font-medium text-gray-900">{formatParticipants(project.participants)}</p>
                         </div>
                       </div>
                     </div>
@@ -412,7 +453,7 @@ export default function ProjectsList() {
                       {attachments.length ? (
                         <ul className="space-y-2">
                           {attachments.map((attachment, index) => {
-                            const url = buildAttachmentUrl(attachment);
+                            const url = buildAttachmentUrl(project, attachment);
                             const sizeLabel = formatFileSize(attachment.file_size);
                             const key =
                               attachment.file_id ??
@@ -429,8 +470,7 @@ export default function ProjectsList() {
                                     rel="noopener noreferrer"
                                     className="flex items-center justify-between gap-3 rounded-md border border-blue-100 bg-blue-50 px-3 py-2 text-sm text-blue-800 transition hover:border-blue-200 hover:bg-blue-100"
                                   >
-                                    <span className="flex items-center gap-2 font-medium">
-                                      <Eye size={16} className="text-blue-500" />
+                                    <span className="font-medium">
                                       {attachment.original_name || "ไฟล์แนบ"}
                                     </span>
                                     <span className="flex items-center gap-2 text-xs text-blue-700">
