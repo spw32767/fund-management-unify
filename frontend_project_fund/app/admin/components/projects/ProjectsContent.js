@@ -31,6 +31,12 @@ const Toast = Swal.mixin({
   },
 });
 
+const normalizeText = (value) =>
+  (value ?? "")
+    .trim()
+    .replace(/\s+/g, " ")
+    .toLowerCase();
+
 const initialProjectForm = {
   project_name: "",
   type_id: "",
@@ -693,6 +699,19 @@ export default function ProjectsContent() {
       return;
     }
 
+    const normalizedProjectName = normalizeText(projectForm.project_name);
+    const projectId = editingProject?.project_id ?? null;
+    const duplicateProject = projects.some(
+      (project) =>
+        normalizeText(project.project_name) === normalizedProjectName &&
+        (project.project_id ?? null) !== projectId
+    );
+
+    if (duplicateProject) {
+      Toast.fire({ icon: "warning", title: "ชื่อโครงการซ้ำกัน" });
+      return;
+    }
+
     const payload = {
       project_name: projectForm.project_name.trim(),
       type_id: Number(projectForm.type_id),
@@ -725,8 +744,12 @@ export default function ProjectsContent() {
       await loadAll();
       resetProjectForm();
     } catch (error) {
-      console.error(error);
-      Toast.fire({ icon: "error", title: error.message || "บันทึกข้อมูลไม่สำเร็จ" });
+      if (error?.status === 409) {
+        Toast.fire({ icon: "warning", title: "ชื่อโครงการซ้ำกัน" });
+      } else {
+        console.error(error);
+        Toast.fire({ icon: "error", title: error.message || "บันทึกข้อมูลไม่สำเร็จ" });
+      }
     } finally {
       setSavingProject(false);
     }
@@ -794,6 +817,19 @@ export default function ProjectsContent() {
       return;
     }
 
+    const normalizedThaiName = normalizeText(typeForm.name_th);
+    const editingId = editingType?.type_id ?? null;
+    const duplicateType = projectTypes.some(
+      (item) =>
+        normalizeText(item.name_th) === normalizedThaiName &&
+        (item.type_id ?? null) !== editingId
+    );
+
+    if (duplicateType) {
+      Toast.fire({ icon: "warning", title: "ชื่อประเภทโครงการซ้ำกัน" });
+      return;
+    }
+
     const payload = {
       name_th: typeForm.name_th.trim(),
       name_en: typeForm.name_en.trim(),
@@ -812,10 +848,10 @@ export default function ProjectsContent() {
       setTypeForm(initialTypeForm);
       setEditingType(null);
     } catch (error) {
-      console.error(error);
       if (error?.status === 409) {
-        Toast.fire({ icon: "error", title: "ชื่อซ้ำกัน" });
+        Toast.fire({ icon: "warning", title: "ชื่อประเภทโครงการซ้ำกัน" });
       } else {
+        console.error(error);
         Toast.fire({ icon: "error", title: error.message || "บันทึกประเภทไม่สำเร็จ" });
       }
     } finally {
@@ -827,6 +863,19 @@ export default function ProjectsContent() {
     event.preventDefault();
     if (!planForm.name_th) {
       Toast.fire({ icon: "warning", title: "กรุณาระบุชื่อภาษาไทย" });
+      return;
+    }
+
+    const normalizedThaiName = normalizeText(planForm.name_th);
+    const editingId = editingPlan?.plan_id ?? null;
+    const duplicatePlan = budgetPlans.some(
+      (item) =>
+        normalizeText(item.name_th) === normalizedThaiName &&
+        (item.plan_id ?? null) !== editingId
+    );
+
+    if (duplicatePlan) {
+      Toast.fire({ icon: "warning", title: "ชื่อแผนงบประมาณซ้ำกัน" });
       return;
     }
 
@@ -848,10 +897,10 @@ export default function ProjectsContent() {
       setPlanForm(initialPlanForm);
       setEditingPlan(null);
     } catch (error) {
-      console.error(error);
       if (error?.status === 409) {
-        Toast.fire({ icon: "error", title: "ชื่อซ้ำกัน" });
+        Toast.fire({ icon: "warning", title: "ชื่อแผนงบประมาณซ้ำกัน" });
       } else {
+        console.error(error);
         Toast.fire({ icon: "error", title: error.message || "บันทึกแผนงบประมาณไม่สำเร็จ" });
       }
     } finally {
