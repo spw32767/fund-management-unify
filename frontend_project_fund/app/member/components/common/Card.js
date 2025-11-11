@@ -6,7 +6,6 @@ import { useState } from "react";
 
 export default function Card({
   title,
-  renderTitle,
   children,
   defaultCollapsed = false,
   icon: Icon,
@@ -24,16 +23,6 @@ export default function Card({
     }
   };
 
-  const defaultTitle = (
-    <h3 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
-      {Icon && <Icon size={20} className="text-gray-600" />}
-      {title}
-    </h3>
-  );
-
-  const customTitle = renderTitle ? renderTitle({ collapsed }) : null;
-  const headerTitle = customTitle ?? defaultTitle;
-
   return (
     <div className={`bg-white rounded-lg shadow-md overflow-hidden ${className}`}>
       <div
@@ -42,9 +31,10 @@ export default function Card({
         } ${headerClassName}`}
         onClick={handleToggle}
       >
-        <div className="flex-1 min-w-0">
-          {headerTitle}
-        </div>
+        <h3 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
+          {Icon && <Icon size={20} className="text-gray-600" />}
+          {title}
+        </h3>
         <div className="flex items-center gap-2">
           {action && (
             <div onClick={(e) => e.stopPropagation()}>
