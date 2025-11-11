@@ -110,14 +110,29 @@ function ProjectsTable({ projects, onEdit, onDelete }) {
           {projects.map((project) => (
             <tr key={project.project_id} className="hover:bg-gray-50 transition-colors">
               <td className="px-4 py-3">
-                <div className="font-semibold text-gray-900">{project.project_name}</div>
-                <div className="text-xs text-gray-500 flex items-center gap-1 mt-1">
+                <div
+                  className="font-semibold text-gray-900 max-w-xs truncate"
+                  title={project.project_name}
+                >
+                  {project.project_name}
+                </div>
+                <div
+                  className="text-xs text-gray-500 flex items-center gap-1 mt-1 max-w-xs truncate"
+                  title={
+                    project.budget_plan?.name_th ||
+                    project.budget_plan?.name_en ||
+                    "-"
+                  }
+                >
                   <Wallet size={14} className="text-gray-400" />
                   {project.budget_plan?.name_th || project.budget_plan?.name_en || "-"}
                 </div>
               </td>
               <td className="px-4 py-3">
-                <span className="inline-flex items-center gap-1 text-gray-700">
+                <span
+                  className="inline-flex items-center gap-1 text-gray-700 max-w-[180px] truncate"
+                  title={project.type?.name_th || project.type?.name_en || "-"}
+                >
                   <Layers size={15} className="text-blue-500" />
                   {project.type?.name_th || project.type?.name_en || "-"}
                 </span>
@@ -141,7 +156,12 @@ function ProjectsTable({ projects, onEdit, onDelete }) {
               </td>
               <td className="px-4 py-3">
                 {project.notes ? (
-                  <span className="text-gray-600 line-clamp-2">{project.notes}</span>
+                  <span
+                    className="text-gray-600 line-clamp-2 max-w-[220px]"
+                    title={project.notes}
+                  >
+                    {project.notes}
+                  </span>
                 ) : (
                   <span className="text-gray-400">-</span>
                 )}

@@ -1163,7 +1163,7 @@ func saveProjectAttachment(c *gin.Context, tx *gorm.DB, projectID uint, file *mu
 		StoredPath:   relativePath,
 		FileSize:     uint64(file.Size),
 		MimeType:     mimeType,
-		IsPublic:     false,
+		IsPublic:     true,
 		UploadedAt:   now,
 		CreateAt:     now,
 		UpdateAt:     now,
