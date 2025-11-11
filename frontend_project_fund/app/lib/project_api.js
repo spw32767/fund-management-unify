@@ -5,20 +5,99 @@ const toNumber = (value) => {
   return Number.isFinite(num) ? num : null;
 };
 
+const toBoolean = (value) => {
+  if (typeof value === "boolean") {
+    return value;
+  }
+  if (value === null || value === undefined) {
+    return false;
+  }
+  if (typeof value === "number") {
+    return value !== 0;
+  }
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase();
+    return ["true", "1", "yes", "y"].includes(normalized);
+  }
+  return Boolean(value);
+};
+
 const normalizeAttachment = (attachment) => {
   if (!attachment || typeof attachment !== "object") {
     return null;
   }
 
+  const fileId = toNumber(
+    attachment.file_id ??
+      attachment.FileID ??
+      attachment.fileId ??
+      attachment.fileID
+  );
+
+  const projectId = toNumber(
+    attachment.project_id ??
+      attachment.ProjectID ??
+      attachment.projectId ??
+      attachment.projectID
+  );
+
+  const downloadUrl =
+    attachment.download_url ??
+    attachment.downloadUrl ??
+    attachment.DownloadURL ??
+    attachment.DownloadUrl ??
+    null;
+
+  const storedPath =
+    attachment.stored_path ??
+    attachment.StoredPath ??
+    attachment.storedPath ??
+    attachment.Storedpath ??
+    "";
+
   return {
-    file_id: toNumber(attachment.file_id ?? attachment.FileID),
-    original_name: attachment.original_name ?? attachment.OriginalName ?? "",
-    stored_path: attachment.stored_path ?? attachment.StoredPath ?? "",
-    file_size: toNumber(attachment.file_size ?? attachment.FileSize) ?? 0,
-    mime_type: attachment.mime_type ?? attachment.MimeType ?? "",
-    is_public: attachment.is_public ?? attachment.IsPublic ?? false,
-    uploaded_at: attachment.uploaded_at ?? attachment.UploadedAt ?? null,
-    display_order: toNumber(attachment.display_order ?? attachment.DisplayOrder) ?? 0,
+    file_id: fileId,
+    project_id: projectId,
+    original_name:
+      attachment.original_name ??
+      attachment.OriginalName ??
+      attachment.originalName ??
+      attachment.Originalname ??
+      "",
+    stored_path: storedPath,
+    download_url: downloadUrl,
+    file_size:
+      toNumber(
+        attachment.file_size ??
+          attachment.FileSize ??
+          attachment.fileSize ??
+          attachment.Filesize
+      ) ?? 0,
+    mime_type:
+      attachment.mime_type ??
+      attachment.MimeType ??
+      attachment.mimeType ??
+      attachment.Mimetype ??
+      "",
+    is_public: toBoolean(
+      attachment.is_public ??
+        attachment.IsPublic ??
+        attachment.isPublic ??
+        attachment.Ispublic
+    ),
+    uploaded_at:
+      attachment.uploaded_at ??
+      attachment.UploadedAt ??
+      attachment.uploadedAt ??
+      attachment.Uploadedat ??
+      null,
+    display_order:
+      toNumber(
+        attachment.display_order ??
+          attachment.DisplayOrder ??
+          attachment.displayOrder ??
+          attachment.Displayorder
+      ) ?? 0,
   };
 };
 

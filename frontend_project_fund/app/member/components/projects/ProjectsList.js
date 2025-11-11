@@ -79,25 +79,73 @@ const getBudgetPlanLabel = (project) => {
   );
 };
 
+const joinBaseWithPath = (base, path) => {
+  if (!path) {
+    return null;
+  }
+
+  if (/^https?:\/\//i.test(path)) {
+    return path;
+  }
+
+  const normalizedBase = typeof base === "string" ? base.replace(/\/+$/, "") : "";
+  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+
+  if (!normalizedBase) {
+    return normalizedPath;
+  }
+
+  return `${normalizedBase}${normalizedPath}`;
+};
+
 const buildAttachmentUrl = (project, attachment) => {
   if (!attachment) {
     return null;
+  }
+
+  const downloadPath =
+    attachment.download_url ??
+    attachment.downloadUrl ??
+    null;
+
+  if (downloadPath) {
+    const resolved = joinBaseWithPath(apiClient.baseURL, downloadPath);
+    if (resolved) {
+      return resolved;
+    }
+  }
+
+  if (attachment.file_id && project?.project_id != null) {
+    const fallbackPath = `/projects/${project.project_id}/attachments/${attachment.file_id}`;
+    const resolved = joinBaseWithPath(apiClient.baseURL, fallbackPath);
+    if (resolved) {
+      return resolved;
+    }
   }
 
   const storedPath = typeof attachment.stored_path === "string"
     ? attachment.stored_path.trim()
     : "";
 
-  if (storedPath && /^https?:\/\//i.test(storedPath)) {
-    return storedPath;
-  }
-
-  if (attachment.file_id && project?.project_id != null) {
-    return `${apiClient.baseURL}/projects/${project.project_id}/attachments/${attachment.file_id}`;
-  }
-
   if (storedPath) {
-    console.warn("Project attachment missing file_id, falling back to stored_path", storedPath);
+    if (/^https?:\/\//i.test(storedPath)) {
+      return storedPath;
+    }
+
+    const normalizedStoredPath = storedPath.startsWith("/") ? storedPath : `/${storedPath}`;
+    const uploadsPath = normalizedStoredPath.startsWith("/uploads/")
+      ? normalizedStoredPath
+      : `/uploads${normalizedStoredPath}`;
+    const normalizedBase = typeof apiClient.baseURL === "string"
+      ? apiClient.baseURL.replace(/\/+$/, "")
+      : "";
+    const baseWithoutApi = normalizedBase.replace(/\/api\/v1$/, "");
+    const resolved = joinBaseWithPath(baseWithoutApi, uploadsPath);
+
+    if (resolved) {
+      console.warn("Project attachment missing file_id, deriving URL from stored_path", storedPath);
+      return resolved;
+    }
   }
 
   return null;
@@ -400,16 +448,21 @@ export default function ProjectsList() {
                 return (
                   <Card
                     key={project.project_id ?? project.project_name}
-                    title={
-                      <>
-                        <span>{project.project_name || "ไม่พบชื่อโครงการ"}</span>
+                    defaultCollapsed
+                    bodyClassName="space-y-6"
+                    renderTitle={({ collapsed }) => (
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2 text-lg font-semibold text-gray-800">
+                          {!collapsed && (
+                            <Briefcase size={18} className="text-blue-600" aria-hidden="true" />
+                          )}
+                          <span>{project.project_name || "ไม่พบชื่อโครงการ"}</span>
+                        </div>
                         <span className="block text-sm font-normal text-gray-500">
                           {formatDate(project.event_date)} · {getProjectTypeLabel(project)}
                         </span>
-                      </>
-                    }
-                    defaultCollapsed
-                    bodyClassName="space-y-6"
+                      </div>
+                    )}
                   >
                     <div className="grid gap-5 md:grid-cols-2">
                       <div className="space-y-4">
