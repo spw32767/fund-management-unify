@@ -11,6 +11,7 @@ import {
   User,
   Gift,
   TrendingUp,
+  Briefcase,
 } from "lucide-react";
 import { useAuth } from "../../../contexts/AuthContext";
 import { useRouter } from "next/navigation";
@@ -72,6 +73,12 @@ export default function Navigation({
       id: "announcements",
       label: "ประกาศกองทุนวิจัยและนวัตกรรม",
       icon: FileText,
+      hasSubmenu: false,
+    },
+    {
+      id: "projects",
+      label: "โครงการ",
+      icon: Briefcase,
       hasSubmenu: false,
     },
     ...(isDeptHead

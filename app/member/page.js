@@ -21,6 +21,7 @@ import ReceivedFundsList from "./components/funds/ReceivedFundsList";
 import NotificationCenter from "./components/notifications/NotificationCenter";
 import DeptHeadReview from "./components/dept/DeptHeadReview";
 import { useAuth } from "../contexts/AuthContext";
+import ProjectsList from "./components/projects/ProjectsList";
 
 
 export function MemberPageContent({ initialPage = 'profile' }) {
@@ -110,6 +111,8 @@ export function MemberPageContent({ initialPage = 'profile' }) {
         return <AnnouncementPage />;
       case 'notifications':
         return <NotificationCenter />;
+      case 'projects':
+        return <ProjectsList />;
       case 'dept-review':
         return <DeptHeadReview />;
       default:
@@ -131,6 +134,7 @@ export function MemberPageContent({ initialPage = 'profile' }) {
       'fund-application-detail': 'รายละเอียดคำร้องขอทุน',
       'announcements': 'ประกาศกองทุนวิจัยและนวัตกรรม',
       'notifications': 'การแจ้งเตือน',
+      'projects': 'โครงการ',
       'dept-review': 'พิจารณาคำร้องของหัวหน้าสาขา',
     };
     return titles[currentPage] || currentPage;

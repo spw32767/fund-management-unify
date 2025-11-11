@@ -4,9 +4,9 @@
 import { ChevronDown, ChevronRight } from "lucide-react";
 import { useState } from "react";
 
-export default function Card({ 
-  title, 
-  children, 
+export default function Card({
+  title,
+  children,
   defaultCollapsed = false,
   icon: Icon,
   action,
@@ -25,7 +25,7 @@ export default function Card({
 
   return (
     <div className={`bg-white rounded-lg shadow-md overflow-hidden ${className}`}>
-      <div 
+      <div
         className={`p-5 border-b border-gray-200 flex justify-between items-center transition-colors duration-200 ${
           collapsible ? 'cursor-pointer hover:bg-gray-50' : ''
         } ${headerClassName}`}
