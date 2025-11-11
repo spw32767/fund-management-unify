@@ -19,6 +19,7 @@ import {
 import Swal from "sweetalert2";
 import PageLayout from "@/app/admin/components/common/PageLayout";
 import adminAPI from "@/app/lib/admin_api";
+import apiClient from "@/app/lib/api";
 
 const Toast = Swal.mixin({
   toast: true,
@@ -98,7 +99,7 @@ function ProjectsTable({ projects, onEdit, onDelete }) {
         <thead className="bg-gray-50">
           <tr>
             <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">ชื่อโครงการ</th>
-            <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">ประเภท</th>
+            <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">ประเภทโครงการ</th>
             <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">วันที่จัด</th>
             <th className="px-4 py-3 text-right text-sm font-semibold text-gray-600">งบประมาณ</th>
             <th className="px-4 py-3 text-right text-sm font-semibold text-gray-600">ผู้เข้าร่วม</th>
@@ -110,17 +111,36 @@ function ProjectsTable({ projects, onEdit, onDelete }) {
           {projects.map((project) => (
             <tr key={project.project_id} className="hover:bg-gray-50 transition-colors">
               <td className="px-4 py-3">
-                <div className="font-semibold text-gray-900">{project.project_name}</div>
-                <div className="text-xs text-gray-500 flex items-center gap-1 mt-1">
-                  <Wallet size={14} className="text-gray-400" />
-                  {project.budget_plan?.name_th || project.budget_plan?.name_en || "-"}
+                <div
+                  className="font-semibold text-gray-900 max-w-xs truncate"
+                  title={project.project_name}
+                >
+                  {project.project_name}
+                </div>
+                <div
+                  className="text-xs text-gray-500 flex items-center gap-1 mt-1 max-w-xs min-w-0"
+                  title={
+                    project.budget_plan?.name_th ||
+                    project.budget_plan?.name_en ||
+                    "-"
+                  }
+                >
+                  <Wallet size={14} className="text-gray-400 shrink-0" />
+                  <span className="truncate">
+                    {project.budget_plan?.name_th || project.budget_plan?.name_en || "-"}
+                  </span>
                 </div>
               </td>
               <td className="px-4 py-3">
-                <span className="inline-flex items-center gap-1 text-gray-700">
-                  <Layers size={15} className="text-blue-500" />
-                  {project.type?.name_th || project.type?.name_en || "-"}
-                </span>
+                <div
+                  className="flex items-center gap-1 text-gray-700 max-w-[250px] min-w-0"
+                  title={project.type?.name_th || project.type?.name_en || "-"}
+                >
+                  <Layers size={15} className="text-blue-500 shrink-0" />
+                  <span className="truncate">
+                    {project.type?.name_th || project.type?.name_en || "-"}
+                  </span>
+                </div>
               </td>
               <td className="px-4 py-3">
                 <span className="inline-flex items-center gap-1">
@@ -141,13 +161,29 @@ function ProjectsTable({ projects, onEdit, onDelete }) {
               </td>
               <td className="px-4 py-3">
                 {project.notes ? (
-                  <span className="text-gray-600 line-clamp-2">{project.notes}</span>
+                  <span
+                    className="text-gray-600 max-w-[220px] truncate block"
+                    title={project.notes}
+                  >
+                    {project.notes}
+                  </span>
                 ) : (
                   <span className="text-gray-400">-</span>
                 )}
               </td>
               <td className="px-4 py-3 text-center">
                 <div className="flex items-center justify-center gap-3">
+                  {project.attachments?.length ? (
+                    <a
+                      href={buildAttachmentUrl(project.attachments[0])}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 text-emerald-600 hover:text-emerald-700"
+                    >
+                      <FileText size={16} />
+                      ดูไฟล์
+                    </a>
+                  ) : null}
                   <button
                     onClick={() => onEdit(project)}
                     className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-800"
@@ -170,6 +206,40 @@ function ProjectsTable({ projects, onEdit, onDelete }) {
       </table>
     </div>
   );
+}
+
+function buildAttachmentUrl(attachment) {
+  if (!attachment) {
+    return "#";
+  }
+
+  const storedPath =
+    attachment.stored_path ||
+    attachment.storedPath ||
+    attachment.StoredPath ||
+    "";
+  if (!storedPath) {
+    return "#";
+  }
+
+  const normalizedPath = storedPath.startsWith("/uploads/")
+    ? storedPath
+    : `/uploads/${storedPath.replace(/^\/+/, "")}`;
+
+  const base = (apiClient?.baseURL || "").replace(/\/?api\/v1$/, "");
+  const fallbackBase =
+    base || (typeof window !== "undefined" ? window.location.origin : "");
+
+  try {
+    return fallbackBase
+      ? new URL(normalizedPath, fallbackBase).href
+      : normalizedPath;
+  } catch (error) {
+    if (fallbackBase) {
+      return `${fallbackBase.replace(/\/$/, "")}${normalizedPath}`;
+    }
+    return normalizedPath;
+  }
 }
 
 function ProjectForm({
@@ -391,11 +461,17 @@ function ProjectForm({
             </div>
           ) : existingAttachment ? (
             <div className="mt-3 rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-600">
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <Paperclip size={16} className="text-gray-400" />
-                <span>
+                <a
+                  href={buildAttachmentUrl(existingAttachment)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="truncate text-blue-600 hover:underline"
+                  title={existingAttachment.original_name || existingAttachment.stored_path}
+                >
                   ไฟล์ที่บันทึกล่าสุด: {existingAttachment.original_name || existingAttachment.stored_path}
-                </span>
+                </a>
               </div>
               <p className="mt-1 text-xs text-gray-400">
                 การเลือกไฟล์ใหม่จะทับไฟล์เดิมโดยอัตโนมัติ
