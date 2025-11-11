@@ -11,7 +11,8 @@ import {
   ClipboardCheck,
   FileCheck,
   BookOpen,
-  Users
+  Users,
+  Briefcase
 } from "lucide-react";
 import { useAuth } from "../../../contexts/AuthContext";
 import { useRouter } from "next/navigation";
@@ -61,6 +62,12 @@ export default function Navigation({
       id: 'fund-settings',
       label: 'ตั้งค่าทุน',
       icon: Settings,
+      hasSubmenu: false
+    },
+    {
+      id: 'projects',
+      label: 'โครงการ',
+      icon: Briefcase,
       hasSubmenu: false
     },
     {

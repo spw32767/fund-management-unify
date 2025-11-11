@@ -1062,6 +1062,101 @@ export const adminAPI = {
     }
   },
 
+  // ==================== PROJECT MANAGEMENT ====================
+
+  async getProjects(params = {}) {
+    try {
+      const response = await apiClient.get('/admin/projects', params);
+      return Array.isArray(response?.projects) ? response.projects : [];
+    } catch (error) {
+      console.error('Error fetching projects:', error);
+      throw error;
+    }
+  },
+
+  async createProject(projectData) {
+    try {
+      return await apiClient.post('/admin/projects', projectData);
+    } catch (error) {
+      console.error('Error creating project:', error);
+      throw error;
+    }
+  },
+
+  async updateProject(projectId, projectData) {
+    try {
+      return await apiClient.put(`/admin/projects/${projectId}`, projectData);
+    } catch (error) {
+      console.error('Error updating project:', error);
+      throw error;
+    }
+  },
+
+  async deleteProject(projectId) {
+    try {
+      return await apiClient.delete(`/admin/projects/${projectId}`);
+    } catch (error) {
+      console.error('Error deleting project:', error);
+      throw error;
+    }
+  },
+
+  async getProjectTypes() {
+    try {
+      const response = await apiClient.get('/admin/project-types');
+      return Array.isArray(response?.types) ? response.types : [];
+    } catch (error) {
+      console.error('Error fetching project types:', error);
+      throw error;
+    }
+  },
+
+  async createProjectType(typeData) {
+    try {
+      return await apiClient.post('/admin/project-types', typeData);
+    } catch (error) {
+      console.error('Error creating project type:', error);
+      throw error;
+    }
+  },
+
+  async updateProjectType(typeId, typeData) {
+    try {
+      return await apiClient.put(`/admin/project-types/${typeId}`, typeData);
+    } catch (error) {
+      console.error('Error updating project type:', error);
+      throw error;
+    }
+  },
+
+  async getProjectBudgetPlans() {
+    try {
+      const response = await apiClient.get('/admin/project-budget-plans');
+      return Array.isArray(response?.plans) ? response.plans : [];
+    } catch (error) {
+      console.error('Error fetching project budget plans:', error);
+      throw error;
+    }
+  },
+
+  async createProjectBudgetPlan(planData) {
+    try {
+      return await apiClient.post('/admin/project-budget-plans', planData);
+    } catch (error) {
+      console.error('Error creating project budget plan:', error);
+      throw error;
+    }
+  },
+
+  async updateProjectBudgetPlan(planId, planData) {
+    try {
+      return await apiClient.put(`/admin/project-budget-plans/${planId}`, planData);
+    } catch (error) {
+      console.error('Error updating project budget plan:', error);
+      throw error;
+    }
+  },
+
   // ==================== VALIDATION UTILITIES ====================
   
   // Parse target roles from JSON string
