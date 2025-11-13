@@ -16,6 +16,7 @@ import SubmissionsManagement from "./components/submissions/SubmissionsManagemen
 import LegacySubmissionManager from "./components/submissions/legacy/LegacySubmissionManager";
 import AdminPublicationsImport from "./components/settings/announcement_config/AdminPublicationsImport";
 import AdminKkuPeopleScraper from "./components/settings/announcement_config/AdminKkuPeopleScraper";
+import AdminScopusImport from "./components/settings/announcement_config/AdminScopusImport";
 import ApprovalRecords from "./components/approves/ApprovalRecords";
 
 function AdminPageContent() {
@@ -48,6 +49,8 @@ function AdminPageContent() {
         return <ApprovalRecords currentPage={handleNavigate} />;
       case 'publications-import':
         return <AdminPublicationsImport currentPage={handleNavigate} />;
+      case 'scopus-import':
+        return <AdminScopusImport />;
       case 'kku-people-scraper':
         return <AdminKkuPeopleScraper />;
       default:
@@ -65,7 +68,9 @@ function AdminPageContent() {
         'fund-settings': 'ตั้งค่าทุน',
         'projects': 'จัดการโครงการ',
         'approval-records': 'บันทึกข้อมูลการอนุมัติทุน',
-      'kku-people-scraper': 'KKU People Scraper'
+        'publications-import': 'นำเข้าผลงาน (Scholar)',
+        'scopus-import': 'นำเข้าผลงาน (Scopus)',
+        'kku-people-scraper': 'KKU People Scraper'
     };
     return titles[currentPage] || currentPage;
   };

@@ -12,7 +12,8 @@ import {
   FileCheck,
   BookOpen,
   Users,
-  Briefcase
+  Briefcase,
+  Globe
 } from "lucide-react";
 import { useAuth } from "../../../contexts/AuthContext";
 import { useRouter } from "next/navigation";
@@ -80,6 +81,12 @@ export default function Navigation({
       id: 'publications-import',
       label: 'นำเข้าผลงาน (Scholar)',
       icon: BookOpen,
+      hasSubmenu: false
+      },
+      {
+      id: 'scopus-import',
+      label: 'นำเข้าผลงาน (Scopus)',
+      icon: Globe,
       hasSubmenu: false
       },
       {
