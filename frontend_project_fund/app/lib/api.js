@@ -1017,6 +1017,26 @@ export const publicationsAPI = {
   async getScholarImportRuns(params = {}) {
     return apiClient.get('/admin/user-publications/import/scholar/runs', params);
   },
+  async importScopusForUser(userId, scopusId) {
+    const params = new URLSearchParams({ user_id: userId, scopus_id: scopusId });
+    const res = await apiClient.post(`/admin/user-publications/import/scopus?${params.toString()}`);
+    return res.summary || res;
+  },
+  async importScopusBatch({ user_ids, limit } = {}) {
+    const qs = new URLSearchParams();
+    if (user_ids) {
+      const value = Array.isArray(user_ids) ? user_ids.join(',') : String(user_ids);
+      if (value.trim()) {
+        qs.set('user_ids', value.trim());
+      }
+    }
+    if (limit) {
+      qs.set('limit', limit);
+    }
+    const suffix = qs.toString() ? `?${qs.toString()}` : '';
+    const res = await apiClient.post(`/admin/user-publications/import/scopus/all${suffix}`);
+    return res.summary || res;
+  },
 };
 
 export const usersAPI = {
@@ -1026,6 +1046,11 @@ export const usersAPI = {
   async setScholarAuthorId(userId, authorId) {
     return apiClient.post(`/admin/users/${encodeURIComponent(userId)}/scholar-author`, {
       author_id: authorId,
+    });
+  },
+  async setScopusAuthorId(userId, scopusId) {
+    return apiClient.post(`/admin/users/${encodeURIComponent(userId)}/scopus-author`, {
+      scopus_id: scopusId,
     });
   },
 };

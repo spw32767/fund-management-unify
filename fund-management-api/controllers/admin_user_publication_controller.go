@@ -16,6 +16,7 @@ import (
 )
 
 var scholarAuthorIDPattern = regexp.MustCompile(`^[A-Za-z0-9_-]{10,}$`)
+var scopusAuthorIDPattern = regexp.MustCompile(`^[0-9]{5,}$`)
 
 // POST /api/v1/admin/user-publications/import/scholar?user_id=123&author_id=W2k2JXwAAAAJ
 func AdminImportScholarPublications(c *gin.Context) {
@@ -100,15 +101,80 @@ func AdminImportScholarForAll(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"success": true, "summary": summary})
 }
 
+// POST /api/v1/admin/user-publications/import/scopus?user_id=123&scopus_id=54683571200
+func AdminImportScopusPublications(c *gin.Context) {
+	uid := strings.TrimSpace(c.Query("user_id"))
+	scopusID := strings.TrimSpace(c.Query("scopus_id"))
+	if uid == "" || scopusID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "error": "missing user_id or scopus_id"})
+		return
+	}
+
+	id64, err := strconv.ParseUint(uid, 10, 64)
+	if err != nil || id64 == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "error": "invalid user_id"})
+		return
+	}
+
+	job := services.NewScopusIngestJobService(nil)
+	res, err := job.RunForUser(c.Request.Context(), &services.ScopusIngestUserInput{
+		UserID:         uint(id64),
+		ScopusAuthorID: scopusID,
+	})
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"success": true, "summary": res})
+}
+
+// POST /api/v1/admin/user-publications/import/scopus/all
+func AdminImportScopusForAll(c *gin.Context) {
+	var userIDs []uint
+	if csv := strings.TrimSpace(c.Query("user_ids")); csv != "" {
+		parts := strings.Split(csv, ",")
+		for _, p := range parts {
+			if id64, err := strconv.ParseUint(strings.TrimSpace(p), 10, 64); err == nil && id64 > 0 {
+				userIDs = append(userIDs, uint(id64))
+			}
+		}
+	}
+
+	limit := 0
+	if limStr := strings.TrimSpace(c.Query("limit")); limStr != "" {
+		if lim, err := strconv.Atoi(limStr); err == nil && lim > 0 {
+			limit = lim
+		}
+	}
+
+	job := services.NewScopusIngestJobService(nil)
+	summary, err := job.RunForAll(c.Request.Context(), &services.ScopusIngestAllInput{
+		UserIDs: userIDs,
+		Limit:   limit,
+	})
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"success": true, "summary": summary})
+}
+
 type AdminUserLite struct {
 	UserID          uint    `json:"user_id"`
 	Name            string  `json:"name"`
 	Email           string  `json:"email"`
 	ScholarAuthorID *string `json:"scholar_author_id,omitempty"`
+	ScopusAuthorID  *string `json:"scopus_id,omitempty"`
 }
 
 type setScholarAuthorIDRequest struct {
 	AuthorID string `json:"author_id"`
+}
+
+type setScopusAuthorIDRequest struct {
+	ScopusID string `json:"scopus_id"`
 }
 
 // GET /api/v1/admin/users/search?q=smith&limit=10
@@ -129,13 +195,14 @@ func AdminSearchUsers(c *gin.Context) {
 		UserLname       *string
 		Email           *string
 		ScholarAuthorID *string
+		ScopusID        *string
 	}
 
 	var rows []row
 	like := "%" + q + "%"
 	if err := config.DB.
 		Table("users").
-		Select("user_id, user_fname, user_lname, email, scholar_author_id").
+		Select("user_id, user_fname, user_lname, email, scholar_author_id, Scopus_id AS scopus_id").
 		Where("CONCAT(COALESCE(user_fname,''),' ',COALESCE(user_lname,'')) LIKE ? OR email LIKE ?", like, like).
 		Limit(limit).
 		Find(&rows).Error; err != nil {
@@ -157,7 +224,13 @@ func AdminSearchUsers(c *gin.Context) {
 		if r.Email != nil {
 			email = *r.Email
 		}
-		out = append(out, AdminUserLite{UserID: r.UserID, Name: name, Email: email, ScholarAuthorID: r.ScholarAuthorID})
+		out = append(out, AdminUserLite{
+			UserID:          r.UserID,
+			Name:            name,
+			Email:           email,
+			ScholarAuthorID: r.ScholarAuthorID,
+			ScopusAuthorID:  r.ScopusID,
+		})
 	}
 
 	c.JSON(http.StatusOK, gin.H{"success": true, "data": out})
@@ -221,6 +294,61 @@ func AdminSetUserScholarAuthorID(c *gin.Context) {
 		"data": gin.H{
 			"user_id":           user.UserID,
 			"scholar_author_id": authorID,
+		},
+	})
+}
+
+// POST /api/v1/admin/users/:id/scopus-author
+func AdminSetUserScopusAuthorID(c *gin.Context) {
+	uid := strings.TrimSpace(c.Param("id"))
+	if uid == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "error": "missing user_id"})
+		return
+	}
+
+	id64, err := strconv.ParseUint(uid, 10, 64)
+	if err != nil || id64 == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "error": "invalid user_id"})
+		return
+	}
+
+	var payload setScopusAuthorIDRequest
+	if err := c.ShouldBindJSON(&payload); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "error": "invalid request body"})
+		return
+	}
+
+	scopusID := strings.TrimSpace(payload.ScopusID)
+	if scopusID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "error": "missing scopus_id"})
+		return
+	}
+
+	if !scopusAuthorIDPattern.MatchString(scopusID) {
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "error": "invalid scopus_id"})
+		return
+	}
+
+	var user models.User
+	if err := config.DB.Where("user_id = ?", uint(id64)).First(&user).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"success": false, "error": "user not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "error": err.Error()})
+		return
+	}
+
+	if err := config.DB.Model(&user).Update("Scopus_id", scopusID).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"data": gin.H{
+			"user_id":   user.UserID,
+			"scopus_id": scopusID,
 		},
 	})
 }

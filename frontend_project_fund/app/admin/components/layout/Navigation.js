@@ -11,6 +11,7 @@ import {
   ClipboardCheck,
   FileCheck,
   BookOpen,
+  Globe,
   Users,
   Briefcase
 } from "lucide-react";
@@ -82,6 +83,12 @@ export default function Navigation({
       icon: BookOpen,
       hasSubmenu: false
       },
+    {
+      id: 'scopus-import',
+      label: 'นำเข้าผลงาน (Scopus)',
+      icon: Globe,
+      hasSubmenu: false
+    },
       {
       id: 'kku-people-scraper',
       label: 'KKU People Scraper',
