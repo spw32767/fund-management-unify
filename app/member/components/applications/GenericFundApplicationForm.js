@@ -2,7 +2,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useMemo } from "react";
-import { FileText, Upload, Save, Send, X, Eye, ArrowLeft, AlertCircle, DollarSign, Download, Info } from "lucide-react";
+import { FileText, Upload, Save, Send, X, Eye, ArrowLeft, AlertCircle, DollarSign, Download, Info, Loader2 } from "lucide-react";
 import Swal from "sweetalert2";
 import PageLayout from "../common/PageLayout";
 import SimpleCard from "../common/SimpleCard";
@@ -15,6 +15,7 @@ import { useRouter } from "next/navigation";
 // เพิ่ม apiClient สำหรับเรียก API โดยตรง
 import apiClient from '../../../lib/api';
 import { submissionAPI, documentAPI, fileAPI} from '../../../lib/member_api';
+import { teacherAPI } from '../../../lib/teacher_api';
 import { statusService } from '../../../lib/status_service';
 import { systemConfigAPI } from '../../../lib/system_config_api';
 
@@ -498,6 +499,452 @@ const formatCurrency = (value) => {
   return num.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 };
 
+const parseNumericValue = (...values) => {
+  for (const value of values) {
+    if (value === undefined || value === null || value === '') {
+      continue;
+    }
+
+    if (typeof value === 'number') {
+      if (!Number.isNaN(value)) {
+        return value;
+      }
+      continue;
+    }
+
+    if (typeof value === 'string') {
+      const normalized = value.replace(/[^0-9.,-]/g, '').replace(/,/g, '');
+      if (!normalized) {
+        continue;
+      }
+      const parsed = Number(normalized);
+      if (!Number.isNaN(parsed)) {
+        return parsed;
+      }
+    }
+  }
+
+  return null;
+};
+
+const parseIntegerFromValue = (value) => {
+  const numeric = parseNumericValue(value);
+  if (numeric === null || Number.isNaN(numeric)) {
+    return null;
+  }
+  const integer = Number.parseInt(numeric, 10);
+  return Number.isNaN(integer) ? null : integer;
+};
+
+const normalizeBudgetHintEntry = (entry, fallbackOrder = 0) => {
+  if (!entry || typeof entry !== 'object') {
+    return null;
+  }
+
+  const levelText = entry.level != null ? String(entry.level).trim() : '';
+  const description = firstNonEmptyString(
+    entry.fund_description,
+    entry.fundDescription,
+    entry.description,
+    entry.level_description,
+    entry.levelDescription,
+    levelText ? `ระดับ${levelText}` : ''
+  );
+
+  const amount = parseNumericValue(
+    entry.max_amount_per_grant,
+    entry.maxAmountPerGrant,
+    entry.MaxAmountPerGrant,
+    entry.maximum_amount,
+    entry.maximumAmount,
+    entry.amount,
+    entry.Amount
+  );
+
+  const scope = firstNonEmptyString(
+    entry.record_scope,
+    entry.recordScope,
+    entry.scope,
+    entry.Scope
+  );
+
+  const normalizedScope = scope ? String(scope).trim().toLowerCase() : null;
+
+  const maxAmountPerYear = parseNumericValue(
+    entry.max_amount_per_year,
+    entry.maxAmountPerYear,
+    entry.maximum_amount_per_year,
+    entry.maximumAmountPerYear
+  );
+
+  const maxGrants = parseIntegerFromValue(
+    entry.max_grants,
+    entry.maxGrants,
+    entry.maximum_grants,
+    entry.maximumGrants
+  );
+
+  const subcategoryName = firstNonEmptyString(
+    entry.subcategory_name,
+    entry.subcategoryName,
+    entry.SubcategoryName,
+    entry.name,
+    entry.Name
+  );
+
+  const trimmedDescription = typeof description === 'string' ? description.trim() : '';
+  const trimmedSubcategoryName =
+    typeof subcategoryName === 'string' ? subcategoryName.trim() : '';
+  const hasLimitFields = maxAmountPerYear != null || maxGrants != null;
+  const amountNumber = amount;
+
+  let resolvedScope = normalizedScope;
+
+  if (!resolvedScope) {
+    const looksLikeRuleDescription = /^(\(?\d+[.)]|[\(\[]\d+)/.test(trimmedDescription);
+    const looksLikeRuleName = /\s-\s*\(/.test(trimmedSubcategoryName);
+
+    if (hasLimitFields && !looksLikeRuleDescription && !looksLikeRuleName) {
+      const amountIsMeaningful = amountNumber != null && Number(amountNumber) > 0;
+      if (!amountIsMeaningful || !trimmedDescription) {
+        resolvedScope = 'overall';
+      }
+    }
+
+    if (!resolvedScope && (looksLikeRuleDescription || looksLikeRuleName)) {
+      resolvedScope = 'rule';
+    }
+  }
+
+  if (!resolvedScope && hasLimitFields) {
+    resolvedScope = 'overall';
+  }
+
+  if (!description && amount == null && maxAmountPerYear == null && maxGrants == null) {
+    return null;
+  }
+
+  const order = parseNumericValue(
+    entry.display_order,
+    entry.displayOrder,
+    entry.order,
+    entry.sequence,
+    entry.sort_order,
+    entry.SortOrder,
+    entry.level_order,
+    entry.LevelOrder,
+    entry.priority,
+    entry.Priority
+  );
+
+  const identifier = firstNonEmptyString(
+    entry.subcategory_budget_id,
+    entry.subcategorie_budget_id,
+    entry.subcategoryBudgetId,
+    entry.SubcategoryBudgetID,
+    entry.budget_id,
+    entry.BudgetID,
+    entry.id,
+    entry.ID
+  ) || `hint-${fallbackOrder}`;
+
+  return {
+    id: identifier,
+    description: description || '',
+    amount,
+    order: Number.isFinite(order) ? order : fallbackOrder,
+    scope: resolvedScope,
+    maxAmountPerYear,
+    maxGrants,
+    subcategoryName: subcategoryName || null,
+  };
+};
+
+const collectBudgetHintEntries = (collection, { filterSubcategoryId = null, fallbackOrderOffset = 0 } = {}) => {
+  if (!Array.isArray(collection)) {
+    return [];
+  }
+
+  const hints = [];
+  const dedupe = new Set();
+
+  collection.forEach((entry, index) => {
+    if (filterSubcategoryId != null) {
+      const candidates = [
+        entry.original_subcategory_id,
+        entry.originalSubcategoryId,
+        entry.original_subcategorie_id,
+        entry.subcategory_id,
+        entry.subcategorie_id,
+        entry.SubcategoryID,
+        entry.original_subcategory,
+      ];
+
+      const matches = candidates.some((candidate) => {
+        const parsed = parseIntegerFromValue(candidate);
+        return parsed != null && parsed === filterSubcategoryId;
+      });
+
+      if (!matches) {
+        return;
+      }
+    }
+
+    const normalized = normalizeBudgetHintEntry(entry, fallbackOrderOffset + index);
+    if (!normalized) {
+      return;
+    }
+
+    const dedupeKey = [
+      normalized.scope || 'null',
+      normalized.description || 'null',
+      normalized.amount ?? 'null',
+      normalized.maxAmountPerYear ?? 'null',
+      normalized.maxGrants ?? 'null',
+    ].join(':::');
+    if (dedupe.has(dedupeKey)) {
+      return;
+    }
+    dedupe.add(dedupeKey);
+    hints.push(normalized);
+  });
+
+  return hints;
+};
+
+const sortBudgetHints = (entries) => {
+  if (!Array.isArray(entries)) {
+    return [];
+  }
+
+  const resolveScopePriority = (scope) => {
+    switch (scope) {
+      case 'overall':
+        return 0;
+      case 'rule':
+        return 1;
+      default:
+        return 2;
+    }
+  };
+
+  return entries
+    .slice()
+    .map((entry, index) => ({
+      ...entry,
+      order: Number.isFinite(entry.order) ? entry.order : index,
+    }))
+    .sort((a, b) => {
+      const scopePriorityA = resolveScopePriority(a.scope);
+      const scopePriorityB = resolveScopePriority(b.scope);
+      if (scopePriorityA !== scopePriorityB) {
+        return scopePriorityA - scopePriorityB;
+      }
+      if (a.order !== b.order) {
+        return a.order - b.order;
+      }
+      return a.description.localeCompare(b.description, 'th');
+    });
+};
+
+const extractBudgetHintsFromContext = (context) => {
+  if (!context || typeof context !== 'object') {
+    return [];
+  }
+
+  const collections = [
+    context?.subcategory?.subcategory_budgets,
+    context?.subcategory?.budgets,
+    context?.subcategory?.children,
+    context?.subcategory?.rules,
+    context?.subcategory_budgets,
+    context?.budgets,
+    context?.rules,
+  ];
+
+  const gathered = [];
+  collections.forEach((collection) => {
+    const entries = collectBudgetHintEntries(collection, {
+      fallbackOrderOffset: gathered.length,
+    });
+    if (entries.length > 0) {
+      gathered.push(...entries);
+    }
+  });
+
+  if (gathered.length === 0) {
+    return [];
+  }
+
+  return sortBudgetHints(gathered);
+};
+
+const extractBudgetHintsFromResponsePayload = (payload, targetSubcategoryId) => {
+  if (!targetSubcategoryId) {
+    return [];
+  }
+
+  const candidateLists = [
+    payload?.subcategories,
+    payload?.data?.subcategories,
+    payload?.subcategories?.data,
+    payload?.data,
+    Array.isArray(payload) ? payload : null,
+  ];
+
+  let source = [];
+  for (const candidate of candidateLists) {
+    if (Array.isArray(candidate) && candidate.length > 0) {
+      source = candidate;
+      break;
+    }
+  }
+
+  if (!Array.isArray(source) || source.length === 0) {
+    return [];
+  }
+
+  const hints = collectBudgetHintEntries(source, {
+    filterSubcategoryId: targetSubcategoryId,
+  });
+
+  return sortBudgetHints(hints);
+};
+
+const formatHintAmount = (value) => {
+  if (value === undefined || value === null || Number.isNaN(value)) {
+    return null;
+  }
+
+  const numeric = Number(value);
+  if (Number.isNaN(numeric)) {
+    return null;
+  }
+
+  return numeric.toLocaleString('th-TH', {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  });
+};
+
+const buildBudgetHintDisplay = (hint, { includeAmount = true } = {}) => {
+  if (!hint) {
+    return '';
+  }
+
+  const description = typeof hint.description === 'string'
+    ? hint.description.trim()
+    : firstNonEmptyString(hint.description);
+  const amountText = includeAmount ? formatHintAmount(hint.amount) : null;
+
+  if (description && amountText) {
+    return `${description} ${amountText} บาท/ทุน`;
+  }
+
+  if (description) {
+    return description;
+  }
+
+  if (amountText) {
+    return `${amountText} บาท/ทุน`;
+  }
+
+  return '';
+};
+
+const formatGrantCount = (value) => {
+  const numeric = parseIntegerFromValue(value);
+  if (numeric == null) {
+    return null;
+  }
+  return numeric.toLocaleString('th-TH');
+};
+
+const buildBudgetHintDisplayItemsFromEntries = (entries) => {
+  if (!Array.isArray(entries) || entries.length === 0) {
+    return [];
+  }
+
+  const sortedEntries = sortBudgetHints(entries);
+  const overallEntries = sortedEntries.filter((entry) => entry.scope === 'overall');
+  const ruleEntries = sortedEntries.filter((entry) => entry.scope === 'rule');
+  const otherEntries = sortedEntries.filter(
+    (entry) => entry.scope !== 'overall' && entry.scope !== 'rule'
+  );
+
+  const hasRules = ruleEntries.length > 0;
+  const items = [];
+  const seenTexts = new Set();
+
+  const addItem = (id, text) => {
+    if (!text) {
+      return;
+    }
+    const trimmed = String(text).trim();
+    if (!trimmed || seenTexts.has(trimmed)) {
+      return;
+    }
+    seenTexts.add(trimmed);
+    items.push({
+      id,
+      text: trimmed,
+    });
+  };
+
+  const appendEntries = (sourceEntries, options = {}) => {
+    sourceEntries.forEach((entry, index) => {
+      if (options.includeAmount === false) {
+        const numericAmount = parseNumericValue(entry.amount);
+        if (numericAmount == null || Number(numericAmount) === 0) {
+          return;
+        }
+      }
+      const text = buildBudgetHintDisplay(entry, {
+        includeAmount: options.includeAmount,
+      });
+      if (text) {
+        if (options.includeAmount === false) {
+          const normalizedText = String(text).replace(/\s+/g, '');
+          if (/^0บาท/.test(normalizedText)) {
+            return;
+          }
+        }
+        addItem(`${entry.id || options.fallbackId || 'hint'}-${index}`, text);
+      }
+    });
+  };
+
+  appendEntries(overallEntries, { includeAmount: !hasRules, fallbackId: 'overall' });
+  appendEntries(ruleEntries, { includeAmount: true, fallbackId: 'rule' });
+  appendEntries(otherEntries, { includeAmount: !hasRules, fallbackId: 'hint' });
+
+  const limitSource =
+    overallEntries.find((entry) => entry.maxGrants != null || entry.maxAmountPerYear != null) ||
+    overallEntries[0] ||
+    sortedEntries.find((entry) => entry.maxGrants != null || entry.maxAmountPerYear != null) ||
+    null;
+
+  if (limitSource) {
+    const maxGrantsText = formatGrantCount(limitSource.maxGrants);
+    if (maxGrantsText) {
+      addItem(
+        `${limitSource.id || 'max-grants'}`,
+        `ขอได้คนละไม่เกิน ${maxGrantsText} เรื่อง/ปีงบประมาณ`
+      );
+    }
+
+    const maxAmountPerYearText = formatHintAmount(limitSource.maxAmountPerYear);
+    if (maxAmountPerYearText) {
+      addItem(
+        `${limitSource.id || 'max-year'}-per-year`,
+        `รวมไม่เกิน ${maxAmountPerYearText} บาท`
+      );
+    }
+  }
+
+  return items;
+};
+
 const formatFileSize = (bytes) => {
   if (!bytes && bytes !== 0) return "-";
   if (bytes === 0) return "0 B";
@@ -902,6 +1349,10 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
     hasPreviewed: false
   });
   const attachmentsPreviewUrlRef = useRef(null);
+  const [budgetHints, setBudgetHints] = useState([]);
+  const [budgetHintsLoading, setBudgetHintsLoading] = useState(false);
+  const [budgetHintsError, setBudgetHintsError] = useState(null);
+  const budgetHintsFetchKeyRef = useRef(null);
 
   // Current user data
   const [currentUser, setCurrentUser] = useState(null);
@@ -947,6 +1398,47 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
     return "research-fund";
   }, [originPage, editingExistingSubmission]);
   const effectiveFundContext = fundContext || subcategoryData || {};
+  const resolvedIdentifiers = useMemo(
+    () => resolveFundContextIdentifiers(effectiveFundContext),
+    [effectiveFundContext]
+  );
+  const resolvedCategoryId = resolvedIdentifiers?.categoryId ?? null;
+  const resolvedSubcategoryId = resolvedIdentifiers?.subcategoryId ?? null;
+  const resolvedYearId = resolvedIdentifiers?.yearId ?? null;
+  const contextBudgetHints = useMemo(
+    () => extractBudgetHintsFromContext(effectiveFundContext),
+    [effectiveFundContext]
+  );
+  const budgetHintDisplayItems = useMemo(
+    () => buildBudgetHintDisplayItemsFromEntries(budgetHints || []),
+    [budgetHints]
+  );
+
+  const budgetHintFundName = useMemo(() => {
+    const fallbackFromEntries = (budgetHints || []).find(
+      (entry) => entry?.subcategoryName && String(entry.subcategoryName).trim()
+    );
+
+    return firstNonEmptyString(
+      effectiveFundContext?.subcategory_name,
+      effectiveFundContext?.subcategory?.subcategory_name,
+      effectiveFundContext?.subcategory?.name,
+      subcategoryData?.subcategory_name,
+      subcategoryData?.subcategory?.subcategory_name,
+      fallbackFromEntries?.subcategoryName
+    );
+  }, [
+    budgetHints,
+    effectiveFundContext?.subcategory?.name,
+    effectiveFundContext?.subcategory?.subcategory_name,
+    effectiveFundContext?.subcategory_name,
+    subcategoryData?.subcategory?.subcategory_name,
+    subcategoryData?.subcategory_name,
+  ]);
+
+  const budgetHintTitle = budgetHintFundName
+    ? `เงื่อนไขการขอทุน ${budgetHintFundName}`
+    : 'เงื่อนไขการขอทุน';
 
   // =================================================================
   // INITIAL DATA LOADING
@@ -976,6 +1468,77 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
     fundContext?.category_name,
     fundContext?.subcategory?.category?.category_name,
     fundContext?.subcategory_name,
+  ]);
+
+  useEffect(() => {
+    if (contextBudgetHints.length > 0) {
+      setBudgetHints((prev) => (prev.length > 0 ? prev : contextBudgetHints));
+      setBudgetHintsError(null);
+    }
+  }, [contextBudgetHints]);
+
+  useEffect(() => {
+    if (!resolvedSubcategoryId) {
+      budgetHintsFetchKeyRef.current = null;
+      if (contextBudgetHints.length === 0) {
+        setBudgetHints([]);
+      }
+      setBudgetHintsLoading(false);
+      setBudgetHintsError(null);
+      return;
+    }
+
+    const fetchKey = `${resolvedCategoryId || 'null'}:${resolvedSubcategoryId}:${resolvedYearId || 'null'}`;
+    if (budgetHintsFetchKeyRef.current === fetchKey && budgetHints.length > 0) {
+      return;
+    }
+
+    budgetHintsFetchKeyRef.current = fetchKey;
+
+    let cancelled = false;
+
+    const loadBudgetHints = async () => {
+      setBudgetHintsLoading(true);
+      setBudgetHintsError(null);
+
+      try {
+        const response = await teacherAPI.getVisibleSubcategories(resolvedCategoryId, resolvedYearId);
+        if (cancelled) {
+          return;
+        }
+        const hints = extractBudgetHintsFromResponsePayload(response, resolvedSubcategoryId);
+        if (hints.length > 0) {
+          setBudgetHints(hints);
+        } else if (contextBudgetHints.length === 0) {
+          setBudgetHints([]);
+        }
+      } catch (error) {
+        if (cancelled) {
+          return;
+        }
+        console.warn('Failed to load budget hints for fund application form', error);
+        setBudgetHintsError('ไม่สามารถโหลดข้อมูลเงื่อนไขเพิ่มเติมได้');
+        if (contextBudgetHints.length === 0) {
+          setBudgetHints([]);
+        }
+      } finally {
+        if (!cancelled) {
+          setBudgetHintsLoading(false);
+        }
+      }
+    };
+
+    loadBudgetHints();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    resolvedCategoryId,
+    resolvedSubcategoryId,
+    resolvedYearId,
+    contextBudgetHints.length,
+    budgetHints.length,
   ]);
 
   const loadInitialData = async () => {
@@ -2481,6 +3044,7 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
   const shouldShowReviewerComments = isNeedsMoreInfo;
   const adminCommentDisplay = formatReviewerComment(reviewerComments.admin);
   const headCommentDisplay = formatReviewerComment(reviewerComments.head);
+  const hasBudgetHints = budgetHintDisplayItems.length > 0;
 
   return (
     <PageLayout
@@ -2667,7 +3231,7 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
               icon={DollarSign}
               bodyClassName="space-y-4"
             >
-              <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_200px] md:items-end">
+              <div className="grid gap-4 md:grid-cols-2 md:items-start">
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-gray-700" htmlFor="requested-amount">
                     จำนวนเงินที่ขอ (บาท)
@@ -2691,13 +3255,53 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
                       {errors.requested_amount}
                     </p>
                   ) : (
-                    <p className="text-xs text-gray-500">กรอกตัวเลขจำนวนเต็มหรือทศนิยมได้ เช่น 50000 หรือ 50000.00</p>
+                    <div className="space-y-1 text-xs text-gray-500">
+                      <p>กรอกตัวเลขจำนวนเต็มหรือทศนิยมได้ เช่น 50000 หรือ 50000.00</p>
+                      <p>
+                        <span className="font-medium text-gray-600">ยอดคำขอปัจจุบัน:</span> {formattedRequestedAmount} บาท
+                      </p>
+                    </div>
                   )}
                 </div>
 
-                <div className="rounded-lg border border-blue-100 bg-blue-50 p-4 text-center shadow-sm">
-                  <p className="text-xs font-medium text-blue-600 uppercase tracking-wide">ยอดคำขอปัจจุบัน</p>
-                  <p className="mt-2 text-2xl font-bold text-blue-700">{formattedRequestedAmount} บาท</p>
+                <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 shadow-sm">
+                  <div className="flex items-start gap-3">
+                    <div className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-100">
+                      <Info className="h-5 w-5 text-blue-600" aria-hidden="true" />
+                    </div>
+                    <div className="flex-1 space-y-3">
+                      <div>
+                        <p className="text-xs font-medium uppercase tracking-wide text-blue-600">Hint</p>
+                        <p className="text-sm font-semibold text-blue-900">{budgetHintTitle}</p>
+                      </div>
+                      {budgetHintsLoading && !hasBudgetHints ? (
+                        <p className="flex items-center gap-2 text-sm text-blue-700">
+                          <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                          กำลังโหลดข้อมูลเงื่อนไข...
+                        </p>
+                      ) : hasBudgetHints ? (
+                        <ul className="space-y-2 text-sm text-blue-800">
+                          {budgetHintDisplayItems.map((item) => (
+                            <li key={item.id} className="flex items-start gap-2">
+                              <span className="mt-1 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-blue-400" aria-hidden="true"></span>
+                              <span className="leading-relaxed">{item.text}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <p className="text-sm text-blue-700">ไม่พบข้อมูลเงื่อนไขย่อยของทุนนี้</p>
+                      )}
+                      {budgetHintsLoading && hasBudgetHints && (
+                        <p className="flex items-center gap-2 text-xs text-blue-600">
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
+                          กำลังอัปเดตข้อมูลเงื่อนไข...
+                        </p>
+                      )}
+                      {budgetHintsError && (
+                        <p className="text-xs text-blue-600">{budgetHintsError}</p>
+                      )}
+                    </div>
+                  </div>
                 </div>
               </div>
             </SimpleCard>
