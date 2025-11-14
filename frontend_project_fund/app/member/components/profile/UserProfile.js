@@ -46,9 +46,21 @@ const defaultTeacherData = {
   quickLinks: [],
 };
 
+const createDefaultScopusStats = () => ({
+  trend: [],
+  totals: { documents: null, citations: null },
+  meta: { has_scopus_id: true, has_author_record: true },
+});
+
 const CITATION_RECENT_START_YEAR = 2020;
 
-const ScholarCitationsCard = ({ loading, metrics, formatNumber }) => {
+const ScholarCitationsCard = ({
+  scopusStats,
+  scopusLoading,
+  metrics,
+  scholarLoading,
+  formatNumber,
+}) => {
   const totals = metrics?.totals || { all: null, recent: null };
   const hIndex = metrics?.hIndex || { all: null, recent: null };
   const i10Index = metrics?.i10Index || { all: null, recent: null };
@@ -65,15 +77,217 @@ const ScholarCitationsCard = ({ loading, metrics, formatNumber }) => {
     return value;
   };
 
+  const renderSkeleton = (title = "แนวโน้มผลงาน & การอ้างอิง (Scopus)") => (
+    <div className="mt-6 rounded-xl border border-gray-100 bg-gradient-to-br from-white via-white to-slate-50 p-4 shadow-inner">
+      <h3 className="text-lg font-semibold text-gray-900">{title}</h3>
+      <div className="mt-4 space-y-3">
+        <div className="h-16 animate-pulse rounded-md bg-gray-100" />
+        <div className="h-28 animate-pulse rounded-md bg-gray-100" />
+      </div>
+    </div>
+  );
+
+  if (scopusLoading) {
+    return renderSkeleton();
+  }
+
+  const scopusTrend = Array.isArray(scopusStats?.trend) ? scopusStats.trend : [];
+  const scopusTotals = scopusStats?.totals || {};
+  const scopusMeta = scopusStats?.meta || {};
+  const hasScopusTrend = scopusTrend.length > 0;
+  const hasScopusTotals =
+    scopusTotals.documents !== null || scopusTotals.citations !== null;
+  const scopusUnavailable =
+    scopusMeta.has_scopus_id === false || scopusMeta.has_author_record === false;
+
+  if ((hasScopusTrend || hasScopusTotals) && !scopusUnavailable) {
+    const sortedTrend = [...scopusTrend].sort((a, b) => a.year - b.year);
+    const scopusRecent = sortedTrend.reduce(
+      (acc, point) => {
+        if (point.year >= CITATION_RECENT_START_YEAR) {
+          acc.documents += point.documents || 0;
+          acc.citations += point.citations || 0;
+        }
+        return acc;
+      },
+      { documents: 0, citations: 0 },
+    );
+    const summaryItems = [
+      {
+        label: "ผลงานทั้งหมด",
+        value: renderValue(scopusTotals.documents ?? 0),
+      },
+      {
+        label: "การอ้างอิงทั้งหมด",
+        value: renderValue(scopusTotals.citations ?? 0),
+      },
+      {
+        label: `ผลงานตั้งแต่ปี ${CITATION_RECENT_START_YEAR}`,
+        value: renderValue(scopusRecent.documents ?? 0),
+      },
+      {
+        label: `การอ้างอิงตั้งแต่ปี ${CITATION_RECENT_START_YEAR}`,
+        value: renderValue(scopusRecent.citations ?? 0),
+      },
+    ];
+
+    const maxSeriesValue = sortedTrend.reduce(
+      (max, point) =>
+        Math.max(max, point.documents || 0, point.citations || 0),
+      0,
+    );
+    const chartHeight = 220;
+    const chartPadding = 32;
+    const barWidth = 26;
+    const gap = 28;
+    const normalizedMax = maxSeriesValue > 0 ? maxSeriesValue : 1;
+    const chartWidth = Math.max(
+      sortedTrend.length * (barWidth + gap) + gap,
+      320,
+    );
+    const points = sortedTrend.map((point, index) => {
+      const x = gap + index * (barWidth + gap) + barWidth / 2;
+      const documents = point.documents || 0;
+      const citations = point.citations || 0;
+      const docHeight =
+        (documents / normalizedMax) * (chartHeight - chartPadding);
+      const citHeight =
+        (citations / normalizedMax) * (chartHeight - chartPadding);
+      return {
+        ...point,
+        x,
+        docHeight,
+        citHeight,
+        docY: chartHeight - docHeight - chartPadding / 2,
+        citY: chartHeight - citHeight - chartPadding / 2,
+      };
+    });
+    const polylinePoints = points.map((p) => `${p.x},${p.citY}`).join(" ");
+
+    return (
+      <div className="mt-6 rounded-xl border border-gray-100 bg-gradient-to-br from-white via-white to-slate-50 p-4 shadow-inner">
+        <div className="flex flex-col gap-1">
+          <h3 className="text-lg font-semibold text-gray-900">
+            แนวโน้มผลงาน & การอ้างอิง (Scopus)
+          </h3>
+          <p className="text-sm text-gray-500">
+            ข้อมูลจาก Scopus แสดงจำนวนผลงาน (แท่ง) และการอ้างอิง (เส้น)
+          </p>
+        </div>
+        <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {summaryItems.map(({ label, value }) => (
+            <div key={label} className="rounded-lg border border-gray-100 bg-white/70 p-4 shadow-sm">
+              <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
+                {label}
+              </p>
+              <p className="mt-1 text-2xl font-semibold text-gray-900">{value}</p>
+            </div>
+          ))}
+        </div>
+        {hasScopusTrend ? (
+          <div className="mt-6">
+            <div className="flex flex-wrap items-center gap-4 text-xs text-gray-500">
+              <div className="flex items-center gap-2">
+                <span className="h-3 w-6 rounded-full bg-blue-500" />
+                <span>Documents</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="h-0.5 w-8 bg-indigo-600" />
+                <span>Citations</span>
+              </div>
+            </div>
+            <div className="mt-4 overflow-x-auto">
+              <svg
+                width={chartWidth}
+                height={chartHeight}
+                className="text-sm text-gray-500"
+              >
+                <defs>
+                  <linearGradient id="docBar" x1="0%" y1="0%" x2="0%" y2="100%">
+                    <stop offset="0%" stopColor="#93c5fd" />
+                    <stop offset="100%" stopColor="#3b82f6" />
+                  </linearGradient>
+                </defs>
+                {points.length > 0 && (
+                  <>
+                    {[0.25, 0.5, 0.75].map((ratio) => (
+                      <line
+                        // eslint-disable-next-line react/no-array-index-key
+                        key={`grid-${ratio}`}
+                        x1={0}
+                        x2={chartWidth}
+                        y1={chartPadding / 2 + (chartHeight - chartPadding) * ratio}
+                        y2={chartPadding / 2 + (chartHeight - chartPadding) * ratio}
+                        stroke="#e5e7eb"
+                        strokeDasharray="4 4"
+                      />
+                    ))}
+                    {points.map((point) => (
+                      <rect
+                        key={`bar-${point.year}`}
+                        x={point.x - barWidth / 2}
+                        y={Math.min(point.docY, chartHeight - chartPadding / 2)}
+                        width={barWidth}
+                        height={Math.max(point.docHeight, 0)}
+                        fill="url(#docBar)"
+                        rx={6}
+                      />
+                    ))}
+                    {points.length > 1 && (
+                      <polyline
+                        points={polylinePoints}
+                        fill="none"
+                        stroke="#4338ca"
+                        strokeWidth={2.5}
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    )}
+                    {points.map((point) => (
+                      <circle
+                        key={`dot-${point.year}`}
+                        cx={point.x}
+                        cy={point.citY}
+                        r={4}
+                        fill="#fff"
+                        stroke="#4338ca"
+                        strokeWidth={2}
+                      />
+                    ))}
+                  </>
+                )}
+              </svg>
+              <div className="mt-3 flex min-w-max flex-wrap gap-4 text-[11px] text-gray-500">
+                {points.map((point) => (
+                  <div key={`label-${point.year}`} className="flex flex-col text-left">
+                    <span className="font-semibold text-gray-700">{point.year}</span>
+                    <span>Docs: {renderValue(point.documents)}</span>
+                    <span>Cites: {renderValue(point.citations)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="mt-6 rounded-lg border border-dashed border-gray-200 bg-gray-50 p-4 text-center text-sm text-gray-500">
+            ยังไม่มีข้อมูลแนวโน้มจาก Scopus สำหรับสร้างกราฟ
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  if (scholarLoading) {
+    return renderSkeleton("อ้างโดย");
+  }
+
   const chartData = Array.isArray(chart.data) ? chart.data : [];
   const chartMax = chartData.reduce(
     (max, item) => (typeof item.value === "number" && item.value > max ? item.value : max),
     0,
   );
-
   const chartUnitLabel = chart.isCitations ? "การอ้างอิงต่อปี" : "จำนวนผลงานต่อปี";
   const chartValueLabel = chart.isCitations ? "การอ้างอิง" : "ผลงาน";
-
   const hasSummaryData =
     totals.all !== null ||
     totals.recent !== null ||
@@ -85,126 +299,119 @@ const ScholarCitationsCard = ({ loading, metrics, formatNumber }) => {
   return (
     <div className="mt-6 rounded-xl border border-gray-100 bg-gradient-to-br from-white via-white to-slate-50 p-4 shadow-inner">
       <h3 className="text-lg font-semibold text-gray-900">อ้างโดย</h3>
-      {loading ? (
-        <div className="mt-4 space-y-3">
-          <div className="h-16 animate-pulse rounded-md bg-gray-100" />
-          <div className="h-28 animate-pulse rounded-md bg-gray-100" />
+      <>
+        <div className="mt-4 overflow-hidden rounded-lg border border-gray-200">
+          <table className="w-full text-sm text-gray-700">
+            <thead className="bg-gray-50 text-gray-500">
+              <tr>
+                <th className="px-4 py-2 text-left font-medium">&nbsp;</th>
+                <th className="px-4 py-2 text-right font-medium">ทั้งหมด</th>
+                <th className="px-4 py-2 text-right font-medium">
+                  ตั้งแต่ปี {CITATION_RECENT_START_YEAR}
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr className="odd:bg-white even:bg-gray-50">
+                <td className="px-4 py-2 font-medium text-gray-600">การอ้างอิง</td>
+                <td className="px-4 py-2 text-right font-semibold text-gray-900">
+                  {renderValue(totals.all)}
+                </td>
+                <td className="px-4 py-2 text-right font-semibold text-gray-900">
+                  {renderValue(totals.recent)}
+                </td>
+              </tr>
+              <tr className="odd:bg-white even:bg-gray-50">
+                <td className="px-4 py-2 font-medium text-gray-600">ดัชนี h</td>
+                <td className="px-4 py-2 text-right font-semibold text-gray-900">
+                  {renderValue(hIndex.all)}
+                </td>
+                <td className="px-4 py-2 text-right font-semibold text-gray-900">
+                  {renderValue(hIndex.recent)}
+                </td>
+              </tr>
+              <tr className="odd:bg-white even:bg-gray-50">
+                <td className="px-4 py-2 font-medium text-gray-600">ดัชนี i10</td>
+                <td className="px-4 py-2 text-right font-semibold text-gray-900">
+                  {renderValue(i10Index.all)}
+                </td>
+                <td className="px-4 py-2 text-right font-semibold text-gray-900">
+                  {renderValue(i10Index.recent)}
+                </td>
+              </tr>
+            </tbody>
+          </table>
         </div>
-      ) : (
-        <>
-          <div className="mt-4 overflow-hidden rounded-lg border border-gray-200">
-            <table className="w-full text-sm text-gray-700">
-              <thead className="bg-gray-50 text-gray-500">
-                <tr>
-                  <th className="px-4 py-2 text-left font-medium">&nbsp;</th>
-                  <th className="px-4 py-2 text-right font-medium">ทั้งหมด</th>
-                  <th className="px-4 py-2 text-right font-medium">
-                    ตั้งแต่ปี {CITATION_RECENT_START_YEAR}
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr className="odd:bg-white even:bg-gray-50">
-                  <td className="px-4 py-2 font-medium text-gray-600">การอ้างอิง</td>
-                  <td className="px-4 py-2 text-right font-semibold text-gray-900">
-                    {renderValue(totals.all)}
-                  </td>
-                  <td className="px-4 py-2 text-right font-semibold text-gray-900">
-                    {renderValue(totals.recent)}
-                  </td>
-                </tr>
-                <tr className="odd:bg-white even:bg-gray-50">
-                  <td className="px-4 py-2 font-medium text-gray-600">ดัชนี h</td>
-                  <td className="px-4 py-2 text-right font-semibold text-gray-900">
-                    {renderValue(hIndex.all)}
-                  </td>
-                  <td className="px-4 py-2 text-right font-semibold text-gray-900">
-                    {renderValue(hIndex.recent)}
-                  </td>
-                </tr>
-                <tr className="odd:bg-white even:bg-gray-50">
-                  <td className="px-4 py-2 font-medium text-gray-600">ดัชนี i10</td>
-                  <td className="px-4 py-2 text-right font-semibold text-gray-900">
-                    {renderValue(i10Index.all)}
-                  </td>
-                  <td className="px-4 py-2 text-right font-semibold text-gray-900">
-                    {renderValue(i10Index.recent)}
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
 
-          <div className="mt-6">
-            <div className="flex items-center justify-between text-xs text-gray-500">
-              <span>{chartUnitLabel}</span>
-              {chart.isCitations ? null : (
-                <span className="italic text-[11px] text-gray-400">
-                  TODO: เปลี่ยนเป็นจำนวนการอ้างอิงเมื่อมีข้อมูล
-                </span>
-              )}
-            </div>
-            {chartData.length > 0 ? (
-              <div className="mt-4 overflow-x-auto">
-                <div className="relative">
-                  <div className="pointer-events-none absolute inset-x-6 top-4 bottom-12">
-                    <div className="flex h-full flex-col justify-between">
-                      {[...Array(4)].map((_, idx) => (
-                        <div
-                          key={`grid-${idx}`}
-                          className={`h-px w-full ${
-                            idx === 0 ? "border-t border-slate-200/80" : "border-t border-dashed border-slate-200/70"
-                          }`}
-                        />
-                      ))}
-                    </div>
-                  </div>
-                  <div className="flex h-48 min-w-max items-end gap-4 px-6 pb-12 pt-4">
-                    {chartData.map(({ year, value }) => {
-                      const numericValue = typeof value === "number" ? value : Number(value) || 0;
-                      const ratio =
-                        chartMax > 0
-                          ? (numericValue / chartMax) * 100
-                          : numericValue > 0
-                            ? 100
-                            : 0;
-                      const basePercent = numericValue > 0 ? Math.max(ratio, 8) : 0;
-                      const barPercent = Math.min(basePercent, 100);
-                      const formattedValue =
-                        typeof numericValue === "number"
-                          ? (formatNumber ? formatNumber(numericValue) : numericValue)
-                          : numericValue;
-                      return (
-                        <div
-                          key={year}
-                          className="group flex h-full min-w-[56px] flex-1 flex-col items-center justify-end text-[11px] text-gray-500"
-                        >
-                          <div className="flex h-full w-full items-end">
-                            <div
-                              className="relative w-full overflow-visible rounded-lg bg-gradient-to-t from-blue-500/80 via-blue-400 to-blue-300 shadow-sm transition-all duration-200 group-hover:from-blue-600 group-hover:via-blue-500 group-hover:to-blue-400"
-                              style={{ height: `${barPercent}%` }}
-                            >
-                              <div className="pointer-events-none absolute left-1/2 top-0 -translate-x-1/2 -translate-y-2 whitespace-nowrap rounded-md bg-slate-900/90 px-2 py-1 text-xs font-medium text-white opacity-0 shadow-lg transition-all duration-150 group-hover:-translate-y-3 group-hover:opacity-100">
-                                <div>{formattedValue ?? "-"} {chartValueLabel}</div>
-                                <div className="text-[10px] font-normal text-slate-300">{year}</div>
-                              </div>
-                            </div>
-                          </div>
-                          <span className="mt-3 text-xs font-medium text-gray-600">{year}</span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              </div>
-            ) : hasSummaryData ? (
-              <p className="mt-3 text-sm text-gray-500">ไม่มีข้อมูลเพียงพอสำหรับสร้างกราฟ</p>
-            ) : (
-              <p className="mt-3 text-sm text-gray-500">ยังไม่มีข้อมูลการอ้างอิง</p>
+        <div className="mt-6">
+          <div className="flex items-center justify-between text-xs text-gray-500">
+            <span>{chartUnitLabel}</span>
+            {chart.isCitations ? null : (
+              <span className="italic text-[11px] text-gray-400">
+                TODO: เปลี่ยนเป็นจำนวนการอ้างอิงเมื่อมีข้อมูล
+              </span>
             )}
           </div>
-        </>
-      )}
+          {chartData.length > 0 ? (
+            <div className="mt-4 overflow-x-auto">
+              <div className="relative">
+                <div className="pointer-events-none absolute inset-x-6 top-4 bottom-12">
+                  <div className="flex h-full flex-col justify-between">
+                    {[...Array(4)].map((_, idx) => (
+                      <div
+                        key={`grid-${idx}`}
+                        className={`h-px w-full ${
+                          idx === 0 ? "border-t border-slate-200/80" : "border-t border-dashed border-slate-200/70"
+                        }`}
+                      />
+                    ))}
+                  </div>
+                </div>
+                <div className="flex h-48 min-w-max items-end gap-4 px-6 pb-12 pt-4">
+                  {chartData.map(({ year, value }) => {
+                    const numericValue = typeof value === "number" ? value : Number(value) || 0;
+                    const ratio =
+                      chartMax > 0
+                        ? (numericValue / chartMax) * 100
+                        : numericValue > 0
+                          ? 100
+                          : 0;
+                    const basePercent = numericValue > 0 ? Math.max(ratio, 8) : 0;
+                    const barPercent = Math.min(basePercent, 100);
+                    const formattedValue =
+                      typeof numericValue === "number"
+                        ? (formatNumber ? formatNumber(numericValue) : numericValue)
+                        : numericValue;
+                    return (
+                      <div
+                        key={year}
+                        className="group flex h-full min-w-[56px] flex-1 flex-col items-center justify-end text-[11px] text-gray-500"
+                      >
+                        <div className="flex h-full w-full items-end">
+                          <div
+                            className="relative w-full overflow-visible rounded-lg bg-gradient-to-t from-blue-500/80 via-blue-400 to-blue-300 shadow-sm transition-all duration-200 group-hover:from-blue-600 group-hover:via-blue-500 group-hover:to-blue-400"
+                            style={{ height: `${barPercent}%` }}
+                          >
+                            <div className="pointer-events-none absolute left-1/2 top-0 -translate-x-1/2 -translate-y-2 whitespace-nowrap rounded-md bg-slate-900/90 px-2 py-1 text-xs font-medium text-white opacity-0 shadow-lg transition-all duration-150 group-hover:-translate-y-3 group-hover:opacity-100">
+                              <div>{formattedValue ?? "-"} {chartValueLabel}</div>
+                              <div className="text-[10px] font-normal text-slate-300">{year}</div>
+                            </div>
+                          </div>
+                        </div>
+                        <span className="mt-3 text-xs font-medium text-gray-600">{year}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          ) : hasSummaryData ? (
+            <p className="mt-3 text-sm text-gray-500">ไม่มีข้อมูลเพียงพอสำหรับสร้างกราฟ</p>
+          ) : (
+            <p className="mt-3 text-sm text-gray-500">ยังไม่มีข้อมูลการอ้างอิง</p>
+          )}
+        </div>
+      </>
     </div>
   );
 };
@@ -221,6 +428,8 @@ export default function ProfileContent() {
     has_scopus_id: true,
     has_author_record: true,
   });
+  const [scopusStats, setScopusStats] = useState(() => createDefaultScopusStats());
+  const [scopusStatsLoading, setScopusStatsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [sortField, setSortField] = useState("year");
   const [sortDirection, setSortDirection] = useState("desc");
@@ -235,8 +444,11 @@ export default function ProfileContent() {
   const [innovPage, setInnovPage] = useState(1);
   const [innovRowsPerPage, setInnovRowsPerPage] = useState(10);
   const [activeSource, setActiveSource] = useState("scopus");
+  const [hasUserSelectedSource, setHasUserSelectedSource] = useState(false);
   const [activeTab, setActiveTab] = useState("publications");
   const { getLabelById } = useStatusMap();
+  const scopusUnavailable =
+    !scopusMeta.has_scopus_id || !scopusMeta.has_author_record;
 
   useEffect(() => {
     loadProfileData();
@@ -247,6 +459,17 @@ export default function ProfileContent() {
   useEffect(() => {
     setCurrentPage(1);
   }, [activeSource]);
+
+  useEffect(() => {
+    if (
+      activeSource === "scopus" &&
+      scopusUnavailable &&
+      !hasUserSelectedSource &&
+      !scopusLoading
+    ) {
+      setActiveSource("scholar");
+    }
+  }, [activeSource, scopusUnavailable, hasUserSelectedSource, scopusLoading]);
 
   // helpers
   const parseDate = (value) => {
@@ -389,6 +612,83 @@ export default function ProfileContent() {
     }
   };
 
+  const loadScopusStats = useCallback(async () => {
+    try {
+      setScopusStatsLoading(true);
+      const res = await memberAPI.getUserScopusPublicationStats();
+      const data = res?.data || res?.stats || {};
+      const metaPayload = res?.meta || data.meta || {};
+      const normalizeCount = (value) => {
+        if (value === null || value === undefined) {
+          return null;
+        }
+        const num = Number(value);
+        return Number.isFinite(num) ? num : null;
+      };
+      const normalizedTrend = Array.isArray(data.trend)
+        ? data.trend
+            .map((point) => {
+              if (!point || typeof point !== "object") return null;
+              const year = Number(point.year ?? point.Year ?? point.cover_year);
+              if (!Number.isFinite(year) || year === 0) return null;
+              const documentsRaw =
+                point.documents ??
+                point.Documents ??
+                point.document_count ??
+                point.docs ??
+                0;
+              const citationsRaw =
+                point.citations ??
+                point.Citations ??
+                point.citation_count ??
+                point.cites ??
+                0;
+              const documents = Number(documentsRaw);
+              const citations = Number(citationsRaw);
+              return {
+                year,
+                documents: Number.isFinite(documents) ? documents : 0,
+                citations: Number.isFinite(citations) ? citations : 0,
+              };
+            })
+            .filter(Boolean)
+        : [];
+
+      setScopusStats({
+        trend: normalizedTrend,
+        totals: {
+          documents:
+            normalizeCount(
+              data.total_documents ?? data.documents ?? data.total_docs,
+            ),
+          citations:
+            normalizeCount(
+              data.total_citations ?? data.citations ?? data.total_cites,
+            ),
+        },
+        meta: {
+          has_scopus_id:
+            typeof metaPayload.has_scopus_id === "boolean"
+              ? metaPayload.has_scopus_id
+              : true,
+          has_author_record:
+            typeof metaPayload.has_author_record === "boolean"
+              ? metaPayload.has_author_record
+              : true,
+        },
+      });
+    } catch (error) {
+      console.error("Error loading Scopus stats:", error);
+      setScopusStats(createDefaultScopusStats());
+    } finally {
+      setScopusStatsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadScopusStats();
+  }, [loadScopusStats]);
+
   const loadScopusPublications = useCallback(async () => {
     if (activeSource !== "scopus") {
       return;
@@ -431,6 +731,14 @@ export default function ProfileContent() {
       loadScopusPublications();
     }
   }, [activeSource, loadScopusPublications]);
+
+  const handleSourceChange = useCallback(
+    (value) => {
+      setHasUserSelectedSource(true);
+      setActiveSource(value);
+    },
+    [setActiveSource, setHasUserSelectedSource],
+  );
 
   const loadInnovations = async () => {
     try {
@@ -666,8 +974,6 @@ export default function ProfileContent() {
   const totalRecords = isScopusActive
     ? scopusTotal
     : sortedScholarPublications.length;
-  const scopusUnavailable =
-    !scopusMeta.has_scopus_id || !scopusMeta.has_author_record;
   const startRecord =
     totalRecords === 0 ? 0 : (currentPage - 1) * rowsPerPage + 1;
   const endRecord =
@@ -900,7 +1206,7 @@ export default function ProfileContent() {
                               <button
                                 key={option.value}
                                 type="button"
-                                onClick={() => setActiveSource(option.value)}
+                                onClick={() => handleSourceChange(option.value)}
                                 className={`rounded-full px-3 py-1 text-sm font-medium transition-colors ${
                                   isActiveSource
                                     ? "bg-blue-600 text-white shadow"
@@ -963,7 +1269,7 @@ export default function ProfileContent() {
                             <p>ยังไม่มีข้อมูลจาก Scopus สำหรับผู้ใช้นี้</p>
                             <button
                               type="button"
-                              onClick={() => setActiveSource("scholar")}
+                              onClick={() => handleSourceChange("scholar")}
                               className="inline-flex items-center justify-center rounded-md border border-blue-100 bg-blue-50 px-3 py-2 text-sm font-medium text-blue-700 hover:bg-blue-100"
                             >
                               ดูข้อมูลจาก Google Scholar
@@ -1136,8 +1442,10 @@ export default function ProfileContent() {
                   )}
                 </div>
                 <ScholarCitationsCard
-                  loading={scholarLoading}
+                  scopusStats={scopusStats}
+                  scopusLoading={scopusStatsLoading}
                   metrics={citationMetrics}
+                  scholarLoading={scholarLoading}
                   formatNumber={formatNumber}
                 />
               </div>
