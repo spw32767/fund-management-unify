@@ -124,6 +124,44 @@ const getUserPositionLabel = (user) => {
   );
 };
 
+const workloadInputPattern = /^\d*(?:\.\d{0,2})?$/;
+
+const normalizeWorkloadInputValue = (rawValue) => {
+  if (rawValue === null || rawValue === undefined) {
+    return "";
+  }
+
+  const stringValue = rawValue.toString();
+  if (stringValue === "") {
+    return "";
+  }
+
+  const cleaned = stringValue.replace(/[^0-9.]/g, "");
+  if (cleaned === "") {
+    return "";
+  }
+
+  const firstDotIndex = cleaned.indexOf(".");
+  if (firstDotIndex === -1) {
+    return cleaned;
+  }
+
+  const integerPart = cleaned.slice(0, firstDotIndex) || "0";
+  const decimalRaw = cleaned.slice(firstDotIndex + 1).replace(/\./g, "");
+  const decimalPart = decimalRaw.slice(0, 2);
+  const hasTrailingDot = stringValue.endsWith(".");
+
+  if (decimalPart.length === 0 && hasTrailingDot) {
+    return `${integerPart}.`;
+  }
+
+  if (decimalPart.length === 0) {
+    return integerPart;
+  }
+
+  return `${integerPart}.${decimalPart}`;
+};
+
 const normalizeProjectMemberCandidate = (user) => {
   if (!user || typeof user !== "object") {
     return null;
@@ -354,6 +392,9 @@ function ProjectMembersPanel({
 
   const disableForm = saving || loading;
   const isEditing = Boolean(editingMember);
+  const highlightClass = isEditing
+    ? "border-blue-400 bg-blue-50 ring-2 ring-blue-200"
+    : "";
 
   return (
     <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-6 mb-6">
@@ -384,7 +425,7 @@ function ProjectMembersPanel({
             onChange={(event) => onFormChange("user_id", event.target.value)}
             required
             disabled={disableForm || (!isEditing && candidateOptions.length === 0)}
-            className="w-full rounded-md border border-gray-300 focus:border-blue-500 focus:ring-blue-500 px-3 py-2"
+            className={`w-full rounded-md border border-gray-300 focus:border-blue-500 focus:ring-blue-500 px-3 py-2 ${highlightClass}`}
           >
             <option value="">เลือกบุคลากร</option>
             {candidateOptions.map((candidate) => (
@@ -420,7 +461,7 @@ function ProjectMembersPanel({
             required
             maxLength={255}
             disabled={disableForm}
-            className="w-full rounded-md border border-gray-300 focus:border-blue-500 focus:ring-blue-500 px-3 py-2"
+            className={`w-full rounded-md border border-gray-300 focus:border-blue-500 focus:ring-blue-500 px-3 py-2 ${highlightClass}`}
             placeholder="เช่น หัวหน้าโครงการ ผู้ประสานงาน"
           />
         </div>
@@ -436,9 +477,9 @@ function ProjectMembersPanel({
             onChange={(event) => onFormChange("workload_hours", event.target.value)}
             min="0"
             max="9999.99"
-            step="0.25"
+            step="0.01"
             disabled={disableForm}
-            className="w-full rounded-md border border-gray-300 focus:border-blue-500 focus:ring-blue-500 px-3 py-2"
+            className={`w-full rounded-md border border-gray-300 focus:border-blue-500 focus:ring-blue-500 px-3 py-2 ${highlightClass}`}
             placeholder="จำนวนชั่วโมงที่รับผิดชอบ"
           />
           <p className="mt-1 text-xs text-gray-500">
@@ -457,7 +498,7 @@ function ProjectMembersPanel({
             rows={3}
             maxLength={255}
             disabled={disableForm}
-            className="w-full rounded-md border border-gray-300 focus:border-blue-500 focus:ring-blue-500 px-3 py-2"
+            className={`w-full rounded-md border border-gray-300 focus:border-blue-500 focus:ring-blue-500 px-3 py-2 ${highlightClass}`}
             placeholder="รายละเอียดเพิ่มเติม (ถ้ามี)"
           />
         </div>
@@ -622,6 +663,9 @@ function ProjectFormMembersSection({
   const isEditing = typeof editingIndex === "number" && editingIndex >= 0;
   const disableAddButton =
     disabled || (!isEditing && memberOptions.length === 0);
+  const highlightClass = isEditing
+    ? "border-blue-400 bg-blue-50 ring-2 ring-blue-200"
+    : "";
 
   const handleChange = (field) => (event) => {
     onFormChange(field, event.target.value);
@@ -664,9 +708,8 @@ function ProjectFormMembersSection({
                 name="user_id"
                 value={form?.user_id ?? ""}
                 onChange={handleChange("user_id")}
-                required
                 disabled={disableAddButton}
-                className="w-full rounded-md border border-gray-300 focus:border-blue-500 focus:ring-blue-500 px-3 py-2 disabled:bg-gray-100 disabled:text-gray-400"
+                className={`w-full rounded-md border border-gray-300 focus:border-blue-500 focus:ring-blue-500 px-3 py-2 disabled:bg-gray-100 disabled:text-gray-400 ${highlightClass}`}
               >
                 <option value="">เลือกบุคลากร</option>
                 {memberOptions.map((candidate) => (
@@ -699,11 +742,10 @@ function ProjectFormMembersSection({
                 name="duty"
                 value={form?.duty ?? ""}
                 onChange={handleChange("duty")}
-                required
                 maxLength={255}
                 placeholder="เช่น ผู้รับผิดชอบหลัก"
                 disabled={disabled}
-                className="w-full rounded-md border border-gray-300 focus:border-blue-500 focus:ring-blue-500 px-3 py-2 disabled:bg-gray-100 disabled:text-gray-400"
+                className={`w-full rounded-md border border-gray-300 focus:border-blue-500 focus:ring-blue-500 px-3 py-2 disabled:bg-gray-100 disabled:text-gray-400 ${highlightClass}`}
               />
             </div>
 
@@ -720,7 +762,7 @@ function ProjectFormMembersSection({
                 step="0.01"
                 placeholder="เช่น 6"
                 disabled={disabled}
-                className="w-full rounded-md border border-gray-300 focus:border-blue-500 focus:ring-blue-500 px-3 py-2 disabled:bg-gray-100 disabled:text-gray-400"
+                className={`w-full rounded-md border border-gray-300 focus:border-blue-500 focus:ring-blue-500 px-3 py-2 disabled:bg-gray-100 disabled:text-gray-400 ${highlightClass}`}
               />
             </div>
 
@@ -736,7 +778,7 @@ function ProjectFormMembersSection({
                 maxLength={255}
                 placeholder="รายละเอียดเพิ่มเติม"
                 disabled={disabled}
-                className="w-full rounded-md border border-gray-300 focus:border-blue-500 focus:ring-blue-500 px-3 py-2 disabled:bg-gray-100 disabled:text-gray-400"
+                className={`w-full rounded-md border border-gray-300 focus:border-blue-500 focus:ring-blue-500 px-3 py-2 disabled:bg-gray-100 disabled:text-gray-400 ${highlightClass}`}
               />
             </div>
           </div>
@@ -1701,6 +1743,17 @@ export default function ProjectsContent() {
   };
 
   const handleDraftMemberFormChange = (field, value) => {
+    if (field === "workload_hours") {
+      const normalized = normalizeWorkloadInputValue(value);
+      if (normalized === "" || workloadInputPattern.test(normalized)) {
+        setProjectDraftMemberForm((prev) => ({
+          ...prev,
+          [field]: normalized,
+        }));
+      }
+      return;
+    }
+
     setProjectDraftMemberForm((prev) => ({
       ...prev,
       [field]: value,
@@ -2039,6 +2092,17 @@ export default function ProjectsContent() {
   };
 
   const handleMemberFormChange = (field, value) => {
+    if (field === "workload_hours") {
+      const normalized = normalizeWorkloadInputValue(value);
+      if (normalized === "" || workloadInputPattern.test(normalized)) {
+        setMemberForm((prev) => ({
+          ...prev,
+          [field]: normalized,
+        }));
+      }
+      return;
+    }
+
     setMemberForm((prev) => ({
       ...prev,
       [field]: value,
