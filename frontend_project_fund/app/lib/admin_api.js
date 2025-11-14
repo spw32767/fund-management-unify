@@ -1101,6 +1101,57 @@ export const adminAPI = {
     }
   },
 
+  async getProjectMemberCandidates() {
+    try {
+      const response = await apiClient.get('/admin/projects/members/candidates');
+      if (Array.isArray(response?.users)) return response.users;
+      if (Array.isArray(response?.data?.users)) return response.data.users;
+      return [];
+    } catch (error) {
+      console.error('Error fetching project member candidates:', error);
+      throw error;
+    }
+  },
+
+  async getProjectMembers(projectId) {
+    try {
+      const response = await apiClient.get(`/admin/projects/${projectId}/members`);
+      if (Array.isArray(response?.members)) return response.members;
+      if (Array.isArray(response?.data?.members)) return response.data.members;
+      return [];
+    } catch (error) {
+      console.error('Error fetching project members:', error);
+      throw error;
+    }
+  },
+
+  async createProjectMember(projectId, payload) {
+    try {
+      return await apiClient.post(`/admin/projects/${projectId}/members`, payload);
+    } catch (error) {
+      console.error('Error creating project member:', error);
+      throw error;
+    }
+  },
+
+  async updateProjectMember(projectId, memberId, payload) {
+    try {
+      return await apiClient.put(`/admin/projects/${projectId}/members/${memberId}`, payload);
+    } catch (error) {
+      console.error('Error updating project member:', error);
+      throw error;
+    }
+  },
+
+  async deleteProjectMember(projectId, memberId) {
+    try {
+      return await apiClient.delete(`/admin/projects/${projectId}/members/${memberId}`);
+    } catch (error) {
+      console.error('Error deleting project member:', error);
+      throw error;
+    }
+  },
+
   async getProjectTypes() {
     try {
       const response = await apiClient.get('/admin/project-types');
