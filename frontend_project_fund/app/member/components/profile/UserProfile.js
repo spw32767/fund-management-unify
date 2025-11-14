@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import {
   Mail,
   Phone,
@@ -212,8 +212,15 @@ const ScholarCitationsCard = ({ loading, metrics, formatNumber }) => {
 export default function ProfileContent() {
   const [teacherData, setTeacherData] = useState(defaultTeacherData);
   const [loading, setLoading] = useState(true);
-  const [publications, setPublications] = useState([]);
-  const [pubLoading, setPubLoading] = useState(true);
+  const [scholarPublications, setScholarPublications] = useState([]);
+  const [scholarLoading, setScholarLoading] = useState(true);
+  const [scopusPublications, setScopusPublications] = useState([]);
+  const [scopusTotal, setScopusTotal] = useState(0);
+  const [scopusLoading, setScopusLoading] = useState(true);
+  const [scopusMeta, setScopusMeta] = useState({
+    has_scopus_id: true,
+    has_author_record: true,
+  });
   const [searchTerm, setSearchTerm] = useState("");
   const [sortField, setSortField] = useState("year");
   const [sortDirection, setSortDirection] = useState("desc");
@@ -227,14 +234,19 @@ export default function ProfileContent() {
   const [innovSortDirection, setInnovSortDirection] = useState("desc");
   const [innovPage, setInnovPage] = useState(1);
   const [innovRowsPerPage, setInnovRowsPerPage] = useState(10);
+  const [activeSource, setActiveSource] = useState("scopus");
   const [activeTab, setActiveTab] = useState("publications");
   const { getLabelById } = useStatusMap();
 
   useEffect(() => {
     loadProfileData();
-    loadPublications();
+    loadScholarPublications();
     loadInnovations();
   }, []);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [activeSource]);
 
   // helpers
   const parseDate = (value) => {
@@ -364,18 +376,61 @@ export default function ProfileContent() {
     }
   };
 
-  const loadPublications = async () => {
+  const loadScholarPublications = async () => {
     try {
-      setPubLoading(true);
+      setScholarLoading(true);
       const res = await memberAPI.getUserPublications({ limit: 1000 });
       const items = res.data || res.items || [];
-      setPublications(items);
+      setScholarPublications(items);
     } catch (error) {
       console.error("Error loading publications:", error);
     } finally {
-      setPubLoading(false);
+      setScholarLoading(false);
     }
   };
+
+  const loadScopusPublications = useCallback(async () => {
+    if (activeSource !== "scopus") {
+      return;
+    }
+    try {
+      setScopusLoading(true);
+      const params = {
+        limit: rowsPerPage,
+        offset: (currentPage - 1) * rowsPerPage,
+        sort: sortField,
+        direction: sortDirection,
+      };
+      if (searchTerm.trim()) {
+        params.q = searchTerm.trim();
+      }
+      const res = await memberAPI.getUserScopusPublications(params);
+      const items = res.data || res.items || [];
+      setScopusPublications(items);
+      const total =
+        res.paging?.total ??
+        res.total ??
+        (Array.isArray(items) ? items.length : 0);
+      setScopusTotal(total);
+      const meta = res.meta || {};
+      setScopusMeta({
+        has_scopus_id: Boolean(meta.has_scopus_id),
+        has_author_record: Boolean(meta.has_author_record),
+      });
+    } catch (error) {
+      console.error("Error loading Scopus publications:", error);
+      setScopusPublications([]);
+      setScopusTotal(0);
+    } finally {
+      setScopusLoading(false);
+    }
+  }, [activeSource, rowsPerPage, currentPage, sortField, sortDirection, searchTerm]);
+
+  useEffect(() => {
+    if (activeSource === "scopus") {
+      loadScopusPublications();
+    }
+  }, [activeSource, loadScopusPublications]);
 
   const loadInnovations = async () => {
     try {
@@ -399,7 +454,7 @@ export default function ProfileContent() {
     }
   };
 
-  const fieldValue = (item, field) => {
+  const scholarFieldValue = (item, field) => {
     switch (field) {
       case "title":
         return item.title?.toLowerCase() || "";
@@ -411,27 +466,27 @@ export default function ProfileContent() {
     }
   };
 
-  const sortedPublications = useMemo(() => {
-    const filtered = publications.filter((p) =>
+  const sortedScholarPublications = useMemo(() => {
+    const filtered = scholarPublications.filter((p) =>
       p.title?.toLowerCase().includes(searchTerm.toLowerCase()),
     );
     const sorted = filtered.sort((a, b) => {
-      const aVal = fieldValue(a, sortField);
-      const bVal = fieldValue(b, sortField);
+      const aVal = scholarFieldValue(a, sortField);
+      const bVal = scholarFieldValue(b, sortField);
       if (aVal === bVal) return 0;
       if (sortDirection === "asc") return aVal > bVal ? 1 : -1;
       return aVal < bVal ? 1 : -1;
     });
     return sorted;
-  }, [publications, searchTerm, sortField, sortDirection]);
+  }, [scholarPublications, searchTerm, sortField, sortDirection]);
 
-  const paginatedPublications = useMemo(() => {
+  const paginatedScholarPublications = useMemo(() => {
     const start = (currentPage - 1) * rowsPerPage;
-    return sortedPublications.slice(start, start + rowsPerPage);
-  }, [sortedPublications, currentPage, rowsPerPage]);
+    return sortedScholarPublications.slice(start, start + rowsPerPage);
+  }, [sortedScholarPublications, currentPage, rowsPerPage]);
 
   const citationMetrics = useMemo(() => {
-    if (!publications || publications.length === 0) {
+    if (!scholarPublications || scholarPublications.length === 0) {
       return {
         totals: { all: null, recent: null },
         hIndex: { all: null, recent: null },
@@ -496,7 +551,7 @@ export default function ProfileContent() {
     const recentCitationCounts = [];
     let totalCitations = 0;
 
-    publications.forEach((pub) => {
+    scholarPublications.forEach((pub) => {
       if (Object.prototype.hasOwnProperty.call(pub, "cited_by")) {
         const totalCited = toNumber(pub.cited_by);
         if (totalCited !== null) {
@@ -592,9 +647,31 @@ export default function ProfileContent() {
         isCitations: isCitationsChart,
       },
     };
-  }, [publications]);
+  }, [scholarPublications]);
 
-  const totalPages = Math.ceil(sortedPublications.length / rowsPerPage) || 1;
+  const totalPages = useMemo(() => {
+    if (activeSource === "scopus") {
+      const pages = Math.ceil((scopusTotal || 0) / rowsPerPage);
+      return pages > 0 ? pages : 1;
+    }
+    const pages = Math.ceil(sortedScholarPublications.length / rowsPerPage);
+    return pages > 0 ? pages : 1;
+  }, [activeSource, scopusTotal, rowsPerPage, sortedScholarPublications.length]);
+
+  const isScopusActive = activeSource === "scopus";
+  const tablePublications = isScopusActive
+    ? scopusPublications
+    : paginatedScholarPublications;
+  const tableLoading = isScopusActive ? scopusLoading : scholarLoading;
+  const totalRecords = isScopusActive
+    ? scopusTotal
+    : sortedScholarPublications.length;
+  const scopusUnavailable =
+    !scopusMeta.has_scopus_id || !scopusMeta.has_author_record;
+  const startRecord =
+    totalRecords === 0 ? 0 : (currentPage - 1) * rowsPerPage + 1;
+  const endRecord =
+    totalRecords === 0 ? 0 : Math.min(currentPage * rowsPerPage, totalRecords);
 
   const handleInnovSort = (field) => {
     if (innovSortField === field) {
@@ -812,45 +889,101 @@ export default function ProfileContent() {
                   <h3 className="text-base font-semibold text-gray-900 lg:text-lg">
                     รายการผลงานตีพิมพ์
                   </h3>
-                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end sm:gap-4">
-                    <input
-                      type="text"
-                      value={searchTerm}
-                      onChange={(e) => {
-                        setSearchTerm(e.target.value);
-                        setCurrentPage(1);
-                      }}
-                      placeholder="ค้นหาชื่อเรื่อง..."
-                      className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 sm:w-64"
-                    />
-                    <div className="flex items-center gap-2 text-sm text-gray-600">
-                      <span>แสดง</span>
-                      <select
-                        value={rowsPerPage}
+                  <div className="flex flex-col gap-3">
+                    <div className="flex flex-wrap items-center gap-2 text-sm text-gray-600">
+                      <span>แหล่งข้อมูล:</span>
+                      <div className="inline-flex rounded-full border border-gray-200 bg-gray-50 p-0.5">
+                        {[{ value: "scopus", label: "Scopus" }, { value: "scholar", label: "Google Scholar" }].map(
+                          (option) => {
+                            const isActiveSource = activeSource === option.value;
+                            return (
+                              <button
+                                key={option.value}
+                                type="button"
+                                onClick={() => setActiveSource(option.value)}
+                                className={`rounded-full px-3 py-1 text-sm font-medium transition-colors ${
+                                  isActiveSource
+                                    ? "bg-blue-600 text-white shadow"
+                                    : "text-gray-600 hover:bg-white"
+                                }`}
+                              >
+                                {option.label}
+                              </button>
+                            );
+                          },
+                        )}
+                      </div>
+                      {isScopusActive && scopusUnavailable ? (
+                        <span className="text-xs text-amber-600">
+                          ยังไม่มีข้อมูลจาก Scopus สำหรับผู้ใช้นี้
+                        </span>
+                      ) : null}
+                    </div>
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end sm:gap-4">
+                      <input
+                        type="text"
+                        value={searchTerm}
                         onChange={(e) => {
-                          setRowsPerPage(parseInt(e.target.value));
+                          setSearchTerm(e.target.value);
                           setCurrentPage(1);
                         }}
-                        className="rounded-md border border-gray-300 px-2 py-2"
-                      >
-                        <option value={10}>10</option>
-                        <option value={20}>20</option>
-                      </select>
-                      <span>รายการ</span>
+                        placeholder="ค้นหาชื่อเรื่อง..."
+                        className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 sm:w-64"
+                      />
+                      <div className="flex items-center gap-2 text-sm text-gray-600">
+                        <span>แสดง</span>
+                        <select
+                          value={rowsPerPage}
+                          onChange={(e) => {
+                            setRowsPerPage(parseInt(e.target.value, 10));
+                            setCurrentPage(1);
+                          }}
+                          className="rounded-md border border-gray-300 px-2 py-2"
+                        >
+                          <option value={10}>10</option>
+                          <option value={20}>20</option>
+                        </select>
+                        <span>รายการ</span>
+                      </div>
                     </div>
                   </div>
                 </div>
                 <div className="overflow-x-auto">
-                  {pubLoading ? (
+                  {tableLoading ? (
                     <div className="space-y-2 animate-pulse">
                       {[...Array(5)].map((_, i) => (
                         <div key={i} className="h-6 rounded bg-gray-100" />
                       ))}
                     </div>
-                  ) : sortedPublications.length === 0 ? (
-                    <p className="py-6 text-center text-gray-500">
-                      ยังไม่มีผลงานตีพิมพ์
-                    </p>
+                  ) : tablePublications.length === 0 ? (
+                    <div className="py-6 text-center text-gray-500">
+                      {isScopusActive ? (
+                        scopusUnavailable ? (
+                          <div className="space-y-3">
+                            <p>ยังไม่มีข้อมูลจาก Scopus สำหรับผู้ใช้นี้</p>
+                            <button
+                              type="button"
+                              onClick={() => setActiveSource("scholar")}
+                              className="inline-flex items-center justify-center rounded-md border border-blue-100 bg-blue-50 px-3 py-2 text-sm font-medium text-blue-700 hover:bg-blue-100"
+                            >
+                              ดูข้อมูลจาก Google Scholar
+                            </button>
+                          </div>
+                        ) : (
+                          <p>
+                            {searchTerm
+                              ? "ไม่พบผลการค้นหาใน Scopus"
+                              : "ยังไม่มีผลงานตีพิมพ์จาก Scopus"}
+                          </p>
+                        )
+                      ) : (
+                        <p>
+                          {searchTerm
+                            ? "ไม่พบผลการค้นหาใน Google Scholar"
+                            : "ยังไม่มีผลงานตีพิมพ์"}
+                        </p>
+                      )}
+                    </div>
                   ) : (
                     <>
                       <table className="min-w-full divide-y divide-gray-200 text-sm">
@@ -916,60 +1049,69 @@ export default function ProfileContent() {
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-200">
-                          {paginatedPublications.map((pub, index) => (
-                            <tr key={pub.id} className="hover:bg-gray-50">
-                              <td className="px-4 py-2 text-center text-gray-700">
-                                {(currentPage - 1) * rowsPerPage + index + 1}
-                              </td>
-                              <td className="max-w-xs px-4 py-2 lg:max-w-md">
-                                {pub.url ? (
-                                  <a
-                                    href={pub.url}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="block truncate text-blue-600 hover:underline"
-                                    title={pub.title}
-                                  >
-                                    {pub.title}
-                                  </a>
-                                ) : (
-                                  <span className="block truncate" title={pub.title}>
-                                    {pub.title}
-                                  </span>
-                                )}
-                              </td>
-                              <td className="px-4 py-2 text-right">
-                                {pub.cited_by ? (
-                                  pub.cited_by_url ? (
+                          {tablePublications.map((pub, index) => {
+                            const rowNumber = (currentPage - 1) * rowsPerPage + index + 1;
+                            const citedByValue =
+                              pub.cited_by !== undefined && pub.cited_by !== null
+                                ? pub.cited_by
+                                : null;
+                            const yearValue =
+                              pub.publication_year || pub.year || "-";
+                            const key = `${pub.id || pub.eid || index}-${activeSource}`;
+                            return (
+                              <tr key={key} className="hover:bg-gray-50">
+                                <td className="px-4 py-2 text-center text-gray-700">
+                                  {rowNumber}
+                                </td>
+                                <td className="max-w-xs px-4 py-2 lg:max-w-md">
+                                  {pub.url ? (
                                     <a
-                                      href={pub.cited_by_url}
+                                      href={pub.url}
                                       target="_blank"
                                       rel="noopener noreferrer"
-                                      className="text-blue-600 hover:underline"
+                                      className="block truncate text-blue-600 hover:underline"
+                                      title={pub.title}
                                     >
-                                      {pub.cited_by}
+                                      {pub.title}
                                     </a>
                                   ) : (
-                                    <span>{pub.cited_by}</span>
-                                  )
-                                ) : (
-                                  <span>-</span>
-                                )}
-                              </td>
-                              <td className="px-4 py-2 text-center">
-                                {pub.publication_year || "-"}
-                              </td>
-                            </tr>
-                          ))}
+                                    <span className="block truncate" title={pub.title}>
+                                      {pub.title}
+                                    </span>
+                                  )}
+                                  {pub.venue || pub.publication_name ? (
+                                    <span className="mt-1 block truncate text-xs text-gray-500">
+                                      {pub.venue || pub.publication_name}
+                                    </span>
+                                  ) : null}
+                                </td>
+                                <td className="px-4 py-2 text-right">
+                                  {citedByValue !== null ? (
+                                    pub.cited_by_url ? (
+                                      <a
+                                        href={pub.cited_by_url}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="text-blue-600 hover:underline"
+                                      >
+                                        {citedByValue}
+                                      </a>
+                                    ) : (
+                                      <span>{citedByValue}</span>
+                                    )
+                                  ) : (
+                                    <span>-</span>
+                                  )}
+                                </td>
+                                <td className="px-4 py-2 text-center">{yearValue || "-"}</td>
+                              </tr>
+                            );
+                          })}
                         </tbody>
                       </table>
                       <div className="mt-4 flex items-center justify-between text-sm">
                         <span className="text-gray-600">
-                          แสดง {(currentPage - 1) * rowsPerPage + 1}-
-                          {Math.min(
-                            currentPage * rowsPerPage,
-                            sortedPublications.length,
-                          )} จาก {sortedPublications.length}
+                          แสดง {startRecord}-{endRecord} จาก {totalRecords}
                         </span>
                         <div className="space-x-2">
                           <button
@@ -994,7 +1136,7 @@ export default function ProfileContent() {
                   )}
                 </div>
                 <ScholarCitationsCard
-                  loading={pubLoading}
+                  loading={scholarLoading}
                   metrics={citationMetrics}
                   formatNumber={formatNumber}
                 />
