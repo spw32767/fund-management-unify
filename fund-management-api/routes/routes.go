@@ -152,17 +152,18 @@ func SetupRoutes(router *gin.Engine) {
 			protected.GET("/submissions/search", controllers.SearchSubmissions) // ค้นหา submissions
 
 			// Teacher-specific endpoints
-			teacher := protected.Group("/teacher")
-			{
-				// ไม่ต้องใส่ RequireRole(1) เพราะ GetSubcategoryForRole จะ check role เอง
-				teacher.GET("/subcategories", controllers.GetSubcategoryForRole)
-				teacher.GET("/submissions", controllers.GetTeacherSubmissions) // Teacher ดู submissions ของตัวเอง
-				// User Publications
-				teacher.GET("/user-publications", controllers.GetUserPublications)
-				teacher.POST("/user-publications/upsert", controllers.UpsertUserPublication)
-				teacher.DELETE("/user-publications/:id", controllers.DeleteUserPublication)
-				teacher.PATCH("/user-publications/:id/restore", controllers.RestoreUserPublication)
-				teacher.GET("/user-publications/scholar/search", controllers.TeacherScholarAuthorSearch)
+teacher := protected.Group("/teacher")
+{
+// ไม่ต้องใส่ RequireRole(1) เพราะ GetSubcategoryForRole จะ check role เอง
+teacher.GET("/subcategories", controllers.GetSubcategoryForRole)
+teacher.GET("/submissions", controllers.GetTeacherSubmissions) // Teacher ดู submissions ของตัวเอง
+// User Publications
+teacher.GET("/user-publications", controllers.GetUserPublications)
+teacher.GET("/user-publications/scopus", controllers.GetUserScopusPublications)
+teacher.POST("/user-publications/upsert", controllers.UpsertUserPublication)
+teacher.DELETE("/user-publications/:id", controllers.DeleteUserPublication)
+teacher.PATCH("/user-publications/:id/restore", controllers.RestoreUserPublication)
+teacher.GET("/user-publications/scholar/search", controllers.TeacherScholarAuthorSearch)
 
 				// User Innovations
 				teacher.GET("/user-innovations", controllers.GetUserInnovations)
