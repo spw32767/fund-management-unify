@@ -15,6 +15,9 @@ import {
   Paperclip,
   GripVertical,
   Save,
+  Loader2,
+  UserPlus,
+  UserCog,
 } from "lucide-react";
 import Swal from "sweetalert2";
 import PageLayout from "@/app/admin/components/common/PageLayout";
@@ -58,6 +61,121 @@ const initialTypeForm = {
 const initialPlanForm = {
   name_th: "",
   name_en: "",
+};
+
+const initialMemberForm = {
+  user_id: "",
+  duty: "",
+  workload_hours: "",
+  notes: "",
+};
+
+const formatWorkloadHours = (value) => {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) {
+    return "0 ชม.";
+  }
+
+  const fractionDigits = Number.isInteger(numeric) ? 0 : 2;
+  return `${numeric.toLocaleString("th-TH", {
+    minimumFractionDigits: fractionDigits,
+    maximumFractionDigits: 2,
+  })} ชม.`;
+};
+
+const buildUserDisplayName = (user) => {
+  if (!user || typeof user !== "object") {
+    return "-";
+  }
+
+  const prefix = (user.prefix ?? user.Prefix ?? "").toString().trim();
+  const firstName = (user.user_fname ?? user.UserFname ?? "").toString().trim();
+  const lastName = (user.user_lname ?? user.UserLname ?? "").toString().trim();
+  const baseName = [firstName, lastName].filter(Boolean).join(" ").trim();
+
+  if (prefix && baseName) {
+    return `${prefix}${baseName}`;
+  }
+
+  if (prefix) {
+    return prefix;
+  }
+
+  if (baseName) {
+    return baseName;
+  }
+
+  const email = (user.email ?? user.Email ?? "").toString().trim();
+  return email || "-";
+};
+
+const getUserPositionLabel = (user) => {
+  if (!user || typeof user !== "object") {
+    return "";
+  }
+
+  return (
+    (user.manage_position ?? user.ManagePosition ?? "").toString().trim() ||
+    (user.position_title ?? user.PositionTitle ?? "").toString().trim() ||
+    (user.position?.position_name ??
+      user.Position?.position_name ??
+      user.Position?.PositionName ??
+      "").toString().trim()
+  );
+};
+
+const normalizeProjectMemberCandidate = (user) => {
+  if (!user || typeof user !== "object") {
+    return null;
+  }
+
+  const rawId = user.user_id ?? user.UserID;
+  const parsedId = Number(rawId);
+  if (!Number.isFinite(parsedId) || parsedId <= 0) {
+    return null;
+  }
+
+  const prefix = (user.prefix ?? user.Prefix ?? "").toString().trim();
+  const firstName = (user.user_fname ?? user.UserFname ?? "").toString().trim();
+  const lastName = (user.user_lname ?? user.UserLname ?? "").toString().trim();
+  const baseName = [firstName, lastName].filter(Boolean).join(" ").trim();
+  const displayName = prefix && baseName ? `${prefix}${baseName}` : prefix || baseName || `${parsedId}`;
+
+  const managePosition = (user.manage_position ?? user.ManagePosition ?? "").toString().trim();
+  const positionTitle =
+    (user.position_title ?? user.PositionTitle ?? "").toString().trim() ||
+    (user.position_en ?? user.PositionEn ?? "").toString().trim() ||
+    (user.position?.position_name ??
+      user.Position?.position_name ??
+      user.Position?.PositionName ??
+      "").toString().trim();
+
+  return {
+    user_id: parsedId,
+    prefix,
+    user_fname: firstName,
+    user_lname: lastName,
+    email: (user.email ?? user.Email ?? "").toString(),
+    role_id: Number(user.role_id ?? user.RoleID ?? 0) || 0,
+    manage_position: managePosition,
+    position_title: positionTitle,
+    role: user.role ?? user.Role ?? null,
+    position: user.position ?? user.Position ?? null,
+    display_name: displayName,
+  };
+};
+
+const getMemberUser = (member) => member?.user ?? member?.User ?? null;
+
+const getMemberUserId = (member) => {
+  const directId = Number(member?.user_id ?? member?.UserID);
+  if (Number.isFinite(directId) && directId > 0) {
+    return directId;
+  }
+
+  const nested = getMemberUser(member);
+  const nestedId = Number(nested?.user_id ?? nested?.UserID);
+  return Number.isFinite(nestedId) && nestedId > 0 ? nestedId : null;
 };
 
 function formatCurrency(value) {
@@ -204,6 +322,276 @@ function ProjectsTable({ projects, onEdit, onDelete }) {
           ))}
         </tbody>
       </table>
+    </div>
+  );
+}
+
+function ProjectMembersPanel({
+  project,
+  members,
+  candidateOptions,
+  allCandidates,
+  form,
+  onFormChange,
+  onSubmit,
+  onCancelEdit,
+  onEdit,
+  onDelete,
+  editingMember,
+  loading,
+  saving,
+  deleteLoadingIds,
+}) {
+  const totalWorkload = members.reduce((sum, member) => {
+    const value = Number(member?.workload_hours ?? member?.WorkloadHours ?? 0);
+    return sum + (Number.isFinite(value) ? value : 0);
+  }, 0);
+
+  const selectedCandidateId = Number(form.user_id);
+  const selectedCandidate = Number.isFinite(selectedCandidateId)
+    ? allCandidates.find((candidate) => candidate.user_id === selectedCandidateId)
+    : null;
+
+  const disableForm = saving || loading;
+  const isEditing = Boolean(editingMember);
+
+  return (
+    <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-6 mb-6">
+      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between mb-5">
+        <div>
+          <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+            <UserCog size={18} className="text-blue-600" />
+            ผู้ร่วมโครงการ
+          </h3>
+          <p className="text-sm text-gray-500">
+            เพิ่มและจัดการรายชื่อบุคลากรที่ร่วมดำเนินโครงการ
+            {project?.project_name ? ` "${project.project_name}"` : ""}
+          </p>
+        </div>
+        <div className="text-sm text-gray-600">
+          รวมภาระงาน {formatWorkloadHours(totalWorkload)}
+        </div>
+      </div>
+
+      <form onSubmit={onSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            ผู้ร่วมโครงการ
+          </label>
+          <select
+            name="user_id"
+            value={form.user_id}
+            onChange={(event) => onFormChange("user_id", event.target.value)}
+            required
+            disabled={disableForm || (!isEditing && candidateOptions.length === 0)}
+            className="w-full rounded-md border border-gray-300 focus:border-blue-500 focus:ring-blue-500 px-3 py-2"
+          >
+            <option value="">เลือกบุคลากร</option>
+            {candidateOptions.map((candidate) => (
+              <option key={candidate.user_id} value={candidate.user_id}>
+                {candidate.display_name}
+                {candidate.position_title
+                  ? ` — ${candidate.position_title}`
+                  : ""}
+              </option>
+            ))}
+          </select>
+          {!isEditing && candidateOptions.length === 0 ? (
+            <p className="mt-1 text-xs text-amber-600">
+              ยังไม่มีบุคลากรที่สามารถเลือกได้
+            </p>
+          ) : null}
+          {selectedCandidate?.position_title ? (
+            <p className="mt-1 text-xs text-gray-500">
+              ตำแหน่ง: {selectedCandidate.position_title}
+            </p>
+          ) : null}
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            หน้าที่ภายในโครงการ
+          </label>
+          <input
+            type="text"
+            name="duty"
+            value={form.duty}
+            onChange={(event) => onFormChange("duty", event.target.value)}
+            required
+            maxLength={255}
+            disabled={disableForm}
+            className="w-full rounded-md border border-gray-300 focus:border-blue-500 focus:ring-blue-500 px-3 py-2"
+            placeholder="เช่น หัวหน้าโครงการ ผู้ประสานงาน"
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            ภาระงาน (ชั่วโมง)
+          </label>
+          <input
+            type="number"
+            name="workload_hours"
+            value={form.workload_hours}
+            onChange={(event) => onFormChange("workload_hours", event.target.value)}
+            min="0"
+            max="9999.99"
+            step="0.25"
+            disabled={disableForm}
+            className="w-full rounded-md border border-gray-300 focus:border-blue-500 focus:ring-blue-500 px-3 py-2"
+            placeholder="จำนวนชั่วโมงที่รับผิดชอบ"
+          />
+          <p className="mt-1 text-xs text-gray-500">
+            ระบุเป็นตัวเลข เช่น 12, 1.5 หรือ 0 หากไม่มีภาระงาน
+          </p>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            หมายเหตุเพิ่มเติม
+          </label>
+          <textarea
+            name="notes"
+            value={form.notes}
+            onChange={(event) => onFormChange("notes", event.target.value)}
+            rows={3}
+            maxLength={255}
+            disabled={disableForm}
+            className="w-full rounded-md border border-gray-300 focus:border-blue-500 focus:ring-blue-500 px-3 py-2"
+            placeholder="รายละเอียดเพิ่มเติม (ถ้ามี)"
+          />
+        </div>
+
+        <div className="md:col-span-2 flex justify-end gap-2">
+          {isEditing ? (
+            <button
+              type="button"
+              onClick={onCancelEdit}
+              disabled={saving}
+              className="px-4 py-2 rounded-md border border-gray-300 text-gray-600 hover:bg-gray-100 disabled:opacity-60"
+            >
+              ยกเลิกการแก้ไข
+            </button>
+          ) : null}
+          <button
+            type="submit"
+            disabled={disableForm || (!isEditing && candidateOptions.length === 0)}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-emerald-600 hover:bg-emerald-700 text-white disabled:opacity-60 disabled:cursor-not-allowed"
+          >
+            {saving ? (
+              <>
+                <Loader2 size={16} className="animate-spin" />
+                กำลังบันทึก...
+              </>
+            ) : isEditing ? (
+              <>
+                <Save size={16} />
+                อัปเดตผู้ร่วมโครงการ
+              </>
+            ) : (
+              <>
+                <UserPlus size={16} />
+                เพิ่มผู้ร่วมโครงการ
+              </>
+            )}
+          </button>
+        </div>
+      </form>
+
+      <div className="overflow-x-auto border border-gray-200 rounded-lg">
+        {loading ? (
+          <div className="flex items-center justify-center gap-2 py-10 text-sm text-gray-600">
+            <Loader2 className="h-5 w-5 animate-spin text-blue-500" />
+            กำลังโหลดผู้ร่วมโครงการ...
+          </div>
+        ) : members.length === 0 ? (
+          <div className="py-10 text-center text-gray-500 text-sm">
+            ยังไม่มีการบันทึกผู้ร่วมโครงการ
+          </div>
+        ) : (
+          <table className="min-w-full divide-y divide-gray-200 text-sm">
+            <thead className="bg-gray-50 text-xs font-semibold text-gray-600">
+              <tr>
+                <th className="px-4 py-3 text-left">ลำดับ</th>
+                <th className="px-4 py-3 text-left">ชื่อบุคลากร</th>
+                <th className="px-4 py-3 text-left">หน้าที่</th>
+                <th className="px-4 py-3 text-left">ภาระงาน</th>
+                <th className="px-4 py-3 text-left">หมายเหตุ</th>
+                <th className="px-4 py-3 text-center">จัดการ</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-200">
+              {members.map((member) => {
+                const memberId = member.member_id ?? member.MemberID;
+                const isDeleting = deleteLoadingIds?.has?.(memberId);
+                const memberUser = getMemberUser(member);
+                const name = buildUserDisplayName(memberUser);
+                const position = getUserPositionLabel(memberUser);
+                const workloadLabel = formatWorkloadHours(
+                  member.workload_hours ?? member.WorkloadHours ?? 0
+                );
+                const notesValue =
+                  member.notes ?? member.Notes ?? "";
+                const isActiveRow =
+                  editingMember &&
+                  (editingMember.member_id ?? editingMember.MemberID) === memberId;
+
+                return (
+                  <tr
+                    key={memberId}
+                    className={isActiveRow ? "bg-blue-50" : "bg-white"}
+                  >
+                    <td className="px-4 py-3 text-gray-600">
+                      {member.display_order ?? member.DisplayOrder ?? "-"}
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="font-medium text-gray-900">{name}</div>
+                      {position ? (
+                        <div className="text-xs text-gray-500 mt-1">{position}</div>
+                      ) : null}
+                    </td>
+                    <td className="px-4 py-3 text-gray-700">
+                      {member.duty ?? member.Duty ?? "-"}
+                    </td>
+                    <td className="px-4 py-3 text-gray-700">{workloadLabel}</td>
+                    <td className="px-4 py-3 text-gray-600">
+                      {notesValue ? notesValue : <span className="text-gray-400">-</span>}
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center justify-center gap-3">
+                        <button
+                          type="button"
+                          onClick={() => onEdit(member)}
+                          className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-800"
+                        >
+                          <Pencil size={16} /> แก้ไข
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => onDelete(member)}
+                          disabled={Boolean(isDeleting)}
+                          className="inline-flex items-center gap-1 text-red-600 hover:text-red-700 disabled:opacity-60"
+                        >
+                          {isDeleting ? (
+                            <>
+                              <Loader2 size={16} className="animate-spin" />
+                              กำลังลบ...
+                            </>
+                          ) : (
+                            <>
+                              <Trash2 size={16} /> ลบ
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        )}
+      </div>
     </div>
   );
 }
@@ -825,6 +1213,14 @@ export default function ProjectsContent() {
   const [typeToggleLoading, setTypeToggleLoading] = useState(() => new Set());
   const [planToggleLoading, setPlanToggleLoading] = useState(() => new Set());
 
+  const [memberCandidates, setMemberCandidates] = useState([]);
+  const [projectMembers, setProjectMembers] = useState([]);
+  const [memberForm, setMemberForm] = useState(initialMemberForm);
+  const [editingMember, setEditingMember] = useState(null);
+  const [loadingMembers, setLoadingMembers] = useState(false);
+  const [savingMember, setSavingMember] = useState(false);
+  const [memberDeleteLoading, setMemberDeleteLoading] = useState(() => new Set());
+
   const projectTypeOptions = useMemo(() => {
     const selectedTypeId = editingProject?.type_id;
     return projectTypes.filter((type) =>
@@ -839,8 +1235,63 @@ export default function ProjectsContent() {
     );
   }, [budgetPlans, editingProject]);
 
+  const availableMemberCandidates = useMemo(() => {
+    if (!memberCandidates.length) {
+      return [];
+    }
+
+    const usedIds = new Set(
+      projectMembers
+        .map((member) => getMemberUserId(member))
+        .filter((id) => Number.isFinite(id) && id > 0)
+    );
+
+    if (editingMember) {
+      const editingId = getMemberUserId(editingMember);
+      if (Number.isFinite(editingId) && editingId > 0) {
+        usedIds.delete(editingId);
+      }
+    }
+
+    return memberCandidates.filter((candidate) =>
+      Number.isFinite(candidate.user_id) && candidate.user_id > 0 && !usedIds.has(candidate.user_id)
+    );
+  }, [memberCandidates, projectMembers, editingMember]);
+
   useEffect(() => {
     loadAll();
+  }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const fetchCandidates = async () => {
+      try {
+        const users = await adminAPI.getProjectMemberCandidates();
+        if (!isMounted) return;
+
+        const normalized = Array.isArray(users)
+          ? users.map(normalizeProjectMemberCandidate).filter(Boolean)
+          : [];
+
+        const collator = new Intl.Collator("th-TH", { sensitivity: "base" });
+        normalized.sort((a, b) => collator.compare(a.display_name, b.display_name));
+        setMemberCandidates(normalized);
+      } catch (error) {
+        if (!isMounted) return;
+        console.error(error);
+        Toast.fire({
+          icon: "error",
+          title: error?.message || "ไม่สามารถโหลดรายชื่อบุคลากรได้",
+        });
+      }
+    };
+
+    fetchCandidates();
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   const loadAll = async () => {
@@ -872,11 +1323,53 @@ export default function ProjectsContent() {
     }
   };
 
+  const loadProjectMembers = async (projectId) => {
+    if (!projectId) {
+      setProjectMembers([]);
+      setMemberDeleteLoading(new Set());
+      return;
+    }
+
+    setLoadingMembers(true);
+    try {
+      const members = await adminAPI.getProjectMembers(projectId);
+      const normalized = Array.isArray(members) ? members : [];
+      setProjectMembers(normalized);
+      setMemberDeleteLoading(new Set());
+
+      setProjects((prev) =>
+        prev.map((project) => {
+          const id = project.project_id ?? project.projectId ?? project.ProjectID;
+          if (id === projectId) {
+            return { ...project, members: normalized };
+          }
+          return project;
+        })
+      );
+
+      setEditingProject((prev) =>
+        prev ? { ...prev, members: normalized } : prev
+      );
+    } catch (error) {
+      console.error(error);
+      Toast.fire({
+        icon: "error",
+        title: error?.message || "ไม่สามารถโหลดผู้ร่วมโครงการได้",
+      });
+    } finally {
+      setLoadingMembers(false);
+    }
+  };
+
   const resetProjectForm = () => {
     setProjectForm({ ...initialProjectForm });
     setEditingProject(null);
     setShowProjectForm(false);
     setProjectFileKey((key) => key + 1);
+    setProjectMembers([]);
+    setMemberForm(initialMemberForm);
+    setEditingMember(null);
+    setMemberDeleteLoading(new Set());
   };
 
   const handleProjectChange = (event) => {
@@ -999,7 +1492,210 @@ export default function ProjectsContent() {
       attachment: null,
     });
     setProjectFileKey((key) => key + 1);
+    setMemberForm(initialMemberForm);
+    setEditingMember(null);
+    setMemberDeleteLoading(new Set());
+
+    const existingMembers = Array.isArray(project.members)
+      ? project.members
+      : [];
+    setProjectMembers(existingMembers);
+
+    const projectId = Number(
+      project.project_id ?? project.projectId ?? project.ProjectID
+    );
+    if (Number.isFinite(projectId) && projectId > 0) {
+      loadProjectMembers(projectId);
+    }
+
     setShowProjectForm(true);
+  };
+
+  const handleMemberFormChange = (field, value) => {
+    setMemberForm((prev) => ({
+      ...prev,
+      [field]: value,
+    }));
+  };
+
+  const resetMemberFormState = () => {
+    setMemberForm(initialMemberForm);
+    setEditingMember(null);
+  };
+
+  const updateMemberDeleteLoading = (memberId, isLoading) => {
+    setMemberDeleteLoading((prev) => {
+      const next = new Set(prev);
+      if (isLoading) {
+        next.add(memberId);
+      } else {
+        next.delete(memberId);
+      }
+      return next;
+    });
+  };
+
+  const handleSubmitMember = async (event) => {
+    event.preventDefault();
+
+    if (!editingProject) {
+      Toast.fire({ icon: "warning", title: "กรุณาเลือกโครงการก่อน" });
+      return;
+    }
+
+    const projectId = Number(
+      editingProject.project_id ??
+        editingProject.projectId ??
+        editingProject.ProjectID
+    );
+    if (!Number.isFinite(projectId) || projectId <= 0) {
+      Toast.fire({ icon: "warning", title: "ไม่พบรหัสโครงการที่ถูกต้อง" });
+      return;
+    }
+
+    const userId = Number(memberForm.user_id);
+    if (!Number.isFinite(userId) || userId <= 0) {
+      Toast.fire({ icon: "warning", title: "กรุณาเลือกบุคลากร" });
+      return;
+    }
+
+    const duty = memberForm.duty.trim();
+    if (!duty) {
+      Toast.fire({ icon: "warning", title: "กรุณาระบุหน้าที่" });
+      return;
+    }
+    if (Array.from(duty).length > 255) {
+      Toast.fire({ icon: "warning", title: "หน้าที่ต้องไม่เกิน 255 ตัวอักษร" });
+      return;
+    }
+
+    const workloadInput = (memberForm.workload_hours ?? "").toString().trim();
+    const workloadNumber = workloadInput === "" ? 0 : Number(workloadInput);
+    if (!Number.isFinite(workloadNumber) || workloadNumber < 0) {
+      Toast.fire({ icon: "warning", title: "กรุณาระบุชั่วโมงภาระงานให้ถูกต้อง" });
+      return;
+    }
+    if (workloadNumber > 9999.99) {
+      Toast.fire({ icon: "warning", title: "จำนวนชั่วโมงต้องไม่เกิน 9,999.99" });
+      return;
+    }
+
+    const normalizedHours = Math.round(workloadNumber * 100) / 100;
+
+    const notesInput = (memberForm.notes ?? "").trim();
+    if (Array.from(notesInput).length > 255) {
+      Toast.fire({ icon: "warning", title: "หมายเหตุต้องไม่เกิน 255 ตัวอักษร" });
+      return;
+    }
+
+    const payload = {
+      user_id: userId,
+      duty,
+      workload_hours: normalizedHours,
+      notes: notesInput,
+    };
+
+    try {
+      setSavingMember(true);
+      const existingMemberId =
+        editingMember?.member_id ?? editingMember?.MemberID;
+
+      if (existingMemberId) {
+        await adminAPI.updateProjectMember(
+          projectId,
+          existingMemberId,
+          payload
+        );
+        Toast.fire({ icon: "success", title: "อัปเดตข้อมูลผู้ร่วมโครงการแล้ว" });
+      } else {
+        await adminAPI.createProjectMember(projectId, payload);
+        Toast.fire({ icon: "success", title: "เพิ่มผู้ร่วมโครงการเรียบร้อย" });
+      }
+      resetMemberFormState();
+      await loadProjectMembers(projectId);
+    } catch (error) {
+      console.error(error);
+      Toast.fire({
+        icon: "error",
+        title: error?.message || "ไม่สามารถบันทึกข้อมูลผู้ร่วมโครงการได้",
+      });
+    } finally {
+      setSavingMember(false);
+    }
+  };
+
+  const handleEditMember = (member) => {
+    const userId = getMemberUserId(member);
+    const rawHours = Number(
+      member?.workload_hours ?? member?.WorkloadHours ?? 0
+    );
+    setEditingMember(member);
+    setMemberForm({
+      user_id: Number.isFinite(userId) && userId > 0 ? String(userId) : "",
+      duty: member?.duty ?? member?.Duty ?? "",
+      workload_hours: Number.isFinite(rawHours) ? String(rawHours) : "",
+      notes: member?.notes ?? member?.Notes ?? "",
+    });
+  };
+
+  const handleCancelMemberEdit = () => {
+    resetMemberFormState();
+  };
+
+  const handleDeleteMember = async (member) => {
+    if (!editingProject) {
+      return;
+    }
+
+    const memberId = Number(member?.member_id ?? member?.MemberID);
+    const projectId = Number(
+      editingProject.project_id ??
+        editingProject.projectId ??
+        editingProject.ProjectID
+    );
+
+    if (!Number.isFinite(memberId) || memberId <= 0 || !Number.isFinite(projectId) || projectId <= 0) {
+      Toast.fire({ icon: "warning", title: "ไม่สามารถลบผู้ร่วมโครงการได้" });
+      return;
+    }
+
+    const name = buildUserDisplayName(getMemberUser(member));
+    const result = await Swal.fire({
+      title: "ยืนยันการลบ",
+      text: `ต้องการลบผู้ร่วมโครงการ "${name}" หรือไม่?`,
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonColor: "#ef4444",
+      cancelButtonColor: "#6b7280",
+      confirmButtonText: "ลบข้อมูล",
+      cancelButtonText: "ยกเลิก",
+      reverseButtons: true,
+    });
+
+    if (!result.isConfirmed) {
+      return;
+    }
+
+    updateMemberDeleteLoading(memberId, true);
+    try {
+      await adminAPI.deleteProjectMember(projectId, memberId);
+      Toast.fire({ icon: "success", title: "ลบผู้ร่วมโครงการแล้ว" });
+      if (
+        editingMember &&
+        (editingMember.member_id ?? editingMember.MemberID) === memberId
+      ) {
+        resetMemberFormState();
+      }
+      await loadProjectMembers(projectId);
+    } catch (error) {
+      console.error(error);
+      Toast.fire({
+        icon: "error",
+        title: error?.message || "ไม่สามารถลบผู้ร่วมโครงการได้",
+      });
+    } finally {
+      updateMemberDeleteLoading(memberId, false);
+    }
   };
 
   const handleDeleteProject = async (project) => {
@@ -1392,6 +2088,10 @@ export default function ProjectsContent() {
                     setEditingProject(null);
                     setProjectForm({ ...initialProjectForm });
                     setProjectFileKey((key) => key + 1);
+                    setProjectMembers([]);
+                    setMemberForm(initialMemberForm);
+                    setEditingMember(null);
+                    setMemberDeleteLoading(new Set());
                   }}
                   className="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-blue-600 hover:bg-blue-700 text-white"
                 >
@@ -1416,6 +2116,25 @@ export default function ProjectsContent() {
                 attachmentFile={projectForm.attachment}
                 existingAttachment={editingProject?.attachments?.[0] || null}
               />
+
+              {showProjectForm && editingProject ? (
+                <ProjectMembersPanel
+                  project={editingProject}
+                  members={projectMembers}
+                  candidateOptions={availableMemberCandidates}
+                  allCandidates={memberCandidates}
+                  form={memberForm}
+                  onFormChange={handleMemberFormChange}
+                  onSubmit={handleSubmitMember}
+                  onCancelEdit={handleCancelMemberEdit}
+                  onEdit={handleEditMember}
+                  onDelete={handleDeleteMember}
+                  editingMember={editingMember}
+                  loading={loadingMembers}
+                  saving={savingMember}
+                  deleteLoadingIds={memberDeleteLoading}
+                />
+              ) : null}
 
               <ProjectsTable
                 projects={projects}
