@@ -133,6 +133,17 @@ export const teacherAPI = {
     }
   },
 
+  // Get Scopus publication list for current user
+  async getUserScopusPublications(params = {}) {
+    try {
+      const response = await apiClient.get('/teacher/user-publications/scopus', params);
+      return response;
+    } catch (error) {
+      console.error('Error fetching Scopus publications:', error);
+      throw error;
+    }
+  },
+
   // Get current user's innovations
   async getUserInnovations(params = {}) {
     try {
