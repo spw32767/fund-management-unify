@@ -133,6 +133,17 @@ export const teacherAPI = {
     }
   },
 
+  // Get Scopus publication stats (documents & citations trends)
+  async getUserScopusPublicationStats(params = {}) {
+    try {
+      const response = await apiClient.get('/teacher/user-publications/scopus/stats', params);
+      return response;
+    } catch (error) {
+      console.error('Error fetching Scopus publication stats:', error);
+      throw error;
+    }
+  },
+
   // Get current user's innovations
   async getUserInnovations(params = {}) {
     try {
