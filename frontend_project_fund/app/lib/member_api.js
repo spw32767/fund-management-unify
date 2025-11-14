@@ -33,10 +33,22 @@ const resolveRoleName = (role) => {
   return null;
 };
 
+// Merge role-specific APIs. Ensure newly added teacher methods (e.g. Scopus
+// publications/stats) are always available through the shared member API,
+// regardless of older cached bundles spreading outdated objects.
 export const memberAPI = {
   ...teacherAPI,
   ...staffAPI,
   deptHead: deptHeadAPI,
+};
+
+// Keep an explicit list of publication helpers so downstream imports that rely
+// on the default export (rather than destructuring teacherAPI) always receive
+// the latest implementations even if bundlers snapshot the object before the
+// spreads occur.
+const PUBLICATION_HELPERS = {
+  getUserScopusPublications: teacherAPI.getUserScopusPublications,
+  getUserScopusPublicationStats: teacherAPI.getUserScopusPublicationStats,
 };
 
 export { teacherAPI };
@@ -54,6 +66,7 @@ export {
 // TODO: Remove legacy exports after all imports migrate to member_api
 export const memberAPICompat = {
   ...memberAPI,
+  ...PUBLICATION_HELPERS,
   submission: submissionAPI,
   submissionUsers: submissionUsersAPI,
   file: fileAPI,
