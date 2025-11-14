@@ -865,6 +865,12 @@ const buildBudgetHintDisplayItemsFromEntries = (entries) => {
 
   const appendEntries = (sourceEntries, options = {}) => {
     sourceEntries.forEach((entry, index) => {
+      if (options.includeAmount === false) {
+        const numericAmount = parseNumericValue(entry.amount);
+        if (numericAmount == null || Number(numericAmount) === 0) {
+          return;
+        }
+      }
       const text = buildBudgetHintDisplay(entry, {
         includeAmount: options.includeAmount,
       });
