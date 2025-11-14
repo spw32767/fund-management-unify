@@ -1036,6 +1036,15 @@ export const publicationsAPI = {
   },
 };
 
+export const scopusConfigAPI = {
+  async getAPIKey() {
+    return apiClient.get('/admin/scopus/config');
+  },
+  async updateAPIKey(value) {
+    return apiClient.put('/admin/scopus/config', { value });
+  },
+};
+
 export const usersAPI = {
   async search(q) {
     return apiClient.get('/admin/users/search', { q });
