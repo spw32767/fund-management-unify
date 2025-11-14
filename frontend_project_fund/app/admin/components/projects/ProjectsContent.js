@@ -596,6 +596,270 @@ function ProjectMembersPanel({
   );
 }
 
+function ProjectFormMembersSection({
+  memberOptions = [],
+  allCandidates = [],
+  form = initialMemberForm,
+  members = [],
+  onFormChange = () => {},
+  onSubmit = () => {},
+  onEdit = () => {},
+  onRemove = () => {},
+  onCancelEdit = () => {},
+  editingIndex = null,
+  disabled = false,
+}) {
+  const totalWorkload = members.reduce((sum, member) => {
+    const value = Number(member?.workload_hours ?? 0);
+    return sum + (Number.isFinite(value) ? value : 0);
+  }, 0);
+
+  const selectedCandidateId = Number(form?.user_id ?? 0);
+  const selectedCandidate = Number.isFinite(selectedCandidateId)
+    ? allCandidates.find((candidate) => candidate.user_id === selectedCandidateId)
+    : null;
+
+  const isEditing = typeof editingIndex === "number" && editingIndex >= 0;
+  const disableAddButton =
+    disabled || (!isEditing && memberOptions.length === 0);
+
+  const handleChange = (field) => (event) => {
+    onFormChange(field, event.target.value);
+  };
+
+  const resolveMemberCandidate = (member) => {
+    if (!member) return null;
+    if (member.candidate) return member.candidate;
+
+    const memberId = Number(member.user_id);
+    if (!Number.isFinite(memberId)) return null;
+    return allCandidates.find((candidate) => candidate.user_id === memberId) || null;
+  };
+
+  return (
+    <div className="md:col-span-2">
+      <div className="rounded-lg border border-gray-200 bg-white shadow-sm">
+        <div className="flex flex-col gap-2 border-b border-gray-200 px-4 py-3 md:flex-row md:items-center md:justify-between">
+          <div>
+            <h4 className="text-base font-semibold text-gray-900 flex items-center gap-2">
+              <UserCog size={18} className="text-blue-600" />
+              ผู้ร่วมโครงการ
+            </h4>
+            <p className="text-xs text-gray-500">
+              เพิ่มรายชื่อบุคลากรเพื่อบันทึกพร้อมโครงการ ระบบจะจัดเรียงตามลำดับการเพิ่ม
+            </p>
+          </div>
+          <div className="text-xs text-gray-500">
+            รวมภาระงาน {formatWorkloadHours(totalWorkload)}
+          </div>
+        </div>
+
+        <div className="px-4 py-4 space-y-4">
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-4">
+            <div className="lg:col-span-2">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                ผู้ร่วมโครงการ
+              </label>
+              <select
+                name="user_id"
+                value={form?.user_id ?? ""}
+                onChange={handleChange("user_id")}
+                required
+                disabled={disableAddButton}
+                className="w-full rounded-md border border-gray-300 focus:border-blue-500 focus:ring-blue-500 px-3 py-2 disabled:bg-gray-100 disabled:text-gray-400"
+              >
+                <option value="">เลือกบุคลากร</option>
+                {memberOptions.map((candidate) => (
+                  <option key={candidate.user_id} value={candidate.user_id}>
+                    {candidate.display_name}
+                    {candidate.position_title ? ` — ${candidate.position_title}` : ""}
+                  </option>
+                ))}
+              </select>
+              {!disabled && !isEditing && memberOptions.length === 0 ? (
+                <p className="mt-1 text-xs text-amber-600">
+                  {allCandidates.length === 0
+                    ? "ยังไม่มีรายชื่อบุคลากรที่สามารถเลือกได้"
+                    : "บุคลากรถูกเลือกครบแล้ว หากต้องการแก้ไขกรุณาลบหรือแก้ไขรายการเดิม"}
+                </p>
+              ) : null}
+              {selectedCandidate?.position_title ? (
+                <p className="mt-1 text-xs text-gray-500">
+                  ตำแหน่ง: {selectedCandidate.position_title}
+                </p>
+              ) : null}
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                หน้าที่ภายในโครงการ
+              </label>
+              <input
+                type="text"
+                name="duty"
+                value={form?.duty ?? ""}
+                onChange={handleChange("duty")}
+                required
+                maxLength={255}
+                placeholder="เช่น ผู้รับผิดชอบหลัก"
+                disabled={disabled}
+                className="w-full rounded-md border border-gray-300 focus:border-blue-500 focus:ring-blue-500 px-3 py-2 disabled:bg-gray-100 disabled:text-gray-400"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                ภาระงาน (ชม.)
+              </label>
+              <input
+                type="number"
+                name="workload_hours"
+                value={form?.workload_hours ?? ""}
+                onChange={handleChange("workload_hours")}
+                min="0"
+                step="0.01"
+                placeholder="เช่น 6"
+                disabled={disabled}
+                className="w-full rounded-md border border-gray-300 focus:border-blue-500 focus:ring-blue-500 px-3 py-2 disabled:bg-gray-100 disabled:text-gray-400"
+              />
+            </div>
+
+            <div className="lg:col-span-2">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                หมายเหตุ (ถ้ามี)
+              </label>
+              <input
+                type="text"
+                name="notes"
+                value={form?.notes ?? ""}
+                onChange={handleChange("notes")}
+                maxLength={255}
+                placeholder="รายละเอียดเพิ่มเติม"
+                disabled={disabled}
+                className="w-full rounded-md border border-gray-300 focus:border-blue-500 focus:ring-blue-500 px-3 py-2 disabled:bg-gray-100 disabled:text-gray-400"
+              />
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="text-xs text-gray-500">
+              {isEditing
+                ? "กำลังแก้ไขข้อมูลผู้ร่วมโครงการในฟอร์ม"
+                : "สามารถเพิ่มได้หลายคนก่อนบันทึกโครงการ"}
+            </div>
+            <div className="flex items-center gap-2">
+              {isEditing ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={onCancelEdit}
+                    className="px-3 py-2 rounded-md border border-gray-300 text-gray-600 hover:bg-gray-100 disabled:opacity-60 disabled:cursor-not-allowed"
+                    disabled={disabled}
+                  >
+                    ยกเลิกแก้ไข
+                  </button>
+                  <button
+                    type="button"
+                    onClick={onSubmit}
+                    className="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-emerald-600 hover:bg-emerald-700 text-white disabled:opacity-60 disabled:cursor-not-allowed"
+                    disabled={disabled}
+                  >
+                    <Save size={16} />
+                    บันทึกการแก้ไข
+                  </button>
+                </>
+              ) : (
+                <button
+                  type="button"
+                  onClick={onSubmit}
+                  disabled={disableAddButton}
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-emerald-600 hover:bg-emerald-700 text-white disabled:opacity-60 disabled:cursor-not-allowed"
+                >
+                  <UserPlus size={16} />
+                  เพิ่มผู้ร่วมโครงการ
+                </button>
+              )}
+            </div>
+          </div>
+
+          <div className="overflow-x-auto border border-gray-200 rounded-lg">
+            {members.length === 0 ? (
+              <div className="py-8 text-center text-sm text-gray-500">
+                ยังไม่มีผู้ร่วมโครงการในแบบฟอร์ม
+              </div>
+            ) : (
+              <table className="min-w-full divide-y divide-gray-200 text-sm">
+                <thead className="bg-gray-50 text-xs font-semibold text-gray-600">
+                  <tr>
+                    <th className="px-4 py-3 text-left">ลำดับ</th>
+                    <th className="px-4 py-3 text-left">ชื่อบุคลากร</th>
+                    <th className="px-4 py-3 text-left">หน้าที่</th>
+                    <th className="px-4 py-3 text-left">ภาระงาน</th>
+                    <th className="px-4 py-3 text-left">หมายเหตุ</th>
+                    <th className="px-4 py-3 text-center">จัดการ</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200">
+                  {members.map((member, index) => {
+                    const snapshot = resolveMemberCandidate(member);
+                    const name = snapshot?.display_name ?? `ผู้ใช้ #${member.user_id}`;
+                    const position = snapshot?.position_title ?? "";
+                    const workloadLabel = formatWorkloadHours(
+                      member.workload_hours ?? 0
+                    );
+                    const notesValue = member.notes?.trim?.() ?? member.notes ?? "";
+                    const isActive = isEditing && editingIndex === index;
+
+                    return (
+                      <tr
+                        key={`${member.user_id}-${index}`}
+                        className={isActive ? "bg-blue-50" : "bg-white"}
+                      >
+                        <td className="px-4 py-3 text-gray-600">{index + 1}</td>
+                        <td className="px-4 py-3">
+                          <div className="font-medium text-gray-900">{name}</div>
+                          {position ? (
+                            <div className="text-xs text-gray-500 mt-1">{position}</div>
+                          ) : null}
+                        </td>
+                        <td className="px-4 py-3 text-gray-700">{member.duty || "-"}</td>
+                        <td className="px-4 py-3 text-gray-700">{workloadLabel}</td>
+                        <td className="px-4 py-3 text-gray-600">
+                          {notesValue ? notesValue : <span className="text-gray-400">-</span>}
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center justify-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => onEdit(index)}
+                              className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-800 disabled:opacity-60 disabled:cursor-not-allowed"
+                              disabled={disabled}
+                            >
+                              <Pencil size={16} /> แก้ไข
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => onRemove(index)}
+                              className="inline-flex items-center gap-1 text-red-600 hover:text-red-700 disabled:opacity-60 disabled:cursor-not-allowed"
+                              disabled={disabled}
+                            >
+                              <Trash2 size={16} /> ลบ
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function buildAttachmentUrl(attachment) {
   if (!attachment) {
     return "#";
@@ -645,6 +909,16 @@ function ProjectForm({
   fileInputKey,
   attachmentFile,
   existingAttachment,
+  memberCandidates = [],
+  availableMemberCandidates = [],
+  draftMembers = [],
+  draftMemberForm = initialMemberForm,
+  onDraftMemberChange = () => {},
+  onDraftMemberSubmit = () => {},
+  onDraftMemberEdit = () => {},
+  onDraftMemberRemove = () => {},
+  draftMemberEditingIndex = null,
+  onDraftMemberCancel = () => {},
 }) {
   if (!open) return null;
 
@@ -818,6 +1092,22 @@ function ProjectForm({
             placeholder="เช่น 120"
           />
         </div>
+
+        {!isEditing ? (
+          <ProjectFormMembersSection
+            memberOptions={availableMemberCandidates}
+            allCandidates={memberCandidates}
+            form={draftMemberForm}
+            members={draftMembers}
+            onFormChange={onDraftMemberChange}
+            onSubmit={onDraftMemberSubmit}
+            onEdit={onDraftMemberEdit}
+            onRemove={onDraftMemberRemove}
+            onCancelEdit={onDraftMemberCancel}
+            editingIndex={draftMemberEditingIndex}
+            disabled={saving}
+          />
+        ) : null}
 
         <div className="md:col-span-2">
           <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -1215,6 +1505,11 @@ export default function ProjectsContent() {
 
   const [memberCandidates, setMemberCandidates] = useState([]);
   const [projectMembers, setProjectMembers] = useState([]);
+  const [projectDraftMembers, setProjectDraftMembers] = useState([]);
+  const [projectDraftMemberForm, setProjectDraftMemberForm] =
+    useState(initialMemberForm);
+  const [projectDraftEditingIndex, setProjectDraftEditingIndex] =
+    useState(null);
   const [memberForm, setMemberForm] = useState(initialMemberForm);
   const [editingMember, setEditingMember] = useState(null);
   const [loadingMembers, setLoadingMembers] = useState(false);
@@ -1257,6 +1552,36 @@ export default function ProjectsContent() {
       Number.isFinite(candidate.user_id) && candidate.user_id > 0 && !usedIds.has(candidate.user_id)
     );
   }, [memberCandidates, projectMembers, editingMember]);
+
+  const availableDraftMemberCandidates = useMemo(() => {
+    if (!memberCandidates.length) {
+      return [];
+    }
+
+    const usedIds = new Set(
+      projectDraftMembers
+        .map((member) => Number(member?.user_id))
+        .filter((id) => Number.isFinite(id) && id > 0)
+    );
+
+    if (
+      typeof projectDraftEditingIndex === "number" &&
+      projectDraftEditingIndex >= 0
+    ) {
+      const editingMember = projectDraftMembers[projectDraftEditingIndex];
+      const editingId = Number(editingMember?.user_id);
+      if (Number.isFinite(editingId) && editingId > 0) {
+        usedIds.delete(editingId);
+      }
+    }
+
+    return memberCandidates.filter(
+      (candidate) =>
+        Number.isFinite(candidate.user_id) &&
+        candidate.user_id > 0 &&
+        !usedIds.has(candidate.user_id)
+    );
+  }, [memberCandidates, projectDraftMembers, projectDraftEditingIndex]);
 
   useEffect(() => {
     loadAll();
@@ -1367,9 +1692,184 @@ export default function ProjectsContent() {
     setShowProjectForm(false);
     setProjectFileKey((key) => key + 1);
     setProjectMembers([]);
+    setProjectDraftMembers([]);
+    setProjectDraftMemberForm(initialMemberForm);
+    setProjectDraftEditingIndex(null);
     setMemberForm(initialMemberForm);
     setEditingMember(null);
     setMemberDeleteLoading(new Set());
+  };
+
+  const handleDraftMemberFormChange = (field, value) => {
+    setProjectDraftMemberForm((prev) => ({
+      ...prev,
+      [field]: value,
+    }));
+  };
+
+  const resetDraftMemberState = () => {
+    setProjectDraftMemberForm(initialMemberForm);
+    setProjectDraftEditingIndex(null);
+  };
+
+  const handleSubmitDraftMember = () => {
+    const userId = Number(projectDraftMemberForm.user_id);
+    if (!Number.isFinite(userId) || userId <= 0) {
+      Toast.fire({ icon: "warning", title: "กรุณาเลือกบุคลากร" });
+      return;
+    }
+
+    const duty = (projectDraftMemberForm.duty ?? "").trim();
+    if (!duty) {
+      Toast.fire({ icon: "warning", title: "กรุณาระบุหน้าที่" });
+      return;
+    }
+    if (Array.from(duty).length > 255) {
+      Toast.fire({
+        icon: "warning",
+        title: "หน้าที่ต้องไม่เกิน 255 ตัวอักษร",
+      });
+      return;
+    }
+
+    const workloadInput = (projectDraftMemberForm.workload_hours ?? "")
+      .toString()
+      .trim();
+    const workloadNumber = workloadInput === "" ? 0 : Number(workloadInput);
+    if (!Number.isFinite(workloadNumber) || workloadNumber < 0) {
+      Toast.fire({
+        icon: "warning",
+        title: "กรุณาระบุชั่วโมงภาระงานให้ถูกต้อง",
+      });
+      return;
+    }
+    if (workloadNumber > 9999.99) {
+      Toast.fire({
+        icon: "warning",
+        title: "จำนวนชั่วโมงต้องไม่เกิน 9,999.99",
+      });
+      return;
+    }
+
+    const normalizedHours = Math.round(workloadNumber * 100) / 100;
+
+    const notesInput = (projectDraftMemberForm.notes ?? "").trim();
+    if (Array.from(notesInput).length > 255) {
+      Toast.fire({
+        icon: "warning",
+        title: "หมายเหตุต้องไม่เกิน 255 ตัวอักษร",
+      });
+      return;
+    }
+
+    const duplicateIndex = projectDraftMembers.findIndex(
+      (member, index) =>
+        Number(member.user_id) === userId && index !== projectDraftEditingIndex
+    );
+    if (duplicateIndex !== -1) {
+      Toast.fire({
+        icon: "warning",
+        title: "มีการเลือกผู้ใช้นี้ในรายการแล้ว",
+      });
+      return;
+    }
+
+    const candidate = memberCandidates.find(
+      (entry) => entry.user_id === userId
+    );
+    if (!candidate) {
+      Toast.fire({
+        icon: "warning",
+        title: "ไม่พบข้อมูลบุคลากรที่เลือก",
+      });
+      return;
+    }
+
+    const entry = {
+      user_id: userId,
+      duty,
+      workload_hours: normalizedHours,
+      notes: notesInput,
+      candidate: {
+        user_id: candidate.user_id,
+        display_name: candidate.display_name,
+        position_title: candidate.position_title,
+      },
+    };
+
+    setProjectDraftMembers((prev) => {
+      const next = [...prev];
+      if (
+        typeof projectDraftEditingIndex === "number" &&
+        projectDraftEditingIndex >= 0 &&
+        projectDraftEditingIndex < next.length
+      ) {
+        next[projectDraftEditingIndex] = entry;
+      } else {
+        next.push(entry);
+      }
+      return next;
+    });
+
+    Toast.fire({
+      icon: "success",
+      title:
+        typeof projectDraftEditingIndex === "number" &&
+        projectDraftEditingIndex >= 0
+          ? "อัปเดตรายการผู้ร่วมโครงการแล้ว"
+          : "เพิ่มผู้ร่วมโครงการในฟอร์มแล้ว",
+    });
+
+    resetDraftMemberState();
+  };
+
+  const handleEditDraftMember = (index) => {
+    const target = projectDraftMembers[index];
+    if (!target) return;
+
+    setProjectDraftEditingIndex(index);
+    setProjectDraftMemberForm({
+      user_id: target.user_id?.toString() ?? "",
+      duty: target.duty ?? "",
+      workload_hours:
+        target.workload_hours === null ||
+        target.workload_hours === undefined
+          ? ""
+          : target.workload_hours.toString(),
+      notes: target.notes ?? "",
+    });
+  };
+
+  const handleRemoveDraftMember = (index) => {
+    setProjectDraftMembers((prev) =>
+      prev.filter((_, memberIndex) => memberIndex !== index)
+    );
+
+    setProjectDraftEditingIndex((prev) => {
+      if (typeof prev !== "number") {
+        return prev;
+      }
+      if (prev === index) {
+        setProjectDraftMemberForm(initialMemberForm);
+        return null;
+      }
+      if (prev > index) {
+        return prev - 1;
+      }
+      return prev;
+    });
+
+    Toast.fire({ icon: "success", title: "ลบผู้ร่วมโครงการออกจากฟอร์มแล้ว" });
+  };
+
+  const handleCancelDraftMemberEdit = () => {
+    if (
+      typeof projectDraftEditingIndex === "number" &&
+      projectDraftEditingIndex >= 0
+    ) {
+      Toast.fire({ icon: "info", title: "ยกเลิกการแก้ไขแล้ว" });
+    }
+    resetDraftMemberState();
   };
 
   const handleProjectChange = (event) => {
@@ -1398,6 +1898,19 @@ export default function ProjectsContent() {
 
   const handleSubmitProject = async (event) => {
     event.preventDefault();
+
+    if (
+      !editingProject &&
+      typeof projectDraftEditingIndex === "number" &&
+      projectDraftEditingIndex >= 0
+    ) {
+      Toast.fire({
+        icon: "warning",
+        title: "กรุณาบันทึกหรือยกเลิกการแก้ไขผู้ร่วมโครงการในฟอร์ม",
+      });
+      return;
+    }
+
     if (!projectForm.project_name || !projectForm.type_id || !projectForm.plan_id || !projectForm.event_date) {
       Toast.fire({ icon: "warning", title: "กรุณากรอกข้อมูลให้ครบถ้วน" });
       return;
@@ -1456,6 +1969,17 @@ export default function ProjectsContent() {
       formPayload.append("attachment", projectForm.attachment);
     }
 
+    if (!editingProject && projectDraftMembers.length > 0) {
+      const membersPayload = projectDraftMembers.map((member, index) => ({
+        user_id: Number(member.user_id),
+        duty: member.duty,
+        workload_hours: Number(member.workload_hours ?? 0),
+        notes: member.notes ?? "",
+        display_order: index + 1,
+      }));
+      formPayload.append("members", JSON.stringify(membersPayload));
+    }
+
     try {
       setSavingProject(true);
       if (editingProject) {
@@ -1500,6 +2024,9 @@ export default function ProjectsContent() {
       ? project.members
       : [];
     setProjectMembers(existingMembers);
+    setProjectDraftMembers([]);
+    setProjectDraftMemberForm(initialMemberForm);
+    setProjectDraftEditingIndex(null);
 
     const projectId = Number(
       project.project_id ?? project.projectId ?? project.ProjectID
@@ -2089,6 +2616,9 @@ export default function ProjectsContent() {
                     setProjectForm({ ...initialProjectForm });
                     setProjectFileKey((key) => key + 1);
                     setProjectMembers([]);
+                    setProjectDraftMembers([]);
+                    setProjectDraftMemberForm(initialMemberForm);
+                    setProjectDraftEditingIndex(null);
                     setMemberForm(initialMemberForm);
                     setEditingMember(null);
                     setMemberDeleteLoading(new Set());
@@ -2115,6 +2645,16 @@ export default function ProjectsContent() {
                 fileInputKey={projectFileKey}
                 attachmentFile={projectForm.attachment}
                 existingAttachment={editingProject?.attachments?.[0] || null}
+                memberCandidates={memberCandidates}
+                availableMemberCandidates={availableDraftMemberCandidates}
+                draftMembers={projectDraftMembers}
+                draftMemberForm={projectDraftMemberForm}
+                onDraftMemberChange={handleDraftMemberFormChange}
+                onDraftMemberSubmit={handleSubmitDraftMember}
+                onDraftMemberEdit={handleEditDraftMember}
+                onDraftMemberRemove={handleRemoveDraftMember}
+                draftMemberEditingIndex={projectDraftEditingIndex}
+                onDraftMemberCancel={handleCancelDraftMemberEdit}
               />
 
               {showProjectForm && editingProject ? (
