@@ -395,9 +395,14 @@ function ProjectMembersPanel({
   const highlightClass = isEditing
     ? "border-blue-400 bg-blue-50 ring-2 ring-blue-200"
     : "";
+  const panelHighlightClass = isEditing
+    ? "border-blue-300 bg-blue-50 ring-2 ring-blue-200"
+    : "border-gray-200 bg-white";
 
   return (
-    <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-6 mb-6">
+    <div
+      className={`rounded-lg shadow-sm p-6 mb-6 border ${panelHighlightClass}`}
+    >
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between mb-5">
         <div>
           <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
@@ -1133,7 +1138,11 @@ function ProjectForm({
           />
         </div>
 
-        {!isEditing ? (
+        {isEditing ? (
+          editMembersPanel ? (
+            <div className="md:col-span-2">{editMembersPanel}</div>
+          ) : null
+        ) : (
           <ProjectFormMembersSection
             memberOptions={availableMemberCandidates}
             allCandidates={memberCandidates}
@@ -1147,7 +1156,7 @@ function ProjectForm({
             editingIndex={draftMemberEditingIndex}
             disabled={saving}
           />
-        ) : null}
+        )}
 
         <div className="md:col-span-2">
           <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -1241,9 +1250,6 @@ function ProjectForm({
           </button>
         </div>
       </form>
-      {isEditing && editMembersPanel ? (
-        <div className="mt-6">{editMembersPanel}</div>
-      ) : null}
     </div>
   );
 }
