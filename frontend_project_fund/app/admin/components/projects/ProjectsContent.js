@@ -364,281 +364,6 @@ function ProjectsTable({ projects, onEdit, onDelete }) {
   );
 }
 
-function ProjectMembersPanel({
-  project,
-  members,
-  candidateOptions,
-  allCandidates,
-  form,
-  onFormChange,
-  onSubmit,
-  onCancelEdit,
-  onEdit,
-  onDelete,
-  editingMember,
-  loading,
-  saving,
-  deleteLoadingIds,
-}) {
-  const totalWorkload = members.reduce((sum, member) => {
-    const value = Number(member?.workload_hours ?? member?.WorkloadHours ?? 0);
-    return sum + (Number.isFinite(value) ? value : 0);
-  }, 0);
-
-  const selectedCandidateId = Number(form.user_id);
-  const selectedCandidate = Number.isFinite(selectedCandidateId)
-    ? allCandidates.find((candidate) => candidate.user_id === selectedCandidateId)
-    : null;
-
-  const disableForm = saving || loading;
-  const isEditing = Boolean(editingMember);
-  const highlightClass = isEditing
-    ? "border-blue-400 bg-blue-50 ring-2 ring-blue-200"
-    : "";
-  const panelHighlightClass = isEditing
-    ? "border-blue-300 bg-blue-50 ring-2 ring-blue-200"
-    : "border-gray-200 bg-white";
-
-  return (
-    <div
-      className={`rounded-lg shadow-sm p-6 mb-6 border ${panelHighlightClass}`}
-    >
-      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between mb-5">
-        <div>
-          <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-            <UserCog size={18} className="text-blue-600" />
-            ผู้ร่วมโครงการ
-          </h3>
-          <p className="text-sm text-gray-500">
-            เพิ่มและจัดการรายชื่อบุคลากรที่ร่วมดำเนินโครงการ
-            {project?.project_name ? ` "${project.project_name}"` : ""}
-          </p>
-        </div>
-        <div className="text-sm text-gray-600">
-          รวมภาระงาน {formatWorkloadHours(totalWorkload)}
-        </div>
-      </div>
-
-      <form onSubmit={onSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            ผู้ร่วมโครงการ
-          </label>
-          <select
-            name="user_id"
-            value={form.user_id}
-            onChange={(event) => onFormChange("user_id", event.target.value)}
-            required
-            disabled={disableForm || (!isEditing && candidateOptions.length === 0)}
-            className={`w-full rounded-md border border-gray-300 focus:border-blue-500 focus:ring-blue-500 px-3 py-2 ${highlightClass}`}
-          >
-            <option value="">เลือกบุคลากร</option>
-            {candidateOptions.map((candidate) => (
-              <option key={candidate.user_id} value={candidate.user_id}>
-                {candidate.display_name}
-                {candidate.position_title
-                  ? ` — ${candidate.position_title}`
-                  : ""}
-              </option>
-            ))}
-          </select>
-          {!isEditing && candidateOptions.length === 0 ? (
-            <p className="mt-1 text-xs text-amber-600">
-              ยังไม่มีบุคลากรที่สามารถเลือกได้
-            </p>
-          ) : null}
-          {selectedCandidate?.position_title ? (
-            <p className="mt-1 text-xs text-gray-500">
-              ตำแหน่ง: {selectedCandidate.position_title}
-            </p>
-          ) : null}
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            หน้าที่ภายในโครงการ
-          </label>
-          <input
-            type="text"
-            name="duty"
-            value={form.duty}
-            onChange={(event) => onFormChange("duty", event.target.value)}
-            required
-            maxLength={255}
-            disabled={disableForm}
-            className={`w-full rounded-md border border-gray-300 focus:border-blue-500 focus:ring-blue-500 px-3 py-2 ${highlightClass}`}
-            placeholder="เช่น หัวหน้าโครงการ ผู้ประสานงาน"
-          />
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            ภาระงาน (ชม.)
-          </label>
-          <input
-            type="number"
-            name="workload_hours"
-            value={form.workload_hours}
-            onChange={(event) => onFormChange("workload_hours", event.target.value)}
-            min="0"
-            max="9999.99"
-            step="0.01"
-            disabled={disableForm}
-            className={`w-full rounded-md border border-gray-300 focus:border-blue-500 focus:ring-blue-500 px-3 py-2 ${highlightClass}`}
-            placeholder="เช่น 6"
-          />
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            หมายเหตุ (ถ้ามี)
-          </label>
-          <input
-            type="text"
-            name="notes"
-            value={form.notes}
-            onChange={(event) => onFormChange("notes", event.target.value)}
-            maxLength={255}
-            disabled={disableForm}
-            className={`w-full rounded-md border border-gray-300 focus:border-blue-500 focus:ring-blue-500 px-3 py-2 ${highlightClass}`}
-            placeholder="รายละเอียดเพิ่มเติม"
-          />
-        </div>
-
-        <div className="md:col-span-2 flex justify-end gap-2">
-          {isEditing ? (
-            <button
-              type="button"
-              onClick={onCancelEdit}
-              disabled={saving}
-              className="px-4 py-2 rounded-md border border-gray-300 text-gray-600 hover:bg-gray-100 disabled:opacity-60"
-            >
-              ยกเลิกการแก้ไข
-            </button>
-          ) : null}
-          <button
-            type="submit"
-            disabled={disableForm || (!isEditing && candidateOptions.length === 0)}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-emerald-600 hover:bg-emerald-700 text-white disabled:opacity-60 disabled:cursor-not-allowed"
-          >
-            {saving ? (
-              <>
-                <Loader2 size={16} className="animate-spin" />
-                กำลังบันทึก...
-              </>
-            ) : isEditing ? (
-              <>
-                <Save size={16} />
-                อัปเดตผู้ร่วมโครงการ
-              </>
-            ) : (
-              <>
-                <UserPlus size={16} />
-                เพิ่มผู้ร่วมโครงการ
-              </>
-            )}
-          </button>
-        </div>
-      </form>
-
-      <div className="overflow-x-auto border border-gray-200 rounded-lg">
-        {loading ? (
-          <div className="flex items-center justify-center gap-2 py-10 text-sm text-gray-600">
-            <Loader2 className="h-5 w-5 animate-spin text-blue-500" />
-            กำลังโหลดผู้ร่วมโครงการ...
-          </div>
-        ) : members.length === 0 ? (
-          <div className="py-10 text-center text-gray-500 text-sm">
-            ยังไม่มีการบันทึกผู้ร่วมโครงการ
-          </div>
-        ) : (
-          <table className="min-w-full divide-y divide-gray-200 text-sm">
-            <thead className="bg-gray-50 text-xs font-semibold text-gray-600">
-              <tr>
-                <th className="px-4 py-3 text-left">ลำดับ</th>
-                <th className="px-4 py-3 text-left">ชื่อบุคลากร</th>
-                <th className="px-4 py-3 text-left">หน้าที่</th>
-                <th className="px-4 py-3 text-left">ภาระงาน</th>
-                <th className="px-4 py-3 text-left">หมายเหตุ</th>
-                <th className="px-4 py-3 text-center">จัดการ</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-200">
-              {members.map((member) => {
-                const memberId = member.member_id ?? member.MemberID;
-                const isDeleting = deleteLoadingIds?.has?.(memberId);
-                const memberUser = getMemberUser(member);
-                const name = buildUserDisplayName(memberUser);
-                const position = getUserPositionLabel(memberUser);
-                const workloadLabel = formatWorkloadHours(
-                  member.workload_hours ?? member.WorkloadHours ?? 0
-                );
-                const notesValue =
-                  member.notes ?? member.Notes ?? "";
-                const isActiveRow =
-                  editingMember &&
-                  (editingMember.member_id ?? editingMember.MemberID) === memberId;
-
-                return (
-                  <tr
-                    key={memberId}
-                    className={isActiveRow ? "bg-blue-50" : "bg-white"}
-                  >
-                    <td className="px-4 py-3 text-gray-600">
-                      {member.display_order ?? member.DisplayOrder ?? "-"}
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="font-medium text-gray-900">{name}</div>
-                      {position ? (
-                        <div className="text-xs text-gray-500 mt-1">{position}</div>
-                      ) : null}
-                    </td>
-                    <td className="px-4 py-3 text-gray-700">
-                      {member.duty ?? member.Duty ?? "-"}
-                    </td>
-                    <td className="px-4 py-3 text-gray-700">{workloadLabel}</td>
-                    <td className="px-4 py-3 text-gray-600">
-                      {notesValue ? notesValue : <span className="text-gray-400">-</span>}
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center justify-center gap-3">
-                        <button
-                          type="button"
-                          onClick={() => onEdit(member)}
-                          className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-800"
-                        >
-                          <Pencil size={16} /> แก้ไข
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => onDelete(member)}
-                          disabled={Boolean(isDeleting)}
-                          className="inline-flex items-center gap-1 text-red-600 hover:text-red-700 disabled:opacity-60"
-                        >
-                          {isDeleting ? (
-                            <>
-                              <Loader2 size={16} className="animate-spin" />
-                              กำลังลบ...
-                            </>
-                          ) : (
-                            <>
-                              <Trash2 size={16} /> ลบ
-                            </>
-                          )}
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        )}
-      </div>
-    </div>
-  );
-}
-
 function ProjectFormMembersSection({
   memberOptions = [],
   allCandidates = [],
@@ -651,6 +376,9 @@ function ProjectFormMembersSection({
   onCancelEdit = () => {},
   editingIndex = null,
   disabled = false,
+  loading = false,
+  deleteLoadingIds = new Set(),
+  saving = false,
 }) {
   const totalWorkload = members.reduce((sum, member) => {
     const value = Number(member?.workload_hours ?? 0);
@@ -664,10 +392,18 @@ function ProjectFormMembersSection({
 
   const isEditing = typeof editingIndex === "number" && editingIndex >= 0;
   const disableAddButton =
-    disabled || (!isEditing && memberOptions.length === 0);
+    disabled || loading || saving || (!isEditing && memberOptions.length === 0);
   const highlightClass = isEditing
     ? "border-blue-400 bg-blue-50 ring-2 ring-blue-200"
     : "";
+  const panelHighlightClass = isEditing
+    ? "border-blue-300 bg-blue-50 ring-2 ring-blue-200"
+    : "border-gray-200 bg-white";
+  const deleteSet =
+    deleteLoadingIds instanceof Set
+      ? deleteLoadingIds
+      : new Set(Array.isArray(deleteLoadingIds) ? deleteLoadingIds : []);
+  const actionsDisabled = disabled || loading || saving;
 
   const handleChange = (field) => (event) => {
     onFormChange(field, event.target.value);
@@ -684,7 +420,9 @@ function ProjectFormMembersSection({
 
   return (
     <div className="md:col-span-2">
-      <div className="rounded-lg border border-gray-200 bg-white shadow-sm">
+      <div
+        className={`rounded-lg border shadow-sm ${panelHighlightClass}`}
+      >
         <div className="flex flex-col gap-2 border-b border-gray-200 px-4 py-3 md:flex-row md:items-center md:justify-between">
           <div>
             <h4 className="text-base font-semibold text-gray-900 flex items-center gap-2">
@@ -721,7 +459,7 @@ function ProjectFormMembersSection({
                   </option>
                 ))}
               </select>
-              {!disabled && !isEditing && memberOptions.length === 0 ? (
+              {!disabled && !loading && !saving && !isEditing && memberOptions.length === 0 ? (
                 <p className="mt-1 text-xs text-amber-600">
                   {allCandidates.length === 0
                     ? "ยังไม่มีรายชื่อบุคลากรที่สามารถเลือกได้"
@@ -798,7 +536,7 @@ function ProjectFormMembersSection({
                     type="button"
                     onClick={onCancelEdit}
                     className="px-3 py-2 rounded-md border border-gray-300 text-gray-600 hover:bg-gray-100 disabled:opacity-60 disabled:cursor-not-allowed"
-                    disabled={disabled}
+                    disabled={actionsDisabled}
                   >
                     ยกเลิกแก้ไข
                   </button>
@@ -806,10 +544,19 @@ function ProjectFormMembersSection({
                     type="button"
                     onClick={onSubmit}
                     className="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-emerald-600 hover:bg-emerald-700 text-white disabled:opacity-60 disabled:cursor-not-allowed"
-                    disabled={disabled}
+                    disabled={actionsDisabled}
                   >
-                    <Save size={16} />
-                    บันทึกการแก้ไข
+                    {saving ? (
+                      <>
+                        <Loader2 size={16} className="animate-spin" />
+                        กำลังบันทึก...
+                      </>
+                    ) : (
+                      <>
+                        <Save size={16} />
+                        บันทึกการแก้ไข
+                      </>
+                    )}
                   </button>
                 </>
               ) : (
@@ -819,15 +566,29 @@ function ProjectFormMembersSection({
                   disabled={disableAddButton}
                   className="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-emerald-600 hover:bg-emerald-700 text-white disabled:opacity-60 disabled:cursor-not-allowed"
                 >
-                  <UserPlus size={16} />
-                  เพิ่มผู้ร่วมโครงการ
+                  {saving ? (
+                    <>
+                      <Loader2 size={16} className="animate-spin" />
+                      กำลังบันทึก...
+                    </>
+                  ) : (
+                    <>
+                      <UserPlus size={16} />
+                      เพิ่มผู้ร่วมโครงการ
+                    </>
+                  )}
                 </button>
               )}
             </div>
           </div>
 
           <div className="overflow-x-auto border border-gray-200 rounded-lg">
-            {members.length === 0 ? (
+            {loading ? (
+              <div className="flex items-center justify-center gap-2 py-10 text-sm text-gray-600">
+                <Loader2 className="h-5 w-5 animate-spin text-blue-500" />
+                กำลังโหลดผู้ร่วมโครงการ...
+              </div>
+            ) : members.length === 0 ? (
               <div className="py-8 text-center text-sm text-gray-500">
                 ยังไม่มีผู้ร่วมโครงการในแบบฟอร์ม
               </div>
@@ -853,13 +614,25 @@ function ProjectFormMembersSection({
                     );
                     const notesValue = member.notes?.trim?.() ?? member.notes ?? "";
                     const isActive = isEditing && editingIndex === index;
+                    const orderLabel =
+                      member.display_order ?? member.DisplayOrder ?? index + 1;
+                    const memberIdRaw =
+                      member.member_id ?? member.MemberID ?? member.memberId;
+                    const memberId = Number(memberIdRaw);
+                    const isDeleting =
+                      Number.isFinite(memberId) && deleteSet.has(memberId);
+
+                    const rowKey =
+                      Number.isFinite(memberId) && memberId > 0
+                        ? `member-${memberId}`
+                        : `${member.user_id}-${index}`;
 
                     return (
                       <tr
-                        key={`${member.user_id}-${index}`}
+                        key={rowKey}
                         className={isActive ? "bg-blue-50" : "bg-white"}
                       >
-                        <td className="px-4 py-3 text-gray-600">{index + 1}</td>
+                        <td className="px-4 py-3 text-gray-600">{orderLabel}</td>
                         <td className="px-4 py-3">
                           <div className="font-medium text-gray-900">{name}</div>
                           {position ? (
@@ -875,19 +648,28 @@ function ProjectFormMembersSection({
                           <div className="flex items-center justify-center gap-2">
                             <button
                               type="button"
-                              onClick={() => onEdit(index)}
+                              onClick={() => onEdit(index, member)}
                               className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-800 disabled:opacity-60 disabled:cursor-not-allowed"
-                              disabled={disabled}
+                              disabled={actionsDisabled}
                             >
                               <Pencil size={16} /> แก้ไข
                             </button>
                             <button
                               type="button"
-                              onClick={() => onRemove(index)}
+                              onClick={() => onRemove(index, member)}
                               className="inline-flex items-center gap-1 text-red-600 hover:text-red-700 disabled:opacity-60 disabled:cursor-not-allowed"
-                              disabled={disabled}
+                              disabled={actionsDisabled || isDeleting}
                             >
-                              <Trash2 size={16} /> ลบ
+                              {isDeleting ? (
+                                <>
+                                  <Loader2 size={16} className="animate-spin" />
+                                  กำลังลบ...
+                                </>
+                              ) : (
+                                <>
+                                  <Trash2 size={16} /> ลบ
+                                </>
+                              )}
                             </button>
                           </div>
                         </td>
@@ -1602,6 +1384,55 @@ export default function ProjectsContent() {
     );
   }, [memberCandidates, projectMembers, editingMember]);
 
+  const projectMemberRows = useMemo(() => {
+    if (!Array.isArray(projectMembers) || projectMembers.length === 0) {
+      return [];
+    }
+
+    return projectMembers.map((member) => {
+      const userId = getMemberUserId(member);
+      const user = getMemberUser(member);
+      const candidateFromList = memberCandidates.find(
+        (candidate) => candidate.user_id === userId
+      );
+
+      const rawDisplayName = candidateFromList?.display_name ?? buildUserDisplayName(user);
+      const displayName = rawDisplayName && rawDisplayName !== "-"
+        ? rawDisplayName
+        : Number.isFinite(userId) && userId > 0
+        ? `ผู้ใช้ #${userId}`
+        : "-";
+      const positionTitle =
+        candidateFromList?.position_title ?? getUserPositionLabel(user) ?? "";
+      const workloadValue = Number(
+        member?.workload_hours ?? member?.WorkloadHours ?? 0
+      );
+
+      return {
+        member_id: member?.member_id ?? member?.MemberID ?? null,
+        user_id: Number.isFinite(userId) ? userId : null,
+        duty: member?.duty ?? member?.Duty ?? "",
+        workload_hours: Number.isFinite(workloadValue) ? workloadValue : 0,
+        notes: member?.notes ?? member?.Notes ?? "",
+        display_order: member?.display_order ?? member?.DisplayOrder ?? null,
+        candidate:
+          displayName && displayName !== "-"
+            ? {
+                user_id: Number.isFinite(userId) ? userId : null,
+                display_name: displayName,
+                position_title: positionTitle,
+              }
+            : positionTitle
+            ? {
+                user_id: Number.isFinite(userId) ? userId : null,
+                display_name: displayName,
+                position_title: positionTitle,
+              }
+            : null,
+      };
+    });
+  }, [projectMembers, memberCandidates]);
+
   const availableDraftMemberCandidates = useMemo(() => {
     if (!memberCandidates.length) {
       return [];
@@ -1631,6 +1462,28 @@ export default function ProjectsContent() {
         !usedIds.has(candidate.user_id)
     );
   }, [memberCandidates, projectDraftMembers, projectDraftEditingIndex]);
+
+  const editingMemberIndex = useMemo(() => {
+    if (!editingMember) {
+      return null;
+    }
+
+    const editingId =
+      editingMember?.member_id ?? editingMember?.MemberID ?? editingMember?.memberId ?? null;
+    if (editingId !== null && editingId !== undefined) {
+      const indexById = projectMembers.findIndex(
+        (member) =>
+          (member?.member_id ?? member?.MemberID ?? member?.memberId ?? null) ===
+          editingId
+      );
+      if (indexById !== -1) {
+        return indexById;
+      }
+    }
+
+    const fallbackIndex = projectMembers.findIndex((member) => member === editingMember);
+    return fallbackIndex === -1 ? null : fallbackIndex;
+  }, [editingMember, projectMembers]);
 
   useEffect(() => {
     loadAll();
@@ -2296,6 +2149,58 @@ export default function ProjectsContent() {
     }
   };
 
+  const resolveMemberByIndex = (index, memberRow) => {
+    if (!Array.isArray(projectMembers) || projectMembers.length === 0) {
+      return null;
+    }
+
+    if (typeof index === "number" && index >= 0 && index < projectMembers.length) {
+      return projectMembers[index];
+    }
+
+    if (memberRow) {
+      const rowMemberId = Number(
+        memberRow?.member_id ?? memberRow?.MemberID ?? memberRow?.memberId
+      );
+      if (Number.isFinite(rowMemberId) && rowMemberId > 0) {
+        const matchById = projectMembers.find(
+          (entry) =>
+            Number(entry?.member_id ?? entry?.MemberID ?? entry?.memberId ?? 0) ===
+            rowMemberId
+        );
+        if (matchById) {
+          return matchById;
+        }
+      }
+
+      const rowUserId = Number(memberRow?.user_id);
+      if (Number.isFinite(rowUserId) && rowUserId > 0) {
+        const matchByUser = projectMembers.find(
+          (entry) => getMemberUserId(entry) === rowUserId
+        );
+        if (matchByUser) {
+          return matchByUser;
+        }
+      }
+    }
+
+    return null;
+  };
+
+  const handleEditMemberAtIndex = (index, memberRow) => {
+    const target = resolveMemberByIndex(index, memberRow);
+    if (target) {
+      handleEditMember(target);
+    }
+  };
+
+  const handleDeleteMemberAtIndex = (index, memberRow) => {
+    const target = resolveMemberByIndex(index, memberRow);
+    if (target) {
+      handleDeleteMember(target);
+    }
+  };
+
   const handleDeleteProject = async (project) => {
     const result = await Swal.fire({
       title: "ยืนยันการลบ",
@@ -2728,21 +2633,21 @@ export default function ProjectsContent() {
                 onDraftMemberCancel={handleCancelDraftMemberEdit}
                 editMembersPanel=
                   {showProjectForm && editingProject ? (
-                    <ProjectMembersPanel
-                      project={editingProject}
-                      members={projectMembers}
-                      candidateOptions={availableMemberCandidates}
+                    <ProjectFormMembersSection
+                      memberOptions={availableMemberCandidates}
                       allCandidates={memberCandidates}
                       form={memberForm}
+                      members={projectMemberRows}
                       onFormChange={handleMemberFormChange}
                       onSubmit={handleSubmitMember}
+                      onEdit={handleEditMemberAtIndex}
+                      onRemove={handleDeleteMemberAtIndex}
                       onCancelEdit={handleCancelMemberEdit}
-                      onEdit={handleEditMember}
-                      onDelete={handleDeleteMember}
-                      editingMember={editingMember}
+                      editingIndex={editingMemberIndex}
+                      disabled={savingMember || loadingMembers}
                       loading={loadingMembers}
-                      saving={savingMember}
                       deleteLoadingIds={memberDeleteLoading}
+                      saving={savingMember}
                     />
                   ) : null}
               />
