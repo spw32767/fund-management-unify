@@ -118,35 +118,6 @@ const buildMemberDisplayName = (member) => {
   return email || "ไม่ระบุชื่อ";
 };
 
-const getMemberPositionLabel = (member) => {
-  const user = getMemberUser(member);
-  if (!user || typeof user !== "object") {
-    return "";
-  }
-
-  return (
-    (user.manage_position ?? user.ManagePosition ?? "").toString().trim() ||
-    (user.position_title ?? user.PositionTitle ?? "").toString().trim() ||
-    (user.position?.position_name ??
-      user.Position?.position_name ??
-      user.Position?.PositionName ??
-      "").toString().trim()
-  );
-};
-
-const formatMemberWorkload = (value) => {
-  const numeric = Number(value);
-  if (!Number.isFinite(numeric)) {
-    return "0 ชม.";
-  }
-
-  const fractionDigits = Number.isInteger(numeric) ? 0 : 2;
-  return `${numeric.toLocaleString("th-TH", {
-    minimumFractionDigits: fractionDigits,
-    maximumFractionDigits: 2,
-  })} ชม.`;
-};
-
 const joinBaseWithPath = (base, path) => {
   if (!path) {
     return null;
@@ -180,8 +151,20 @@ const buildAttachmentEndpoint = (project, attachment) => {
     return downloadPath.trim();
   }
 
-  if (attachment.file_id && project?.project_id != null) {
-    return `/projects/${project.project_id}/attachments/${attachment.file_id}`;
+  const fileId =
+    attachment.file_id ??
+    attachment.fileId ??
+    attachment.FileID ??
+    null;
+
+  const projectId =
+    project?.project_id ??
+    project?.projectId ??
+    project?.ProjectID ??
+    null;
+
+  if (fileId != null && projectId != null) {
+    return `/projects/${projectId}/attachments/${fileId}`;
   }
 
   return null;
@@ -633,12 +616,6 @@ export default function ProjectsList() {
                 const members = Array.isArray(project.members)
                   ? project.members
                   : [];
-                const totalMemberWorkload = members.reduce((sum, member) => {
-                  const value = Number(
-                    member?.workload_hours ?? member?.WorkloadHours ?? 0
-                  );
-                  return sum + (Number.isFinite(value) ? value : 0);
-                }, 0);
 
                 return (
                   <Card
@@ -715,11 +692,6 @@ export default function ProjectsList() {
                       <h4 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
                         <User size={18} className="text-gray-500" />
                         ผู้ร่วมโครงการ
-                        {members.length ? (
-                          <span className="text-xs font-normal text-gray-500">
-                            (รวม {formatMemberWorkload(totalMemberWorkload)})
-                          </span>
-                        ) : null}
                       </h4>
                       {members.length ? (
                         <ul className="space-y-3">
@@ -731,10 +703,6 @@ export default function ProjectsList() {
                                 member?.user_id ?? member?.UserID ?? Math.random().toString(36).slice(2)
                               }`;
                             const duty = member?.duty ?? member?.Duty ?? "-";
-                            const positionLabel = getMemberPositionLabel(member);
-                            const workloadLabel = formatMemberWorkload(
-                              member?.workload_hours ?? member?.WorkloadHours ?? 0
-                            );
                             const notesValue = member?.notes ?? member?.Notes ?? "";
 
                             return (
@@ -746,18 +714,12 @@ export default function ProjectsList() {
                                   <p className="font-medium text-gray-900">
                                     {buildMemberDisplayName(member)}
                                   </p>
-                                  <p className="text-sm text-gray-600">
-                                    {duty}
-                                    {positionLabel ? ` · ${positionLabel}` : ""}
-                                  </p>
+                                  <p className="text-sm text-gray-600">{duty}</p>
                                   {notesValue ? (
                                     <p className="text-xs text-gray-500 mt-1 whitespace-pre-line">
                                       หมายเหตุ: {notesValue}
                                     </p>
                                   ) : null}
-                                </div>
-                                <div className="text-sm text-gray-700 md:text-right">
-                                  ภาระงาน {workloadLabel}
                                 </div>
                               </li>
                             );
