@@ -154,6 +154,7 @@ const ScopusTrendCard = ({ scopusStats, scopusLoading, formatNumber }) => {
         toolbar: { show: false },
         background: "transparent",
         zoom: { enabled: false },
+        animations: { enabled: false },
       },
       stroke: { width: [0, 3], curve: "smooth" },
       plotOptions: {
@@ -235,13 +236,14 @@ const ScopusTrendCard = ({ scopusStats, scopusLoading, formatNumber }) => {
                   <span>Citations</span>
                 </div>
               </div>
-              <div className="mt-4 overflow-x-auto">
-                <div className="min-w-[320px]">
+              <div className="mt-4 w-full overflow-hidden">
+                <div className="w-full">
                   <ReactApexChart
                     options={chartOptions}
                     series={chartSeries}
                     type="line"
                     height={360}
+                    width="100%"
                   />
                 </div>
               </div>
