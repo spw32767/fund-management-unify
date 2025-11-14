@@ -869,6 +869,12 @@ const buildBudgetHintDisplayItemsFromEntries = (entries) => {
         includeAmount: options.includeAmount,
       });
       if (text) {
+        if (options.includeAmount === false) {
+          const normalizedText = String(text).replace(/\s+/g, '');
+          if (/^0บาท/.test(normalizedText)) {
+            return;
+          }
+        }
         addItem(`${entry.id || options.fallbackId || 'hint'}-${index}`, text);
       }
     });
