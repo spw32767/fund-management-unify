@@ -457,10 +457,6 @@ export default function ProfileContent() {
     setCurrentPage(1);
   }, [activeSource]);
 
-  useEffect(() => {
-    loadScopusStats();
-  }, [loadScopusStats]);
-
   // helpers
   const parseDate = (value) => {
     if (!value) return null;
@@ -674,6 +670,10 @@ export default function ProfileContent() {
       setScopusStatsLoading(false);
     }
   }, []);
+
+  useEffect(() => {
+    loadScopusStats();
+  }, [loadScopusStats]);
 
   const loadScopusPublications = useCallback(async () => {
     if (activeSource !== "scopus") {
