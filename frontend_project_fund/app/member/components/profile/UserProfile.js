@@ -1461,16 +1461,19 @@ export default function ProfileContent() {
                     </>
                   )}
                 </div>
-                <ScopusTrendCard
-                  scopusStats={scopusStats}
-                  scopusLoading={scopusStatsLoading}
-                  formatNumber={formatNumber}
-                />
-                <ScholarCitationsCard
-                  metrics={citationMetrics}
-                  scholarLoading={scholarLoading}
-                  formatNumber={formatNumber}
-                />
+                {isScopusActive ? (
+                  <ScopusTrendCard
+                    scopusStats={scopusStats}
+                    scopusLoading={scopusStatsLoading}
+                    formatNumber={formatNumber}
+                  />
+                ) : (
+                  <ScholarCitationsCard
+                    metrics={citationMetrics}
+                    scholarLoading={scholarLoading}
+                    formatNumber={formatNumber}
+                  />
+                )}
               </div>
             ) : (
               <div className="space-y-6">
