@@ -958,6 +958,7 @@ function ProjectForm({
   onDraftMemberRemove = () => {},
   draftMemberEditingIndex = null,
   onDraftMemberCancel = () => {},
+  editMembersPanel = null,
 }) {
   if (!open) return null;
 
@@ -1240,6 +1241,9 @@ function ProjectForm({
           </button>
         </div>
       </form>
+      {isEditing && editMembersPanel ? (
+        <div className="mt-6">{editMembersPanel}</div>
+      ) : null}
     </div>
   );
 }
@@ -2716,26 +2720,26 @@ export default function ProjectsContent() {
                 onDraftMemberRemove={handleRemoveDraftMember}
                 draftMemberEditingIndex={projectDraftEditingIndex}
                 onDraftMemberCancel={handleCancelDraftMemberEdit}
+                editMembersPanel=
+                  {showProjectForm && editingProject ? (
+                    <ProjectMembersPanel
+                      project={editingProject}
+                      members={projectMembers}
+                      candidateOptions={availableMemberCandidates}
+                      allCandidates={memberCandidates}
+                      form={memberForm}
+                      onFormChange={handleMemberFormChange}
+                      onSubmit={handleSubmitMember}
+                      onCancelEdit={handleCancelMemberEdit}
+                      onEdit={handleEditMember}
+                      onDelete={handleDeleteMember}
+                      editingMember={editingMember}
+                      loading={loadingMembers}
+                      saving={savingMember}
+                      deleteLoadingIds={memberDeleteLoading}
+                    />
+                  ) : null}
               />
-
-              {showProjectForm && editingProject ? (
-                <ProjectMembersPanel
-                  project={editingProject}
-                  members={projectMembers}
-                  candidateOptions={availableMemberCandidates}
-                  allCandidates={memberCandidates}
-                  form={memberForm}
-                  onFormChange={handleMemberFormChange}
-                  onSubmit={handleSubmitMember}
-                  onCancelEdit={handleCancelMemberEdit}
-                  onEdit={handleEditMember}
-                  onDelete={handleDeleteMember}
-                  editingMember={editingMember}
-                  loading={loadingMembers}
-                  saving={savingMember}
-                  deleteLoadingIds={memberDeleteLoading}
-                />
-              ) : null}
 
               <ProjectsTable
                 projects={projects}
