@@ -592,6 +592,34 @@ const normalizeBudgetHintEntry = (entry, fallbackOrder = 0) => {
     entry.Name
   );
 
+  const trimmedDescription = typeof description === 'string' ? description.trim() : '';
+  const trimmedSubcategoryName =
+    typeof subcategoryName === 'string' ? subcategoryName.trim() : '';
+  const hasLimitFields = maxAmountPerYear != null || maxGrants != null;
+  const amountNumber = amount;
+
+  let resolvedScope = normalizedScope;
+
+  if (!resolvedScope) {
+    const looksLikeRuleDescription = /^(\(?\d+[.)]|[\(\[]\d+)/.test(trimmedDescription);
+    const looksLikeRuleName = /\s-\s*\(/.test(trimmedSubcategoryName);
+
+    if (hasLimitFields && !looksLikeRuleDescription && !looksLikeRuleName) {
+      const amountIsMeaningful = amountNumber != null && Number(amountNumber) > 0;
+      if (!amountIsMeaningful || !trimmedDescription) {
+        resolvedScope = 'overall';
+      }
+    }
+
+    if (!resolvedScope && (looksLikeRuleDescription || looksLikeRuleName)) {
+      resolvedScope = 'rule';
+    }
+  }
+
+  if (!resolvedScope && hasLimitFields) {
+    resolvedScope = 'overall';
+  }
+
   if (!description && amount == null && maxAmountPerYear == null && maxGrants == null) {
     return null;
   }
@@ -625,7 +653,7 @@ const normalizeBudgetHintEntry = (entry, fallbackOrder = 0) => {
     description: description || '',
     amount,
     order: Number.isFinite(order) ? order : fallbackOrder,
-    scope: normalizedScope,
+    scope: resolvedScope,
     maxAmountPerYear,
     maxGrants,
     subcategoryName: subcategoryName || null,
