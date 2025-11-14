@@ -54,18 +54,7 @@ const createDefaultScopusStats = () => ({
 
 const CITATION_RECENT_START_YEAR = 2020;
 
-const ScholarCitationsCard = ({
-  scopusStats,
-  scopusLoading,
-  metrics,
-  scholarLoading,
-  formatNumber,
-}) => {
-  const totals = metrics?.totals || { all: null, recent: null };
-  const hIndex = metrics?.hIndex || { all: null, recent: null };
-  const i10Index = metrics?.i10Index || { all: null, recent: null };
-  const chart = metrics?.chart || { data: [], isCitations: true };
-
+const ScopusTrendCard = ({ scopusStats, scopusLoading, formatNumber }) => {
   const renderValue = (value) => {
     if (value === null || value === undefined) {
       return "-";
@@ -77,9 +66,11 @@ const ScholarCitationsCard = ({
     return value;
   };
 
-  const renderSkeleton = (title = "แนวโน้มผลงาน & การอ้างอิง (Scopus)") => (
+  const renderSkeleton = () => (
     <div className="mt-6 rounded-xl border border-gray-100 bg-gradient-to-br from-white via-white to-slate-50 p-4 shadow-inner">
-      <h3 className="text-lg font-semibold text-gray-900">{title}</h3>
+      <h3 className="text-lg font-semibold text-gray-900">
+        แนวโน้มผลงาน & การอ้างอิง (Scopus)
+      </h3>
       <div className="mt-4 space-y-3">
         <div className="h-16 animate-pulse rounded-md bg-gray-100" />
         <div className="h-28 animate-pulse rounded-md bg-gray-100" />
@@ -277,8 +268,49 @@ const ScholarCitationsCard = ({
     );
   }
 
+  return (
+    <div className="mt-6 rounded-xl border border-gray-100 bg-gradient-to-br from-white via-white to-slate-50 p-4 text-center text-sm text-gray-500">
+      <h3 className="text-lg font-semibold text-gray-900">
+        แนวโน้มผลงาน & การอ้างอิง (Scopus)
+      </h3>
+      <div className="mt-4 rounded-lg border border-dashed border-gray-200 bg-gray-50 p-4">
+        {scopusUnavailable
+          ? "ยังไม่มีข้อมูลจาก Scopus สำหรับผู้ใช้นี้"
+          : "ยังไม่มีข้อมูลแนวโน้มจาก Scopus สำหรับสร้างกราฟ"}
+      </div>
+    </div>
+  );
+};
+
+const ScholarCitationsCard = ({ metrics, scholarLoading, formatNumber }) => {
+  const totals = metrics?.totals || { all: null, recent: null };
+  const hIndex = metrics?.hIndex || { all: null, recent: null };
+  const i10Index = metrics?.i10Index || { all: null, recent: null };
+  const chart = metrics?.chart || { data: [], isCitations: true };
+
+  const renderValue = (value) => {
+    if (value === null || value === undefined) {
+      return "-";
+    }
+    if (typeof value === "number") {
+      const formatted = formatNumber ? formatNumber(value) : value;
+      return formatted ?? value;
+    }
+    return value;
+  };
+
+  const renderSkeleton = (title = "อ้างโดย") => (
+    <div className="mt-6 rounded-xl border border-gray-100 bg-gradient-to-br from-white via-white to-slate-50 p-4 shadow-inner">
+      <h3 className="text-lg font-semibold text-gray-900">{title}</h3>
+      <div className="mt-4 space-y-3">
+        <div className="h-16 animate-pulse rounded-md bg-gray-100" />
+        <div className="h-28 animate-pulse rounded-md bg-gray-100" />
+      </div>
+    </div>
+  );
+
   if (scholarLoading) {
-    return renderSkeleton("อ้างโดย");
+    return renderSkeleton();
   }
 
   const chartData = Array.isArray(chart.data) ? chart.data : [];
@@ -1441,9 +1473,12 @@ export default function ProfileContent() {
                     </>
                   )}
                 </div>
-                <ScholarCitationsCard
+                <ScopusTrendCard
                   scopusStats={scopusStats}
                   scopusLoading={scopusStatsLoading}
+                  formatNumber={formatNumber}
+                />
+                <ScholarCitationsCard
                   metrics={citationMetrics}
                   scholarLoading={scholarLoading}
                   formatNumber={formatNumber}
