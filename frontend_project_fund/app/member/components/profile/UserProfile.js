@@ -444,8 +444,11 @@ export default function ProfileContent() {
   const [innovPage, setInnovPage] = useState(1);
   const [innovRowsPerPage, setInnovRowsPerPage] = useState(10);
   const [activeSource, setActiveSource] = useState("scopus");
+  const [hasUserSelectedSource, setHasUserSelectedSource] = useState(false);
   const [activeTab, setActiveTab] = useState("publications");
   const { getLabelById } = useStatusMap();
+  const scopusUnavailable =
+    !scopusMeta.has_scopus_id || !scopusMeta.has_author_record;
 
   useEffect(() => {
     loadProfileData();
@@ -456,6 +459,17 @@ export default function ProfileContent() {
   useEffect(() => {
     setCurrentPage(1);
   }, [activeSource]);
+
+  useEffect(() => {
+    if (
+      activeSource === "scopus" &&
+      scopusUnavailable &&
+      !hasUserSelectedSource &&
+      !scopusLoading
+    ) {
+      setActiveSource("scholar");
+    }
+  }, [activeSource, scopusUnavailable, hasUserSelectedSource, scopusLoading]);
 
   // helpers
   const parseDate = (value) => {
@@ -718,6 +732,14 @@ export default function ProfileContent() {
     }
   }, [activeSource, loadScopusPublications]);
 
+  const handleSourceChange = useCallback(
+    (value) => {
+      setHasUserSelectedSource(true);
+      setActiveSource(value);
+    },
+    [setActiveSource, setHasUserSelectedSource],
+  );
+
   const loadInnovations = async () => {
     try {
       setInnovLoading(true);
@@ -952,8 +974,6 @@ export default function ProfileContent() {
   const totalRecords = isScopusActive
     ? scopusTotal
     : sortedScholarPublications.length;
-  const scopusUnavailable =
-    !scopusMeta.has_scopus_id || !scopusMeta.has_author_record;
   const startRecord =
     totalRecords === 0 ? 0 : (currentPage - 1) * rowsPerPage + 1;
   const endRecord =
@@ -1186,7 +1206,7 @@ export default function ProfileContent() {
                               <button
                                 key={option.value}
                                 type="button"
-                                onClick={() => setActiveSource(option.value)}
+                                onClick={() => handleSourceChange(option.value)}
                                 className={`rounded-full px-3 py-1 text-sm font-medium transition-colors ${
                                   isActiveSource
                                     ? "bg-blue-600 text-white shadow"
@@ -1249,7 +1269,7 @@ export default function ProfileContent() {
                             <p>ยังไม่มีข้อมูลจาก Scopus สำหรับผู้ใช้นี้</p>
                             <button
                               type="button"
-                              onClick={() => setActiveSource("scholar")}
+                              onClick={() => handleSourceChange("scholar")}
                               className="inline-flex items-center justify-center rounded-md border border-blue-100 bg-blue-50 px-3 py-2 text-sm font-medium text-blue-700 hover:bg-blue-100"
                             >
                               ดูข้อมูลจาก Google Scholar
