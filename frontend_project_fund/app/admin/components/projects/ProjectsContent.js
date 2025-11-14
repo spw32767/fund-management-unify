@@ -468,7 +468,7 @@ function ProjectMembersPanel({
 
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
-            ภาระงาน (ชั่วโมง)
+            ภาระงาน (ชม.)
           </label>
           <input
             type="number"
@@ -480,26 +480,23 @@ function ProjectMembersPanel({
             step="0.01"
             disabled={disableForm}
             className={`w-full rounded-md border border-gray-300 focus:border-blue-500 focus:ring-blue-500 px-3 py-2 ${highlightClass}`}
-            placeholder="จำนวนชั่วโมงที่รับผิดชอบ"
+            placeholder="เช่น 6"
           />
-          <p className="mt-1 text-xs text-gray-500">
-            ระบุเป็นตัวเลข เช่น 12, 1.5 หรือ 0 หากไม่มีภาระงาน
-          </p>
         </div>
 
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
-            หมายเหตุเพิ่มเติม
+            หมายเหตุ (ถ้ามี)
           </label>
-          <textarea
+          <input
+            type="text"
             name="notes"
             value={form.notes}
             onChange={(event) => onFormChange("notes", event.target.value)}
-            rows={3}
             maxLength={255}
             disabled={disableForm}
             className={`w-full rounded-md border border-gray-300 focus:border-blue-500 focus:ring-blue-500 px-3 py-2 ${highlightClass}`}
-            placeholder="รายละเอียดเพิ่มเติม (ถ้ามี)"
+            placeholder="รายละเอียดเพิ่มเติม"
           />
         </div>
 
@@ -699,8 +696,8 @@ function ProjectFormMembersSection({
         </div>
 
         <div className="px-4 py-4 space-y-4">
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-4">
-            <div className="lg:col-span-2">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 ผู้ร่วมโครงการ
               </label>
@@ -766,7 +763,7 @@ function ProjectFormMembersSection({
               />
             </div>
 
-            <div className="lg:col-span-2">
+            <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 หมายเหตุ (ถ้ามี)
               </label>
