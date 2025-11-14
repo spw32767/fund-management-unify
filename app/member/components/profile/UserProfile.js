@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useMemo, useCallback } from "react";
+import dynamic from "next/dynamic";
 import {
   Mail,
   Phone,
@@ -16,6 +17,15 @@ import profileAPI from "@/app/lib/profile_api";
 import memberAPI from "@/app/lib/member_api";
 import BudgetSummary from "@/app/member/components/dashboard/BudgetSummary";
 import { useStatusMap } from "@/app/hooks/useStatusMap";
+
+const ReactApexChart = dynamic(() => import("react-apexcharts"), {
+  ssr: false,
+  loading: () => (
+    <div className="flex h-64 items-center justify-center text-sm text-gray-500">
+      กำลังโหลดกราฟ...
+    </div>
+  ),
+});
 
 // Default data structure for the profile
 const defaultTeacherData = {
@@ -54,18 +64,7 @@ const createDefaultScopusStats = () => ({
 
 const CITATION_RECENT_START_YEAR = 2020;
 
-const ScholarCitationsCard = ({
-  scopusStats,
-  scopusLoading,
-  metrics,
-  scholarLoading,
-  formatNumber,
-}) => {
-  const totals = metrics?.totals || { all: null, recent: null };
-  const hIndex = metrics?.hIndex || { all: null, recent: null };
-  const i10Index = metrics?.i10Index || { all: null, recent: null };
-  const chart = metrics?.chart || { data: [], isCitations: true };
-
+const ScopusTrendCard = ({ scopusStats, scopusLoading, formatNumber }) => {
   const renderValue = (value) => {
     if (value === null || value === undefined) {
       return "-";
@@ -77,9 +76,11 @@ const ScholarCitationsCard = ({
     return value;
   };
 
-  const renderSkeleton = (title = "แนวโน้มผลงาน & การอ้างอิง (Scopus)") => (
+  const renderSkeleton = () => (
     <div className="mt-6 rounded-xl border border-gray-100 bg-gradient-to-br from-white via-white to-slate-50 p-4 shadow-inner">
-      <h3 className="text-lg font-semibold text-gray-900">{title}</h3>
+      <h3 className="text-lg font-semibold text-gray-900">
+        Documents & Citations by Year (Scopus)
+      </h3>
       <div className="mt-4 space-y-3">
         <div className="h-16 animate-pulse rounded-md bg-gray-100" />
         <div className="h-28 animate-pulse rounded-md bg-gray-100" />
@@ -101,7 +102,15 @@ const ScholarCitationsCard = ({
     scopusMeta.has_scopus_id === false || scopusMeta.has_author_record === false;
 
   if ((hasScopusTrend || hasScopusTotals) && !scopusUnavailable) {
-    const sortedTrend = [...scopusTrend].sort((a, b) => a.year - b.year);
+    const sortedTrend = [...scopusTrend].sort((a, b) => (a.year || 0) - (b.year || 0));
+    const yearLabels = sortedTrend.map((point) =>
+      point.year === null || point.year === undefined ? "ไม่ระบุ" : `${point.year}`,
+    );
+    const documentSeries = sortedTrend.map((point) => point.documents || 0);
+    const citationSeries = sortedTrend.map((point) => point.citations || 0);
+    const chartHasSeries =
+      documentSeries.some((value) => value > 0) ||
+      citationSeries.some((value) => value > 0);
     const scopusRecent = sortedTrend.reduce(
       (acc, point) => {
         if (point.year >= CITATION_RECENT_START_YEAR) {
@@ -131,44 +140,74 @@ const ScholarCitationsCard = ({
       },
     ];
 
-    const maxSeriesValue = sortedTrend.reduce(
-      (max, point) =>
-        Math.max(max, point.documents || 0, point.citations || 0),
-      0,
-    );
-    const chartHeight = 220;
-    const chartPadding = 32;
-    const barWidth = 26;
-    const gap = 28;
-    const normalizedMax = maxSeriesValue > 0 ? maxSeriesValue : 1;
-    const chartWidth = Math.max(
-      sortedTrend.length * (barWidth + gap) + gap,
-      320,
-    );
-    const points = sortedTrend.map((point, index) => {
-      const x = gap + index * (barWidth + gap) + barWidth / 2;
-      const documents = point.documents || 0;
-      const citations = point.citations || 0;
-      const docHeight =
-        (documents / normalizedMax) * (chartHeight - chartPadding);
-      const citHeight =
-        (citations / normalizedMax) * (chartHeight - chartPadding);
-      return {
-        ...point,
-        x,
-        docHeight,
-        citHeight,
-        docY: chartHeight - docHeight - chartPadding / 2,
-        citY: chartHeight - citHeight - chartPadding / 2,
-      };
-    });
-    const polylinePoints = points.map((p) => `${p.x},${p.citY}`).join(" ");
+    const axisLabelFormatter = (value) => {
+      if (typeof value !== "number" || Number.isNaN(value)) {
+        return value;
+      }
+      return formatNumber ? formatNumber(value) : value;
+    };
+
+    const chartOptions = {
+      chart: {
+        type: "line",
+        stacked: false,
+        toolbar: { show: false },
+        background: "transparent",
+        zoom: { enabled: false },
+        animations: { enabled: false },
+      },
+      stroke: { width: [0, 3], curve: "smooth" },
+      plotOptions: {
+        bar: {
+          borderRadius: 6,
+          columnWidth: "45%",
+        },
+      },
+      dataLabels: { enabled: false },
+      xaxis: {
+        categories: yearLabels,
+        axisBorder: { color: "#e5e7eb" },
+        axisTicks: { color: "#e5e7eb" },
+        labels: {
+          style: {
+            colors: yearLabels.map(() => "#6b7280"),
+            fontSize: "12px",
+          },
+        },
+      },
+      yaxis: [
+        {
+          title: { text: "Documents" },
+          labels: { formatter: axisLabelFormatter },
+        },
+        {
+          opposite: true,
+          title: { text: "Citations" },
+          labels: { formatter: axisLabelFormatter },
+        },
+      ],
+      grid: { borderColor: "#f1f5f9", strokeDashArray: 4 },
+      legend: {
+        position: "top",
+        horizontalAlign: "left",
+        fontSize: "13px",
+        labels: { colors: "#0f172a" },
+      },
+      colors: ["#0ea5e9", "#7c3aed"],
+      tooltip: { shared: true, intersect: false },
+      fill: { opacity: [0.85, 1] },
+    };
+
+    const chartSeries = [
+      { name: "Documents", type: "column", data: documentSeries },
+      { name: "Citations", type: "line", data: citationSeries },
+    ];
 
     return (
       <div className="mt-6 rounded-xl border border-gray-100 bg-gradient-to-br from-white via-white to-slate-50 p-4 shadow-inner">
         <div className="flex flex-col gap-1">
           <h3 className="text-lg font-semibold text-gray-900">
-            แนวโน้มผลงาน & การอ้างอิง (Scopus)
+            Documents & Citations by Year (Scopus)
           </h3>
           <p className="text-sm text-gray-500">
             ข้อมูลจาก Scopus แสดงจำนวนผลงาน (แท่ง) และการอ้างอิง (เส้น)
@@ -185,100 +224,83 @@ const ScholarCitationsCard = ({
           ))}
         </div>
         {hasScopusTrend ? (
-          <div className="mt-6">
-            <div className="flex flex-wrap items-center gap-4 text-xs text-gray-500">
-              <div className="flex items-center gap-2">
-                <span className="h-3 w-6 rounded-full bg-blue-500" />
-                <span>Documents</span>
+          chartHasSeries ? (
+            <div className="mt-6">
+              <div className="flex flex-wrap items-center gap-4 text-xs text-gray-500">
+                <div className="flex items-center gap-2">
+                  <span className="h-3 w-6 rounded-full bg-sky-500" />
+                  <span>Documents</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="h-0.5 w-8 bg-indigo-600" />
+                  <span>Citations</span>
+                </div>
               </div>
-              <div className="flex items-center gap-2">
-                <span className="h-0.5 w-8 bg-indigo-600" />
-                <span>Citations</span>
-              </div>
-            </div>
-            <div className="mt-4 overflow-x-auto">
-              <svg
-                width={chartWidth}
-                height={chartHeight}
-                className="text-sm text-gray-500"
-              >
-                <defs>
-                  <linearGradient id="docBar" x1="0%" y1="0%" x2="0%" y2="100%">
-                    <stop offset="0%" stopColor="#93c5fd" />
-                    <stop offset="100%" stopColor="#3b82f6" />
-                  </linearGradient>
-                </defs>
-                {points.length > 0 && (
-                  <>
-                    {[0.25, 0.5, 0.75].map((ratio) => (
-                      <line
-                        // eslint-disable-next-line react/no-array-index-key
-                        key={`grid-${ratio}`}
-                        x1={0}
-                        x2={chartWidth}
-                        y1={chartPadding / 2 + (chartHeight - chartPadding) * ratio}
-                        y2={chartPadding / 2 + (chartHeight - chartPadding) * ratio}
-                        stroke="#e5e7eb"
-                        strokeDasharray="4 4"
-                      />
-                    ))}
-                    {points.map((point) => (
-                      <rect
-                        key={`bar-${point.year}`}
-                        x={point.x - barWidth / 2}
-                        y={Math.min(point.docY, chartHeight - chartPadding / 2)}
-                        width={barWidth}
-                        height={Math.max(point.docHeight, 0)}
-                        fill="url(#docBar)"
-                        rx={6}
-                      />
-                    ))}
-                    {points.length > 1 && (
-                      <polyline
-                        points={polylinePoints}
-                        fill="none"
-                        stroke="#4338ca"
-                        strokeWidth={2.5}
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      />
-                    )}
-                    {points.map((point) => (
-                      <circle
-                        key={`dot-${point.year}`}
-                        cx={point.x}
-                        cy={point.citY}
-                        r={4}
-                        fill="#fff"
-                        stroke="#4338ca"
-                        strokeWidth={2}
-                      />
-                    ))}
-                  </>
-                )}
-              </svg>
-              <div className="mt-3 flex min-w-max flex-wrap gap-4 text-[11px] text-gray-500">
-                {points.map((point) => (
-                  <div key={`label-${point.year}`} className="flex flex-col text-left">
-                    <span className="font-semibold text-gray-700">{point.year}</span>
-                    <span>Docs: {renderValue(point.documents)}</span>
-                    <span>Cites: {renderValue(point.citations)}</span>
-                  </div>
-                ))}
+              <div className="mt-4 w-full overflow-hidden">
+                <div className="w-full">
+                  <ReactApexChart
+                    options={chartOptions}
+                    series={chartSeries}
+                    type="line"
+                    height={360}
+                    width="100%"
+                  />
+                </div>
               </div>
             </div>
-          </div>
-        ) : (
-          <div className="mt-6 rounded-lg border border-dashed border-gray-200 bg-gray-50 p-4 text-center text-sm text-gray-500">
-            ยังไม่มีข้อมูลแนวโน้มจาก Scopus สำหรับสร้างกราฟ
-          </div>
-        )}
+          ) : (
+            <div className="mt-6 rounded-lg border border-dashed border-slate-200 bg-white/70 p-6 text-center text-sm text-gray-500">
+              ยังไม่มีข้อมูลสำหรับสร้างกราฟ
+            </div>
+          )
+        ) : null}
       </div>
     );
   }
 
+  return (
+    <div className="mt-6 rounded-xl border border-gray-100 bg-gradient-to-br from-white via-white to-slate-50 p-4 text-center text-sm text-gray-500">
+      <h3 className="text-lg font-semibold text-gray-900">
+        Documents & Citations by Year (Scopus)
+      </h3>
+      <div className="mt-4 rounded-lg border border-dashed border-gray-200 bg-gray-50 p-4">
+        {scopusUnavailable
+          ? "ยังไม่มีข้อมูลจาก Scopus สำหรับผู้ใช้นี้"
+          : "ยังไม่มีข้อมูลแนวโน้มจาก Scopus สำหรับสร้างกราฟ"}
+      </div>
+    </div>
+  );
+};
+
+const ScholarCitationsCard = ({ metrics, scholarLoading, formatNumber }) => {
+  const totals = metrics?.totals || { all: null, recent: null };
+  const hIndex = metrics?.hIndex || { all: null, recent: null };
+  const i10Index = metrics?.i10Index || { all: null, recent: null };
+  const chart = metrics?.chart || { data: [], isCitations: true };
+
+  const renderValue = (value) => {
+    if (value === null || value === undefined) {
+      return "-";
+    }
+    if (typeof value === "number") {
+      const formatted = formatNumber ? formatNumber(value) : value;
+      return formatted ?? value;
+    }
+    return value;
+  };
+
+  const renderSkeleton = (title = "อ้างโดย") => (
+    <div className="mt-6 rounded-xl border border-gray-100 bg-gradient-to-br from-white via-white to-slate-50 p-4 shadow-inner">
+      <h3 className="text-lg font-semibold text-gray-900">{title}</h3>
+      <div className="mt-4 space-y-3">
+        <div className="h-16 animate-pulse rounded-md bg-gray-100" />
+        <div className="h-28 animate-pulse rounded-md bg-gray-100" />
+      </div>
+    </div>
+  );
+
   if (scholarLoading) {
-    return renderSkeleton("อ้างโดย");
+    return renderSkeleton();
   }
 
   const chartData = Array.isArray(chart.data) ? chart.data : [];
@@ -1441,13 +1463,19 @@ export default function ProfileContent() {
                     </>
                   )}
                 </div>
-                <ScholarCitationsCard
-                  scopusStats={scopusStats}
-                  scopusLoading={scopusStatsLoading}
-                  metrics={citationMetrics}
-                  scholarLoading={scholarLoading}
-                  formatNumber={formatNumber}
-                />
+                {isScopusActive ? (
+                  <ScopusTrendCard
+                    scopusStats={scopusStats}
+                    scopusLoading={scopusStatsLoading}
+                    formatNumber={formatNumber}
+                  />
+                ) : (
+                  <ScholarCitationsCard
+                    metrics={citationMetrics}
+                    scholarLoading={scholarLoading}
+                    formatNumber={formatNumber}
+                  />
+                )}
               </div>
             ) : (
               <div className="space-y-6">
