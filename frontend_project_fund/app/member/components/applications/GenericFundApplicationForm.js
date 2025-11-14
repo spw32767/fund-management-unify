@@ -555,11 +555,44 @@ const normalizeBudgetHintEntry = (entry, fallbackOrder = 0) => {
     entry.max_amount_per_grant,
     entry.maxAmountPerGrant,
     entry.MaxAmountPerGrant,
+    entry.maximum_amount,
+    entry.maximumAmount,
     entry.amount,
     entry.Amount
   );
 
-  if (!description && amount == null) {
+  const scope = firstNonEmptyString(
+    entry.record_scope,
+    entry.recordScope,
+    entry.scope,
+    entry.Scope
+  );
+
+  const normalizedScope = scope ? String(scope).trim().toLowerCase() : null;
+
+  const maxAmountPerYear = parseNumericValue(
+    entry.max_amount_per_year,
+    entry.maxAmountPerYear,
+    entry.maximum_amount_per_year,
+    entry.maximumAmountPerYear
+  );
+
+  const maxGrants = parseIntegerFromValue(
+    entry.max_grants,
+    entry.maxGrants,
+    entry.maximum_grants,
+    entry.maximumGrants
+  );
+
+  const subcategoryName = firstNonEmptyString(
+    entry.subcategory_name,
+    entry.subcategoryName,
+    entry.SubcategoryName,
+    entry.name,
+    entry.Name
+  );
+
+  if (!description && amount == null && maxAmountPerYear == null && maxGrants == null) {
     return null;
   }
 
@@ -592,6 +625,10 @@ const normalizeBudgetHintEntry = (entry, fallbackOrder = 0) => {
     description: description || '',
     amount,
     order: Number.isFinite(order) ? order : fallbackOrder,
+    scope: normalizedScope,
+    maxAmountPerYear,
+    maxGrants,
+    subcategoryName: subcategoryName || null,
   };
 };
 
@@ -630,7 +667,13 @@ const collectBudgetHintEntries = (collection, { filterSubcategoryId = null, fall
       return;
     }
 
-    const dedupeKey = `${normalized.description}:::${normalized.amount ?? 'null'}`;
+    const dedupeKey = [
+      normalized.scope || 'null',
+      normalized.description || 'null',
+      normalized.amount ?? 'null',
+      normalized.maxAmountPerYear ?? 'null',
+      normalized.maxGrants ?? 'null',
+    ].join(':::');
     if (dedupe.has(dedupeKey)) {
       return;
     }
@@ -646,6 +689,17 @@ const sortBudgetHints = (entries) => {
     return [];
   }
 
+  const resolveScopePriority = (scope) => {
+    switch (scope) {
+      case 'overall':
+        return 0;
+      case 'rule':
+        return 1;
+      default:
+        return 2;
+    }
+  };
+
   return entries
     .slice()
     .map((entry, index) => ({
@@ -653,6 +707,11 @@ const sortBudgetHints = (entries) => {
       order: Number.isFinite(entry.order) ? entry.order : index,
     }))
     .sort((a, b) => {
+      const scopePriorityA = resolveScopePriority(a.scope);
+      const scopePriorityB = resolveScopePriority(b.scope);
+      if (scopePriorityA !== scopePriorityB) {
+        return scopePriorityA - scopePriorityB;
+      }
       if (a.order !== b.order) {
         return a.order - b.order;
       }
@@ -740,7 +799,7 @@ const formatHintAmount = (value) => {
   });
 };
 
-const buildBudgetHintDisplay = (hint) => {
+const buildBudgetHintDisplay = (hint, { includeAmount = true } = {}) => {
   if (!hint) {
     return '';
   }
@@ -748,7 +807,7 @@ const buildBudgetHintDisplay = (hint) => {
   const description = typeof hint.description === 'string'
     ? hint.description.trim()
     : firstNonEmptyString(hint.description);
-  const amountText = formatHintAmount(hint.amount);
+  const amountText = includeAmount ? formatHintAmount(hint.amount) : null;
 
   if (description && amountText) {
     return `${description} ${amountText} บาท/ทุน`;
@@ -763,6 +822,87 @@ const buildBudgetHintDisplay = (hint) => {
   }
 
   return '';
+};
+
+const formatGrantCount = (value) => {
+  const numeric = parseIntegerFromValue(value);
+  if (numeric == null) {
+    return null;
+  }
+  return numeric.toLocaleString('th-TH');
+};
+
+const buildBudgetHintDisplayItemsFromEntries = (entries) => {
+  if (!Array.isArray(entries) || entries.length === 0) {
+    return [];
+  }
+
+  const sortedEntries = sortBudgetHints(entries);
+  const overallEntries = sortedEntries.filter((entry) => entry.scope === 'overall');
+  const ruleEntries = sortedEntries.filter((entry) => entry.scope === 'rule');
+  const otherEntries = sortedEntries.filter(
+    (entry) => entry.scope !== 'overall' && entry.scope !== 'rule'
+  );
+
+  const hasRules = ruleEntries.length > 0;
+  const items = [];
+  const seenTexts = new Set();
+
+  const addItem = (id, text) => {
+    if (!text) {
+      return;
+    }
+    const trimmed = String(text).trim();
+    if (!trimmed || seenTexts.has(trimmed)) {
+      return;
+    }
+    seenTexts.add(trimmed);
+    items.push({
+      id,
+      text: trimmed,
+    });
+  };
+
+  const appendEntries = (sourceEntries, options = {}) => {
+    sourceEntries.forEach((entry, index) => {
+      const text = buildBudgetHintDisplay(entry, {
+        includeAmount: options.includeAmount,
+      });
+      if (text) {
+        addItem(`${entry.id || options.fallbackId || 'hint'}-${index}`, text);
+      }
+    });
+  };
+
+  appendEntries(overallEntries, { includeAmount: !hasRules, fallbackId: 'overall' });
+  appendEntries(ruleEntries, { includeAmount: true, fallbackId: 'rule' });
+  appendEntries(otherEntries, { includeAmount: !hasRules, fallbackId: 'hint' });
+
+  const limitSource =
+    overallEntries.find((entry) => entry.maxGrants != null || entry.maxAmountPerYear != null) ||
+    overallEntries[0] ||
+    sortedEntries.find((entry) => entry.maxGrants != null || entry.maxAmountPerYear != null) ||
+    null;
+
+  if (limitSource) {
+    const maxGrantsText = formatGrantCount(limitSource.maxGrants);
+    if (maxGrantsText) {
+      addItem(
+        `${limitSource.id || 'max-grants'}`,
+        `ขอได้คนละไม่เกิน ${maxGrantsText} เรื่อง/ปีงบประมาณ`
+      );
+    }
+
+    const maxAmountPerYearText = formatHintAmount(limitSource.maxAmountPerYear);
+    if (maxAmountPerYearText) {
+      addItem(
+        `${limitSource.id || 'max-year'}-per-year`,
+        `รวมไม่เกิน ${maxAmountPerYearText} บาท`
+      );
+    }
+  }
+
+  return items;
 };
 
 const formatFileSize = (bytes) => {
@@ -1230,21 +1370,35 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
     [effectiveFundContext]
   );
   const budgetHintDisplayItems = useMemo(
-    () =>
-      (budgetHints || [])
-        .map((hint, index) => {
-          const text = buildBudgetHintDisplay(hint);
-          if (!text) {
-            return null;
-          }
-          return {
-            id: hint?.id ?? `hint-${index}`,
-            text,
-          };
-        })
-        .filter(Boolean),
+    () => buildBudgetHintDisplayItemsFromEntries(budgetHints || []),
     [budgetHints]
   );
+
+  const budgetHintFundName = useMemo(() => {
+    const fallbackFromEntries = (budgetHints || []).find(
+      (entry) => entry?.subcategoryName && String(entry.subcategoryName).trim()
+    );
+
+    return firstNonEmptyString(
+      effectiveFundContext?.subcategory_name,
+      effectiveFundContext?.subcategory?.subcategory_name,
+      effectiveFundContext?.subcategory?.name,
+      subcategoryData?.subcategory_name,
+      subcategoryData?.subcategory?.subcategory_name,
+      fallbackFromEntries?.subcategoryName
+    );
+  }, [
+    budgetHints,
+    effectiveFundContext?.subcategory?.name,
+    effectiveFundContext?.subcategory?.subcategory_name,
+    effectiveFundContext?.subcategory_name,
+    subcategoryData?.subcategory?.subcategory_name,
+    subcategoryData?.subcategory_name,
+  ]);
+
+  const budgetHintTitle = budgetHintFundName
+    ? `เงื่อนไขการขอทุน ${budgetHintFundName}`
+    : 'เงื่อนไขการขอทุน';
 
   // =================================================================
   // INITIAL DATA LOADING
@@ -3078,7 +3232,7 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
                     <div className="flex-1 space-y-3">
                       <div>
                         <p className="text-xs font-medium uppercase tracking-wide text-blue-600">Hint</p>
-                        <p className="text-sm font-semibold text-blue-900">เงื่อนไขการขอทุนย่อย</p>
+                        <p className="text-sm font-semibold text-blue-900">{budgetHintTitle}</p>
                       </div>
                       {budgetHintsLoading && !hasBudgetHints ? (
                         <p className="flex items-center gap-2 text-sm text-blue-700">
