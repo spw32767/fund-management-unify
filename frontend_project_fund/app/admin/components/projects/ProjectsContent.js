@@ -70,6 +70,64 @@ const initialMemberForm = {
   notes: "",
 };
 
+const MAX_BUDGET_AMOUNT = 9999999999.99;
+const budgetAmountPattern = /^(?:\d{1,10})(?:\.\d{1,2})?$/;
+const workloadInputPattern = /^\d*(?:\.\d{0,2})?$/;
+
+const normalizeBudgetInputValue = (rawValue) => {
+  if (rawValue === null || rawValue === undefined) {
+    return "";
+  }
+
+  const stringValue = rawValue.toString();
+  if (stringValue === "") {
+    return "";
+  }
+
+  const cleaned = stringValue.replace(/[^0-9.]/g, "");
+  if (cleaned === "") {
+    return "";
+  }
+
+  const firstDotIndex = cleaned.indexOf(".");
+  const hasDot = firstDotIndex !== -1;
+  const hasTrailingDot =
+    hasDot && (stringValue.endsWith(".") || cleaned.endsWith("."));
+
+  let integerPart = hasDot ? cleaned.slice(0, firstDotIndex) : cleaned;
+  let decimalRaw = hasDot
+    ? cleaned.slice(firstDotIndex + 1).replace(/\./g, "")
+    : "";
+
+  if (integerPart === "" && hasDot) {
+    integerPart = "0";
+  }
+
+  if (integerPart !== "") {
+    const stripped = integerPart.replace(/^0+(?=\d)/, "");
+    integerPart = stripped.length > 0 ? stripped : "0";
+  }
+
+  integerPart = integerPart.slice(0, 10);
+  decimalRaw = decimalRaw.slice(0, 2);
+
+  if (integerPart === "" && decimalRaw.length === 0 && !hasTrailingDot) {
+    return "";
+  }
+
+  const integerOutput = integerPart === "" ? "0" : integerPart;
+
+  if (decimalRaw.length > 0) {
+    return `${integerOutput}.${decimalRaw}`;
+  }
+
+  if (hasTrailingDot) {
+    return `${integerOutput}.`;
+  }
+
+  return integerPart;
+};
+
 const formatWorkloadHours = (value) => {
   const numeric = Number(value);
   if (!Number.isFinite(numeric)) {
@@ -123,8 +181,6 @@ const getUserPositionLabel = (user) => {
       "").toString().trim()
   );
 };
-
-const workloadInputPattern = /^\d*(?:\.\d{0,2})?$/;
 
 const normalizeWorkloadInputValue = (rawValue) => {
   if (rawValue === null || rawValue === undefined) {
@@ -899,6 +955,7 @@ function ProjectForm({
             onChange={onChange}
             min="0"
             step="0.01"
+            max={MAX_BUDGET_AMOUNT}
             required
             className="w-full rounded-md border border-gray-300 focus:border-blue-500 focus:ring-blue-500 px-3 py-2"
             placeholder="เช่น 50000"
@@ -1787,6 +1844,16 @@ export default function ProjectsContent() {
 
   const handleProjectChange = (event) => {
     const { name, value } = event.target;
+
+    if (name === "budget_amount") {
+      const normalized = normalizeBudgetInputValue(value);
+      setProjectForm((prev) => ({
+        ...prev,
+        [name]: normalized,
+      }));
+      return;
+    }
+
     setProjectForm((prev) => ({
       ...prev,
       [name]: value,
@@ -1852,15 +1919,39 @@ export default function ProjectsContent() {
     const participantsValue = projectForm.participants
       ? Number(projectForm.participants)
       : 0;
-    const budgetValue = Number(projectForm.budget_amount) || 0;
+    const budgetString = projectForm.budget_amount
+      ? projectForm.budget_amount.toString().trim()
+      : "";
+    const budgetValue = Number(budgetString);
 
     if (Number.isNaN(typeId) || Number.isNaN(planId)) {
       Toast.fire({ icon: "warning", title: "การเลือกประเภทหรือแผนงบประมาณไม่ถูกต้อง" });
       return;
     }
 
-    if (budgetValue < 0) {
-      Toast.fire({ icon: "warning", title: "งบประมาณต้องมากกว่าหรือเท่ากับ 0" });
+    if (!budgetString) {
+      Toast.fire({ icon: "warning", title: "กรุณาระบุงบประมาณโครงการ" });
+      return;
+    }
+
+    if (!budgetAmountPattern.test(budgetString)) {
+      Toast.fire({
+        icon: "warning",
+        title: "งบประมาณต้องไม่เกิน 10 หลัก และทศนิยมไม่เกิน 2 ตำแหน่ง",
+      });
+      return;
+    }
+
+    if (!Number.isFinite(budgetValue)) {
+      Toast.fire({ icon: "warning", title: "งบประมาณไม่ถูกต้อง" });
+      return;
+    }
+
+    if (budgetValue < 0 || budgetValue > MAX_BUDGET_AMOUNT) {
+      Toast.fire({
+        icon: "warning",
+        title: "งบประมาณต้องอยู่ในช่วง 0 - 9,999,999,999.99",
+      });
       return;
     }
 
@@ -1874,7 +1965,7 @@ export default function ProjectsContent() {
     formPayload.append("type_id", typeId.toString());
     formPayload.append("event_date", projectForm.event_date);
     formPayload.append("plan_id", planId.toString());
-    formPayload.append("budget_amount", budgetValue.toString());
+    formPayload.append("budget_amount", budgetString);
     formPayload.append("participants", participantsValue.toString());
     formPayload.append("notes", projectForm.notes ? projectForm.notes.trim() : "");
 
@@ -1923,7 +2014,10 @@ export default function ProjectsContent() {
       type_id: project.type_id?.toString() || "",
       event_date: project.event_date || "",
       plan_id: project.plan_id?.toString() || "",
-      budget_amount: project.budget_amount?.toString() || "",
+      budget_amount:
+        project.budget_amount === null || project.budget_amount === undefined
+          ? ""
+          : normalizeBudgetInputValue(project.budget_amount),
       participants: project.participants?.toString() || "",
       notes: project.notes || "",
       attachment: null,
