@@ -1386,6 +1386,18 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
     [budgetHints]
   );
 
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    console.log("[GenericFundApplicationForm] budget hint debug", {
+      resolvedSubcategoryId,
+      budgetHints,
+      budgetHintDisplayItems,
+    });
+  }, [resolvedSubcategoryId, budgetHints, budgetHintDisplayItems]);
+
   const budgetHintFundName = useMemo(() => {
     const fallbackFromEntries = (budgetHints || []).find(
       (entry) => entry?.subcategoryName && String(entry.subcategoryName).trim()
