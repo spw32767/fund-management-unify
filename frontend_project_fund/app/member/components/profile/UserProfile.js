@@ -245,12 +245,6 @@ export default function ProfileContent() {
   }, []);
 
   useEffect(() => {
-    if (activeSource === "scopus") {
-      loadScopusPublications();
-    }
-  }, [activeSource, loadScopusPublications]);
-
-  useEffect(() => {
     setCurrentPage(1);
   }, [activeSource]);
 
@@ -431,6 +425,12 @@ export default function ProfileContent() {
       setScopusLoading(false);
     }
   }, [activeSource, rowsPerPage, currentPage, sortField, sortDirection, searchTerm]);
+
+  useEffect(() => {
+    if (activeSource === "scopus") {
+      loadScopusPublications();
+    }
+  }, [activeSource, loadScopusPublications]);
 
   const loadInnovations = async () => {
     try {
