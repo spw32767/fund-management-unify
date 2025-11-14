@@ -46,9 +46,19 @@ export const memberAPI = {
 // on the default export (rather than destructuring teacherAPI) always receive
 // the latest implementations even if bundlers snapshot the object before the
 // spreads occur.
+const createMethodProxy = (methodName) => {
+  return async function proxiedMethod(...args) {
+    const method = teacherAPI?.[methodName];
+    if (typeof method !== 'function') {
+      throw new Error(`teacherAPI.${methodName} is not available`);
+    }
+    return method.apply(teacherAPI, args);
+  };
+};
+
 const PUBLICATION_HELPERS = {
-  getUserScopusPublications: teacherAPI.getUserScopusPublications,
-  getUserScopusPublicationStats: teacherAPI.getUserScopusPublicationStats,
+  getUserScopusPublications: createMethodProxy('getUserScopusPublications'),
+  getUserScopusPublicationStats: createMethodProxy('getUserScopusPublicationStats'),
 };
 
 export { teacherAPI };
