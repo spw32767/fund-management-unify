@@ -899,18 +899,38 @@ export default function ProfileContent() {
       }
 
       const history = parseHistory(pub.citation_history);
-      const entries = Object.entries(history);
-      if (entries.length > 0) {
-        let recentSumForPub = 0;
-        entries.forEach(([yearKey, rawCount]) => {
+      const normalizedHistory = Object.entries(history)
+        .map(([yearKey, rawCount]) => {
           const yearNum = Number(yearKey);
           const countNum = toNumber(rawCount);
-          if (!Number.isFinite(yearNum) || countNum === null) return;
-          perYearMap.set(yearNum, (perYearMap.get(yearNum) || 0) + countNum);
-          if (yearNum >= CITATION_RECENT_START_YEAR) {
-            recentSumForPub += countNum;
+          if (!Number.isFinite(yearNum) || countNum === null) return null;
+          return { year: yearNum, value: countNum };
+        })
+        .filter(Boolean)
+        .sort((a, b) => a.year - b.year);
+
+      if (normalizedHistory.length > 0) {
+        let recentSumForPub = 0;
+        let lastCumulativeValue = 0;
+        const isCumulativeHistory = normalizedHistory.every(
+          (entry, index) => index === 0 || entry.value >= normalizedHistory[index - 1].value,
+        );
+
+        normalizedHistory.forEach(({ year, value }) => {
+          const perYearValue = isCumulativeHistory
+            ? Math.max(0, value - lastCumulativeValue)
+            : value;
+
+          if (isCumulativeHistory) {
+            lastCumulativeValue = value;
+          }
+
+          perYearMap.set(year, (perYearMap.get(year) || 0) + perYearValue);
+          if (year >= CITATION_RECENT_START_YEAR) {
+            recentSumForPub += perYearValue;
           }
         });
+
         recentCitationCounts.push(recentSumForPub);
       }
     });
