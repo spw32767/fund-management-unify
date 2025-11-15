@@ -12,6 +12,7 @@ import {
   Wallet,
   Loader2,
   Info,
+  User,
 } from "lucide-react";
 import PageLayout from "../common/PageLayout";
 import Card from "../common/Card";
@@ -90,6 +91,33 @@ const getBudgetPlanLabel = (project) => {
   );
 };
 
+const getMemberUser = (member) => member?.user ?? member?.User ?? null;
+
+const buildMemberDisplayName = (member) => {
+  const user = getMemberUser(member);
+  if (!user || typeof user !== "object") {
+    return "ไม่ระบุชื่อ";
+  }
+
+  const prefix = (user.prefix ?? user.Prefix ?? "").toString().trim();
+  const firstName = (user.user_fname ?? user.UserFname ?? "").toString().trim();
+  const lastName = (user.user_lname ?? user.UserLname ?? "").toString().trim();
+  const baseName = [firstName, lastName].filter(Boolean).join(" ").trim();
+
+  if (prefix && baseName) {
+    return `${prefix}${baseName}`;
+  }
+  if (prefix) {
+    return prefix;
+  }
+  if (baseName) {
+    return baseName;
+  }
+
+  const email = (user.email ?? user.Email ?? "").toString().trim();
+  return email || "ไม่ระบุชื่อ";
+};
+
 const joinBaseWithPath = (base, path) => {
   if (!path) {
     return null;
@@ -123,8 +151,20 @@ const buildAttachmentEndpoint = (project, attachment) => {
     return downloadPath.trim();
   }
 
-  if (attachment.file_id && project?.project_id != null) {
-    return `/projects/${project.project_id}/attachments/${attachment.file_id}`;
+  const fileId =
+    attachment.file_id ??
+    attachment.fileId ??
+    attachment.FileID ??
+    null;
+
+  const projectId =
+    project?.project_id ??
+    project?.projectId ??
+    project?.ProjectID ??
+    null;
+
+  if (fileId != null && projectId != null) {
+    return `/projects/${projectId}/attachments/${fileId}`;
   }
 
   return null;
@@ -573,6 +613,9 @@ export default function ProjectsList() {
                 const attachments = Array.isArray(project.attachments)
                   ? project.attachments
                   : [];
+                const members = Array.isArray(project.members)
+                  ? project.members
+                  : [];
 
                 return (
                   <Card
@@ -644,6 +687,50 @@ export default function ProjectsList() {
                         <p className="text-gray-700 whitespace-pre-line leading-relaxed">{project.notes}</p>
                         </div>
                     )}
+
+                    <div className="mt-6">
+                      <h4 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
+                        <User size={18} className="text-gray-500" />
+                        ผู้ร่วมโครงการ
+                      </h4>
+                      {members.length ? (
+                        <ul className="space-y-3">
+                          {members.map((member) => {
+                            const memberId =
+                              member?.member_id ??
+                              member?.MemberID ??
+                              `${project.project_id ?? "project"}-${
+                                member?.user_id ?? member?.UserID ?? Math.random().toString(36).slice(2)
+                              }`;
+                            const duty = member?.duty ?? member?.Duty ?? "-";
+                            const notesValue = member?.notes ?? member?.Notes ?? "";
+
+                            return (
+                              <li
+                                key={memberId}
+                                className="flex flex-col gap-2 rounded-lg border border-gray-200 bg-white/80 px-3 py-3 md:flex-row md:items-center md:justify-between"
+                              >
+                                <div>
+                                  <p className="font-medium text-gray-900">
+                                    {buildMemberDisplayName(member)}
+                                  </p>
+                                  <p className="text-sm text-gray-600"> หน้าที่: {duty}</p>
+                                  {notesValue ? (
+                                    <p className="text-xs text-gray-500 mt-1 whitespace-pre-line">
+                                      หมายเหตุ: {notesValue}
+                                    </p>
+                                  ) : null}
+                                </div>
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      ) : (
+                        <p className="text-sm text-gray-500 italic">
+                          ยังไม่มีการบันทึกผู้ร่วมโครงการ
+                        </p>
+                      )}
+                    </div>
 
                     <div>
                       <h4 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
