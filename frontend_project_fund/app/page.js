@@ -1,11 +1,12 @@
-'use client';
+"use client";
 
-import { useEffect, useMemo, useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { useAuth } from './contexts/AuthContext';
-import PublicHeader from './components/public/PublicHeader';
-import PublicNavigation from './components/public/PublicNavigation';
-import PublicWelcomeContent from './components/public/PublicWelcomeContent';
+import Image from "next/image";
+import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useAuth } from "./contexts/AuthContext";
+import PublicHeader from "./components/public/PublicHeader";
+import PublicNavigation from "./components/public/PublicNavigation";
+import PublicWelcomeContent from "./components/public/PublicWelcomeContent";
 
 const PAGE_TITLES = {
   home: 'หน้าหลัก',
@@ -86,22 +87,18 @@ export default function HomePage() {
 
   if (isLoading || redirecting) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-purple-50">
-        <div className="text-center">
-          <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-blue-600 to-purple-600 rounded-2xl mb-4 shadow-lg">
-            <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center">
-              <div className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-                F
-              </div>
-            </div>
-          </div>
-
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">{APP_DISPLAY_NAME}</h1>
-
-          <div className="flex items-center justify-center gap-2 text-gray-600">
-            <div className="w-6 h-6 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin"></div>
-            <span>กำลังตรวจสอบสิทธิ์...</span>
-          </div>
+      <div className="flex min-h-screen flex-col items-center justify-center gap-6 bg-white text-center">
+        <Image
+          src="/image_icon/fund_cpkku_logo.png"
+          alt="โลโก้กองทุนวิจัย"
+          width={160}
+          height={160}
+          priority
+        />
+        <h1 className="text-2xl font-bold text-gray-900">{APP_DISPLAY_NAME}</h1>
+        <div className="space-y-1 text-gray-600">
+          <p className="text-lg font-medium text-gray-700">กำลังโหลดหน้า...</p>
+          <p className="text-sm text-gray-500">กำลังตรวจสอบสิทธิ์...</p>
         </div>
       </div>
     );
