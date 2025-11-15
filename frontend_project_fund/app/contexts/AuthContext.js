@@ -2,6 +2,7 @@
 'use client';
 
 import React, { createContext, useContext, useReducer, useEffect } from 'react';
+import Image from 'next/image';
 import { authAPI, AuthError, NetworkError } from '../lib/api';
 
 // Auth states
@@ -446,10 +447,17 @@ export function withAuth(Component, options = {}) {
 
     if (isLoading) {
       return (
-        <div className="min-h-screen flex items-center justify-center">
-          <div className="text-center">
-            <div className="w-12 h-12 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin mx-auto mb-4"></div>
-            <p className="text-gray-600">กำลังตรวจสอบสิทธิ์...</p>
+        <div className="min-h-screen flex items-center justify-center bg-white">
+          <div className="flex flex-col items-center gap-4 text-center">
+            <Image
+              src="/image_icon/fund_cpkku_logo.png"
+              alt="โลโก้กองทุนวิจัย"
+              width={120}
+              height={120}
+              priority
+            />
+            <p className="text-gray-600">กำลังโหลดหน้า...</p>
+            <p className="text-sm text-gray-500">กำลังตรวจสอบสิทธิ์...</p>
           </div>
         </div>
       );

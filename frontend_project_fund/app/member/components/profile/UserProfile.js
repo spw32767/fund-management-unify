@@ -11,12 +11,14 @@ import {
   ArrowUp,
   ArrowDown,
   ArrowUpDown,
+  UserCircle,
 } from "lucide-react";
 
 import profileAPI from "@/app/lib/profile_api";
 import memberAPI from "@/app/lib/member_api";
 import BudgetSummary from "@/app/member/components/dashboard/BudgetSummary";
 import { useStatusMap } from "@/app/hooks/useStatusMap";
+import PageLayout from "../common/PageLayout";
 
 const ReactApexChart = dynamic(() => import("react-apexcharts"), {
   ssr: false,
@@ -1095,17 +1097,30 @@ export default function ProfileContent() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-96">
-        <div className="text-center">
-          <div className="w-16 h-16 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-gray-600">กำลังโหลดข้อมูล...</p>
-        </div>
-      </div>
+      <PageLayout
+        title="ข้อมูลส่วนตัว"
+        subtitle="ดูข้อมูลส่วนบุคคลและสถิติการยื่นคำร้องของคุณ"
+        icon={UserCircle}
+        breadcrumbs={[
+          { label: "หน้าแรก", href: "/member" },
+          { label: "ข้อมูลส่วนตัว" },
+        ]}
+        loading
+      />
     );
   }
 
   return (
-    <div className="px-4 py-6 lg:px-8">
+    <PageLayout
+      title="ข้อมูลส่วนตัว"
+      subtitle="ดูข้อมูลส่วนบุคคลและสถิติการยื่นคำร้องของคุณ"
+      icon={UserCircle}
+      breadcrumbs={[
+        { label: "หน้าแรก", href: "/member" },
+        { label: "ข้อมูลส่วนตัว" },
+      ]}
+    >
+      <div className="px-4 py-6 lg:px-8">
       <div className="mx-auto max-w-6xl space-y-8">
         <section className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm sm:p-8">
           <div className="flex flex-col items-center gap-6 sm:flex-row sm:items-start">
@@ -1655,6 +1670,7 @@ export default function ProfileContent() {
           </section>
         </div>
       </div>
-    </div>
+    </PageLayout>
   );
 }
+
