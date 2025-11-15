@@ -242,7 +242,11 @@ func (s *ScopusPublicationService) StatsByUser(userID uint) (ScopusPublicationSt
 		Group(scopusDocumentGroupExpression(s.db))
 
 	var dedupCount int64
-	if err := s.db.Table("(?) AS doc_ids", docIDs.Session(&gorm.Session{NewDB: true})).Count(&dedupCount).Error; err != nil {
+	dedupCountQuery := s.db.Raw(
+		"SELECT COUNT(*) FROM (?) AS doc_ids",
+		docIDs.Session(&gorm.Session{NewDB: true}),
+	)
+	if err := dedupCountQuery.Scan(&dedupCount).Error; err != nil {
 		return stats, meta, err
 	}
 	if dedupCount == 0 {
