@@ -473,9 +473,19 @@ export default function ProjectsList() {
       title="โครงการ"
       subtitle="ติดตามข้อมูลโครงการที่จัดโดยกองทุนวิจัยและนวัตกรรม"
       icon={Briefcase}
-      loading={showInitialLoading}
+      breadcrumbs={[
+        { label: "หน้าแรก", href: "/member" },
+        { label: "โครงการ" },
+      ]}
     >
-      {!showInitialLoading && (
+      {showInitialLoading ? (
+        <div className="bg-white rounded-lg border border-gray-200 shadow-sm">
+          <div className="py-16 flex flex-col items-center gap-3 text-center">
+            <LoadingSpinner size="large" />
+            <p className="text-sm text-gray-500">กำลังโหลดข้อมูลโครงการ...</p>
+          </div>
+        </div>
+      ) : (
         <div className="space-y-6">
           <div className="bg-white shadow-sm rounded-lg p-5 border border-gray-200">
             <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-4">

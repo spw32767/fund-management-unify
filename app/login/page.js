@@ -252,23 +252,25 @@ export default function LoginPage() {
   if (redirecting) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-purple-50">
-        <div className="text-center">
-          <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-blue-600 to-purple-600 rounded-2xl mb-4 shadow-lg">
-            <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center">
-              <div className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-                F
-              </div>
-            </div>
+        <div className="text-center flex flex-col items-center gap-4">
+          <Image
+            src="/image_icon/fund_cpkku_logo.png"
+            alt="Fund CPKKU Logo"
+            width={140}
+            height={140}
+            className="object-contain drop-shadow"
+            priority
+          />
+
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900 mb-1">
+              เข้าสู่ระบบสำเร็จ
+            </h1>
+            <p className="text-gray-600">กำลังโหลดหน้า...</p>
+            <p className="text-sm text-gray-500">กำลังเปลี่ยนหน้า...</p>
           </div>
-          
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">
-            เข้าสู่ระบบสำเร็จ
-          </h1>
-          
-          <div className="flex items-center justify-center gap-2 text-gray-600">
-            <div className="w-6 h-6 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin"></div>
-            <span>กำลังเปลี่ยนหน้า...</span>
-          </div>
+
+          <div className="w-10 h-10 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin" aria-label="loading" />
         </div>
       </div>
     );
