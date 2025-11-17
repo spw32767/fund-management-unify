@@ -8,6 +8,7 @@ import { RxCross2 } from "react-icons/rx";
 import { useRouter } from "next/navigation";
 import { useAuth } from "../../../contexts/AuthContext";
 import { BRANDING } from "../../../config/branding";
+import NotificationBell from "@/app/components/notifications/NotificationBell";
 
 const roleLabels = {
   teacher: "อาจารย์",
@@ -88,6 +89,7 @@ export default function Header({
   setIsOpen,
   Navigation,
   currentPageTitle = "แดชบอร์ดบุคลากร",
+  onNavigate,
 }) {
   const { user, logout } = useAuth();
   const router = useRouter();
@@ -163,6 +165,15 @@ export default function Header({
     return Navigation;
   };
 
+  const goToNotifications = () => {
+    if (onNavigate) {
+      onNavigate("notifications");
+    } else {
+      router.push("/member");
+    }
+    setShowUserMenu(false);
+  };
+
   return (
     <header className="fixed top-0 z-40 w-full border-b border-gray-200 bg-white/95 backdrop-blur">
       <div className="px-6 py-4 flex justify-between items-center">
@@ -192,6 +203,8 @@ export default function Header({
 
         {/* Desktop User Menu */}
         <div className="hidden md:flex items-center gap-4">
+          <NotificationBell onViewAll={goToNotifications} />
+
           <div className="text-right">
             <p className="text-sm font-medium text-gray-800">{displayName}</p>
             {roleLabel ? (
@@ -214,6 +227,15 @@ export default function Header({
             {/* Dropdown Menu */}
             {showUserMenu && (
               <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-2 z-10">
+                <button
+                  onClick={() => {
+                    goToNotifications();
+                  }}
+                  className="flex items-center gap-2 w-full px-4 py-2 text-left text-gray-700 hover:bg-gray-50"
+                >
+                  <BellIcon size={16} />
+                  <span>การแจ้งเตือน</span>
+                </button>
                 <button
                   onClick={() => {
                     setShowUserMenu(false);
@@ -267,6 +289,10 @@ export default function Header({
                   ) : null}
                 </div>
               </div>
+              <div className="flex items-center gap-3 mb-3">
+                <NotificationBell onViewAll={goToNotifications} />
+                <span className="text-sm text-gray-700">การแจ้งเตือน</span>
+              </div>
               <button
                 onClick={handleLogout}
                 className="w-full text-left text-sm text-red-600 hover:text-red-700 flex items-center gap-2"
@@ -281,5 +307,24 @@ export default function Header({
         </div>
       )}
     </header>
+  );
+}
+
+function BellIcon(props) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className="w-4 h-4"
+      {...props}
+    >
+      <path d="M18 8a6 6 0 10-12 0c0 7-3 9-3 9h18s-3-2-3-9" />
+      <path d="M13.73 21a2 2 0 01-3.46 0" />
+    </svg>
   );
 }

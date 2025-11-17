@@ -9,6 +9,7 @@ import { RxCross2 } from "react-icons/rx";
 import { useRouter } from "next/navigation";
 import { useAuth } from "../../../contexts/AuthContext";
 import { BRANDING } from "../../../config/branding";
+import NotificationBell from "@/app/components/notifications/NotificationBell";
 
 export default function Header({ isOpen, setIsOpen, Navigation }) {
   const { user, logout } = useAuth();
@@ -120,6 +121,8 @@ export default function Header({ isOpen, setIsOpen, Navigation }) {
 
         {/* Desktop User Menu */}
         <div className="hidden md:flex items-center gap-4">
+          <NotificationBell />
+
           <div className="text-right">
             <p className="text-sm font-medium text-gray-800">{getUserDisplayName()}</p>
             <p className="text-xs text-gray-600">{getUserRoleDisplay()}</p>
@@ -201,7 +204,11 @@ export default function Header({ isOpen, setIsOpen, Navigation }) {
                   </div>
                 </div>
               </div>
-              <button 
+              <div className="flex items-center gap-3 mb-3">
+                <NotificationBell />
+                <span className="text-sm text-gray-700">การแจ้งเตือน</span>
+              </div>
+              <button
                 onClick={handleLogout}
                 className="w-full text-left text-sm text-red-600 hover:text-red-700 flex items-center gap-2"
               >
