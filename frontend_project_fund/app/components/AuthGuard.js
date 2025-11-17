@@ -2,6 +2,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Image from "next/image";
 import { useRouter, usePathname } from "next/navigation";
 import { useAuth } from "../contexts/AuthContext";
 import UnauthorizedPage from "./UnauthorizedPage";
@@ -119,24 +120,17 @@ export default function AuthGuard({
   // แสดง loading ขณะตรวจสอบ auth
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-purple-50">
-        <div className="text-center">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-blue-600 to-purple-600 rounded-2xl mb-4 shadow-lg">
-            <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center">
-              <div className="text-lg font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-                F
-              </div>
-            </div>
-          </div>
-          
-          <h2 className="text-xl font-semibold text-gray-800 mb-2">
-            กำลังตรวจสอบสิทธิ์...
-          </h2>
-          
-          <div className="flex items-center justify-center gap-2 text-gray-600">
-            <div className="w-5 h-5 border-2 border-blue-200 border-t-blue-600 rounded-full animate-spin"></div>
-            <span className="text-sm">กรุณารอสักครู่</span>
-          </div>
+      <div className="min-h-screen flex items-center justify-center bg-white">
+        <div className="flex flex-col items-center gap-4 text-center">
+          <Image
+            src="/image_icon/fund_cpkku_logo.png"
+            alt="โลโก้กองทุนวิจัย"
+            width={120}
+            height={120}
+            priority
+          />
+          <p className="text-gray-600">กำลังโหลดหน้า...</p>
+          <p className="text-sm text-gray-500">กำลังตรวจสอบสิทธิ์...</p>
         </div>
       </div>
     );

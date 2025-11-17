@@ -7,6 +7,7 @@ import apiClient, { announcementAPI, fundFormAPI, systemAPI } from "../../../lib
 import { systemConfigAPI } from "../../../lib/system_config_api";
 import { fundInstallmentAPI } from "../../../lib/fund_installment_api";
 import DataTable from "../../../admin/components/common/DataTable";
+import PageLayout from "../common/PageLayout";
 
 const parseISODate = (value) => {
   if (!value) return null;
@@ -853,18 +854,15 @@ export default function AnnouncementPage() {
   ];
 
   return (
-    <div className="animate-in fade-in duration-300">
-      {/* Page Header */}
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold text-gray-800 flex items-center gap-3">
-          <FileText size={32} className="text-gray-600" />
-          ประกาศกองทุนวิจัยและนวัตกรรม
-        </h1>
-        <p className="mt-1 text-gray-600">ดูประกาศและดาวน์โหลดแบบฟอร์มที่เกี่ยวข้องกับการขอทุน</p>
-        <div className="mt-4 h-1 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full w-24"></div>
-      </div>
-
-      {/* Content - Vertical Layout */}
+    <PageLayout
+      title="ประกาศกองทุนวิจัยและนวัตกรรม"
+      subtitle="ดูประกาศ รอบการพิจารณา และแบบฟอร์มที่เกี่ยวข้องกับการขอทุน"
+      icon={Bell}
+      breadcrumbs={[
+        { label: "หน้าแรก", href: "/member" },
+        { label: "ประกาศ" },
+      ]}
+    >
       <div className="space-y-8">
         {/* Announcements Section */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200">
@@ -1073,6 +1071,6 @@ export default function AnnouncementPage() {
           </div>
         </div>
       </div>
-    </div>
+    </PageLayout>
   );
 }
