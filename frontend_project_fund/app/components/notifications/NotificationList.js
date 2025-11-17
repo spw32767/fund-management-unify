@@ -3,7 +3,15 @@
 
 import { X, CheckCheck, Info, CheckCircle, AlertTriangle, XCircle } from "lucide-react";
 
-export default function NotificationList({ notifications, onMarkAsRead, onMarkAllAsRead, onClose }) {
+export default function NotificationList({
+  notifications,
+  onMarkAsRead,
+  onMarkAllAsRead,
+  onClose,
+  onViewAll = () => {},
+  isLoading = false,
+  errorMessage = "",
+}) {
   const getIcon = (type) => {
     switch (type) {
       case 'success':
@@ -18,11 +26,14 @@ export default function NotificationList({ notifications, onMarkAsRead, onMarkAl
   };
 
   const formatDate = (dateString) => {
+    if (!dateString) return "";
     const date = new Date(dateString);
+    if (Number.isNaN(date.getTime())) return "";
+
     const now = new Date();
     const diffMs = now - date;
     const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
-    
+
     if (diffHours < 1) {
       const diffMinutes = Math.floor(diffMs / (1000 * 60));
       return `${diffMinutes} นาทีที่แล้ว`;
@@ -50,6 +61,7 @@ export default function NotificationList({ notifications, onMarkAsRead, onMarkAl
           <button
             onClick={onClose}
             className="text-gray-500 hover:text-gray-700"
+            aria-label="close-notifications"
           >
             <X size={20} />
           </button>
@@ -57,7 +69,11 @@ export default function NotificationList({ notifications, onMarkAsRead, onMarkAl
       </div>
 
       <div className="max-h-96 overflow-y-auto">
-        {notifications.length === 0 ? (
+        {isLoading ? (
+          <div className="p-8 text-center text-gray-500">กำลังโหลดการแจ้งเตือน...</div>
+        ) : errorMessage ? (
+          <div className="p-8 text-center text-red-500">{errorMessage}</div>
+        ) : notifications.length === 0 ? (
           <div className="p-8 text-center text-gray-500">
             ไม่มีการแจ้งเตือน
           </div>
@@ -83,7 +99,7 @@ export default function NotificationList({ notifications, onMarkAsRead, onMarkAl
                     <span className="text-xs text-gray-500">
                       {formatDate(notification.created_at)}
                     </span>
-                    {notification.related_application_id && (
+                    {notification.related_submission_id && (
                       <button className="text-xs text-blue-600 hover:text-blue-700">
                         ดูรายละเอียด →
                       </button>
@@ -97,7 +113,10 @@ export default function NotificationList({ notifications, onMarkAsRead, onMarkAl
       </div>
 
       <div className="p-3 text-center border-t">
-        <button className="text-blue-600 hover:text-blue-700 text-sm font-medium">
+        <button
+          className="text-blue-600 hover:text-blue-700 text-sm font-medium"
+          onClick={onViewAll}
+        >
           ดูการแจ้งเตือนทั้งหมด
         </button>
       </div>
