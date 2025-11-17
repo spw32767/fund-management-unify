@@ -3068,6 +3068,7 @@ export default function GenericFundApplicationForm({
     effectiveFundContext?.subcategory_description
   );
   const shouldShowFundBanner = Boolean(bannerPrimaryDescription || bannerSecondaryDescription);
+  const showFundBanner = shouldShowFundBanner && !isReadOnly;
   const selectionLocked = Boolean(editingExistingSubmission);
   const shouldShowReviewerComments = isNeedsMoreInfo;
   const adminCommentDisplay = formatReviewerComment(reviewerComments.admin);
@@ -3104,7 +3105,13 @@ export default function GenericFundApplicationForm({
           </div>
         )}
 
-        {shouldShowFundBanner && (
+        {isReadOnly && (
+          <div className="rounded-lg border border-yellow-300 bg-yellow-50 p-4 text-sm text-yellow-800">
+            ขณะนี้เป็นโหมด <strong>อ่านอย่างเดียว</strong> — ไม่สามารถแก้ไขหรือส่งคำร้องได้
+          </div>
+        )}
+
+        {showFundBanner && (
           <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 text-sm text-blue-800">
             <div className="flex items-start gap-3">
               <Info className="h-5 w-5 flex-shrink-0 text-blue-500" aria-hidden="true" />
