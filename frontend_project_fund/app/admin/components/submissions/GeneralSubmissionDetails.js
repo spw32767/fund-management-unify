@@ -469,7 +469,7 @@ function DecisionDropdown({ value, onChange, disabled = false, className = '' })
 /* =========================
  * Approval Panel
  * ========================= */
-function FundApprovalPanel({ submission, fundDetail, onApprove, onReject, onRequestRevision }) {
+function FundApprovalPanel({ submission, fundDetail, onApprove, onReject, onRequestRevision, isReadOnly = false }) {
   const statusId = Number(submission?.status_id);
   const requested = Number(fundDetail?.requested_amount || 0);
 
@@ -719,7 +719,7 @@ function FundApprovalPanel({ submission, fundDetail, onApprove, onReject, onRequ
   };
 
   // ====== READ-ONLY MODE ======
-  if (statusId !== 1) {
+  if (isReadOnly || statusId !== 1) {
     const approvedAmount = resolveApprovedAmount(submission, fundDetail, null);
     const announceValue =
       fundDetail?.announce_reference_number ||
@@ -1489,6 +1489,8 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
   }, [submission]);
 
   const isPublicationReward = formType === 'publication_reward';
+  const isFundGeneralForm = formType.includes('fund') && formType.includes('general');
+  const isReadOnlyView = isFundGeneralForm;
 
   let renderedContent;
 
@@ -2052,6 +2054,7 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
           onApprove={approve}
           onReject={reject}
           onRequestRevision={requestRevision}
+          isReadOnly={isReadOnlyView}
         />
       </div>
 
@@ -2061,15 +2064,19 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
           icon={Clock}
           collapsible={false}
           action={
-            <button
-              type="button"
-              onClick={handleOpenEventModal}
-              className="inline-flex items-center gap-2 rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 disabled:cursor-not-allowed disabled:opacity-60"
-              disabled={eventSubmitting}
-            >
-              <PlusCircle size={16} />
-              เพิ่มประวัติ (Add Event)
-            </button>
+            isReadOnlyView
+              ? null
+              : (
+                <button
+                  type="button"
+                  onClick={handleOpenEventModal}
+                  className="inline-flex items-center gap-2 rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 disabled:cursor-not-allowed disabled:opacity-60"
+                  disabled={eventSubmitting}
+                >
+                  <PlusCircle size={16} />
+                  เพิ่มประวัติ (Add Event)
+                </button>
+              )
           }
           className="mb-6"
         >
