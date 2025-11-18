@@ -498,9 +498,9 @@ export default function ApplicationList({ onNavigate }) {
   const handleViewDetail = (id) => {
     const app = applications.find(a => a.application_id === id);
     if (app._original.submission_type === 'publication_reward') {
-      onNavigate('publication-reward-detail', { submissionId: id });
+      onNavigate('publication-reward-detail', { submissionId: id, originPage: 'applications' });
     } else {
-      onNavigate('fund-application-detail', { submissionId: id });
+      onNavigate('fund-application-detail', { submissionId: id, originPage: 'applications' });
     }
   };
 

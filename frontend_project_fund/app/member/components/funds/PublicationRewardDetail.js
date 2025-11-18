@@ -278,7 +278,11 @@ const deriveAnnouncementId = (...values) => {
   return null;
 };
 
-export default function PublicationRewardDetail({ submissionId, onNavigate }) {
+export default function PublicationRewardDetail({
+  submissionId,
+  onNavigate,
+  originPage = "applications",
+}) {
   const [submission, setSubmission] = useState(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("details");
@@ -590,7 +594,7 @@ export default function PublicationRewardDetail({ submissionId, onNavigate }) {
 
   const handleBack = () => {
     if (onNavigate) {
-      onNavigate('applications');
+      onNavigate(originPage || 'applications');
     }
   };
 
@@ -844,6 +848,7 @@ export default function PublicationRewardDetail({ submissionId, onNavigate }) {
     pubDetail?.announce_reference_number ??
     submission.announce_reference_number ??
     null;
+  const originLabel = originPage === 'received-funds' ? 'ทุนที่เคยได้รับ' : 'คำร้องของฉัน';
   
   return (
     <PageLayout
@@ -866,7 +871,7 @@ export default function PublicationRewardDetail({ submissionId, onNavigate }) {
       }
       breadcrumbs={[
         { label: "หน้าแรก", href: "/member" },
-        { label: "คำร้องของฉัน", href: "#", onClick: handleBack },
+        { label: originLabel, href: "#", onClick: handleBack },
         { label: submission.submission_number }
       ]}
     >

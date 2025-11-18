@@ -271,9 +271,15 @@ export default function ReceivedFundsList({ onNavigate }) {
     if (!fund) return;
 
     if (fund._original?.submission_type === "publication_reward") {
-      onNavigate?.("publication-reward-detail", { submissionId: id });
+      onNavigate?.("publication-reward-detail", {
+        submissionId: id,
+        originPage: "received-funds",
+      });
     } else {
-      onNavigate?.("fund-application-detail", { submissionId: id });
+      onNavigate?.("fund-application-detail", {
+        submissionId: id,
+        originPage: "received-funds",
+      });
     }
   };
 
