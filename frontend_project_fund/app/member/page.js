@@ -71,7 +71,7 @@ export function MemberPageContent({ initialPage = 'profile' }) {
       if (typeof window === 'undefined') return;
 
       const normalized = normalizePage(page);
-      const targetPath = normalized === 'profile' ? '/member' : `/member/${normalized}`;
+      const targetPath = `/member/${normalized}`;
 
       if (window.location.pathname === targetPath) return;
 
