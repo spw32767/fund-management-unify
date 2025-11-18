@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Search, Eye, Gift, RefreshCcw } from "lucide-react";
 import { submissionAPI, teacherAPI } from "@/app/lib/member_api";
 import { systemAPI } from "@/app/lib/api";
@@ -18,17 +18,14 @@ export default function ReceivedFundsList({ onNavigate }) {
   const [funds, setFunds] = useState([]);
   const [filteredFunds, setFilteredFunds] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
   const [yearFilter, setYearFilter] = useState("all");
   const [loading, setLoading] = useState(false);
   const [years, setYears] = useState([]);
   const [yearsLoading, setYearsLoading] = useState(false);
   const latestFundsRequestRef = useRef(0);
   const {
-    statuses: statusOptions,
     getLabelById,
     getCodeById,
-    isLoading: statusLoading,
   } = useStatusMap();
 
   useEffect(() => {
@@ -41,7 +38,7 @@ export default function ReceivedFundsList({ onNavigate }) {
 
   useEffect(() => {
     filterFunds();
-  }, [searchTerm, statusFilter, yearFilter, funds]);
+  }, [searchTerm, yearFilter, funds]);
 
   const loadYears = async () => {
     setYearsLoading(true);
@@ -262,13 +259,6 @@ export default function ReceivedFundsList({ onNavigate }) {
       );
     }
 
-    if (statusFilter !== "all") {
-      data = data.filter((item) => {
-        if (item.status_id == null) return false;
-        return String(item.status_id) === String(statusFilter);
-      });
-    }
-
     if (yearFilter !== "all") {
       data = data.filter((item) => item.year === yearFilter);
     }
@@ -281,22 +271,17 @@ export default function ReceivedFundsList({ onNavigate }) {
     if (!fund) return;
 
     if (fund._original?.submission_type === "publication_reward") {
-      onNavigate?.("publication-reward-detail", { submissionId: id });
+      onNavigate?.("publication-reward-detail", {
+        submissionId: id,
+        originPage: "received-funds",
+      });
     } else {
-      onNavigate?.("fund-application-detail", { submissionId: id });
+      onNavigate?.("fund-application-detail", {
+        submissionId: id,
+        originPage: "received-funds",
+      });
     }
   };
-
-  const approvedStatusOptions = useMemo(() => {
-    if (!Array.isArray(statusOptions)) return [];
-    return statusOptions.filter((status) =>
-      isApprovedStatus(
-        status.application_status_id,
-        status.status_code,
-        status.status_name
-      )
-    );
-  }, [statusOptions]);
 
   const columns = [
     {
@@ -415,23 +400,6 @@ export default function ReceivedFundsList({ onNavigate }) {
 
           <select
             className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            disabled={statusLoading && !approvedStatusOptions.length}
-          >
-            <option value="all">สถานะการอนุมัติทั้งหมด</option>
-            {approvedStatusOptions.map((status) => (
-              <option
-                key={status.application_status_id}
-                value={status.application_status_id}
-              >
-                {status.status_name}
-              </option>
-            ))}
-          </select>
-
-          <select
-            className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
             value={yearFilter}
             onChange={(e) => setYearFilter(e.target.value)}
             disabled={yearsLoading && !years.length}
@@ -457,16 +425,15 @@ export default function ReceivedFundsList({ onNavigate }) {
             icon={Gift}
             title="ไม่พบข้อมูลทุน"
             message={
-              searchTerm || statusFilter !== "all" || yearFilter !== "all"
+              searchTerm || yearFilter !== "all"
                 ? "ไม่พบข้อมูลที่ตรงกับเงื่อนไขการค้นหา"
                 : "คุณยังไม่เคยได้รับทุน"
             }
             action={
-              searchTerm || statusFilter !== "all" || yearFilter !== "all" ? (
+              searchTerm || yearFilter !== "all" ? (
                 <button
                   onClick={() => {
                     setSearchTerm("");
-                    setStatusFilter("all");
                     setYearFilter("all");
                   }}
                   className="btn btn-secondary"
