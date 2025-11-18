@@ -142,11 +142,14 @@ const normalizeDocumentName = (name) =>
   typeof name === "string" ? name.trim().toLowerCase() : "";
 
 const HIDDEN_MERGED_FORM_NAME = "แบบฟอร์มคำร้องรวม (merged pdf)".toLowerCase();
+const HIDDEN_MERGED_FILE_REGEX = /_merged_document(?:_\d+)?\.pdf$/i;
+const MERGED_FOLDER_SEGMENT = "merge_submissions";
 
-const isMergedFormDocument = (doc) => {
-  if (!doc || typeof doc !== "object") return false;
+const getDocumentNameCandidates = (doc) => {
+  if (!doc) return [];
+  if (typeof doc === "string") return [doc];
 
-  const candidates = [
+  return [
     doc.original_name,
     doc.file_name,
     doc.document_name,
@@ -154,10 +157,56 @@ const isMergedFormDocument = (doc) => {
     doc.File?.file_name,
     doc.file?.file_name,
   ];
+};
 
-  return candidates.some(
-    (candidate) => normalizeDocumentName(candidate) === HIDDEN_MERGED_FORM_NAME,
-  );
+const getDocumentPathCandidates = (doc) => {
+  if (!doc) return [];
+  if (typeof doc === "string") return [doc];
+
+  const directPaths = [
+    doc.file_path,
+    doc.path,
+    doc.url,
+    doc.file?.file_path,
+    doc.file?.path,
+    doc.file?.url,
+    doc.File?.file_path,
+    doc.File?.path,
+    doc.File?.url,
+  ];
+
+  const extracted = extractFirstFilePath(doc);
+  if (extracted) {
+    directPaths.push(extracted);
+  }
+
+  return directPaths;
+};
+
+const isMergedFormDocument = (doc) => {
+  if (!doc) return false;
+
+  const nameMatches = getDocumentNameCandidates(doc).some((candidate) => {
+    const normalized = normalizeDocumentName(candidate);
+    if (!normalized) return false;
+    return (
+      normalized === HIDDEN_MERGED_FORM_NAME ||
+      HIDDEN_MERGED_FILE_REGEX.test(candidate.trim())
+    );
+  });
+
+  if (nameMatches) return true;
+
+  return getDocumentPathCandidates(doc).some((candidate) => {
+    if (typeof candidate !== "string") return false;
+    const normalized = candidate.trim().toLowerCase();
+    return (
+      !normalized
+        ? false
+        : normalized.includes(MERGED_FOLDER_SEGMENT) ||
+          HIDDEN_MERGED_FILE_REGEX.test(normalized)
+    );
+  });
 };
 
 const toCamelSuffix = (suffix) => {
