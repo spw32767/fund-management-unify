@@ -104,9 +104,21 @@ export function MemberPageContent({ initialPage = 'profile' }) {
           />
         );
       case 'publication-reward-detail':
-        return <PublicationRewardDetail submissionId={selectedFundData?.submissionId} onNavigate={handleNavigate} />;
+        return (
+          <PublicationRewardDetail
+            submissionId={selectedFundData?.submissionId}
+            originPage={selectedFundData?.originPage}
+            onNavigate={handleNavigate}
+          />
+        );
       case 'fund-application-detail':
-        return <FundApplicationDetail submissionId={selectedFundData?.submissionId} onNavigate={handleNavigate} />;
+        return (
+          <FundApplicationDetail
+            submissionId={selectedFundData?.submissionId}
+            originPage={selectedFundData?.originPage}
+            onNavigate={handleNavigate}
+          />
+        );
       case 'announcements':
         return <AnnouncementPage />;
       case 'notifications':
