@@ -146,6 +146,7 @@ export function MemberPageContent({ initialPage = 'profile' }) {
         isOpen={isOpen}
         setIsOpen={setIsOpen}
         currentPageTitle={getPageTitle()}
+        onNavigate={handleNavigate}
         Navigation={({ closeMenu }) => (
           <Navigation
             currentPage={currentPage}
