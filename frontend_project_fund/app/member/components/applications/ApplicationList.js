@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { Search, Eye, FileText, ClipboardList, Plus, RefreshCcw } from "lucide-react";
 import { submissionAPI, teacherAPI } from "@/app/lib/member_api";
 import { systemAPI } from "@/app/lib/api";
@@ -30,6 +30,18 @@ export default function ApplicationList({ onNavigate }) {
     getCodeById,
     isLoading: statusLoading,
   } = useStatusMap();
+
+  const filteredStatusOptions = useMemo(() => {
+    if (!Array.isArray(statusOptions)) return [];
+    return statusOptions.filter(
+      (status) =>
+        !isApprovedStatus(
+          status.application_status_id,
+          status.status_code,
+          status.status_name
+        )
+    );
+  }, [statusOptions]);
 
   useEffect(() => {
     loadYears();
@@ -591,11 +603,11 @@ export default function ApplicationList({ onNavigate }) {
             className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
-            disabled={statusLoading && !statusOptions}
+            disabled={statusLoading && !filteredStatusOptions.length}
           >
             <option value="all">สถานะทั้งหมด</option>
-            {Array.isArray(statusOptions) &&
-              statusOptions.map((status) => (
+            {Array.isArray(filteredStatusOptions) &&
+              filteredStatusOptions.map((status) => (
                 <option
                   key={status.application_status_id}
                   value={status.application_status_id}
