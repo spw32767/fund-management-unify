@@ -138,6 +138,28 @@ const extractFirstFilePath = (value) => {
   return null;
 };
 
+const normalizeDocumentName = (name) =>
+  typeof name === "string" ? name.trim().toLowerCase() : "";
+
+const HIDDEN_MERGED_FORM_NAME = "แบบฟอร์มคำร้องรวม (merged pdf)".toLowerCase();
+
+const isMergedFormDocument = (doc) => {
+  if (!doc || typeof doc !== "object") return false;
+
+  const candidates = [
+    doc.original_name,
+    doc.file_name,
+    doc.document_name,
+    doc.name,
+    doc.File?.file_name,
+    doc.file?.file_name,
+  ];
+
+  return candidates.some(
+    (candidate) => normalizeDocumentName(candidate) === HIDDEN_MERGED_FORM_NAME,
+  );
+};
+
 const toCamelSuffix = (suffix) => {
   if (!suffix) return "";
   const trimmed = suffix.replace(/^_+/, "");
@@ -612,6 +634,11 @@ export default function FundApplicationDetail({ submissionId, onNavigate }) {
   const documents =
     submission?.documents || submission?.submission_documents || [];
 
+  const visibleDocuments = useMemo(() => {
+    if (!Array.isArray(documents)) return [];
+    return documents.filter((doc) => !isMergedFormDocument(doc));
+  }, [documents]);
+
   const mainAnnouncementFallback = useMemo(
     () =>
       buildAnnouncementFromDetail(detail, [
@@ -939,9 +966,9 @@ export default function FundApplicationDetail({ submissionId, onNavigate }) {
       {/* Documents */}
       <Card title="เอกสารแนบ (Attachments)" icon={FileText} collapsible={false}>
         <div className="space-y-6">
-          {documents.length > 0 ? (
+          {visibleDocuments.length > 0 ? (
             <div className="space-y-4">
-              {documents.map((doc, index) => {
+              {visibleDocuments.map((doc, index) => {
                 const fileId = doc.file_id || doc.File?.file_id || doc.file?.file_id;
                 const trimmedOriginal =
                   typeof doc.original_name === "string" ? doc.original_name.trim() : "";
@@ -1027,12 +1054,12 @@ export default function FundApplicationDetail({ submissionId, onNavigate }) {
             </div>
           )}
 
-          {documents.length > 0 && (
+          {visibleDocuments.length > 0 && (
             <div className="flex justify-end gap-3 pt-4 border-t-1 border-gray-300">
               <button
                 className="inline-flex items-center gap-1 border border-blue-200 px-3 py-2 text-sm text-blue-600 hover:bg-blue-50 rounded-md transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-                onClick={() => handleViewMerged(documents)}
-                disabled={documents.length === 0 || merging || creatingMerged}
+                onClick={() => handleViewMerged(visibleDocuments)}
+                disabled={visibleDocuments.length === 0 || merging || creatingMerged}
                 title="เปิดดูไฟล์แนบที่ถูกรวมเป็น PDF"
               >
                 <Eye size={16} /> ดูไฟล์รวม (PDF)
@@ -1041,13 +1068,13 @@ export default function FundApplicationDetail({ submissionId, onNavigate }) {
                 className="inline-flex items-center gap-1 border border-green-200 px-3 py-2 text-sm text-green-600 hover:bg-green-50 rounded-md transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
                 onClick={() =>
                   handleDownloadMerged(
-                    documents,
+                    visibleDocuments,
                     `merged_documents_${
                       submission?.submission_number || submission?.submission_id || ""
                     }.pdf`
                   )
                 }
-                disabled={documents.length === 0 || merging || creatingMerged}
+                disabled={visibleDocuments.length === 0 || merging || creatingMerged}
                 title="ดาวน์โหลดไฟล์แนบที่ถูกรวมเป็น PDF เดียว"
               >
                 <Download size={16} /> ดาวน์โหลดไฟล์รวม

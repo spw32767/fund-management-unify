@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { toast } from "react-hot-toast";
 import { PDFDocument } from "pdf-lib";
 import { 
@@ -204,6 +204,28 @@ const extractFirstFilePath = (value) => {
   return null;
 };
 
+const normalizeDocumentName = (name) =>
+  typeof name === "string" ? name.trim().toLowerCase() : "";
+
+const HIDDEN_MERGED_FORM_NAME = "แบบฟอร์มคำร้องรวม (merged pdf)".toLowerCase();
+
+const isMergedFormDocument = (doc) => {
+  if (!doc || typeof doc !== "object") return false;
+
+  const candidates = [
+    doc.original_name,
+    doc.file_name,
+    doc.document_name,
+    doc.name,
+    doc.File?.file_name,
+    doc.file?.file_name,
+  ];
+
+  return candidates.some(
+    (candidate) => normalizeDocumentName(candidate) === HIDDEN_MERGED_FORM_NAME,
+  );
+};
+
 const resolveAnnouncementInfo = (value, fallbackLabel) => {
   const fallback =
     typeof fallbackLabel === "string"
@@ -290,6 +312,11 @@ export default function PublicationRewardDetail({ submissionId, onNavigate }) {
   // documents may come from different property names depending on the API response
   const documents =
     submission?.documents || submission?.submission_documents || [];
+
+  const visibleDocuments = useMemo(() => {
+    if (!Array.isArray(documents)) return [];
+    return documents.filter((doc) => !isMergedFormDocument(doc));
+  }, [documents]);
 
   const cleanupMergedUrl = () => {
     if (mergedUrlRef.current) {
@@ -627,19 +654,19 @@ export default function PublicationRewardDetail({ submissionId, onNavigate }) {
   };
 
   const createMergedUrl = async () => {
-    if (!documents.length) {
+    if (!visibleDocuments.length) {
       return null;
     }
 
     setMerging(true);
 
     try {
-      const pdfCandidates = documents.filter((doc) => {
+      const pdfCandidates = visibleDocuments.filter((doc) => {
         const name = (doc?.original_name || '').toLowerCase();
         return name.endsWith('.pdf');
       });
 
-      const workingList = (pdfCandidates.length ? pdfCandidates : documents).filter(
+      const workingList = (pdfCandidates.length ? pdfCandidates : visibleDocuments).filter(
         (doc) =>
           (doc?.file_id ?? doc?.File?.file_id ?? doc?.file?.file_id ?? doc?.id) != null,
       );
@@ -1316,9 +1343,9 @@ export default function PublicationRewardDetail({ submissionId, onNavigate }) {
       {activeTab === 'documents' && (
         <Card title="เอกสารแนบ (Attachments)" icon={FileText} collapsible={false}>
           <div className="space-y-6">
-            {documents.length > 0 ? (
+            {visibleDocuments.length > 0 ? (
               <div className="space-y-4">
-                {documents.map((doc, index) => {
+                {visibleDocuments.map((doc, index) => {
                   const fileId =
                     doc?.file_id ?? doc?.File?.file_id ?? doc?.file?.file_id ?? doc?.id;
                   const trimmedOriginal =
@@ -1399,12 +1426,12 @@ export default function PublicationRewardDetail({ submissionId, onNavigate }) {
               </div>
             )}
 
-            {documents.length > 0 && (
+            {visibleDocuments.length > 0 && (
               <div className="flex justify-end gap-3 pt-4 border-t border-gray-200">
                 <button
                   className="inline-flex items-center gap-1 border border-blue-200 px-3 py-2 text-sm text-blue-600 hover:bg-blue-50 rounded-md transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
                   onClick={handleViewMerged}
-                  disabled={documents.length === 0 || merging}
+                  disabled={visibleDocuments.length === 0 || merging}
                   title="เปิดดูไฟล์แนบที่ถูกรวมเป็น PDF"
                 >
                   <Eye size={16} /> ดูไฟล์รวม (PDF)
@@ -1412,7 +1439,7 @@ export default function PublicationRewardDetail({ submissionId, onNavigate }) {
                 <button
                   className="inline-flex items-center gap-1 border border-green-200 px-3 py-2 text-sm text-green-600 hover:bg-green-50 rounded-md transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
                   onClick={handleDownloadMerged}
-                  disabled={documents.length === 0 || merging}
+                  disabled={visibleDocuments.length === 0 || merging}
                   title="ดาวน์โหลดไฟล์แนบที่ถูกรวมเป็น PDF เดียว"
                 >
                   <Download size={16} /> ดาวน์โหลดไฟล์รวม
