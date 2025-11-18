@@ -7,7 +7,6 @@ import {
   CheckCircle,
   Clock3,
   Info,
-  Sparkles,
   X,
   XCircle,
 } from "lucide-react";
@@ -73,13 +72,10 @@ export default function NotificationList({
   return (
     <div className="flex flex-col rounded-2xl bg-white shadow-xl border border-slate-200 overflow-hidden">
       <div className="bg-gradient-to-r from-sky-600 via-indigo-600 to-blue-700 text-white px-5 py-4">
-        <div className="flex items-start justify-between gap-4">
+        <div className="flex items-center justify-between gap-4">
           <div>
-            <p className="text-xs uppercase tracking-wide text-sky-100">ศูนย์การแจ้งเตือน</p>
-            <h3 className="mt-1 text-lg font-semibold">ติดตามข้อมูลสำคัญได้ทันที</h3>
-            <p className="text-sm text-sky-100/90">
-              ตรวจสอบความคืบหน้าการยื่นคำร้องและข่าวสารล่าสุดแบบเรียลไทม์
-            </p>
+            <p className="text-sm font-semibold">ศูนย์การแจ้งเตือน</p>
+            <p className="text-xs text-sky-100/90">ใหม่ {unreadCount} รายการ</p>
           </div>
           <div className="flex items-center gap-2">
             <button
@@ -97,14 +93,6 @@ export default function NotificationList({
               <X size={18} />
             </button>
           </div>
-        </div>
-        <div className="mt-3 flex items-center gap-3 text-sm text-sky-100">
-          <span className="inline-flex items-center gap-1 rounded-full bg-white/15 px-2.5 py-1 text-xs font-medium">
-            <Sparkles size={14} /> ใหม่ {unreadCount} รายการ
-          </span>
-          <span className="inline-flex items-center gap-1">
-            <Clock3 size={14} /> อัปเดตล่าสุดภายใน 24 ชั่วโมงที่ผ่านมา
-          </span>
         </div>
       </div>
 

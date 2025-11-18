@@ -169,7 +169,7 @@ export default function Header({
     if (onNavigate) {
       onNavigate("notifications");
     } else {
-      router.push("/member");
+      router.push("/member/notifications");
     }
     setShowUserMenu(false);
   };
