@@ -80,12 +80,12 @@ export default function NotificationBell({ onViewAll }) {
     <div className="relative">
       <button
         onClick={() => setShowDropdown(!showDropdown)}
-        className="relative p-2 hover:bg-gray-100 rounded-full"
+        className="relative inline-flex items-center justify-center rounded-full border border-slate-200 bg-white p-2 shadow-sm transition hover:-translate-y-0.5 hover:shadow"
         aria-label="notification-toggle"
       >
-        <Bell size={24} className="text-gray-700" />
+        <Bell size={22} className="text-slate-700" />
         {unreadCount > 0 && (
-          <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full min-w-[20px] h-5 px-1 flex items-center justify-center">
+          <span className="absolute -top-1 -right-1 min-w-[22px] h-5 rounded-full bg-rose-500 px-1 text-[11px] font-semibold text-white shadow-sm flex items-center justify-center">
             {unreadCount > 99 ? "99+" : unreadCount}
           </span>
         )}
@@ -97,7 +97,7 @@ export default function NotificationBell({ onViewAll }) {
             className="fixed inset-0 z-40"
             onClick={() => setShowDropdown(false)}
           />
-          <div className="absolute right-0 mt-2 w-96 bg-white rounded-lg shadow-xl border border-gray-200 z-50">
+          <div className="absolute right-0 mt-3 w-[420px] z-50">
             <NotificationList
               notifications={notifications}
               onMarkAsRead={markAsRead}
