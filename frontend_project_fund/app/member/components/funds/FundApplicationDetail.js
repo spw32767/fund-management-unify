@@ -349,7 +349,7 @@ const deriveAnnouncementId = (...values) => {
   return null;
 };
 
-export default function FundApplicationDetail({ submissionId, onNavigate }) {
+export default function FundApplicationDetail({ submissionId, originPage = "applications", onNavigate }) {
   const [submission, setSubmission] = useState(null);
   const [loading, setLoading] = useState(true);
   const [mainAnnouncementDetail, setMainAnnouncementDetail] = useState(null);
@@ -405,7 +405,7 @@ export default function FundApplicationDetail({ submissionId, onNavigate }) {
 
   const handleBack = () => {
     if (onNavigate) {
-      onNavigate("applications");
+      onNavigate(originPage || "applications");
     }
   };
 
@@ -793,7 +793,11 @@ export default function FundApplicationDetail({ submissionId, onNavigate }) {
       }
       breadcrumbs={[
         { label: "หน้าแรก", href: "/member" },
-        { label: "คำร้องของฉัน", href: "#", onClick: handleBack },
+        {
+          label: originPage === "received-funds" ? "ทุนที่เคยได้รับ" : "คำร้องของฉัน",
+          href: "#",
+          onClick: handleBack,
+        },
         { label: submission.submission_number },
       ]}
     >
