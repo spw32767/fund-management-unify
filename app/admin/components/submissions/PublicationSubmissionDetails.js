@@ -240,6 +240,127 @@ const deriveApprovedSummary = (pubDetail = {}, submission = {}, requestedSummary
   };
 };
 
+const extractFirstFilePath = (value) => {
+  if (!value || typeof value !== 'object') return null;
+
+  const candidates = [
+    value.file_path,
+    value.path,
+    value.url,
+    value.file_url,
+    value.download_url,
+    value.document_path,
+    value.document_url,
+    value.attachment_path,
+    value.attachment_url,
+    value.file?.file_path,
+    value.file?.path,
+    value.file?.url,
+    value.file?.download_url,
+    value.document?.file_path,
+    value.document?.path,
+    value.document?.url,
+    value.Document?.file_path,
+    value.Document?.path,
+    value.Document?.url,
+  ];
+
+  for (const candidate of candidates) {
+    if (typeof candidate === 'string' && candidate.trim() !== '') {
+      return candidate.trim();
+    }
+  }
+
+  const fileCollections = [value.files, value.Files, value.documents, value.Documents];
+  for (const collection of fileCollections) {
+    if (!Array.isArray(collection)) continue;
+    for (const entry of collection) {
+      const nested = extractFirstFilePath(entry);
+      if (nested) return nested;
+      if (typeof entry === 'string' && entry.trim() !== '') {
+        return entry.trim();
+      }
+    }
+  }
+
+  return null;
+};
+
+const normalizeDocumentName = (name) =>
+  (typeof name === 'string' ? name.trim().toLowerCase() : '');
+
+const HIDDEN_MERGED_FORM_NAME = 'แบบฟอร์มคำร้องรวม (merged pdf)'.toLowerCase();
+const HIDDEN_MERGED_FILE_REGEX = /_merged_document(?:_\d+)?\.pdf$/i;
+const MERGED_FOLDER_SEGMENT = 'merge_submissions';
+
+const getDocumentNameCandidates = (doc) => {
+  if (!doc) return [];
+  if (typeof doc === 'string') return [doc];
+
+  return [
+    doc.original_name,
+    doc.file_name,
+    doc.document_name,
+    doc.name,
+    doc.File?.file_name,
+    doc.file?.file_name,
+  ];
+};
+
+const getDocumentPathCandidates = (doc) => {
+  if (!doc) return [];
+  if (typeof doc === 'string') return [doc];
+
+  const directPaths = [
+    doc.file_path,
+    doc.path,
+    doc.url,
+    doc.file?.file_path,
+    doc.file?.path,
+    doc.file?.url,
+    doc.File?.file_path,
+    doc.File?.path,
+    doc.File?.url,
+  ];
+
+  const extracted = extractFirstFilePath(doc);
+  if (extracted) {
+    directPaths.push(extracted);
+  }
+
+  return directPaths;
+};
+
+const isMergedFormDocument = (doc) => {
+  if (!doc) return false;
+
+  const nameMatches = getDocumentNameCandidates(doc).some((candidate) => {
+    const normalized = normalizeDocumentName(candidate);
+    if (!normalized) return false;
+    return (
+      normalized === HIDDEN_MERGED_FORM_NAME ||
+      HIDDEN_MERGED_FILE_REGEX.test(candidate.trim())
+    );
+  });
+
+  if (nameMatches) return true;
+
+  return getDocumentPathCandidates(doc).some((candidate) => {
+    if (typeof candidate !== 'string') return false;
+    const normalized = candidate.trim().toLowerCase();
+    if (!normalized) return false;
+    return (
+      normalized.includes(MERGED_FOLDER_SEGMENT) ||
+      HIDDEN_MERGED_FILE_REGEX.test(normalized)
+    );
+  });
+};
+
+const getDocumentFileId = (doc) => {
+  if (!doc || typeof doc !== 'object') return null;
+  return doc.file_id ?? doc.File?.file_id ?? doc.file?.file_id ?? null;
+};
+
 // ---------- Add: helpers for subcategory name from payload ----------
 const firstNonEmpty = (...vals) => {
   for (const v of vals) {
@@ -1456,6 +1577,10 @@ export default function PublicationSubmissionDetails({ submissionId, onBack }) {
 
   const [attachments, setAttachments] = useState([]);
   const [attachmentsLoading, setAttachmentsLoading] = useState(false)
+  const visibleAttachments = useMemo(
+    () => attachments.filter((doc) => !isMergedFormDocument(doc)),
+    [attachments],
+  );
   const { getCodeById } = useStatusMap();
 
   // Load data
@@ -1872,14 +1997,20 @@ export default function PublicationSubmissionDetails({ submissionId, onBack }) {
     const skipped = [];
 
     for (const doc of list) {
+      const fileId = getDocumentFileId(doc);
+      if (!fileId) {
+        skipped.push(doc?.original_name || 'unknown-file');
+        continue;
+      }
+
       try {
-        const blob = await fetchFileAsBlob(doc.file_id);
+        const blob = await fetchFileAsBlob(fileId);
         const src = await PDFDocument.load(await blob.arrayBuffer(), { ignoreEncryption: true });
         const pages = await merged.copyPages(src, src.getPageIndices());
         pages.forEach(p => merged.addPage(p));
       } catch (e) {
-        console.warn('merge: skip', doc?.original_name || doc?.file_id, e);
-        skipped.push(doc?.original_name || `file-${doc.file_id}.pdf`);
+        console.warn('merge: skip', doc?.original_name || fileId, e);
+        skipped.push(doc?.original_name || `file-${fileId}.pdf`);
         continue;
       }
     }
@@ -1895,15 +2026,24 @@ export default function PublicationSubmissionDetails({ submissionId, onBack }) {
     return { blob, skipped };
   };
 
-  const createMergedUrl = async () => {
+  const createMergedUrl = async (documents) => {
     setMerging(true);
     try {
+      const availableDocs = (Array.isArray(documents) ? documents : []).filter(
+        (doc) => getDocumentFileId(doc),
+      );
+
+      if (!availableDocs.length) {
+        toast.error('ไม่พบไฟล์ที่สามารถรวมได้');
+        return null;
+      }
+
       // เลือกไฟล์ .pdf ก่อน ถ้าไม่มีเลยค่อยลองทุกไฟล์ (ให้ merge functionเป็นคนคัดทิ้งเอง)
-      const pdfLike = attachments.filter(d => {
-        const name = (d.original_name || '').toLowerCase();
+      const pdfLike = availableDocs.filter(d => {
+        const name = (d.original_name || d.file_name || d.File?.file_name || d.file?.file_name || '').toLowerCase();
         return name.endsWith('.pdf');
       });
-      const list = pdfLike.length ? pdfLike : attachments;
+      const list = pdfLike.length ? pdfLike : availableDocs;
 
       const { blob, skipped } = await mergeAttachmentsToPdf(list);
       cleanupMergedUrl();
@@ -1926,12 +2066,12 @@ export default function PublicationSubmissionDetails({ submissionId, onBack }) {
   };
 
   const handleViewMerged = async () => {
-    const url = mergedUrlRef.current || await createMergedUrl();
+    const url = mergedUrlRef.current || await createMergedUrl(visibleAttachments);
     if (url) window.open(url, '_blank');
   };
 
   const handleDownloadMerged = async () => {
-    const url = mergedUrlRef.current || await createMergedUrl();
+    const url = mergedUrlRef.current || await createMergedUrl(visibleAttachments);
     if (!url) return;
     const a = document.createElement('a');
     a.href = url;
@@ -2622,9 +2762,9 @@ export default function PublicationSubmissionDetails({ submissionId, onBack }) {
                   <span>กำลังโหลดเอกสาร...</span>
                 </div>
               </div>
-            ) : attachments.length > 0 ? (
+            ) : visibleAttachments.length > 0 ? (
               <div className="space-y-4">
-                {attachments.map((doc, index) => {
+                {visibleAttachments.map((doc, index) => {
                   const fileId = doc.file_id || doc.File?.file_id || doc.file?.file_id;
                   const trimmedOriginal =
                     typeof doc.original_name === 'string' ? doc.original_name.trim() : '';
@@ -2713,12 +2853,12 @@ export default function PublicationSubmissionDetails({ submissionId, onBack }) {
             )}
 
             {/* Action Buttons - ย้ายมาด้านล่าง */}
-            {attachments.length > 0 && (
+            {visibleAttachments.length > 0 && (
               <div className="flex justify-end gap-3 pt-4 border-t-1 border-gray-300">
                 <button
                   className="inline-flex items-center gap-1 border border-blue-200 px-3 py-2 text-sm text-blue-600 hover:bg-blue-50 rounded-md transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
                   onClick={handleViewMerged}
-                  disabled={attachments.length === 0 || merging}
+                  disabled={visibleAttachments.length === 0 || merging}
                   title="เปิดดูไฟล์แนบที่ถูกรวมเป็น PDF"
                 >
                   <Eye size={16} /> ดูไฟล์รวม (PDF)
@@ -2726,7 +2866,7 @@ export default function PublicationSubmissionDetails({ submissionId, onBack }) {
                 <button
                   className="inline-flex items-center gap-1 border border-green-200 px-3 py-2 text-sm text-green-600 hover:bg-green-50 rounded-md transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
                   onClick={handleDownloadMerged}
-                  disabled={attachments.length === 0 || merging}
+                  disabled={visibleAttachments.length === 0 || merging}
                   title="ดาวน์โหลดไฟล์แนบที่ถูกรวมเป็น PDF เดียว"
                 >
                   <Download size={16} /> ดาวน์โหลดไฟล์รวม

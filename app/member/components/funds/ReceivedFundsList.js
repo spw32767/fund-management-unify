@@ -419,7 +419,6 @@ export default function ReceivedFundsList({ onNavigate }) {
             onChange={(e) => setStatusFilter(e.target.value)}
             disabled={statusLoading && !approvedStatusOptions.length}
           >
-            <option value="all">สถานะการอนุมัติทั้งหมด</option>
             {approvedStatusOptions.map((status) => (
               <option
                 key={status.application_status_id}
