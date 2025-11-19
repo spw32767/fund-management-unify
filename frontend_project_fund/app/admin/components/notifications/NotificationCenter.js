@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle,
   Bell,
@@ -23,9 +23,8 @@ export default function AdminNotificationCenter() {
   const [sortOrder, setSortOrder] = useState("desc");
   const [hasMore, setHasMore] = useState(true);
   const [offset, setOffset] = useState(0);
-  const loadMoreRef = useRef(null);
 
-  const PAGE_SIZE = 30;
+  const PAGE_SIZE = 20;
 
   const unreadCount = useMemo(
     () => notifications.filter((item) => !item.is_read).length,
@@ -126,27 +125,6 @@ export default function AdminNotificationCenter() {
   useEffect(() => {
     loadNotifications({ reset: true });
   }, [loadNotifications]);
-
-  useEffect(() => {
-    const observer = new IntersectionObserver(
-      (entries) => {
-        const [entry] = entries;
-        if (entry.isIntersecting && hasMore && !isLoading && !isLoadingMore) {
-          loadNotifications();
-        }
-      },
-      { rootMargin: "200px" }
-    );
-
-    const target = loadMoreRef.current;
-    if (target) {
-      observer.observe(target);
-    }
-
-    return () => {
-      observer.disconnect();
-    };
-  }, [hasMore, isLoading, isLoadingMore, loadNotifications]);
 
   const markAsRead = async (id) => {
     try {
@@ -340,13 +318,20 @@ export default function AdminNotificationCenter() {
               </div>
             )}
 
-            <div ref={loadMoreRef} className="flex items-center justify-center py-4">
-              {isLoadingMore ? (
-                <div className="flex items-center gap-2 text-sm text-slate-500">
-                  <div className="h-4 w-4 animate-spin rounded-full border border-slate-200 border-t-sky-500" />
-                  กำลังโหลดเพิ่มเติม...
-                </div>
-              ) : !hasMore && notifications.length > 0 ? (
+            <div className="flex items-center justify-center py-4">
+              {hasMore ? (
+                <button
+                  type="button"
+                  onClick={() => loadNotifications()}
+                  disabled={isLoadingMore}
+                  className="inline-flex items-center gap-2 rounded-full bg-sky-50 px-4 py-2 text-sm font-semibold text-sky-700 ring-1 ring-sky-100 transition hover:bg-sky-100 disabled:cursor-not-allowed disabled:opacity-70"
+                >
+                  {isLoadingMore && (
+                    <div className="h-4 w-4 animate-spin rounded-full border border-slate-200 border-t-sky-500" />
+                  )}
+                  {isLoadingMore ? "กำลังโหลด..." : "แสดงเพิ่มเติม"}
+                </button>
+              ) : notifications.length > 0 ? (
                 <p className="text-xs text-slate-400">แสดงการแจ้งเตือนครบทั้งหมดแล้ว</p>
               ) : null}
             </div>
