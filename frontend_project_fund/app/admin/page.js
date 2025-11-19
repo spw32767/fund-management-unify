@@ -19,6 +19,7 @@ import AdminPublicationsImport from "./components/settings/announcement_config/A
 import AdminKkuPeopleScraper from "./components/settings/announcement_config/AdminKkuPeopleScraper";
 import AdminScopusImport from "./components/settings/announcement_config/AdminScopusImport";
 import ApprovalRecords from "./components/approves/ApprovalRecords";
+import AdminNotificationCenter from "./components/notifications/NotificationCenter";
 
 function AdminPageContent({ initialPage = 'dashboard' }) {
   const [isOpen, setIsOpen] = useState(false);
@@ -39,6 +40,7 @@ function AdminPageContent({ initialPage = 'dashboard' }) {
       'publications-import',
       'scopus-import',
       'kku-people-scraper',
+      'notifications',
     ];
 
     return allowedPages.includes(page) ? page : 'dashboard';
@@ -123,6 +125,8 @@ function AdminPageContent({ initialPage = 'dashboard' }) {
         return <AdminScopusImport />;
       case 'kku-people-scraper':
         return <AdminKkuPeopleScraper />;
+      case 'notifications':
+        return <AdminNotificationCenter />;
       default:
         return <UnderDevelopmentContent currentPage={currentPage} />;
     }
@@ -140,7 +144,8 @@ function AdminPageContent({ initialPage = 'dashboard' }) {
         'approval-records': 'บันทึกข้อมูลการอนุมัติทุน',
         'publications-import': 'นำเข้าผลงาน (Scholar)',
         'scopus-import': 'นำเข้าผลงาน (Scopus)',
-        'kku-people-scraper': 'KKU People Scraper'
+        'kku-people-scraper': 'KKU People Scraper',
+        'notifications': 'การแจ้งเตือน'
     };
     return titles[currentPage] || currentPage;
   };
