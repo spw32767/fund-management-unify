@@ -9,7 +9,6 @@ import {
   Clock3,
   Inbox,
   Info,
-  Sparkles,
   XCircle,
 } from "lucide-react";
 import PageLayout from "../common/PageLayout";
@@ -132,33 +131,6 @@ export default function NotificationCenter() {
       ]
     >
       <div className="space-y-5">
-        <div className="grid gap-4 md:grid-cols-3">
-          <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-            <div className="flex items-center justify-between text-sm text-slate-500">
-              ทั้งหมด
-              <Inbox className="h-5 w-5 text-slate-400" />
-            </div>
-            <p className="mt-2 text-3xl font-semibold text-slate-900">{notifications.length}</p>
-            <p className="text-sm text-slate-500">การแจ้งเตือนที่บันทึกไว้</p>
-          </div>
-          <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-            <div className="flex items-center justify-between text-sm text-slate-500">
-              ยังไม่อ่าน
-              <Sparkles className="h-5 w-5 text-amber-500" />
-            </div>
-            <p className="mt-2 text-3xl font-semibold text-amber-600">{unreadCount}</p>
-            <p className="text-sm text-slate-500">แจ้งเตือนใหม่พร้อมให้ดำเนินการ</p>
-          </div>
-          <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-            <div className="flex items-center justify-between text-sm text-slate-500">
-              ที่อ่านแล้ว
-              <CheckCheck className="h-5 w-5 text-emerald-500" />
-            </div>
-            <p className="mt-2 text-3xl font-semibold text-emerald-600">{notifications.length - unreadCount}</p>
-            <p className="text-sm text-slate-500">ข้อมูลที่คุณรับทราบแล้ว</p>
-          </div>
-        </div>
-
         <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-md">
           <div className="mb-5 flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
             <div>
@@ -167,12 +139,6 @@ export default function NotificationCenter() {
               <p className="text-sm text-slate-500">ค้นหา กรอง และเรียงลำดับการแจ้งเตือนทั้งหมดของคุณ</p>
             </div>
             <div className="flex flex-wrap items-center gap-2 text-sm text-slate-600">
-              <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-3 py-1 font-medium">
-                <Bell className="h-4 w-4" /> อัปเดตอัตโนมัติ
-              </span>
-              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-3 py-1 font-medium text-emerald-700">
-                <Sparkles className="h-4 w-4" /> ดีไซน์ใหม่
-              </span>
               <button
                 onClick={markAllAsRead}
                 className="inline-flex items-center gap-1 rounded-full bg-sky-50 px-3 py-1 font-semibold text-sky-700 ring-1 ring-sky-100 transition hover:bg-sky-100"
