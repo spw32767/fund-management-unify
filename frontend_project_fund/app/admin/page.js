@@ -2,7 +2,8 @@
 
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { usePathname } from "next/navigation";
 import AuthGuard from "../components/AuthGuard";
 import Header from "./components/layout/Header";
 import Navigation from "./components/layout/Navigation";
@@ -18,15 +19,86 @@ import AdminPublicationsImport from "./components/settings/announcement_config/A
 import AdminKkuPeopleScraper from "./components/settings/announcement_config/AdminKkuPeopleScraper";
 import AdminScopusImport from "./components/settings/announcement_config/AdminScopusImport";
 import ApprovalRecords from "./components/approves/ApprovalRecords";
+import AdminNotificationCenter from "./components/notifications/NotificationCenter";
 
-function AdminPageContent() {
+function AdminPageContent({ initialPage = 'dashboard' }) {
   const [isOpen, setIsOpen] = useState(false);
   const [submenuOpen, setSubmenuOpen] = useState(false);
-  const [currentPage, setCurrentPage] = useState('dashboard');
+  const [currentPage, setCurrentPage] = useState(initialPage);
+  const pathname = usePathname();
 
-  const handleNavigate = (page, data) => {
+  const normalizePage = useCallback((page) => {
+    const allowedPages = [
+      'dashboard',
+      'research-fund',
+      'promotion-fund',
+      'applications-list',
+      'legacy-submissions',
+      'fund-settings',
+      'projects',
+      'approval-records',
+      'publications-import',
+      'scopus-import',
+      'kku-people-scraper',
+      'notifications',
+    ];
+
+    return allowedPages.includes(page) ? page : 'dashboard';
+  }, []);
+
+  const pageFromPath = useCallback(
+    (path) => {
+      if (typeof path !== 'string') return 'dashboard';
+
+      const segments = path.split('/').filter(Boolean);
+
+      if (segments[0] !== 'admin') return 'dashboard';
+      return normalizePage(segments[1] || 'dashboard');
+    },
+    [normalizePage]
+  );
+
+  const syncPathWithPage = useCallback(
+    (page, { replace = false } = {}) => {
+      if (typeof window === 'undefined') return;
+
+      const normalized = normalizePage(page);
+      const targetPath = `/admin/${normalized}`;
+
+      if (window.location.pathname === targetPath) return;
+
+      const method = replace ? 'replaceState' : 'pushState';
+      window.history[method]({ page: normalized }, '', targetPath);
+    },
+    [normalizePage]
+  );
+
+  useEffect(() => {
+    const normalized = normalizePage(initialPage);
+    setCurrentPage(normalized);
+    syncPathWithPage(normalized, { replace: true });
+  }, [initialPage, normalizePage, syncPathWithPage]);
+
+  useEffect(() => {
+    const pageFromUrl = pageFromPath(pathname);
+    setCurrentPage(pageFromUrl);
+  }, [pageFromPath, pathname]);
+
+  useEffect(() => {
+    const handlePopState = () => {
+      const pageFromUrl = pageFromPath(window.location.pathname);
+      setCurrentPage(pageFromUrl);
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+    };
+  }, [pageFromPath]);
+
+  const handleNavigate = (page) => {
     setCurrentPage(page);
-    
+    syncPathWithPage(page);
   };
 
   const renderPageContent = () => {
@@ -53,6 +125,8 @@ function AdminPageContent() {
         return <AdminScopusImport />;
       case 'kku-people-scraper':
         return <AdminKkuPeopleScraper />;
+      case 'notifications':
+        return <AdminNotificationCenter />;
       default:
         return <UnderDevelopmentContent currentPage={currentPage} />;
     }
@@ -70,7 +144,8 @@ function AdminPageContent() {
         'approval-records': 'บันทึกข้อมูลการอนุมัติทุน',
         'publications-import': 'นำเข้าผลงาน (Scholar)',
         'scopus-import': 'นำเข้าผลงาน (Scopus)',
-        'kku-people-scraper': 'KKU People Scraper'
+        'kku-people-scraper': 'KKU People Scraper',
+        'notifications': 'การแจ้งเตือน'
     };
     return titles[currentPage] || currentPage;
   };
@@ -121,6 +196,8 @@ function AdminPageContent() {
     </div>
   );
 }
+
+export { AdminPageContent };
 
 export default function AdminPage() {
   return (

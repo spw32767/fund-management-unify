@@ -14,7 +14,7 @@ import {
 import PageLayout from "../common/PageLayout";
 import { notificationsAPI } from "@/app/lib/notifications_api";
 
-export default function NotificationCenter() {
+export default function AdminNotificationCenter() {
   const [notifications, setNotifications] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
@@ -95,7 +95,6 @@ export default function NotificationCenter() {
       let offset = 0;
       const items = [];
 
-      // ดึงข้อมูลทั้งหมดทีละก้อนจนกว่าจะครบ
       while (true) {
         const data = await notificationsAPI.list({ limit: batchSize, offset });
         const batch = Array.isArray(data?.items)
@@ -164,10 +163,10 @@ export default function NotificationCenter() {
   return (
     <PageLayout
       title="การแจ้งเตือน"
-      subtitle="ติดตามความคืบหน้าการยื่นคำร้องและข่าวสารสำคัญ"
+      subtitle="ติดตามการแจ้งเตือนทั้งหมดสำหรับผู้ดูแลระบบ"
       icon={Bell}
       breadcrumbs={[
-        { label: "หน้าแรก", href: "/member" },
+        { label: "หน้าแรก", href: "/admin" },
         { label: "การแจ้งเตือน" },
       ]}
     >
@@ -177,9 +176,12 @@ export default function NotificationCenter() {
             <div>
               <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">ศูนย์การแจ้งเตือน</p>
               <h2 className="text-xl font-bold text-slate-900">รายการแจ้งเตือนทั้งหมด</h2>
-              <p className="text-sm text-slate-500">ค้นหา กรอง และเรียงลำดับการแจ้งเตือนทั้งหมดของคุณ</p>
+              <p className="text-sm text-slate-500">จัดการการแจ้งเตือนจำนวนมากด้วยตัวกรองและการเรียงลำดับ</p>
             </div>
             <div className="flex flex-wrap items-center gap-2 text-sm text-slate-600">
+              <div className="rounded-full bg-slate-100 px-3 py-1 font-semibold text-slate-700">
+                ยังไม่อ่าน {unreadCount}
+              </div>
               <button
                 onClick={markAllAsRead}
                 className="inline-flex items-center gap-1 rounded-full bg-sky-50 px-3 py-1 font-semibold text-sky-700 ring-1 ring-sky-100 transition hover:bg-sky-100"
@@ -249,77 +251,79 @@ export default function NotificationCenter() {
                 <p className="text-sm text-slate-500">ลองเปลี่ยนตัวกรองหรือกลับมาดูอีกครั้งเมื่อมีการอัปเดต</p>
               </div>
             ) : (
-              displayedNotifications.map((notification) => {
-                const type = notification.type || "info";
-                const isRead = notification.is_read;
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+                {displayedNotifications.map((notification) => {
+                  const type = notification.type || "info";
+                  const isRead = notification.is_read;
 
-                const typeBadge =
-                  type === "success"
-                    ? "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-100"
-                    : type === "warning"
-                      ? "bg-amber-50 text-amber-700 ring-1 ring-amber-100"
-                      : type === "error"
-                        ? "bg-rose-50 text-rose-700 ring-1 ring-rose-100"
-                        : "bg-sky-50 text-sky-700 ring-1 ring-sky-100";
+                  const typeBadge =
+                    type === "success"
+                      ? "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-100"
+                      : type === "warning"
+                        ? "bg-amber-50 text-amber-700 ring-1 ring-amber-100"
+                        : type === "error"
+                          ? "bg-rose-50 text-rose-700 ring-1 ring-rose-100"
+                          : "bg-sky-50 text-sky-700 ring-1 ring-sky-100";
 
-                const TypeIcon =
-                  type === "success"
-                    ? CheckCheck
-                    : type === "warning"
-                      ? AlertTriangle
-                      : type === "error"
-                        ? XCircle
-                        : Info;
+                  const TypeIcon =
+                    type === "success"
+                      ? CheckCheck
+                      : type === "warning"
+                        ? AlertTriangle
+                        : type === "error"
+                          ? XCircle
+                          : Info;
 
-                return (
-                  <button
-                    key={notification.notification_id}
-                    type="button"
-                    onClick={() => markAsRead(notification.notification_id)}
-                    className={`w-full rounded-xl border bg-white p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${
-                      isRead
-                        ? "border-slate-100"
-                        : "border-sky-100 ring-1 ring-sky-100 bg-gradient-to-br from-sky-50/70 to-white"
-                    }`}
-                  >
-                    <div className="flex items-start gap-3">
-                      <div
-                        className={`mt-1 flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 text-slate-600 ${
-                          isRead ? "" : "ring-2 ring-offset-2 ring-sky-200 ring-offset-sky-50"
-                        }`}
-                      >
-                        <TypeIcon className="h-5 w-5" />
-                      </div>
-                      <div className="flex-1 space-y-1">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <h4 className="text-sm font-semibold text-slate-900">{notification.title}</h4>
-                          <span className={`text-[11px] font-medium rounded-full px-2 py-0.5 ${typeBadge}`}>
-                            {type === "success"
-                              ? "สำเร็จ"
-                              : type === "warning"
-                                ? "แจ้งเตือน"
-                                : type === "error"
-                                  ? "ต้องดำเนินการ"
-                                  : "ทั่วไป"}
-                          </span>
-                          {!isRead && <span className="h-2 w-2 rounded-full bg-amber-400" aria-hidden="true" />}
+                  return (
+                    <button
+                      key={notification.notification_id}
+                      type="button"
+                      onClick={() => markAsRead(notification.notification_id)}
+                      className={`h-full w-full rounded-xl border bg-white p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${
+                        isRead
+                          ? "border-slate-100"
+                          : "border-sky-100 ring-1 ring-sky-100 bg-gradient-to-br from-sky-50/70 to-white"
+                      }`}
+                    >
+                      <div className="flex items-start gap-3">
+                        <div
+                          className={`mt-1 flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 text-slate-600 ${
+                            isRead ? "" : "ring-2 ring-offset-2 ring-sky-200 ring-offset-sky-50"
+                          }`}
+                        >
+                          <TypeIcon className="h-5 w-5" />
                         </div>
-                        <p className="text-sm leading-relaxed text-slate-600">{notification.message}</p>
-                        <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500">
-                          <span className="inline-flex items-center gap-1">
-                            <Clock3 className="h-4 w-4" /> {formatDateTime(notification.created_at)}
-                          </span>
-                          {notification.related_submission_id && (
-                            <span className="inline-flex items-center gap-1 rounded-full bg-sky-50 px-2.5 py-1 font-medium text-sky-700 ring-1 ring-sky-100">
-                              อ้างอิ #{notification.related_submission_id}
+                        <div className="flex-1 space-y-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <h4 className="text-sm font-semibold text-slate-900">{notification.title}</h4>
+                            <span className={`text-[11px] font-medium rounded-full px-2 py-0.5 ${typeBadge}`}>
+                              {type === "success"
+                                ? "สำเร็จ"
+                                : type === "warning"
+                                  ? "แจ้งเตือน"
+                                  : type === "error"
+                                    ? "ต้องดำเนินการ"
+                                    : "ทั่วไป"}
                             </span>
-                          )}
+                            {!isRead && <span className="h-2 w-2 rounded-full bg-amber-400" aria-hidden="true" />}
+                          </div>
+                          <p className="text-sm leading-relaxed text-slate-600">{notification.message}</p>
+                          <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500">
+                            <span className="inline-flex items-center gap-1">
+                              <Clock3 className="h-4 w-4" /> {formatDateTime(notification.created_at)}
+                            </span>
+                            {notification.related_submission_id && (
+                              <span className="inline-flex items-center gap-1 rounded-full bg-sky-50 px-2.5 py-1 font-medium text-sky-700 ring-1 ring-sky-100">
+                                อ้างอิง #{notification.related_submission_id}
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  </button>
-                );
-              })
+                    </button>
+                  );
+                })}
+              </div>
             )}
 
             <div className="flex items-center justify-center py-4">
