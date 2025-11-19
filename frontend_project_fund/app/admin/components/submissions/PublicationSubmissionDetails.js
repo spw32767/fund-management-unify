@@ -862,12 +862,8 @@ function ApprovalPanel({ submission, pubDetail, requestedSummary, approvedSummar
   // ซ่อน 2 ฟิลด์เมื่อไม่พบเพดาน
   const hideSharedFeeFields = !!capError && /ไม่สามารถเบิกค่าใช้จ่ายนี้ได้/.test(capError);
 
-  // ADD
-  const [hydrated, setHydrated] = useState(false);
-
   useEffect(() => {
-    // เปลี่ยน submission แล้วให้ hydrate ใหม่
-    setHydrated(false);
+    setManualEdit(false);
   }, [submission?.submission_id]);
 
   useEffect(() => {
@@ -926,38 +922,23 @@ function ApprovalPanel({ submission, pubDetail, requestedSummary, approvedSummar
     fetchCap();
   }, [pubDetail?.quartile, pubDetail?.journal_quartile, pubDetail?.publication_year, pubDetail?.publication_date]);
 
-  // REPLACE — hydrate จาก FI แค่ครั้งแรกหลังรู้ผลเพดาน และอย่ารีเซ็ตเมื่อปิดสวิตช์
-  useEffect(() => {
-    if (capLoading) return;
-
-    const rewardBase = approvedRewardDefault;
-    const revisionBase = feeCap == null ? 0 : approvedRevisionDefault;
-    const publicationBase = feeCap == null ? 0 : approvedPublicationDefault;
-
-    // ครั้งแรกเท่านั้น
-    if (!hydrated) {
-      setRewardApprove(rewardBase);
-      setRevisionApprove(revisionBase);
-      setPublicationApprove(publicationBase);
-      setHydrated(true);
+  const applyAutoSharedFeeValues = React.useCallback(() => {
+    if (hideSharedFeeFields) {
+      setRevisionApprove(0);
+      setPublicationApprove(0);
       return;
     }
 
-    // ถ้าภายหลังถูกบังคับซ่อน 2 ฟิลด์ ให้บังคับเป็น 0 (ไม่แตะ reward)
-    if (feeCap == null) {
-      if (revisionApprove !== 0) setRevisionApprove(0);
-      if (publicationApprove !== 0) setPublicationApprove(0);
-    }
-  }, [
-    capLoading,
-    approvedRewardDefault,
-    approvedRevisionDefault,
-    approvedPublicationDefault,
-    feeCap,
-    hydrated,
-    revisionApprove,
-    publicationApprove,
-  ]);
+    setRevisionApprove(approvedRevisionDefault);
+    setPublicationApprove(approvedPublicationDefault);
+  }, [hideSharedFeeFields, approvedRevisionDefault, approvedPublicationDefault]);
+
+  // เติมค่าอัตโนมัติเมื่อไม่เปิดโหมดแก้ไข
+  useEffect(() => {
+    if (manualEdit) return;
+    setRewardApprove(approvedRewardDefault);
+    applyAutoSharedFeeValues();
+  }, [manualEdit, approvedRewardDefault, applyAutoSharedFeeValues]);
 
 
   // รวมอัตโนมัติ (Total อ่านอย่างเดียว)
@@ -1042,13 +1023,10 @@ function ApprovalPanel({ submission, pubDetail, requestedSummary, approvedSummar
     return Object.keys(e).length === 0;
   };
 
-  // รีเซ็ตกลับค่าเริ่มต้นจาก FI (หรือ 0 ถ้าซ่อนฟิลด์ร่วม)
+  // รีเซ็ตกลับค่าเริ่มต้นจาก FI/คำขอ
   const recalc = () => {
-    const baseRevision = feeCap == null ? 0 : approvedRevisionDefault;
-    const basePublication = feeCap == null ? 0 : approvedPublicationDefault;
     setRewardApprove(approvedRewardDefault);
-    setRevisionApprove(baseRevision);
-    setPublicationApprove(basePublication);
+    applyAutoSharedFeeValues();
   };
 
   const escapeHtml = (value = '') =>
