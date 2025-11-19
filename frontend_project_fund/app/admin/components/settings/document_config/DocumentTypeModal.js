@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { X } from "lucide-react";
+import SettingsModal from "../common/SettingsModal";
 
 export const FUND_TYPE_OPTIONS = [
   { value: "publication_reward", label: "เงินรางวัล/เงินสมทบผลงานเผยแพร่" },
@@ -75,35 +75,20 @@ const DocumentTypeModal = ({
     onSubmit(payload);
   };
 
-  if (!isOpen) return null;
-
   const selectedFundTypes = Array.isArray(formState.fund_types)
     ? formState.fund_types
     : [];
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-      <div className="w-full max-w-3xl rounded-xl bg-white shadow-2xl">
-        <div className="flex items-center justify-between border-b px-6 py-4">
-          <div>
-            <h3 className="text-lg font-semibold text-gray-900">
-              {initialData ? "แก้ไขประเภทเอกสาร" : "เพิ่มประเภทเอกสาร"}
-            </h3>
-            <p className="text-sm text-gray-500">
-              กำหนดข้อมูลประเภทเอกสารและเงื่อนไขการใช้งานในระบบ
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-full p-2 text-gray-500 transition hover:bg-gray-100 hover:text-gray-700"
-            aria-label="ปิดหน้าต่าง"
-          >
-            <X size={20} />
-          </button>
-        </div>
-
-        <form onSubmit={handleSubmit} className="px-6 py-6">
+    <SettingsModal
+      open={isOpen}
+      onClose={onClose}
+      title={initialData ? "แก้ไขประเภทเอกสาร" : "เพิ่มประเภทเอกสาร"}
+      description="กำหนดข้อมูลประเภทเอกสารและเงื่อนไขการใช้งานในระบบ"
+      size="xl"
+      bodyClassName="max-h-[75vh] overflow-y-auto px-6 py-6"
+    >
+      <form onSubmit={handleSubmit}>
           <div className="grid gap-6 md:grid-cols-1">
             <div className="space-y-4">
               <div>
@@ -241,9 +226,8 @@ const DocumentTypeModal = ({
               {saving ? "กำลังบันทึก..." : initialData ? "บันทึกการเปลี่ยนแปลง" : "บันทึกข้อมูล"}
             </button>
           </div>
-        </form>
-      </div>
-    </div>
+      </form>
+    </SettingsModal>
   );
 };
 

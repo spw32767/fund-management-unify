@@ -10,7 +10,6 @@ import {
   ArrowUp,
   ArrowDown,
   Save,
-  X,
   Trophy,
   PlusCircle
 } from "lucide-react";
@@ -19,6 +18,7 @@ import adminAPI from "@/app/lib/admin_api";
 import StatusBadge from "@/app/admin/components/settings/StatusBadge";
 import { systemConfigAPI } from "@/app/lib/system_config_api";
 import SettingsSectionCard from "@/app/admin/components/settings/common/SettingsSectionCard";
+import SettingsModal from "@/app/admin/components/settings/common/SettingsModal";
 
 const RewardConfigManager = () => {
   const [activeSubTab, setActiveSubTab] = useState('rates');
@@ -34,6 +34,16 @@ const RewardConfigManager = () => {
   const [showConfigForm, setShowConfigForm] = useState(false);
   const [editingRate, setEditingRate] = useState(null);
   const [editingConfig, setEditingConfig] = useState(null);
+
+  const closeRateForm = () => {
+    setShowRateForm(false);
+    setEditingRate(null);
+  };
+
+  const closeConfigForm = () => {
+    setShowConfigForm(false);
+    setEditingConfig(null);
+  };
 
   const [rateFormData, setRateFormData] = useState({
     year: '',
@@ -844,161 +854,159 @@ const RewardConfigManager = () => {
         </div>
       )}
 
-      {/* ===== Rate Form Modal (เดิม) ===== */}
-      {showRateForm && (
-        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-          <div className="relative top-20 mx-auto p-5 border w-full max-w-md shadow-lg rounded-md bg-white">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-lg font-bold text-gray-900">
-                {editingRate ? 'แก้ไขอัตราเงินรางวัล' : 'เพิ่มอัตราเงินรางวัล'}
-              </h3>
-              <button
-                onClick={() => { setShowRateForm(false); setEditingRate(null); }}
-                className="p-2 rounded-md hover:bg-gray-100"
-                title="ปิด"
-              >
-                <X size={18} />
-              </button>
-            </div>
-
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">สถานะผู้ประพันธ์</label>
-                <select
-                  value={rateFormData.author_status}
-                  onChange={(e) => setRateFormData({ ...rateFormData, author_status: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="">เลือกสถานะ</option>
-                  {authorStatusOptions.map((s) => (
-                    <option key={s.value} value={s.value}>{s.label}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Journal Quartile</label>
-                <select
-                  value={rateFormData.journal_quartile}
-                  onChange={(e) => setRateFormData({ ...rateFormData, journal_quartile: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="">เลือก Quartile</option>
-                  {quartileOptions.map((q) => (
-                    <option key={q.value} value={q.value}>{q.label}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">จำนวนเงินรางวัล (บาท)</label>
-                <input
-                  type="number"
-                  value={rateFormData.reward_amount}
-                  onChange={(e) => setRateFormData({ ...rateFormData, reward_amount: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  min="0"
-                  step="1000"
-                  placeholder="เช่น 50000"
-                />
-              </div>
-            </div>
-
-            <div className="mt-6 flex justify-end gap-3">
-              <button
-                onClick={() => { setShowRateForm(false); setEditingRate(null); }}
-                className="px-4 py-2 rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50"
-              >
-                ยกเลิก
-              </button>
-              <button
-                onClick={saveRate}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-              >
-                <Save size={16} />
-                บันทึก
-              </button>
-            </div>
+      <SettingsModal
+        open={showRateForm}
+        onClose={closeRateForm}
+        title={editingRate ? "แก้ไขอัตราเงินรางวัล" : "เพิ่มอัตราเงินรางวัล"}
+        description="กำหนดสถานะผู้ประพันธ์และอัตราเงินรางวัลตาม Quartile"
+        size="md"
+        bodyClassName="max-h-[70vh] overflow-y-auto px-6 py-6"
+      >
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            saveRate();
+          }}
+          className="space-y-4"
+        >
+          <div>
+            <label className="mb-1 block text-sm font-medium text-gray-700">สถานะผู้ประพันธ์</label>
+            <select
+              value={rateFormData.author_status}
+              onChange={(e) => setRateFormData({ ...rateFormData, author_status: e.target.value })}
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-200"
+            >
+              <option value="">เลือกสถานะ</option>
+              {authorStatusOptions.map((s) => (
+                <option key={s.value} value={s.value}>
+                  {s.label}
+                </option>
+              ))}
+            </select>
           </div>
-        </div>
-      )}
 
-      {/* ===== Config Form Modal (เดิม) ===== */}
-      {showConfigForm && (
-        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-          <div className="relative top-20 mx-auto p-5 border w-full max-w-md shadow-lg rounded-md bg-white">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-lg font-bold text-gray-900">
-                {editingConfig ? 'แก้ไขวงเงินค่าธรรมเนียม' : 'เพิ่มวงเงินค่าธรรมเนียม'}
-              </h3>
-              <button
-                onClick={() => { setShowConfigForm(false); setEditingConfig(null); }}
-                className="p-2 rounded-md hover:bg-gray-100"
-                title="ปิด"
-              >
-                <X size={18} />
-              </button>
-            </div>
-
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Journal Quartile</label>
-                <select
-                  value={configFormData.journal_quartile}
-                  onChange={(e) => setConfigFormData({ ...configFormData, journal_quartile: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="">เลือก Quartile</option>
-                  {quartileOptions.map((q) => (
-                    <option key={q.value} value={q.value}>{q.label}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">วงเงินสูงสุด (บาท)</label>
-                <input
-                  type="number"
-                  value={configFormData.max_amount}
-                  onChange={(e) => setConfigFormData({ ...configFormData, max_amount: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  min="0"
-                  step="1000"
-                  placeholder="0 = ไม่สนับสนุนค่าธรรมเนียม"
-                />
-                <p className="mt-1 text-xs text-gray-500">ใส่ 0 หากไม่ต้องการสนับสนุนค่าธรรมเนียมสำหรับ Quartile นี้</p>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">เงื่อนไข/หมายเหตุ (ถ้ามี)</label>
-                <textarea
-                  value={configFormData.condition_description}
-                  onChange={(e) => setConfigFormData({ ...configFormData, condition_description: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  rows="3"
-                  placeholder="เช่น เงื่อนไขพิเศษสำหรับ Quartile นี้"
-                />
-              </div>
-            </div>
-
-            <div className="mt-6 flex justify-end gap-3">
-              <button
-                onClick={() => { setShowConfigForm(false); setEditingConfig(null); }}
-                className="px-4 py-2 rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50"
-              >
-                ยกเลิก
-              </button>
-              <button
-                onClick={saveConfig}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-              >
-                <Save size={16} />
-                บันทึก
-              </button>
-            </div>
+          <div>
+            <label className="mb-1 block text-sm font-medium text-gray-700">Journal Quartile</label>
+            <select
+              value={rateFormData.journal_quartile}
+              onChange={(e) => setRateFormData({ ...rateFormData, journal_quartile: e.target.value })}
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-200"
+            >
+              <option value="">เลือก Quartile</option>
+              {quartileOptions.map((q) => (
+                <option key={q.value} value={q.value}>
+                  {q.label}
+                </option>
+              ))}
+            </select>
           </div>
-        </div>
-      )}
+
+          <div>
+            <label className="mb-1 block text-sm font-medium text-gray-700">จำนวนเงินรางวัล (บาท)</label>
+            <input
+              type="number"
+              value={rateFormData.reward_amount}
+              onChange={(e) => setRateFormData({ ...rateFormData, reward_amount: e.target.value })}
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-200"
+              min="0"
+              step="1000"
+              placeholder="เช่น 50000"
+            />
+          </div>
+
+          <div className="flex justify-end gap-3 border-t pt-4">
+            <button
+              type="button"
+              onClick={closeRateForm}
+              className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-600 transition hover:bg-gray-100"
+            >
+              ยกเลิก
+            </button>
+            <button
+              type="submit"
+              className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-700"
+            >
+              <Save size={16} />
+              บันทึก
+            </button>
+          </div>
+        </form>
+      </SettingsModal>
+
+      <SettingsModal
+        open={showConfigForm}
+        onClose={closeConfigForm}
+        title={editingConfig ? "แก้ไขวงเงินค่าธรรมเนียม" : "เพิ่มวงเงินค่าธรรมเนียม"}
+        description="ปรับเงื่อนไขและวงเงินสนับสนุนค่าธรรมเนียมตาม Quartile"
+        size="md"
+        bodyClassName="max-h-[70vh] overflow-y-auto px-6 py-6"
+      >
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            saveConfig();
+          }}
+          className="space-y-4"
+        >
+          <div>
+            <label className="mb-1 block text-sm font-medium text-gray-700">Journal Quartile</label>
+            <select
+              value={configFormData.journal_quartile}
+              onChange={(e) => setConfigFormData({ ...configFormData, journal_quartile: e.target.value })}
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-200"
+            >
+              <option value="">เลือก Quartile</option>
+              {quartileOptions.map((q) => (
+                <option key={q.value} value={q.value}>
+                  {q.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="mb-1 block text-sm font-medium text-gray-700">วงเงินสูงสุด (บาท)</label>
+            <input
+              type="number"
+              value={configFormData.max_amount}
+              onChange={(e) => setConfigFormData({ ...configFormData, max_amount: e.target.value })}
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-200"
+              min="0"
+              step="1000"
+              placeholder="0 = ไม่สนับสนุนค่าธรรมเนียม"
+            />
+            <p className="mt-1 text-xs text-gray-500">ใส่ 0 หากไม่ต้องการสนับสนุนค่าธรรมเนียมสำหรับ Quartile นี้</p>
+          </div>
+
+          <div>
+            <label className="mb-1 block text-sm font-medium text-gray-700">เงื่อนไข/หมายเหตุ (ถ้ามี)</label>
+            <textarea
+              value={configFormData.condition_description}
+              onChange={(e) => setConfigFormData({ ...configFormData, condition_description: e.target.value })}
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-200"
+              rows={3}
+              placeholder="เช่น เงื่อนไขพิเศษสำหรับ Quartile นี้"
+            />
+          </div>
+
+          <div className="flex justify-end gap-3 border-t pt-4">
+            <button
+              type="button"
+              onClick={closeConfigForm}
+              className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-600 transition hover:bg-gray-100"
+            >
+              ยกเลิก
+            </button>
+            <button
+              type="submit"
+              className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-700"
+            >
+              <Save size={16} />
+              บันทึก
+            </button>
+          </div>
+        </form>
+      </SettingsModal>
     </SettingsSectionCard>
   );
 };

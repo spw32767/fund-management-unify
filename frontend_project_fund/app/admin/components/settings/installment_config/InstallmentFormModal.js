@@ -1,66 +1,7 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
-import { X } from "lucide-react";
-
-const AnimatedModal = ({ open, onClose, title, children, footer }) => {
-  const [shouldRender, setShouldRender] = useState(open);
-  const [isVisible, setIsVisible] = useState(open);
-
-  useEffect(() => {
-    let timeoutId;
-
-    if (open) {
-      setShouldRender(true);
-      if (typeof window !== "undefined") {
-        requestAnimationFrame(() => setIsVisible(true));
-      } else {
-        setIsVisible(true);
-      }
-    } else {
-      setIsVisible(false);
-      timeoutId = setTimeout(() => setShouldRender(false), 200);
-    }
-
-    return () => {
-      if (timeoutId) clearTimeout(timeoutId);
-    };
-  }, [open]);
-
-  if (!shouldRender) return null;
-
-  return (
-    <div
-      className={`fixed inset-0 z-50 flex items-center justify-center px-4 transition-opacity duration-200 ${
-        isVisible ? "opacity-100" : "opacity-0"
-      }`}
-    >
-      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
-      <div
-        className={`relative w-full max-w-2xl transform overflow-hidden rounded-2xl bg-white shadow-2xl transition-all duration-200 ${
-          isVisible ? "scale-100 opacity-100 translate-y-0" : "scale-95 opacity-0 translate-y-4"
-        }`}
-      >
-        <div className="flex items-center justify-between border-b border-gray-100 px-6 py-4">
-          <h3 className="text-lg font-semibold text-gray-900">{title}</h3>
-          <button
-            type="button"
-            onClick={onClose}
-            className="inline-flex h-9 w-9 items-center justify-center rounded-full text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700"
-          >
-            <X size={18} />
-          </button>
-        </div>
-        <div className="max-h-[75vh] overflow-y-auto px-6 py-5">{children}</div>
-        {footer ? (
-          <div className="flex items-center justify-end gap-3 border-t border-gray-100 bg-gray-50 px-6 py-4">
-            {footer}
-          </div>
-        ) : null}
-      </div>
-    </div>
-  );
-};
+import React, { useMemo } from "react";
+import SettingsModal from "../common/SettingsModal";
 
 const InstallmentFormModal = ({
   open,
@@ -81,10 +22,11 @@ const InstallmentFormModal = ({
   }, [installmentOptions]);
 
   return (
-    <AnimatedModal
+    <SettingsModal
       open={open}
       onClose={onClose}
       title={title}
+      size="lg"
       footer={
         <>
           <button
@@ -171,7 +113,7 @@ const InstallmentFormModal = ({
           />
         </label>
       </div>
-    </AnimatedModal>
+    </SettingsModal>
   );
 };
 

@@ -1,5 +1,8 @@
+"use client";
+
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { DollarSign, AlertCircle, ShieldCheck } from "lucide-react";
+import SettingsModal from "../common/SettingsModal";
 
 const SubcategoryModal = ({
   isOpen,
@@ -30,7 +33,6 @@ const SubcategoryModal = ({
   const [overallPolicyEnabled, setOverallPolicyEnabled] = useState(false);
 
   const firstFieldRef = useRef(null);
-  const modalRef = useRef(null);
 
   const roleOptions = useMemo(
     () => [
@@ -131,12 +133,6 @@ const SubcategoryModal = ({
     };
   }, [isOpen, onClose]);
 
-  const handleOverlayClick = (event) => {
-    if (event.target === event.currentTarget) {
-      onClose?.();
-    }
-  };
-
   const handleTargetRoleChange = (roleId, checked) => {
     setSubcategoryForm((prev) => {
       const current = Array.isArray(prev.target_roles) ? prev.target_roles : [];
@@ -186,40 +182,22 @@ const SubcategoryModal = ({
     });
   };
 
-  if (!isOpen) return null;
-
   return (
-    <div
-      className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50"
-      onClick={handleOverlayClick}
-      role="presentation"
+    <SettingsModal
+      open={isOpen}
+      onClose={onClose}
+      title={editingSubcategory ? "แก้ไขทุนย่อย" : "เพิ่มทุนย่อยใหม่"}
+      description="จัดการข้อมูลทุนย่อยและเงื่อนไขหลักให้ตรงกับหน้าแสดงผล"
+      size="3xl"
+      bodyClassName="max-h-[85vh] overflow-y-auto px-6 py-6"
     >
-      <div
-        ref={modalRef}
-        role="dialog"
-        aria-modal="true"
-        aria-label={editingSubcategory ? "แก้ไขทุนย่อย" : "เพิ่มทุนย่อยใหม่"}
-        tabIndex={-1}
-        className="bg-white rounded-xl p-6 w-full max-w-3xl max-h-[90vh] overflow-y-auto shadow-2xl"
-      >
-        <div className="flex flex-col gap-2 mb-6">
-          <h3 className="text-xl font-semibold text-gray-900">
-            {editingSubcategory ? "แก้ไขทุนย่อย" : "เพิ่มทุนย่อยใหม่"}
-          </h3>
-          <p className="text-sm text-gray-500">
-            จัดการข้อมูลทุนย่อยและเงื่อนไขหลักให้ตรงกับหน้าแสดงผลหลักของระบบผู้ดูแล
-          </p>
+      {selectedCategory && (
+        <div className="mb-6 rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800">
+          หมวดหมู่: <span className="font-semibold">{selectedCategory.category_name}</span>
         </div>
+      )}
 
-        {selectedCategory && (
-          <div className="mb-6 p-3 bg-blue-50 rounded-lg border border-blue-200">
-            <p className="text-sm text-blue-800">
-              หมวดหมู่: <span className="font-semibold">{selectedCategory.category_name}</span>
-            </p>
-          </div>
-        )}
-
-        <form onSubmit={handleSubmit} className="space-y-8">
+      <form onSubmit={handleSubmit} className="space-y-8">
           <section className="space-y-4">
             <div className="flex items-center gap-2 text-gray-700">
               <ShieldCheck size={18} className="text-blue-600" />
@@ -436,24 +414,25 @@ const SubcategoryModal = ({
             )}
           </section>
 
-          <div className="flex flex-col sm:flex-row sm:justify-end gap-3 pt-4 border-t">
+        <div className="border-t pt-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+              className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-100"
             >
               ยกเลิก
             </button>
             <button
               type="submit"
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shadow"
+              className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-700"
             >
               บันทึกการเปลี่ยนแปลง
             </button>
           </div>
-        </form>
-      </div>
-    </div>
+        </div>
+      </form>
+    </SettingsModal>
   );
 };
 
