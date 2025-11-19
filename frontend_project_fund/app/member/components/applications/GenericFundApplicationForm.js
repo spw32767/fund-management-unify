@@ -1313,7 +1313,11 @@ const formatReviewerComment = (value) => {
 // =================================================================
 // MAIN COMPONENT
 // =================================================================
-export default function GenericFundApplicationForm({ onNavigate, subcategoryData }) {
+export default function GenericFundApplicationForm({
+  onNavigate,
+  subcategoryData,
+  readOnly = false,
+}) {
   const router = useRouter();
   // =================================================================
   // STATE MANAGEMENT
@@ -1359,6 +1363,7 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
   const [pendingStatus, setPendingStatus] = useState(null);
   const [submissionStatusCode, setSubmissionStatusCode] = useState(null);
   const [isEditable, setIsEditable] = useState(true);
+  const [forceReadOnly, setForceReadOnly] = useState(false);
   const [isNeedsMoreInfo, setIsNeedsMoreInfo] = useState(false);
   const [reviewerComments, setReviewerComments] = useState({ admin: '', head: '' });
   const [announcementLock, setAnnouncementLock] = useState({
@@ -1380,6 +1385,27 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
   });
 
   useEffect(() => {
+    let ro = readOnly === true;
+
+    if (typeof window !== "undefined") {
+      const searchParams = new URLSearchParams(window.location.search);
+      const readonlyQuery = (searchParams.get("readonly") || "").toLowerCase();
+      const mode = (searchParams.get("mode") || "").toLowerCase();
+
+      if (["1", "true", "yes"].includes(readonlyQuery)) ro = true;
+      if (["view", "detail", "details", "readonly"].includes(mode)) ro = true;
+
+      try {
+        const sessionValue = window.sessionStorage.getItem("fund_form_readonly");
+        if (sessionValue === "1") ro = true;
+        window.sessionStorage.removeItem("fund_form_readonly");
+      } catch {}
+    }
+
+    setForceReadOnly(ro);
+  }, [readOnly]);
+
+  useEffect(() => {
     setFundContext((prev) => mergeFundContext(prev, subcategoryData));
   }, [subcategoryData]);
 
@@ -1388,6 +1414,8 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
     () => Boolean(currentSubmissionId || subcategoryData?.submissionId),
     [currentSubmissionId, subcategoryData?.submissionId]
   );
+  const canEdit = isEditable && !forceReadOnly;
+  const isReadOnly = !canEdit;
   const navigationTarget = useMemo(() => {
     if (originPage) {
       return originPage;
@@ -2126,7 +2154,7 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
   };
 
   const handleFileUpload = (documentTypeId, files) => {
-    if (!isEditable || saving || submitting) {
+    if (isReadOnly || saving || submitting) {
       return;
     }
     if (files && files.length > 0) {
@@ -2167,7 +2195,7 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
   };
 
   const handleRemoveFile = (documentTypeId) => {
-    if (!isEditable || saving || submitting) {
+    if (isReadOnly || saving || submitting) {
       return;
     }
     setUploadedFiles(prev => {
@@ -2193,7 +2221,7 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
   };
 
   const handleRemoveServerDocument = (documentTypeId) => {
-    if (!isEditable || saving || submitting) {
+    if (isReadOnly || saving || submitting) {
       return;
     }
 
@@ -3040,6 +3068,7 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
     effectiveFundContext?.subcategory_description
   );
   const shouldShowFundBanner = Boolean(bannerPrimaryDescription || bannerSecondaryDescription);
+  const showFundBanner = shouldShowFundBanner && !isReadOnly;
   const selectionLocked = Boolean(editingExistingSubmission);
   const shouldShowReviewerComments = isNeedsMoreInfo;
   const adminCommentDisplay = formatReviewerComment(reviewerComments.admin);
@@ -3076,7 +3105,13 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
           </div>
         )}
 
-        {shouldShowFundBanner && (
+        {isReadOnly && (
+          <div className="rounded-lg border border-yellow-300 bg-yellow-50 p-4 text-sm text-yellow-800">
+            ขณะนี้เป็นโหมด <strong>อ่านอย่างเดียว</strong> — ไม่สามารถแก้ไขหรือส่งคำร้องได้
+          </div>
+        )}
+
+        {showFundBanner && (
           <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 text-sm text-blue-800">
             <div className="flex items-start gap-3">
               <Info className="h-5 w-5 flex-shrink-0 text-blue-500" aria-hidden="true" />
@@ -3159,7 +3194,7 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
                     onChange={(e) => handleInputChange('phone', formatPhoneNumber(e.target.value))}
                     placeholder="081-234-5678"
                     maxLength={12}
-                    disabled={!isEditable}
+                    disabled={!canEdit}
                     className={`w-full rounded-lg border px-4 py-2.5 text-gray-700 shadow-sm transition focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 ${
                       errors.phone ? 'border-red-400 focus:border-red-500 focus:ring-red-100' : 'border-gray-300'
                     }`}
@@ -3184,7 +3219,7 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
                     value={formData.project_title}
                     onChange={(e) => handleInputChange('project_title', e.target.value)}
                     placeholder="ระบุชื่อโครงการหรือกิจกรรมที่ต้องการขอรับการสนับสนุน"
-                    disabled={!isEditable}
+                    disabled={!canEdit}
                     className={`w-full rounded-lg border px-4 py-2.5 text-gray-700 shadow-sm transition focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 ${
                       errors.project_title ? 'border-red-400 focus:border-red-500 focus:ring-red-100' : 'border-gray-300'
                     }`}
@@ -3209,7 +3244,7 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
                     onChange={(e) => handleInputChange('project_description', e.target.value)}
                     placeholder="อธิบายวัตถุประสงค์หรือรายละเอียดสำคัญของโครงการ"
                     rows={4}
-                    disabled={!isEditable}
+                    disabled={!canEdit}
                     className={`w-full rounded-lg border px-4 py-3 text-gray-700 shadow-sm transition focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 ${
                       errors.project_description ? 'border-red-400 focus:border-red-500 focus:ring-red-100' : 'border-gray-300'
                     }`}
@@ -3244,7 +3279,7 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
                     value={formData.requested_amount}
                     onChange={(e) => handleInputChange('requested_amount', e.target.value)}
                     placeholder="0.00"
-                    disabled={!isEditable}
+                    disabled={!canEdit}
                     className={`w-full rounded-lg border bg-gray-50 px-4 py-3 text-2xl font-semibold text-gray-800 shadow-sm transition focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 ${
                       errors.requested_amount ? 'border-red-400 focus:border-red-500 focus:ring-red-100' : 'border-gray-200'
                     }`}
@@ -3373,7 +3408,7 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
                                         <button
                                           type="button"
                                           onClick={() => handleRemoveFile(docTypeId)}
-                                          disabled={!isEditable || saving || submitting}
+                                          disabled={!canEdit || saving || submitting}
                                           className="inline-flex items-center justify-center rounded-md border border-transparent bg-white px-2 py-1 text-xs font-medium text-red-600 shadow-sm transition hover:border-red-100 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
                                         >
                                           <X className="h-4 w-4" />
@@ -3412,7 +3447,7 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
                                         <button
                                           type="button"
                                           onClick={() => handleRemoveServerDocument(docTypeId)}
-                                          disabled={!isEditable || saving || submitting}
+                                          disabled={!canEdit || saving || submitting}
                                           className="inline-flex items-center justify-center rounded-md border border-transparent bg-white px-2 py-1 text-xs font-medium text-red-600 shadow-sm transition hover:border-red-100 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
                                         >
                                           <X className="h-4 w-4" />
@@ -3429,7 +3464,7 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
                                     accept=".pdf"
                                     error={errors[`file_${docType.document_type_id}`]}
                                     compact
-                                    disabled={!isEditable || saving || submitting}
+                                    disabled={!canEdit || saving || submitting}
                                   />
                                 );
                               })()}
@@ -3456,13 +3491,13 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
                 </p>
               </div>
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-end">
-                {!isNeedsMoreInfo && (
-                  <button
-                    type="button"
-                    onClick={deleteDraft}
-                    disabled={!hasDraft || saving || submitting}
-                    className="w-full sm:w-auto flex items-center justify-center gap-2 rounded-lg border border-red-300 px-6 py-3 text-sm font-medium text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
+                  {!isNeedsMoreInfo && (
+                    <button
+                      type="button"
+                      onClick={deleteDraft}
+                      disabled={!canEdit || !hasDraft || saving || submitting}
+                      className="w-full sm:w-auto flex items-center justify-center gap-2 rounded-lg border border-red-300 px-6 py-3 text-sm font-medium text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
                     <X className="h-4 w-4" />
                     ลบร่าง
                   </button>
@@ -3471,7 +3506,7 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
                   <button
                     type="button"
                     onClick={saveDraft}
-                    disabled={!isEditable || saving || submitting}
+                    disabled={!canEdit || saving || submitting}
                     className="w-full sm:flex-1 flex items-center justify-center gap-2 rounded-lg bg-gray-600 px-6 py-3 text-sm font-medium text-white shadow-sm transition hover:bg-gray-700 disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     {saving ? (
@@ -3485,7 +3520,7 @@ export default function GenericFundApplicationForm({ onNavigate, subcategoryData
                 <button
                   type="button"
                   onClick={submitApplication}
-                  disabled={!isEditable || saving || submitting}
+                  disabled={!canEdit || saving || submitting}
                   className="w-full sm:flex-1 flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-6 py-3 text-sm font-medium text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {submitting ? (

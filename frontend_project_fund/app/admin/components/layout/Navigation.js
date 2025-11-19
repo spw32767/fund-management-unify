@@ -13,7 +13,8 @@ import {
   BookOpen,
   Users,
   Briefcase,
-  Globe
+  Globe,
+  Bell,
 } from "lucide-react";
 import { useAuth } from "../../../contexts/AuthContext";
 import { useRouter } from "next/navigation";
@@ -78,18 +79,24 @@ export default function Navigation({
       hasSubmenu: false
     },
     {
+      id: 'notifications',
+      label: 'การแจ้งเตือน',
+      icon: Bell,
+      hasSubmenu: false
+    },
+    {
       id: 'publications-import',
       label: 'นำเข้าผลงาน (Scholar)',
       icon: BookOpen,
       hasSubmenu: false
-      },
-      {
+    },
+    {
       id: 'scopus-import',
       label: 'นำเข้าผลงาน (Scopus)',
       icon: Globe,
       hasSubmenu: false
-      },
-      {
+    },
+    {
       id: 'kku-people-scraper',
       label: 'KKU People Scraper',
       icon: Users,

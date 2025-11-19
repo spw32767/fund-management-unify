@@ -1307,12 +1307,12 @@ export default function FundSettingsContent({ onNavigate }) {
   if (error) {
     return (
       <PageLayout
-        title="การจัดการทุน"
+        title="ตั้งค่าทุน"
         subtitle="จัดการหมวดหมู่ ประเภทย่อย และงบประมาณของทุน"
         icon={Settings}
         breadcrumbs={[
           { label: "หน้าแรก", href: "/admin" },
-          { label: "การจัดการทุน" }
+          { label: "ตั้งค่าทุน" }
         ]}
       >
         <div className="bg-white rounded-lg shadow-sm p-6">
@@ -1401,12 +1401,12 @@ export default function FundSettingsContent({ onNavigate }) {
 
   return (
     <PageLayout
-      title="การจัดการทุน"
+      title="ตั้งค่าทุน"
       subtitle="จัดการหมวดหมู่ ประเภทย่อย และงบประมาณของทุน"
       icon={Settings}
       breadcrumbs={[
         { label: "หน้าแรก", href: "/admin" },
-        { label: "การจัดการทุน" }
+        { label: "ตั้งค่าทุน" }
       ]}
       loading={loading}
     >

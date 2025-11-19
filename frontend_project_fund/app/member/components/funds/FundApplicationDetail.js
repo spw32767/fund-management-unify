@@ -138,6 +138,77 @@ const extractFirstFilePath = (value) => {
   return null;
 };
 
+const normalizeDocumentName = (name) =>
+  typeof name === "string" ? name.trim().toLowerCase() : "";
+
+const HIDDEN_MERGED_FORM_NAME = "แบบฟอร์มคำร้องรวม (merged pdf)".toLowerCase();
+const HIDDEN_MERGED_FILE_REGEX = /_merged_document(?:_\d+)?\.pdf$/i;
+const MERGED_FOLDER_SEGMENT = "merge_submissions";
+
+const getDocumentNameCandidates = (doc) => {
+  if (!doc) return [];
+  if (typeof doc === "string") return [doc];
+
+  return [
+    doc.original_name,
+    doc.file_name,
+    doc.document_name,
+    doc.name,
+    doc.File?.file_name,
+    doc.file?.file_name,
+  ];
+};
+
+const getDocumentPathCandidates = (doc) => {
+  if (!doc) return [];
+  if (typeof doc === "string") return [doc];
+
+  const directPaths = [
+    doc.file_path,
+    doc.path,
+    doc.url,
+    doc.file?.file_path,
+    doc.file?.path,
+    doc.file?.url,
+    doc.File?.file_path,
+    doc.File?.path,
+    doc.File?.url,
+  ];
+
+  const extracted = extractFirstFilePath(doc);
+  if (extracted) {
+    directPaths.push(extracted);
+  }
+
+  return directPaths;
+};
+
+const isMergedFormDocument = (doc) => {
+  if (!doc) return false;
+
+  const nameMatches = getDocumentNameCandidates(doc).some((candidate) => {
+    const normalized = normalizeDocumentName(candidate);
+    if (!normalized) return false;
+    return (
+      normalized === HIDDEN_MERGED_FORM_NAME ||
+      HIDDEN_MERGED_FILE_REGEX.test(candidate.trim())
+    );
+  });
+
+  if (nameMatches) return true;
+
+  return getDocumentPathCandidates(doc).some((candidate) => {
+    if (typeof candidate !== "string") return false;
+    const normalized = candidate.trim().toLowerCase();
+    return (
+      !normalized
+        ? false
+        : normalized.includes(MERGED_FOLDER_SEGMENT) ||
+          HIDDEN_MERGED_FILE_REGEX.test(normalized)
+    );
+  });
+};
+
 const toCamelSuffix = (suffix) => {
   if (!suffix) return "";
   const trimmed = suffix.replace(/^_+/, "");
@@ -349,7 +420,11 @@ const deriveAnnouncementId = (...values) => {
   return null;
 };
 
-export default function FundApplicationDetail({ submissionId, onNavigate }) {
+export default function FundApplicationDetail({
+  submissionId,
+  onNavigate,
+  originPage = "applications",
+}) {
   const [submission, setSubmission] = useState(null);
   const [loading, setLoading] = useState(true);
   const [mainAnnouncementDetail, setMainAnnouncementDetail] = useState(null);
@@ -405,7 +480,7 @@ export default function FundApplicationDetail({ submissionId, onNavigate }) {
 
   const handleBack = () => {
     if (onNavigate) {
-      onNavigate("applications");
+      onNavigate(originPage || "applications");
     }
   };
 
@@ -612,6 +687,11 @@ export default function FundApplicationDetail({ submissionId, onNavigate }) {
   const documents =
     submission?.documents || submission?.submission_documents || [];
 
+  const visibleDocuments = useMemo(() => {
+    if (!Array.isArray(documents)) return [];
+    return documents.filter((doc) => !isMergedFormDocument(doc));
+  }, [documents]);
+
   const mainAnnouncementFallback = useMemo(
     () =>
       buildAnnouncementFromDetail(detail, [
@@ -779,7 +859,8 @@ export default function FundApplicationDetail({ submissionId, onNavigate }) {
   const submittedAt = submission.submitted_at || submission.created_at;
   const announceReference =
     submission.announce_reference_number || detail.announce_reference_number;
-
+  const originLabel = originPage === "received-funds" ? "ทุนที่เคยได้รับ" : "คำร้องของฉัน";
+  
   return (
     <PageLayout
       title={`คำร้องขอทุน #${submission.submission_number}`}
@@ -793,7 +874,7 @@ export default function FundApplicationDetail({ submissionId, onNavigate }) {
       }
       breadcrumbs={[
         { label: "หน้าแรก", href: "/member" },
-        { label: "คำร้องของฉัน", href: "#", onClick: handleBack },
+        { label: originLabel, href: "#", onClick: handleBack },
         { label: submission.submission_number },
       ]}
     >
@@ -939,9 +1020,9 @@ export default function FundApplicationDetail({ submissionId, onNavigate }) {
       {/* Documents */}
       <Card title="เอกสารแนบ (Attachments)" icon={FileText} collapsible={false}>
         <div className="space-y-6">
-          {documents.length > 0 ? (
+          {visibleDocuments.length > 0 ? (
             <div className="space-y-4">
-              {documents.map((doc, index) => {
+              {visibleDocuments.map((doc, index) => {
                 const fileId = doc.file_id || doc.File?.file_id || doc.file?.file_id;
                 const trimmedOriginal =
                   typeof doc.original_name === "string" ? doc.original_name.trim() : "";
@@ -1027,12 +1108,12 @@ export default function FundApplicationDetail({ submissionId, onNavigate }) {
             </div>
           )}
 
-          {documents.length > 0 && (
+          {visibleDocuments.length > 0 && (
             <div className="flex justify-end gap-3 pt-4 border-t-1 border-gray-300">
               <button
                 className="inline-flex items-center gap-1 border border-blue-200 px-3 py-2 text-sm text-blue-600 hover:bg-blue-50 rounded-md transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-                onClick={() => handleViewMerged(documents)}
-                disabled={documents.length === 0 || merging || creatingMerged}
+                onClick={() => handleViewMerged(visibleDocuments)}
+                disabled={visibleDocuments.length === 0 || merging || creatingMerged}
                 title="เปิดดูไฟล์แนบที่ถูกรวมเป็น PDF"
               >
                 <Eye size={16} /> ดูไฟล์รวม (PDF)
@@ -1041,13 +1122,13 @@ export default function FundApplicationDetail({ submissionId, onNavigate }) {
                 className="inline-flex items-center gap-1 border border-green-200 px-3 py-2 text-sm text-green-600 hover:bg-green-50 rounded-md transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
                 onClick={() =>
                   handleDownloadMerged(
-                    documents,
+                    visibleDocuments,
                     `merged_documents_${
                       submission?.submission_number || submission?.submission_id || ""
                     }.pdf`
                   )
                 }
-                disabled={documents.length === 0 || merging || creatingMerged}
+                disabled={visibleDocuments.length === 0 || merging || creatingMerged}
                 title="ดาวน์โหลดไฟล์แนบที่ถูกรวมเป็น PDF เดียว"
               >
                 <Download size={16} /> ดาวน์โหลดไฟล์รวม

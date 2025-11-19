@@ -237,7 +237,7 @@ export default function LoginPage() {
       case 'reset':
         return 'กรอกโทเคนและรหัสผ่านใหม่เพื่อเข้าใช้งานระบบอีกครั้ง';
       default:
-        return 'ระบบบริหารจัดการทุนวิจัย';
+        return 'กองทุนวิจัยฯ วิทยาลัยการคอมพิวเตอร์';
     }
   }, [mode]);
 
@@ -423,7 +423,7 @@ export default function LoginPage() {
                   onClick={handleSSOLogin}
                 >
                   <KeyRound className="w-5 h-5" />
-                  SSO
+                  Sign In with KKU Email
                 </button>
               </div>
             </form>
@@ -603,10 +603,6 @@ export default function LoginPage() {
               </div>
             </form>
           )}
-        </div>
-
-        <div className="text-center mt-8">
-          <p className="text-sm text-gray-500">© 2024 ระบบบริหารจัดการทุนวิจัย. สงวนลิขสิทธิ์.</p>
         </div>
       </div>
     </div>

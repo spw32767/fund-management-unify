@@ -2,7 +2,8 @@
 
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { usePathname } from "next/navigation";
 import AuthGuard from "../components/AuthGuard";
 import Header from "./components/layout/Header";
 import Navigation from "./components/layout/Navigation";
@@ -30,6 +31,55 @@ export function MemberPageContent({ initialPage = 'profile' }) {
   const [currentPage, setCurrentPage] = useState(initialPage);
   const [selectedFundData, setSelectedFundData] = useState(null);
   const { user } = useAuth();
+  const pathname = usePathname();
+
+  const normalizePage = useCallback((page) => {
+    const allowedPages = [
+      'dashboard',
+      'profile',
+      'research-fund',
+      'promotion-fund',
+      'applications',
+      'received-funds',
+      'application-form',
+      'publication-reward-form',
+      'generic-fund-application',
+      'fund-application-detail',
+      'publication-reward-detail',
+      'announcements',
+      'notifications',
+      'projects',
+      'dept-review',
+    ];
+
+    return allowedPages.includes(page) ? page : 'profile';
+  }, []);
+
+  const pageFromPath = useCallback(
+    (path) => {
+      if (typeof path !== 'string') return 'profile';
+      const segments = path.split('/').filter(Boolean);
+
+      if (segments[0] !== 'member') return 'profile';
+      return normalizePage(segments[1] || 'profile');
+    },
+    [normalizePage]
+  );
+
+  const syncPathWithPage = useCallback(
+    (page, { replace = false } = {}) => {
+      if (typeof window === 'undefined') return;
+
+      const normalized = normalizePage(page);
+      const targetPath = `/member/${normalized}`;
+
+      if (window.location.pathname === targetPath) return;
+
+      const method = replace ? 'replaceState' : 'pushState';
+      window.history[method]({ page: normalized }, '', targetPath);
+    },
+    [normalizePage]
+  );
 
   const isDeptHead = useMemo(() => {
     if (!user) return false;
@@ -41,15 +91,36 @@ export function MemberPageContent({ initialPage = 'profile' }) {
   }, [user]);
 
   useEffect(() => {
-    setCurrentPage(initialPage);
+    const normalized = normalizePage(initialPage);
+    setCurrentPage(normalized);
     setSelectedFundData(null);
-  }, [initialPage]);
+    syncPathWithPage(normalized, { replace: true });
+  }, [initialPage, normalizePage, syncPathWithPage]);
 
   useEffect(() => {
     if (isDeptHead && initialPage === 'profile') {
       setCurrentPage('dept-review');
+      syncPathWithPage('dept-review', { replace: true });
     }
-  }, [isDeptHead, initialPage]);
+  }, [isDeptHead, initialPage, syncPathWithPage]);
+
+  useEffect(() => {
+    const pageFromUrl = pageFromPath(pathname);
+    setCurrentPage(pageFromUrl);
+  }, [pageFromPath, pathname]);
+
+  useEffect(() => {
+    const handlePopState = () => {
+      const pageFromUrl = pageFromPath(window.location.pathname);
+      setSelectedFundData(null);
+      setCurrentPage(pageFromUrl);
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+    };
+  }, [pageFromPath]);
 
   const handleNavigate = (page, data) => {
     // ถ้าออกจากหน้าฟอร์มใดๆ ให้ล้างข้อมูลทุนที่เลือก
@@ -59,7 +130,8 @@ export function MemberPageContent({ initialPage = 'profile' }) {
     }
 
     setCurrentPage(page);
-    
+    syncPathWithPage(page);
+
     if (data) {
       setSelectedFundData(data);
     }
