@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertTriangle,
   Bell,
@@ -17,14 +17,14 @@ import { notificationsAPI } from "@/app/lib/notifications_api";
 export default function NotificationCenter() {
   const [notifications, setNotifications] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [yearFilter, setYearFilter] = useState("all");
   const [sortOrder, setSortOrder] = useState("desc");
-  const [hasMore, setHasMore] = useState(true);
-  const [offset, setOffset] = useState(0);
+  const [visibleCount, setVisibleCount] = useState(0);
 
   const PAGE_SIZE = 20;
+
+  const isLoadingRef = useRef(false);
 
   const unreadCount = useMemo(
     () => notifications.filter((item) => !item.is_read).length,
@@ -65,6 +65,13 @@ export default function NotificationCenter() {
     });
   }, [notifications, sortOrder, yearFilter]);
 
+  const displayedNotifications = useMemo(
+    () => filteredNotifications.slice(0, visibleCount || PAGE_SIZE),
+    [filteredNotifications, visibleCount]
+  );
+
+  const hasMore = displayedNotifications.length < filteredNotifications.length;
+
   const formatDateTime = (dateString) => {
     if (!dateString) return "";
     const date = new Date(dateString);
@@ -76,57 +83,57 @@ export default function NotificationCenter() {
     }).format(date);
   };
 
-  const loadNotifications = useCallback(
-    async ({ reset = false } = {}) => {
-      if (isLoading || isLoadingMore) return;
+  const loadNotifications = useCallback(async () => {
+    if (isLoadingRef.current) return;
 
-      const startOffset = reset ? 0 : offset;
-      const setBusy = reset ? setIsLoading : setIsLoadingMore;
+    isLoadingRef.current = true;
+    setIsLoading(true);
+    setErrorMessage("");
 
-      if (reset) {
-        setHasMore(true);
-        setOffset(0);
-      }
+    try {
+      const batchSize = 100;
+      let offset = 0;
+      const items = [];
 
-      setBusy(true);
-      setErrorMessage("");
-
-      try {
-        const data = await notificationsAPI.list({ limit: PAGE_SIZE, offset: startOffset });
-        const items = Array.isArray(data?.items)
+      // ดึงข้อมูลทั้งหมดทีละก้อนจนกว่าจะครบ
+      while (true) {
+        const data = await notificationsAPI.list({ limit: batchSize, offset });
+        const batch = Array.isArray(data?.items)
           ? data.items
           : Array.isArray(data)
             ? data
             : [];
 
-        setNotifications((prev) => {
-          const base = reset ? [] : prev;
-          const map = new Map(base.map((item) => [item.notification_id, item]));
-          items.forEach((item) => {
-            if (item?.notification_id) {
-              map.set(item.notification_id, item);
-            }
-          });
-          return Array.from(map.values());
-        });
+        if (batch.length === 0) break;
 
-        setOffset((prev) => (reset ? items.length : prev + items.length));
-        setHasMore(items.length === PAGE_SIZE);
-      } catch (error) {
-        console.error("Failed to load notifications", error);
-        setErrorMessage("ไม่สามารถโหลดการแจ้งเตือนได้");
-      } finally {
-        setBusy(false);
+        items.push(...batch);
+        offset += batch.length;
+
+        if (batch.length < batchSize) break;
       }
-    },
-    [PAGE_SIZE, isLoading, isLoadingMore, offset]
-  );
+
+      const unique = Array.from(
+        new Map(items.map((item) => [item.notification_id, item])).values()
+      );
+
+      setNotifications(unique);
+      setVisibleCount(PAGE_SIZE);
+    } catch (error) {
+      console.error("Failed to load notifications", error);
+      setErrorMessage("ไม่สามารถโหลดการแจ้งเตือนได้");
+    } finally {
+      setIsLoading(false);
+      isLoadingRef.current = false;
+    }
+  }, [PAGE_SIZE]);
 
   useEffect(() => {
-    // Intentionally run only once on mount to avoid re-triggering loads when offset updates
-    loadNotifications({ reset: true });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    loadNotifications();
+  }, [loadNotifications]);
+
+  useEffect(() => {
+    setVisibleCount(PAGE_SIZE);
+  }, [PAGE_SIZE, sortOrder, yearFilter]);
 
   const markAsRead = async (id) => {
     try {
@@ -242,7 +249,7 @@ export default function NotificationCenter() {
                 <p className="text-sm text-slate-500">ลองเปลี่ยนตัวกรองหรือกลับมาดูอีกครั้งเมื่อมีการอัปเดต</p>
               </div>
             ) : (
-              filteredNotifications.map((notification) => {
+              displayedNotifications.map((notification) => {
                 const type = notification.type || "info";
                 const isRead = notification.is_read;
 
@@ -304,7 +311,7 @@ export default function NotificationCenter() {
                           </span>
                           {notification.related_submission_id && (
                             <span className="inline-flex items-center gap-1 rounded-full bg-sky-50 px-2.5 py-1 font-medium text-sky-700 ring-1 ring-sky-100">
-                              อ้างอิง #{notification.related_submission_id}
+                              อ้างอิ #{notification.related_submission_id}
                             </span>
                           )}
                         </div>
@@ -319,14 +326,14 @@ export default function NotificationCenter() {
               {hasMore ? (
                 <button
                   type="button"
-                  onClick={() => loadNotifications()}
-                  disabled={isLoadingMore}
-                  className="inline-flex items-center gap-2 rounded-full bg-sky-50 px-4 py-2 text-sm font-semibold text-sky-700 ring-1 ring-sky-100 transition hover:bg-sky-100 disabled:cursor-not-allowed disabled:opacity-70"
+                  onClick={() =>
+                    setVisibleCount((prev) =>
+                      Math.min(prev + PAGE_SIZE, filteredNotifications.length)
+                    )
+                  }
+                  className="inline-flex items-center gap-2 rounded-full bg-sky-50 px-4 py-2 text-sm font-semibold text-sky-700 ring-1 ring-sky-100 transition hover:bg-sky-100"
                 >
-                  {isLoadingMore && (
-                    <div className="h-4 w-4 animate-spin rounded-full border border-slate-200 border-t-sky-500" />
-                  )}
-                  {isLoadingMore ? "กำลังโหลด..." : "แสดงเพิ่มเติม"}
+                  แสดงเพิ่มเติม
                 </button>
               ) : notifications.length > 0 ? (
                 <p className="text-xs text-slate-400">แสดงการแจ้งเตือนครบทั้งหมดแล้ว</p>

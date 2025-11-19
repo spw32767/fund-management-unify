@@ -1,10 +1,14 @@
 "use client";
 
+import { use } from "react";
 import AuthGuard from "../../components/AuthGuard";
 import { MemberPageContent } from "../page";
 
 export default function MemberDynamicPage({ params }) {
-  const page = Array.isArray(params?.page) ? params.page[0] : params?.page;
+  const resolvedParams = use(params);
+  const page = Array.isArray(resolvedParams?.page)
+    ? resolvedParams.page[0]
+    : resolvedParams?.page;
 
   return (
     <AuthGuard
