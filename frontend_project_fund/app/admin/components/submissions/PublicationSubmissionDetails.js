@@ -823,7 +823,7 @@ function ApprovalPanel({ submission, pubDetail, requestedSummary, approvedSummar
   // *แก้ไขตามที่ผู้ใช้ร้องขอ: เพื่อให้ 'เงินรางวัลที่จะอนุมัติ' แสดงค่า default เป็น 'เงินรางวัลที่ขอ'
   // หาก approvedSummary?.rewardRaw เป็นค่า falsy (null, undefined, 0) จะใช้ requestedReward แทน
   // ซึ่งจะทำให้ค่าเริ่มต้นแสดงเป็นค่าที่ขอ หากยังไม่มีการบันทึกค่าอนุมัติที่ชัดเจน
-  const approvedRewardDefault = approvedSummary?.rewardRaw ?? requestedReward;
+  const rewardAutoValue = requestedReward;
   const approvedRevisionDefault =
     approvedSummary?.revisionRaw ?? requestedRevision;
   const approvedPublicationDefault =
@@ -831,7 +831,7 @@ function ApprovalPanel({ submission, pubDetail, requestedSummary, approvedSummar
   const approvedTotalDefault = approvedSummary?.total ?? Math.max(0, requestedBaseTotal);
 
   // Approved values
-  const [rewardApprove, setRewardApprove] = useState(approvedRewardDefault);
+  const [rewardApprove, setRewardApprove] = useState(rewardAutoValue);
   const [revisionApprove, setRevisionApprove] = useState(approvedRevisionDefault);
   const [publicationApprove, setPublicationApprove] = useState(approvedPublicationDefault);
   const [totalApprove, setTotalApprove] = useState(approvedTotalDefault);
@@ -939,22 +939,22 @@ function ApprovalPanel({ submission, pubDetail, requestedSummary, approvedSummar
   // เติมค่าอัตโนมัติเมื่อไม่เปิดโหมดแก้ไข
   useEffect(() => {
     if (manualEdit) return;
-    setRewardApprove(approvedRewardDefault);
+    setRewardApprove(rewardAutoValue);
     applyAutoSharedFeeValues();
-  }, [manualEdit, approvedRewardDefault, applyAutoSharedFeeValues]);
+  }, [manualEdit, rewardAutoValue, applyAutoSharedFeeValues]);
 
   const handleToggleManualEdit = React.useCallback(() => {
     setManualEdit((prev) => {
       const next = !prev;
       if (!prev && next) {
-        setRewardApprove(savedRewardValue ?? approvedRewardDefault);
+        setRewardApprove(savedRewardValue ?? rewardAutoValue);
         setRevisionApprove(savedRevisionValue ?? revisionAutoValue);
         setPublicationApprove(savedPublicationValue ?? publicationAutoValue);
       }
       return next;
     });
   }, [
-    approvedRewardDefault,
+    rewardAutoValue,
     publicationAutoValue,
     revisionAutoValue,
     savedPublicationValue,
@@ -1047,7 +1047,7 @@ function ApprovalPanel({ submission, pubDetail, requestedSummary, approvedSummar
 
   // รีเซ็ตกลับค่าเริ่มต้นจาก FI/คำขอ
   const recalc = () => {
-    setRewardApprove(approvedRewardDefault);
+    setRewardApprove(rewardAutoValue);
     applyAutoSharedFeeValues();
   };
 
