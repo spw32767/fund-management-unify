@@ -823,15 +823,11 @@ function ApprovalPanel({ submission, pubDetail, requestedSummary, approvedSummar
   // *แก้ไขตามที่ผู้ใช้ร้องขอ: เพื่อให้ 'เงินรางวัลที่จะอนุมัติ' แสดงค่า default เป็น 'เงินรางวัลที่ขอ'
   // หาก approvedSummary?.rewardRaw เป็นค่า falsy (null, undefined, 0) จะใช้ requestedReward แทน
   // ซึ่งจะทำให้ค่าเริ่มต้นแสดงเป็นค่าที่ขอ หากยังไม่มีการบันทึกค่าอนุมัติที่ชัดเจน
-  const approvedRewardDefault = approvedSummary?.rewardRaw
-    ? approvedSummary.rewardRaw
-    : requestedReward;
-  const approvedRevisionDefault = approvedSummary?.revisionRaw != null 
-    ? approvedSummary.revisionRaw 
-    : requestedRevision;
-  const approvedPublicationDefault = approvedSummary?.publicationRaw != null 
-    ? approvedSummary.publicationRaw 
-    : requestedPublication;
+  const approvedRewardDefault = approvedSummary?.rewardRaw ?? requestedReward;
+  const approvedRevisionDefault =
+    approvedSummary?.revisionRaw ?? requestedRevision;
+  const approvedPublicationDefault =
+    approvedSummary?.publicationRaw ?? requestedPublication;
   const approvedTotalDefault = approvedSummary?.total ?? Math.max(0, requestedBaseTotal);
 
   // Approved values
@@ -861,6 +857,13 @@ function ApprovalPanel({ submission, pubDetail, requestedSummary, approvedSummar
 
   // ซ่อน 2 ฟิลด์เมื่อไม่พบเพดาน
   const hideSharedFeeFields = !!capError && /ไม่สามารถเบิกค่าใช้จ่ายนี้ได้/.test(capError);
+
+  const revisionAutoValue = hideSharedFeeFields ? 0 : requestedRevision;
+  const publicationAutoValue = hideSharedFeeFields ? 0 : requestedPublication;
+
+  const savedRewardValue = approvedSummary?.rewardRaw;
+  const savedRevisionValue = approvedSummary?.revisionRaw;
+  const savedPublicationValue = approvedSummary?.publicationRaw;
 
   useEffect(() => {
     setManualEdit(false);
@@ -929,9 +932,9 @@ function ApprovalPanel({ submission, pubDetail, requestedSummary, approvedSummar
       return;
     }
 
-    setRevisionApprove(approvedRevisionDefault);
-    setPublicationApprove(approvedPublicationDefault);
-  }, [hideSharedFeeFields, approvedRevisionDefault, approvedPublicationDefault]);
+    setRevisionApprove(revisionAutoValue);
+    setPublicationApprove(publicationAutoValue);
+  }, [hideSharedFeeFields, revisionAutoValue, publicationAutoValue]);
 
   // เติมค่าอัตโนมัติเมื่อไม่เปิดโหมดแก้ไข
   useEffect(() => {
@@ -939,6 +942,25 @@ function ApprovalPanel({ submission, pubDetail, requestedSummary, approvedSummar
     setRewardApprove(approvedRewardDefault);
     applyAutoSharedFeeValues();
   }, [manualEdit, approvedRewardDefault, applyAutoSharedFeeValues]);
+
+  const handleToggleManualEdit = React.useCallback(() => {
+    setManualEdit((prev) => {
+      const next = !prev;
+      if (!prev && next) {
+        setRewardApprove(savedRewardValue ?? approvedRewardDefault);
+        setRevisionApprove(savedRevisionValue ?? revisionAutoValue);
+        setPublicationApprove(savedPublicationValue ?? publicationAutoValue);
+      }
+      return next;
+    });
+  }, [
+    approvedRewardDefault,
+    publicationAutoValue,
+    revisionAutoValue,
+    savedPublicationValue,
+    savedRewardValue,
+    savedRevisionValue,
+  ]);
 
 
   // รวมอัตโนมัติ (Total อ่านอย่างเดียว)
@@ -1414,7 +1436,7 @@ function ApprovalPanel({ submission, pubDetail, requestedSummary, approvedSummar
                   type="button"
                   role="switch"
                   aria-checked={manualEdit}
-                  onClick={() => setManualEdit((v) => !v)}
+                  onClick={handleToggleManualEdit}
                   className={`relative inline-flex h-5 w-9 items-center rounded-full transition ${
                     manualEdit ? 'bg-blue-600' : 'bg-gray-300'
                   }`}
