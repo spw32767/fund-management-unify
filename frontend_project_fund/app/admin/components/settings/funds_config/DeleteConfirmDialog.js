@@ -1,6 +1,9 @@
+"use client";
+
 // modals/DeleteConfirmDialog.js
 import React from "react";
 import { AlertCircle } from "lucide-react";
+import SettingsModal from "../common/SettingsModal";
 
 const DeleteConfirmDialog = ({ 
   isOpen, 
@@ -8,8 +11,6 @@ const DeleteConfirmDialog = ({
   onConfirm, 
   deleteTarget 
 }) => {
-  if (!isOpen) return null;
-
   const getDeleteMessage = () => {
     if (!deleteTarget) return "คุณต้องการลบรายการนี้ใช่หรือไม่?";
     
@@ -38,43 +39,46 @@ const DeleteConfirmDialog = ({
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg p-6 w-full max-w-md">
-        <div className="flex items-center mb-4">
-          <AlertCircle className="text-red-500 mr-3" size={24} />
-          <h3 className="text-lg font-semibold">ยืนยันการลบ</h3>
+    <SettingsModal
+      open={isOpen}
+      onClose={onClose}
+      size="sm"
+      bodyClassName="px-6 py-6"
+      headerContent={
+        <div className="flex items-center gap-3 text-red-600">
+          <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-red-50 text-red-600">
+            <AlertCircle size={20} />
+          </span>
+          <div>
+            <p className="text-base font-semibold text-gray-900">ยืนยันการลบ</p>
+            <p className="text-sm text-gray-500">การลบไม่สามารถย้อนกลับได้</p>
+          </div>
         </div>
-        
-        <div className="mb-6">
-          <p className="text-gray-700 mb-2">
-            {getDeleteMessage()}
-          </p>
-          
-          {getDeleteWarning() && (
-            <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-lg">
-              <p className="text-red-700 text-sm font-medium">
-                ⚠️ คำเตือน: {getDeleteWarning()}
-              </p>
-            </div>
-          )}
-        </div>
-        
-        <div className="flex justify-end gap-2">
+      }
+    >
+      <div className="space-y-4">
+        <p className="text-gray-700">{getDeleteMessage()}</p>
+        {getDeleteWarning() ? (
+          <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+            ⚠️ คำเตือน: {getDeleteWarning()}
+          </div>
+        ) : null}
+        <div className="flex flex-col gap-3 pt-2 sm:flex-row sm:items-center sm:justify-end">
           <button
             onClick={onClose}
-            className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+            className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-600 transition hover:bg-gray-100"
           >
             ยกเลิก
           </button>
           <button
             onClick={onConfirm}
-            className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+            className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-red-700"
           >
             ลบ
           </button>
         </div>
       </div>
-    </div>
+    </SettingsModal>
   );
 };
 
