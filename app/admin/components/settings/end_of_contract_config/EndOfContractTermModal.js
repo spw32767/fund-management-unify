@@ -1,7 +1,8 @@
 "use client";
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { ListChecks, Loader2, X } from "lucide-react";
+import { ListChecks, Loader2 } from "lucide-react";
+import SettingsModal from "../common/SettingsModal";
 
 const MAX_LENGTH = 2000;
 
@@ -48,12 +49,6 @@ const EndOfContractTermModal = ({
     : "กรอกข้อความข้อตกลงที่จะให้ผู้ยื่นคำร้องอ่านและยืนยัน";
   const primaryLabel = isEditMode ? "บันทึกการแก้ไข" : "บันทึกข้อตกลง";
 
-  const handleOverlayClick = (event) => {
-    if (event.target === event.currentTarget && !saving) {
-      onClose?.();
-    }
-  };
-
   const handleSubmit = async (event) => {
     event.preventDefault();
     if (saving) {
@@ -75,41 +70,27 @@ const EndOfContractTermModal = ({
     await onSubmit?.({ content: value });
   };
 
-  if (!isOpen) {
-    return null;
-  }
-
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm px-4"
-      onClick={handleOverlayClick}
-    >
-      <div
-        className="w-full max-w-2xl transform overflow-hidden rounded-2xl bg-white shadow-2xl transition-all"
-        onClick={(event) => event.stopPropagation()}
-      >
-        <div className="flex items-start justify-between border-b bg-gray-50 px-6 py-5">
-          <div className="flex items-center gap-4">
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-blue-100 text-blue-600">
-              <ListChecks className="h-6 w-6" />
-            </div>
-            <div>
-              <h2 className="text-lg font-semibold text-gray-900">{heading}</h2>
-              <p className="text-sm text-gray-500">{description}</p>
-            </div>
+    <SettingsModal
+      open={isOpen}
+      onClose={onClose}
+      size="lg"
+      bodyClassName="max-h-[80vh] overflow-y-auto px-6 py-6"
+      hideCloseButton={saving}
+      closeOnBackdrop={!saving}
+      headerContent={
+        <div className="flex items-center gap-4">
+          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-blue-100 text-blue-600">
+            <ListChecks className="h-6 w-6" />
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            disabled={saving}
-            className="rounded-full p-2 text-gray-500 transition hover:bg-gray-100 hover:text-gray-700 disabled:cursor-not-allowed disabled:opacity-60"
-            aria-label="ปิดหน้าต่าง"
-          >
-            <X className="h-5 w-5" />
-          </button>
+          <div>
+            <p className="text-lg font-semibold text-gray-900">{heading}</p>
+            <p className="text-sm text-gray-500">{description}</p>
+          </div>
         </div>
-
-        <form onSubmit={handleSubmit} className="px-6 py-6">
+      }
+    >
+      <form onSubmit={handleSubmit}>
           <div className="space-y-4">
             <div>
               <label className="mb-2 block text-sm font-semibold text-gray-700">
@@ -141,7 +122,7 @@ const EndOfContractTermModal = ({
             </div>
           </div>
 
-          <div className="mt-6 flex items-center justify-end gap-3 border-t border-gray-100 pt-4">
+          <div className="mt-6 flex flex-col gap-3 pt-2 sm:flex-row sm:items-center sm:justify-end">
             <button
               type="button"
               onClick={onClose}
@@ -159,9 +140,8 @@ const EndOfContractTermModal = ({
               {saving ? "กำลังบันทึก" : primaryLabel}
             </button>
           </div>
-        </form>
-      </div>
-    </div>
+      </form>
+    </SettingsModal>
   );
 };
 

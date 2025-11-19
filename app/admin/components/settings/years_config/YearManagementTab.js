@@ -5,7 +5,6 @@ import {
   Edit,
   Trash2,
   Save,
-  X,
   ArrowUpDown,
   ArrowUp,
   ArrowDown,
@@ -15,6 +14,7 @@ import {
 import Swal from "sweetalert2";
 import StatusBadge from "@/app/admin/components/settings/StatusBadge";
 import SettingsSectionCard from "@/app/admin/components/settings/common/SettingsSectionCard";
+import SettingsModal from "@/app/admin/components/settings/common/SettingsModal";
 
 const YearManagementTab = ({ years = [], onSaveYear /*, onDeleteYear */ }) => {
   // ====== Editing + Form state (keep original names) ======
@@ -248,91 +248,86 @@ const YearManagementTab = ({ years = [], onSaveYear /*, onDeleteYear */ }) => {
         </div>
       </SettingsSectionCard>
 
-      {/* ===== Modal (เดิม) สำหรับเพิ่ม/แก้ไขปีงบประมาณ ===== */}
-      {showForm && (
-        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-          <div className="relative top-20 mx-auto p-5 border w-full max-w-md shadow-lg rounded-md bg-white">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-lg font-bold text-gray-900">
+      <SettingsModal
+        open={showForm}
+        onClose={handleCancelEdit}
+        size="md"
+        bodyClassName="max-h-[70vh] overflow-y-auto px-6 py-6"
+        headerContent={
+          <div className="flex items-center gap-3 text-gray-700">
+            <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-blue-50 text-blue-600">
+              <Calendar size={18} />
+            </span>
+            <div>
+              <p className="text-base font-semibold text-gray-900">
                 {editingYear ? "แก้ไขปีงบประมาณ" : "เพิ่มปีงบประมาณ"}
-              </h3>
-              <button
-                onClick={handleCancelEdit}
-                className="p-2 rounded-md hover:bg-gray-100"
-                title="ปิด"
-              >
-                <X size={18} />
-              </button>
-            </div>
-
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  ปีงบประมาณ (พ.ศ.)
-                </label>
-                <input
-                  type="number"
-                  placeholder="เช่น 2568"
-                  value={yearForm.year}
-                  onChange={(e) =>
-                    setYearForm({ ...yearForm, year: e.target.value })
-                  }
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  วงเงินรวม (บาท)
-                </label>
-                <input
-                  type="number"
-                  placeholder="เช่น 1000000"
-                  value={yearForm.budget}
-                  onChange={(e) =>
-                    setYearForm({ ...yearForm, budget: e.target.value })
-                  }
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  min="0"
-                  step="1000"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  สถานะ
-                </label>
-                <select
-                  value={yearForm.status}
-                  onChange={(e) =>
-                    setYearForm({ ...yearForm, status: e.target.value })
-                  }
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="active">เปิดใช้งาน</option>
-                  <option value="inactive">ปิดใช้งาน</option>
-                </select>
-              </div>
-            </div>
-
-            <div className="mt-6 flex justify-end gap-3">
-              <button
-                onClick={handleCancelEdit}
-                className="px-4 py-2 rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50"
-              >
-                ยกเลิก
-              </button>
-              <button
-                onClick={handleSave}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-              >
-                <Save size={16} />
-                บันทึก
-              </button>
+              </p>
+              <p className="text-sm text-gray-500">กำหนดปีงบประมาณ วงเงินรวม และสถานะการใช้งาน</p>
             </div>
           </div>
-        </div>
-      )}
+        }
+      >
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            handleSave();
+          }}
+          className="space-y-4"
+        >
+          <div>
+            <label className="mb-1 block text-sm font-semibold text-gray-700">ปีงบประมาณ (พ.ศ.)</label>
+            <input
+              type="number"
+              placeholder="เช่น 2568"
+              value={yearForm.year}
+              onChange={(e) => setYearForm({ ...yearForm, year: e.target.value })}
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-200"
+            />
+          </div>
+
+          <div>
+            <label className="mb-1 block text-sm font-semibold text-gray-700">วงเงินรวม (บาท)</label>
+            <input
+              type="number"
+              placeholder="เช่น 1000000"
+              value={yearForm.budget}
+              onChange={(e) => setYearForm({ ...yearForm, budget: e.target.value })}
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-200"
+              min="0"
+              step="1000"
+            />
+          </div>
+
+          <div>
+            <label className="mb-1 block text-sm font-semibold text-gray-700">สถานะ</label>
+            <select
+              value={yearForm.status}
+              onChange={(e) => setYearForm({ ...yearForm, status: e.target.value })}
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-200"
+            >
+              <option value="active">เปิดใช้งาน</option>
+              <option value="inactive">ปิดใช้งาน</option>
+            </select>
+          </div>
+
+          <div className="flex flex-col gap-3 pt-2 sm:flex-row sm:items-center sm:justify-end">
+            <button
+              type="button"
+              onClick={handleCancelEdit}
+              className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-600 transition hover:bg-gray-100"
+            >
+              ยกเลิก
+            </button>
+            <button
+              type="submit"
+              className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-700"
+            >
+              <Save size={16} />
+              บันทึก
+            </button>
+          </div>
+        </form>
+      </SettingsModal>
     </>
   );
 };

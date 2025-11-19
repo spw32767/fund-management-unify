@@ -1,5 +1,9 @@
+"use client";
+
 // modals/BudgetModal.js
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import { Wallet } from "lucide-react";
+import SettingsModal from "../common/SettingsModal";
 
 const formatCurrencyDisplay = (value) => {
   if (value === null || value === undefined || value === "") return "ไม่จำกัด";
@@ -105,12 +109,6 @@ const BudgetModal = ({
     };
   }, [isOpen, onClose]);
 
-  const handleOverlayClick = (event) => {
-    if (event.target === event.currentTarget) {
-      onClose?.();
-    }
-  };
-
   const handleSubmit = (e) => {
     e.preventDefault();
 
@@ -125,52 +123,50 @@ const BudgetModal = ({
     onSave(sanitizedForm);
   };
 
-  if (!isOpen) return null;
-
   return (
-    <div
-      className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50"
-      onClick={handleOverlayClick}
-      role="presentation"
-    >
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-label={editingBudget ? "แก้ไขเงื่อนไขรอง" : "เพิ่มเงื่อนไขรองใหม่"}
-        tabIndex={-1}
-        className="bg-white rounded-xl p-6 w-full max-w-2xl shadow-2xl transform transition-all duration-300 scale-100 max-h-[90vh] overflow-y-auto"
-      >
-        <div className="flex flex-col gap-2 mb-6">
-          <h3 className="text-xl font-semibold text-gray-900">
-            {editingBudget ? "แก้ไขเงื่อนไขรอง" : "เพิ่มเงื่อนไขรองใหม่"}
-          </h3>
-          <p className="text-sm text-gray-500">
-            ระบุเงื่อนไขการให้ทุนรายครั้งให้ชัดเจน โดยข้อมูลและคำศัพท์จะสอดคล้องกับหน้าหลักของการจัดการทุน
-          </p>
-        </div>
-
-        {selectedSubcategory && (
-          <div className="mb-6 p-3 bg-green-50 rounded-lg border border-green-200">
-            <p className="text-sm text-green-800">
-              ทุนย่อย: <span className="font-semibold">{selectedSubcategory.subcategory_name}</span>
+    <SettingsModal
+      open={isOpen}
+      onClose={onClose}
+      size="lg"
+      bodyClassName="max-h-[85vh] overflow-y-auto px-6 py-6"
+      headerContent={
+        <div className="flex items-center gap-3 text-gray-700">
+          <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-blue-50 text-blue-600">
+            <Wallet size={18} />
+          </span>
+          <div>
+            <p className="text-base font-semibold text-gray-900">
+              {editingBudget ? "แก้ไขเงื่อนไขรอง" : "เพิ่มเงื่อนไขรองใหม่"}
             </p>
-            {overallBudget && (
-              <p className="mt-1 text-xs text-green-700">
-                วงเงินรวมต่อปี: {formatCurrencyDisplay(overallBudget.max_amount_per_year)}
-                {formatCountDisplay(overallBudget.max_grants) !== "ไม่จำกัด" && (
-                  <>
-                    {" "}| จำนวนครั้งรวม: {formatCountDisplay(overallBudget.max_grants)}
-                  </>
-                )}
-              </p>
-            )}
+            <p className="text-sm text-gray-500">
+              ระบุเงื่อนไขการให้ทุนรายครั้งให้ชัดเจน เพื่อให้ตรงกับหน้าหลักของการจัดการทุน
+            </p>
           </div>
-        )}
+        </div>
+      }
+    >
+      {selectedSubcategory && (
+        <div className="mb-6 rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-800">
+          <p>
+            ทุนย่อย: <span className="font-semibold">{selectedSubcategory.subcategory_name}</span>
+          </p>
+          {overallBudget && (
+            <p className="mt-1 text-xs text-green-700">
+              วงเงินรวมต่อปี: {formatCurrencyDisplay(overallBudget.max_amount_per_year)}
+              {formatCountDisplay(overallBudget.max_grants) !== "ไม่จำกัด" && (
+                <>
+                  {" "}| จำนวนครั้งรวม: {formatCountDisplay(overallBudget.max_grants)}
+                </>
+              )}
+            </p>
+          )}
+        </div>
+      )}
 
-        <form onSubmit={handleSubmit}>
-          <div className="space-y-6">
+      <form onSubmit={handleSubmit}>
+        <div className="space-y-6">
             <div>
-              <label className="block text-sm font-medium mb-2 text-gray-700">คำอธิบายเงื่อนไข</label>
+              <label className="block text-sm font-semibold mb-2 text-gray-700">คำอธิบายเงื่อนไข</label>
               <textarea
                 ref={firstFieldRef}
                 value={budgetForm.fund_description}
@@ -189,7 +185,7 @@ const BudgetModal = ({
 
             <div className="grid gap-4 sm:grid-cols-2">
               <div>
-                <label className="block text-sm font-medium mb-2 text-gray-700">วงเงินต่อครั้ง (บาท)</label>
+                <label className="block text-sm font-semibold mb-2 text-gray-700">วงเงินต่อครั้ง (บาท)</label>
                 <input
                   type="number"
                   min="0"
@@ -207,7 +203,7 @@ const BudgetModal = ({
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium mb-2 text-gray-700">จำนวนครั้งสูงสุด</label>
+                <label className="block text-sm font-semibold mb-2 text-gray-700">จำนวนครั้งสูงสุด</label>
                 <input
                   type="number"
                   min="0"
@@ -224,7 +220,7 @@ const BudgetModal = ({
                 <p className="text-xs text-gray-500 mt-1">ปล่อยว่างหากไม่จำกัดจำนวนครั้ง</p>
               </div>
               <div>
-                <label className="block text-sm font-medium mb-2 text-gray-700">วงเงินต่อปีสำหรับเงื่อนไขนี้</label>
+                <label className="block text-sm font-semibold mb-2 text-gray-700">วงเงินต่อปีสำหรับเงื่อนไขนี้</label>
                 <input
                   type="number"
                   min="0"
@@ -241,7 +237,7 @@ const BudgetModal = ({
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium mb-2 text-gray-700">สถานะ</label>
+                <label className="block text-sm font-semibold mb-2 text-gray-700">สถานะ</label>
                 <select
                   value={budgetForm.status}
                   onChange={(e) =>
@@ -259,7 +255,7 @@ const BudgetModal = ({
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-2 text-gray-700">หมายเหตุ (ภายใน)</label>
+              <label className="block text-sm font-semibold mb-2 text-gray-700">หมายเหตุ (ภายใน)</label>
               <textarea
                 value={budgetForm.comment}
                 onChange={(e) =>
@@ -281,24 +277,23 @@ const BudgetModal = ({
             )}
           </div>
 
-          <div className="flex flex-col sm:flex-row sm:justify-end gap-3 mt-8">
+          <div className="mt-8 flex flex-col gap-3 pt-2 sm:flex-row sm:items-center sm:justify-end">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors font-medium"
+              className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-100"
             >
               ยกเลิก
             </button>
             <button
               type="submit"
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors font-medium shadow"
+              className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-700"
             >
               {editingBudget ? "บันทึกการแก้ไข" : "บันทึกเงื่อนไขรอง"}
             </button>
           </div>
-        </form>
-      </div>
-    </div>
+      </form>
+    </SettingsModal>
   );
 };
 

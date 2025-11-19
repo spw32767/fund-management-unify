@@ -1098,7 +1098,7 @@ export default function AnnouncementManager() {
                       onDragEnd={aDragEnd}
                       className={`${aDraggingId === id ? "bg-blue-50" : ""}`}
                     >
-                      <td className="px-3 py-2 text-gray-400">
+                      <td className="px-3 py-2 text-gray-500">
                         <div className="inline-flex items-center gap-1 cursor-grab" title="ลากเพื่อจัดลำดับ">
                           <GripVertical size={16} /> {idx + 1}
                         </div>
@@ -1188,22 +1188,22 @@ export default function AnnouncementManager() {
           <>
             <button
               onClick={loadFundForms}
-              className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border text-sm hover:bg-gray-50"
+              className="inline-flex items-center gap-2 rounded-lg border border-green-200 px-4 py-2 text-sm font-medium text-green-600 transition hover:bg-green-50"
             >
               <RefreshCw size={16} /> รีเฟรช
             </button>
             <button
               onClick={fPersistOrder}
               disabled={!fOrderDirty}
-              className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border text-sm bg-white hover:bg-gray-50 disabled:opacity-50"
+              className="inline-flex items-center gap-2 rounded-lg border border-blue-200 px-4 py-2 text-sm font-medium text-blue-600 transition hover:bg-blue-50 disabled:opacity-50"
             >
               <Save size={16} /> บันทึกลำดับ
             </button>
             <button
               onClick={openFCreate}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-green-600 text-white hover:bg-green-700"
+              className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-blue-700"
             >
-              <Plus size={16} /> เพิ่มแบบฟอร์ม
+              <PlusCircle size={16} /> เพิ่มแบบฟอร์ม
             </button>
           </>
         }

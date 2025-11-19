@@ -1,7 +1,8 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { X } from "lucide-react";
+import { FileCog } from "lucide-react";
+import SettingsModal from "../common/SettingsModal";
 
 export const FUND_TYPE_OPTIONS = [
   { value: "publication_reward", label: "เงินรางวัล/เงินสมทบผลงานเผยแพร่" },
@@ -75,39 +76,35 @@ const DocumentTypeModal = ({
     onSubmit(payload);
   };
 
-  if (!isOpen) return null;
-
   const selectedFundTypes = Array.isArray(formState.fund_types)
     ? formState.fund_types
     : [];
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-      <div className="w-full max-w-3xl rounded-xl bg-white shadow-2xl">
-        <div className="flex items-center justify-between border-b px-6 py-4">
+    <SettingsModal
+      open={isOpen}
+      onClose={onClose}
+      size="xl"
+      bodyClassName="max-h-[75vh] overflow-y-auto px-6 py-6"
+      headerContent={
+        <div className="flex items-center gap-3 text-gray-700">
+          <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-blue-50 text-blue-600">
+            <FileCog size={18} />
+          </span>
           <div>
-            <h3 className="text-lg font-semibold text-gray-900">
+            <p className="text-base font-semibold text-gray-900">
               {initialData ? "แก้ไขประเภทเอกสาร" : "เพิ่มประเภทเอกสาร"}
-            </h3>
-            <p className="text-sm text-gray-500">
-              กำหนดข้อมูลประเภทเอกสารและเงื่อนไขการใช้งานในระบบ
             </p>
+            <p className="text-sm text-gray-500">กำหนดข้อมูลประเภทเอกสารและเงื่อนไขการใช้งานในระบบ</p>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-full p-2 text-gray-500 transition hover:bg-gray-100 hover:text-gray-700"
-            aria-label="ปิดหน้าต่าง"
-          >
-            <X size={20} />
-          </button>
         </div>
-
-        <form onSubmit={handleSubmit} className="px-6 py-6">
+      }
+    >
+      <form onSubmit={handleSubmit}>
           <div className="grid gap-6 md:grid-cols-1">
             <div className="space-y-4">
               <div>
-                <label className="mb-2 block text-sm font-bold text-gray-700">
+                <label className="mb-2 block text-sm font-semibold text-gray-700">
                   ชื่อประเภทเอกสาร
                 </label>
                 <input
@@ -126,7 +123,7 @@ const DocumentTypeModal = ({
               </div>
 
               <div>
-                <label className="mb-2 block text-sm font-bold text-gray-700">
+                <label className="mb-2 block text-sm font-semibold text-gray-700">
                   รหัสเอกสาร (Code)
                 </label>
                 <input
@@ -145,7 +142,7 @@ const DocumentTypeModal = ({
               </div>
 
               <div className="space-y-2">
-                <label className="block text-sm font-bold text-gray-700">
+                <label className="block text-sm font-semibold text-gray-700">
                   ตั้งค่าความจำเป็นของเอกสาร
                 </label>
                   <div className="rounded-lg border border-gray-200 p-4">
@@ -192,7 +189,7 @@ const DocumentTypeModal = ({
             </div>
 
             <div className="space-y-2">
-              <label className="mb-2 block text-sm font-bold text-gray-700">
+              <label className="mb-2 block text-sm font-semibold text-gray-700">
                 เอกสารนี้ใช้กับแบบฟอร์มทุนประเภทใด
               </label>
               <div className="rounded-lg border border-gray-200 p-4">
@@ -224,7 +221,7 @@ const DocumentTypeModal = ({
             </div>
           </div>
 
-          <div className="mt-8 flex items-center justify-end gap-3 border-t pt-4">
+          <div className="mt-8 flex flex-col gap-3 pt-2 sm:flex-row sm:items-center sm:justify-end">
             <button
               type="button"
               onClick={onClose}
@@ -238,12 +235,11 @@ const DocumentTypeModal = ({
               disabled={saving}
               className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-70"
             >
-              {saving ? "กำลังบันทึก..." : initialData ? "บันทึกการเปลี่ยนแปลง" : "บันทึกข้อมูล"}
+              {saving ? "กำลังบันทึก..." : initialData ? "บันทึกการเปลี่ยนแปลง" : "บันทึก"}
             </button>
           </div>
-        </form>
-      </div>
-    </div>
+      </form>
+    </SettingsModal>
   );
 };
 
