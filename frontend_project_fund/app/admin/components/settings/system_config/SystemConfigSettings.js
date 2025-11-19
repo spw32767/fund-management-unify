@@ -1049,10 +1049,10 @@ export default function SystemConfigSettings() {
               <button
                 onClick={loadAnnouncementHistory}
                 disabled={annHistoryLoading}
-                className="inline-flex items-center gap-2 rounded-lg border border-green-200 px-4 py-2 text-sm font-medium text-green-600 transition hover:bg-green-50 disabled:opacity-60"
+                className="text-xs inline-flex items-center gap-1 rounded-full border border-green-200 px-3 py-1 font-medium text-green-600 transition hover:bg-green-50 disabled:cursor-not-allowed disabled:opacity-60"
                 title="รีเฟรชประวัติ"
               >
-                <RefreshCw size={16} />
+                <RefreshCw size={14} />
                 {annHistoryLoading ? "กำลังโหลด..." : "รีเฟรช"}
               </button>
             </div>
