@@ -116,7 +116,7 @@ export default function AnnouncementModal({
     >
       <form onSubmit={handleSubmit} className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <div className="md:col-span-2">
-          <label className="mb-1 block text-sm font-medium text-gray-700">หัวข้อ *</label>
+          <label className="mb-1 block text-sm font-semibold text-gray-700">หัวข้อ *</label>
           <input
             type="text"
             value={form.title}
@@ -127,7 +127,7 @@ export default function AnnouncementModal({
         </div>
 
         <div className="md:col-span-2">
-          <label className="mb-1 block text-sm font-medium text-gray-700">รายละเอียด</label>
+          <label className="mb-1 block text-sm font-semibold text-gray-700">รายละเอียด</label>
           <textarea
             rows={3}
             value={form.description}
@@ -137,7 +137,7 @@ export default function AnnouncementModal({
         </div>
 
         <div>
-          <label className="mb-1 block text-sm font-medium text-gray-700">ประเภท</label>
+          <label className="mb-1 block text-sm font-semibold text-gray-700">ประเภท</label>
           <select
             value={form.announcement_type}
             onChange={(e) => setForm((s) => ({ ...s, announcement_type: e.target.value }))}
@@ -151,7 +151,7 @@ export default function AnnouncementModal({
         </div>
 
         <div>
-          <label className="mb-1 block text-sm font-medium text-gray-700">เลขอ้างอิง</label>
+          <label className="mb-1 block text-sm font-semibold text-gray-700">เลขอ้างอิง</label>
           <input
             type="text"
             value={form.announcement_reference_number}
@@ -161,7 +161,7 @@ export default function AnnouncementModal({
         </div>
 
         <div>
-          <label className="mb-1 block text-sm font-medium text-gray-700">สถานะ</label>
+          <label className="mb-1 block text-sm font-semibold text-gray-700">สถานะ</label>
           <select
             value={form.status}
             onChange={(e) => setForm((s) => ({ ...s, status: e.target.value }))}
@@ -173,7 +173,7 @@ export default function AnnouncementModal({
         </div>
 
         <div>
-          <label className="mb-1 block text-sm font-medium text-gray-700">ปี</label>
+          <label className="mb-1 block text-sm font-semibold text-gray-700">ปี</label>
           <select
             value={form.year_id}
             onChange={(e) => setForm((s) => ({ ...s, year_id: e.target.value }))}
@@ -191,7 +191,7 @@ export default function AnnouncementModal({
         </div>
 
         <div>
-          <label className="mb-1 block text-sm font-medium text-gray-700">วันเวลาเผยแพร่</label>
+          <label className="mb-1 block text-sm font-semibold text-gray-700">วันเวลาเผยแพร่</label>
           <input
             type="datetime-local"
             value={form.published_at}
@@ -201,7 +201,7 @@ export default function AnnouncementModal({
         </div>
 
         <div>
-          <label className="mb-1 block text-sm font-medium text-gray-700">วันเวลาหมดอายุ</label>
+          <label className="mb-1 block text-sm font-semibold text-gray-700">วันเวลาหมดอายุ</label>
           <input
             type="datetime-local"
             value={form.expired_at}
@@ -211,7 +211,7 @@ export default function AnnouncementModal({
         </div>
 
         <div className="md:col-span-2">
-          <label className="mb-1 block text-sm font-medium text-gray-700">
+          <label className="mb-1 block text-sm font-semibold text-gray-700">
             {isEdit ? "แทนที่ไฟล์ (อัปโหลดไฟล์ใหม่เพื่อแทนที่)" : "ไฟล์แนบ (PDF/DOC/DOCX) *"}
           </label>
 
@@ -234,7 +234,7 @@ export default function AnnouncementModal({
           />
         </div>
 
-        <div className="md:col-span-2 flex items-center justify-end gap-2 border-t pt-4">
+        <div className="md:col-span-2 mt-4 flex flex-col gap-2 pt-2 sm:flex-row sm:items-center sm:justify-end">
           <button
             type="button"
             onClick={onClose}

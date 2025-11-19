@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useMemo } from "react";
+import { CalendarClock } from "lucide-react";
 import SettingsModal from "../common/SettingsModal";
 
 const InstallmentFormModal = ({
@@ -25,8 +26,18 @@ const InstallmentFormModal = ({
     <SettingsModal
       open={open}
       onClose={onClose}
-      title={title}
       size="lg"
+      headerContent={
+        <div className="flex items-center gap-3 text-gray-700">
+          <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-blue-50 text-blue-600">
+            <CalendarClock size={18} />
+          </span>
+          <div>
+            <p className="text-base font-semibold text-gray-900">{title}</p>
+            <p className="text-sm text-gray-500">กำหนดวันตัดรอบและสถานะของรอบการพิจารณา</p>
+          </div>
+        </div>
+      }
       footer={
         <>
           <button
@@ -50,7 +61,7 @@ const InstallmentFormModal = ({
     >
       <div className="grid gap-4 md:grid-cols-2">
         <label className="flex flex-col gap-1">
-          <span className="text-sm font-medium text-gray-700">เลขรอบการพิจารณา *</span>
+          <span className="text-sm font-semibold text-gray-700">เลขรอบการพิจารณา *</span>
           <select
             value={formData.installment_number}
             onChange={(e) => onChange("installment_number", e.target.value)}
@@ -66,7 +77,7 @@ const InstallmentFormModal = ({
         </label>
 
         <label className="flex flex-col gap-1">
-          <span className="text-sm font-medium text-gray-700">วันตัดรอบการพิจารณา (MM/DD/YYYY) *</span>
+          <span className="text-sm font-semibold text-gray-700">วันตัดรอบการพิจารณา (MM/DD/YYYY) *</span>
           <input
             type="date"
             value={formData.cutoff_date}
@@ -77,7 +88,7 @@ const InstallmentFormModal = ({
         </label>
 
         <label className="flex flex-col gap-1">
-          <span className="text-sm font-medium text-gray-700">ชื่อ/คำอธิบายรอบการพิจารณา</span>
+          <span className="text-sm font-semibold text-gray-700">ชื่อ/คำอธิบายรอบการพิจารณา</span>
           <input
             type="text"
             value={formData.name}
@@ -89,7 +100,7 @@ const InstallmentFormModal = ({
         </label>
 
         <label className="flex flex-col gap-1">
-          <span className="text-sm font-medium text-gray-700">สถานะ</span>
+          <span className="text-sm font-semibold text-gray-700">สถานะ</span>
           <select
             value={formData.status}
             onChange={(e) => onChange("status", e.target.value)}
@@ -102,7 +113,7 @@ const InstallmentFormModal = ({
         </label>
 
         <label className="md:col-span-2 flex flex-col gap-1">
-          <span className="text-sm font-medium text-gray-700">หมายเหตุ</span>
+          <span className="text-sm font-semibold text-gray-700">หมายเหตุ</span>
           <textarea
             rows={3}
             value={formData.remark}

@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { DollarSign, AlertCircle, ShieldCheck } from "lucide-react";
+import { DollarSign, AlertCircle, ShieldCheck, Layers } from "lucide-react";
 import SettingsModal from "../common/SettingsModal";
 
 const SubcategoryModal = ({
@@ -186,10 +186,21 @@ const SubcategoryModal = ({
     <SettingsModal
       open={isOpen}
       onClose={onClose}
-      title={editingSubcategory ? "แก้ไขทุนย่อย" : "เพิ่มทุนย่อยใหม่"}
-      description="จัดการข้อมูลทุนย่อยและเงื่อนไขหลักให้ตรงกับหน้าแสดงผล"
       size="3xl"
       bodyClassName="max-h-[85vh] overflow-y-auto px-6 py-6"
+      headerContent={
+        <div className="flex items-center gap-3 text-gray-700">
+          <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-blue-50 text-blue-600">
+            <Layers size={18} />
+          </span>
+          <div>
+            <p className="text-base font-semibold text-gray-900">
+              {editingSubcategory ? "แก้ไขทุนย่อย" : "เพิ่มทุนย่อยใหม่"}
+            </p>
+            <p className="text-sm text-gray-500">จัดการข้อมูลทุนย่อยและเงื่อนไขหลักให้ตรงกับหน้าแสดงผล</p>
+          </div>
+        </div>
+      }
     >
       {selectedCategory && (
         <div className="mb-6 rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800">
@@ -206,7 +217,7 @@ const SubcategoryModal = ({
 
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="sm:col-span-2">
-                <label className="block text-sm font-medium mb-2 text-gray-700">ชื่อทุนย่อย</label>
+                <label className="block text-sm font-semibold mb-2 text-gray-700">ชื่อทุนย่อย</label>
                 <input
                   type="text"
                   required
@@ -230,7 +241,7 @@ const SubcategoryModal = ({
               </div>
 
               <div className="sm:col-span-2">
-                <label className="block text-sm font-medium mb-2 text-gray-700">เงื่อนไขทุน (แสดงในหน้าแรก)</label>
+                <label className="block text-sm font-semibold mb-2 text-gray-700">เงื่อนไขทุน (แสดงในหน้าแรก)</label>
                 <textarea
                   value={subcategoryForm.fund_condition}
                   onChange={(e) =>
@@ -246,7 +257,7 @@ const SubcategoryModal = ({
               </div>
 
               <div>
-                <label className="block text-sm font-medium mb-2 text-gray-700">บทบาทที่เห็นทุนนี้</label>
+                <label className="block text-sm font-semibold mb-2 text-gray-700">บทบาทที่เห็นทุนนี้</label>
                 <div className="space-y-2">
                   {roleOptions.map((role) => {
                     const checked = subcategoryForm.target_roles.includes(role.value);
@@ -266,7 +277,7 @@ const SubcategoryModal = ({
               </div>
 
               <div>
-                <label className="block text-sm font-medium mb-2 text-gray-700">สถานะทุนย่อย</label>
+                <label className="block text-sm font-semibold mb-2 text-gray-700">สถานะทุนย่อย</label>
                 <select
                   value={subcategoryForm.status}
                   onChange={(e) =>
@@ -305,7 +316,7 @@ const SubcategoryModal = ({
               <div className="space-y-4">
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div>
-                    <label className="block text-sm font-medium mb-2 text-gray-700">งบประมาณที่จัดสรร (บาท)</label>
+                    <label className="block text-sm font-semibold mb-2 text-gray-700">งบประมาณที่จัดสรร (บาท)</label>
                     <input
                       type="number"
                       min="0"
@@ -317,7 +328,7 @@ const SubcategoryModal = ({
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium mb-2 text-gray-700">วงเงินรวมต่อปี (บาท)</label>
+                    <label className="block text-sm font-semibold mb-2 text-gray-700">วงเงินรวมต่อปี (บาท)</label>
                     <input
                       type="number"
                       min="0"
@@ -329,7 +340,7 @@ const SubcategoryModal = ({
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium mb-2 text-gray-700">จำนวนครั้งรวมต่อปี</label>
+                    <label className="block text-sm font-semibold mb-2 text-gray-700">จำนวนครั้งรวมต่อปี</label>
                     <input
                       type="number"
                       min="0"
@@ -340,7 +351,7 @@ const SubcategoryModal = ({
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium mb-2 text-gray-700">วงเงินต่อครั้ง (ค่าเริ่มต้น)</label>
+                    <label className="block text-sm font-semibold mb-2 text-gray-700">วงเงินต่อครั้ง (ค่าเริ่มต้น)</label>
                     <input
                       type="number"
                       min="0"
@@ -353,7 +364,7 @@ const SubcategoryModal = ({
                   </div>
                   {overallPolicyForm.remaining_budget && (
                     <div>
-                      <label className="block text-sm font-medium mb-2 text-gray-700">งบประมาณคงเหลือ (บาท)</label>
+                      <label className="block text-sm font-semibold mb-2 text-gray-700">งบประมาณคงเหลือ (บาท)</label>
                       <div className="relative">
                         <input
                           type="number"
@@ -374,7 +385,7 @@ const SubcategoryModal = ({
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium mb-2 text-gray-700">คำอธิบายเงื่อนไข</label>
+                  <label className="block text-sm font-semibold mb-2 text-gray-700">คำอธิบายเงื่อนไข</label>
                   <textarea
                     value={overallPolicyForm.fund_description}
                     onChange={(e) => handleOverallPolicyChange("fund_description", e.target.value)}
@@ -385,7 +396,7 @@ const SubcategoryModal = ({
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium mb-2 text-gray-700">หมายเหตุ (ภายใน)</label>
+                  <label className="block text-sm font-semibold mb-2 text-gray-700">หมายเหตุ (ภายใน)</label>
                   <textarea
                     value={overallPolicyForm.comment}
                     onChange={(e) => handleOverallPolicyChange("comment", e.target.value)}
@@ -396,7 +407,7 @@ const SubcategoryModal = ({
                 </div>
 
                 <div className="sm:w-60">
-                  <label className="block text-sm font-medium mb-2 text-gray-700">สถานะเงื่อนไขหลัก</label>
+                  <label className="block text-sm font-semibold mb-2 text-gray-700">สถานะเงื่อนไขหลัก</label>
                   <select
                     value={overallPolicyForm.status}
                     onChange={(e) => handleOverallPolicyChange("status", e.target.value)}
@@ -414,8 +425,8 @@ const SubcategoryModal = ({
             )}
           </section>
 
-        <div className="border-t pt-4">
-          <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">
+        <div className="pt-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-end">
             <button
               type="button"
               onClick={onClose}

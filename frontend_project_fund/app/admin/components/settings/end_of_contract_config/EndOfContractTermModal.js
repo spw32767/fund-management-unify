@@ -122,7 +122,7 @@ const EndOfContractTermModal = ({
             </div>
           </div>
 
-          <div className="mt-6 flex items-center justify-end gap-3 border-t border-gray-100 pt-4">
+          <div className="mt-6 flex flex-col gap-3 pt-2 sm:flex-row sm:items-center sm:justify-end">
             <button
               type="button"
               onClick={onClose}

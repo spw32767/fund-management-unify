@@ -2,6 +2,7 @@
 
 // app/admin/components/settings/CategoryModal.js
 import React, { useState, useEffect } from "react";
+import { FolderTree } from "lucide-react";
 import SettingsModal from "../common/SettingsModal";
 
 const CategoryModal = ({ 
@@ -50,10 +51,21 @@ const CategoryModal = ({
     <SettingsModal
       open={isOpen}
       onClose={onClose}
-      title={editingCategory ? "แก้ไขหมวดหมู่" : "เพิ่มหมวดหมู่ใหม่"}
-      description="จัดการหมวดหมู่ของทุนในแต่ละปีงบประมาณ"
       size="md"
       bodyClassName="max-h-[70vh] overflow-y-auto px-6 py-6"
+      headerContent={
+        <div className="flex items-center gap-3 text-gray-700">
+          <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-blue-50 text-blue-600">
+            <FolderTree size={18} />
+          </span>
+          <div>
+            <p className="text-base font-semibold text-gray-900">
+              {editingCategory ? "แก้ไขหมวดหมู่" : "เพิ่มหมวดหมู่ใหม่"}
+            </p>
+            <p className="text-sm text-gray-500">จัดการหมวดหมู่ของทุนในแต่ละปีงบประมาณ</p>
+          </div>
+        </div>
+      }
     >
       {selectedYear && (
         <div className="mb-4 rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800">
@@ -64,7 +76,7 @@ const CategoryModal = ({
       <form onSubmit={handleSubmit}>
         <div className="space-y-4">
           <div>
-            <label className="mb-2 block text-sm font-medium text-gray-700">ชื่อหมวดหมู่</label>
+            <label className="mb-2 block text-sm font-semibold text-gray-700">ชื่อหมวดหมู่</label>
             <input
               type="text"
               required
@@ -81,7 +93,7 @@ const CategoryModal = ({
           </div>
 
           <div>
-            <label className="mb-2 block text-sm font-medium text-gray-700">สถานะ</label>
+            <label className="mb-2 block text-sm font-semibold text-gray-700">สถานะ</label>
             <select
               value={categoryForm.status}
               onChange={(e) =>
@@ -98,7 +110,7 @@ const CategoryModal = ({
           </div>
         </div>
 
-        <div className="mt-6 flex justify-end gap-3 border-t pt-4">
+        <div className="mt-6 flex flex-col gap-3 pt-2 sm:flex-row sm:items-center sm:justify-end">
           <button
             type="button"
             onClick={onClose}

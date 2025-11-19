@@ -2,6 +2,7 @@
 
 // modals/BudgetModal.js
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import { Wallet } from "lucide-react";
 import SettingsModal from "../common/SettingsModal";
 
 const formatCurrencyDisplay = (value) => {
@@ -126,10 +127,23 @@ const BudgetModal = ({
     <SettingsModal
       open={isOpen}
       onClose={onClose}
-      title={editingBudget ? "แก้ไขเงื่อนไขรอง" : "เพิ่มเงื่อนไขรองใหม่"}
-      description="ระบุเงื่อนไขการให้ทุนรายครั้งให้ชัดเจน โดยข้อมูลและคำศัพท์จะสอดคล้องกับหน้าหลักของการจัดการทุน"
       size="lg"
       bodyClassName="max-h-[85vh] overflow-y-auto px-6 py-6"
+      headerContent={
+        <div className="flex items-center gap-3 text-gray-700">
+          <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-blue-50 text-blue-600">
+            <Wallet size={18} />
+          </span>
+          <div>
+            <p className="text-base font-semibold text-gray-900">
+              {editingBudget ? "แก้ไขเงื่อนไขรอง" : "เพิ่มเงื่อนไขรองใหม่"}
+            </p>
+            <p className="text-sm text-gray-500">
+              ระบุเงื่อนไขการให้ทุนรายครั้งให้ชัดเจน เพื่อให้ตรงกับหน้าหลักของการจัดการทุน
+            </p>
+          </div>
+        </div>
+      }
     >
       {selectedSubcategory && (
         <div className="mb-6 rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-800">
@@ -152,7 +166,7 @@ const BudgetModal = ({
       <form onSubmit={handleSubmit}>
         <div className="space-y-6">
             <div>
-              <label className="block text-sm font-medium mb-2 text-gray-700">คำอธิบายเงื่อนไข</label>
+              <label className="block text-sm font-semibold mb-2 text-gray-700">คำอธิบายเงื่อนไข</label>
               <textarea
                 ref={firstFieldRef}
                 value={budgetForm.fund_description}
@@ -171,7 +185,7 @@ const BudgetModal = ({
 
             <div className="grid gap-4 sm:grid-cols-2">
               <div>
-                <label className="block text-sm font-medium mb-2 text-gray-700">วงเงินต่อครั้ง (บาท)</label>
+                <label className="block text-sm font-semibold mb-2 text-gray-700">วงเงินต่อครั้ง (บาท)</label>
                 <input
                   type="number"
                   min="0"
@@ -189,7 +203,7 @@ const BudgetModal = ({
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium mb-2 text-gray-700">จำนวนครั้งสูงสุด</label>
+                <label className="block text-sm font-semibold mb-2 text-gray-700">จำนวนครั้งสูงสุด</label>
                 <input
                   type="number"
                   min="0"
@@ -206,7 +220,7 @@ const BudgetModal = ({
                 <p className="text-xs text-gray-500 mt-1">ปล่อยว่างหากไม่จำกัดจำนวนครั้ง</p>
               </div>
               <div>
-                <label className="block text-sm font-medium mb-2 text-gray-700">วงเงินต่อปีสำหรับเงื่อนไขนี้</label>
+                <label className="block text-sm font-semibold mb-2 text-gray-700">วงเงินต่อปีสำหรับเงื่อนไขนี้</label>
                 <input
                   type="number"
                   min="0"
@@ -223,7 +237,7 @@ const BudgetModal = ({
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium mb-2 text-gray-700">สถานะ</label>
+                <label className="block text-sm font-semibold mb-2 text-gray-700">สถานะ</label>
                 <select
                   value={budgetForm.status}
                   onChange={(e) =>
@@ -241,7 +255,7 @@ const BudgetModal = ({
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-2 text-gray-700">หมายเหตุ (ภายใน)</label>
+              <label className="block text-sm font-semibold mb-2 text-gray-700">หมายเหตุ (ภายใน)</label>
               <textarea
                 value={budgetForm.comment}
                 onChange={(e) =>
@@ -263,7 +277,7 @@ const BudgetModal = ({
             )}
           </div>
 
-          <div className="mt-8 flex flex-col gap-3 border-t pt-4 sm:flex-row sm:justify-end">
+          <div className="mt-8 flex flex-col gap-3 pt-2 sm:flex-row sm:items-center sm:justify-end">
             <button
               type="button"
               onClick={onClose}

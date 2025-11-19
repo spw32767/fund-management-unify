@@ -568,7 +568,7 @@ const RewardConfigManager = () => {
       contentClassName="space-y-5"
     >
       <div className="flex items-center gap-3">
-        <label className="text-sm font-medium text-gray-700">ปีงบประมาณ:</label>
+        <label className="text-sm font-semibold text-gray-700">ปีงบประมาณ:</label>
         {years.length ? (
           <select
             value={selectedYear}
@@ -857,10 +857,21 @@ const RewardConfigManager = () => {
       <SettingsModal
         open={showRateForm}
         onClose={closeRateForm}
-        title={editingRate ? "แก้ไขอัตราเงินรางวัล" : "เพิ่มอัตราเงินรางวัล"}
-        description="กำหนดสถานะผู้ประพันธ์และอัตราเงินรางวัลตาม Quartile"
         size="md"
         bodyClassName="max-h-[70vh] overflow-y-auto px-6 py-6"
+        headerContent={
+          <div className="flex items-center gap-3 text-gray-700">
+            <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-amber-50 text-amber-600">
+              <Trophy size={18} />
+            </span>
+            <div>
+              <p className="text-base font-semibold text-gray-900">
+                {editingRate ? "แก้ไขอัตราเงินรางวัล" : "เพิ่มอัตราเงินรางวัล"}
+              </p>
+              <p className="text-sm text-gray-500">กำหนดสถานะผู้ประพันธ์และอัตราเงินรางวัลตาม Quartile</p>
+            </div>
+          </div>
+        }
       >
         <form
           onSubmit={(e) => {
@@ -870,7 +881,7 @@ const RewardConfigManager = () => {
           className="space-y-4"
         >
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700">สถานะผู้ประพันธ์</label>
+            <label className="mb-1 block text-sm font-semibold text-gray-700">สถานะผู้ประพันธ์</label>
             <select
               value={rateFormData.author_status}
               onChange={(e) => setRateFormData({ ...rateFormData, author_status: e.target.value })}
@@ -886,7 +897,7 @@ const RewardConfigManager = () => {
           </div>
 
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700">Journal Quartile</label>
+            <label className="mb-1 block text-sm font-semibold text-gray-700">Journal Quartile</label>
             <select
               value={rateFormData.journal_quartile}
               onChange={(e) => setRateFormData({ ...rateFormData, journal_quartile: e.target.value })}
@@ -902,7 +913,7 @@ const RewardConfigManager = () => {
           </div>
 
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700">จำนวนเงินรางวัล (บาท)</label>
+            <label className="mb-1 block text-sm font-semibold text-gray-700">จำนวนเงินรางวัล (บาท)</label>
             <input
               type="number"
               value={rateFormData.reward_amount}
@@ -914,7 +925,7 @@ const RewardConfigManager = () => {
             />
           </div>
 
-          <div className="flex justify-end gap-3 border-t pt-4">
+          <div className="flex flex-col gap-3 pt-2 sm:flex-row sm:items-center sm:justify-end">
             <button
               type="button"
               onClick={closeRateForm}
@@ -936,10 +947,21 @@ const RewardConfigManager = () => {
       <SettingsModal
         open={showConfigForm}
         onClose={closeConfigForm}
-        title={editingConfig ? "แก้ไขวงเงินค่าธรรมเนียม" : "เพิ่มวงเงินค่าธรรมเนียม"}
-        description="ปรับเงื่อนไขและวงเงินสนับสนุนค่าธรรมเนียมตาม Quartile"
         size="md"
         bodyClassName="max-h-[70vh] overflow-y-auto px-6 py-6"
+        headerContent={
+          <div className="flex items-center gap-3 text-gray-700">
+            <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-amber-50 text-amber-600">
+              <Trophy size={18} />
+            </span>
+            <div>
+              <p className="text-base font-semibold text-gray-900">
+                {editingConfig ? "แก้ไขวงเงินค่าธรรมเนียม" : "เพิ่มวงเงินค่าธรรมเนียม"}
+              </p>
+              <p className="text-sm text-gray-500">ปรับเงื่อนไขและวงเงินสนับสนุนค่าธรรมเนียมตาม Quartile</p>
+            </div>
+          </div>
+        }
       >
         <form
           onSubmit={(e) => {
@@ -949,7 +971,7 @@ const RewardConfigManager = () => {
           className="space-y-4"
         >
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700">Journal Quartile</label>
+            <label className="mb-1 block text-sm font-semibold text-gray-700">Journal Quartile</label>
             <select
               value={configFormData.journal_quartile}
               onChange={(e) => setConfigFormData({ ...configFormData, journal_quartile: e.target.value })}
@@ -965,7 +987,7 @@ const RewardConfigManager = () => {
           </div>
 
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700">วงเงินสูงสุด (บาท)</label>
+            <label className="mb-1 block text-sm font-semibold text-gray-700">วงเงินสูงสุด (บาท)</label>
             <input
               type="number"
               value={configFormData.max_amount}
@@ -979,7 +1001,7 @@ const RewardConfigManager = () => {
           </div>
 
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700">เงื่อนไข/หมายเหตุ (ถ้ามี)</label>
+            <label className="mb-1 block text-sm font-semibold text-gray-700">เงื่อนไข/หมายเหตุ (ถ้ามี)</label>
             <textarea
               value={configFormData.condition_description}
               onChange={(e) => setConfigFormData({ ...configFormData, condition_description: e.target.value })}
@@ -989,7 +1011,7 @@ const RewardConfigManager = () => {
             />
           </div>
 
-          <div className="flex justify-end gap-3 border-t pt-4">
+          <div className="flex flex-col gap-3 pt-2 sm:flex-row sm:items-center sm:justify-end">
             <button
               type="button"
               onClick={closeConfigForm}

@@ -251,10 +251,21 @@ const YearManagementTab = ({ years = [], onSaveYear /*, onDeleteYear */ }) => {
       <SettingsModal
         open={showForm}
         onClose={handleCancelEdit}
-        title={editingYear ? "แก้ไขปีงบประมาณ" : "เพิ่มปีงบประมาณ"}
-        description="กำหนดปีงบประมาณ วงเงินรวม และสถานะการใช้งาน"
         size="md"
         bodyClassName="max-h-[70vh] overflow-y-auto px-6 py-6"
+        headerContent={
+          <div className="flex items-center gap-3 text-gray-700">
+            <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-blue-50 text-blue-600">
+              <Calendar size={18} />
+            </span>
+            <div>
+              <p className="text-base font-semibold text-gray-900">
+                {editingYear ? "แก้ไขปีงบประมาณ" : "เพิ่มปีงบประมาณ"}
+              </p>
+              <p className="text-sm text-gray-500">กำหนดปีงบประมาณ วงเงินรวม และสถานะการใช้งาน</p>
+            </div>
+          </div>
+        }
       >
         <form
           onSubmit={(e) => {
@@ -264,7 +275,7 @@ const YearManagementTab = ({ years = [], onSaveYear /*, onDeleteYear */ }) => {
           className="space-y-4"
         >
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700">ปีงบประมาณ (พ.ศ.)</label>
+            <label className="mb-1 block text-sm font-semibold text-gray-700">ปีงบประมาณ (พ.ศ.)</label>
             <input
               type="number"
               placeholder="เช่น 2568"
@@ -275,7 +286,7 @@ const YearManagementTab = ({ years = [], onSaveYear /*, onDeleteYear */ }) => {
           </div>
 
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700">วงเงินรวม (บาท)</label>
+            <label className="mb-1 block text-sm font-semibold text-gray-700">วงเงินรวม (บาท)</label>
             <input
               type="number"
               placeholder="เช่น 1000000"
@@ -288,7 +299,7 @@ const YearManagementTab = ({ years = [], onSaveYear /*, onDeleteYear */ }) => {
           </div>
 
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700">สถานะ</label>
+            <label className="mb-1 block text-sm font-semibold text-gray-700">สถานะ</label>
             <select
               value={yearForm.status}
               onChange={(e) => setYearForm({ ...yearForm, status: e.target.value })}
@@ -299,7 +310,7 @@ const YearManagementTab = ({ years = [], onSaveYear /*, onDeleteYear */ }) => {
             </select>
           </div>
 
-          <div className="flex justify-end gap-3 border-t pt-4">
+          <div className="flex flex-col gap-3 pt-2 sm:flex-row sm:items-center sm:justify-end">
             <button
               type="button"
               onClick={handleCancelEdit}

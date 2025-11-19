@@ -46,7 +46,9 @@ const DeleteConfirmDialog = ({
       bodyClassName="px-6 py-6"
       headerContent={
         <div className="flex items-center gap-3 text-red-600">
-          <AlertCircle size={20} />
+          <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-red-50 text-red-600">
+            <AlertCircle size={20} />
+          </span>
           <div>
             <p className="text-base font-semibold text-gray-900">ยืนยันการลบ</p>
             <p className="text-sm text-gray-500">การลบไม่สามารถย้อนกลับได้</p>
@@ -61,7 +63,7 @@ const DeleteConfirmDialog = ({
             ⚠️ คำเตือน: {getDeleteWarning()}
           </div>
         ) : null}
-        <div className="flex justify-end gap-3 border-t pt-4">
+        <div className="flex flex-col gap-3 pt-2 sm:flex-row sm:items-center sm:justify-end">
           <button
             onClick={onClose}
             className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-600 transition hover:bg-gray-100"

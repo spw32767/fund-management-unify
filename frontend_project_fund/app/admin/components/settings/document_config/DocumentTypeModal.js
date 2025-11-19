@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
+import { FileCog } from "lucide-react";
 import SettingsModal from "../common/SettingsModal";
 
 export const FUND_TYPE_OPTIONS = [
@@ -83,16 +84,27 @@ const DocumentTypeModal = ({
     <SettingsModal
       open={isOpen}
       onClose={onClose}
-      title={initialData ? "แก้ไขประเภทเอกสาร" : "เพิ่มประเภทเอกสาร"}
-      description="กำหนดข้อมูลประเภทเอกสารและเงื่อนไขการใช้งานในระบบ"
       size="xl"
       bodyClassName="max-h-[75vh] overflow-y-auto px-6 py-6"
+      headerContent={
+        <div className="flex items-center gap-3 text-gray-700">
+          <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-blue-50 text-blue-600">
+            <FileCog size={18} />
+          </span>
+          <div>
+            <p className="text-base font-semibold text-gray-900">
+              {initialData ? "แก้ไขประเภทเอกสาร" : "เพิ่มประเภทเอกสาร"}
+            </p>
+            <p className="text-sm text-gray-500">กำหนดข้อมูลประเภทเอกสารและเงื่อนไขการใช้งานในระบบ</p>
+          </div>
+        </div>
+      }
     >
       <form onSubmit={handleSubmit}>
           <div className="grid gap-6 md:grid-cols-1">
             <div className="space-y-4">
               <div>
-                <label className="mb-2 block text-sm font-bold text-gray-700">
+                <label className="mb-2 block text-sm font-semibold text-gray-700">
                   ชื่อประเภทเอกสาร
                 </label>
                 <input
@@ -111,7 +123,7 @@ const DocumentTypeModal = ({
               </div>
 
               <div>
-                <label className="mb-2 block text-sm font-bold text-gray-700">
+                <label className="mb-2 block text-sm font-semibold text-gray-700">
                   รหัสเอกสาร (Code)
                 </label>
                 <input
@@ -130,7 +142,7 @@ const DocumentTypeModal = ({
               </div>
 
               <div className="space-y-2">
-                <label className="block text-sm font-bold text-gray-700">
+                <label className="block text-sm font-semibold text-gray-700">
                   ตั้งค่าความจำเป็นของเอกสาร
                 </label>
                   <div className="rounded-lg border border-gray-200 p-4">
@@ -177,7 +189,7 @@ const DocumentTypeModal = ({
             </div>
 
             <div className="space-y-2">
-              <label className="mb-2 block text-sm font-bold text-gray-700">
+              <label className="mb-2 block text-sm font-semibold text-gray-700">
                 เอกสารนี้ใช้กับแบบฟอร์มทุนประเภทใด
               </label>
               <div className="rounded-lg border border-gray-200 p-4">
@@ -209,7 +221,7 @@ const DocumentTypeModal = ({
             </div>
           </div>
 
-          <div className="mt-8 flex items-center justify-end gap-3 border-t pt-4">
+          <div className="mt-8 flex flex-col gap-3 pt-2 sm:flex-row sm:items-center sm:justify-end">
             <button
               type="button"
               onClick={onClose}
