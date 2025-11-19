@@ -123,8 +123,10 @@ export default function NotificationCenter() {
   );
 
   useEffect(() => {
+    // Intentionally run only once on mount to avoid re-triggering loads when offset updates
     loadNotifications({ reset: true });
-  }, [loadNotifications]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const markAsRead = async (id) => {
     try {
