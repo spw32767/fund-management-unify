@@ -721,8 +721,12 @@ function ApprovalPanel({ submission, pubDetail, requestedSummary, approvedSummar
   const statusId = Number(submission?.status_id);
   const approvable = statusId === 1; // อยู่ระหว่างการพิจารณา
   if (!approvable) {
-    const requestedTotal = Number(requestedSummary?.total ?? 0);
-    const approvedTotalNumber = Number(approvedSummary?.total ?? 0);
+    const requestedTotal = Number(
+      requestedSummary?.netTotal ?? requestedSummary?.total ?? 0
+    );
+    const approvedTotalNumber = Number(
+      approvedSummary?.netTotal ?? approvedSummary?.total ?? 0
+    );
 
     const announceValue =
       pubDetail?.announce_reference_number ||
@@ -828,7 +832,12 @@ function ApprovalPanel({ submission, pubDetail, requestedSummary, approvedSummar
     approvedSummary?.revisionRaw ?? requestedRevision;
   const approvedPublicationDefault =
     approvedSummary?.publicationRaw ?? requestedPublication;
-  const approvedTotalDefault = approvedSummary?.total ?? Math.max(0, requestedBaseTotal);
+  const requestedNetDefault = Math.max(
+    0,
+    Number(requestedBaseTotal || 0) - Number(extFunding || 0)
+  );
+  const approvedTotalDefault =
+    approvedSummary?.netTotal ?? requestedNetDefault;
 
   // Approved values
   const [rewardApprove, setRewardApprove] = useState(rewardAutoValue);
@@ -860,10 +869,6 @@ function ApprovalPanel({ submission, pubDetail, requestedSummary, approvedSummar
 
   const revisionAutoValue = hideSharedFeeFields ? 0 : requestedRevision;
   const publicationAutoValue = hideSharedFeeFields ? 0 : requestedPublication;
-
-  const savedRewardValue = approvedSummary?.rewardRaw;
-  const savedRevisionValue = approvedSummary?.revisionRaw;
-  const savedPublicationValue = approvedSummary?.publicationRaw;
 
   useEffect(() => {
     setManualEdit(false);
@@ -944,31 +949,19 @@ function ApprovalPanel({ submission, pubDetail, requestedSummary, approvedSummar
   }, [manualEdit, rewardAutoValue, applyAutoSharedFeeValues]);
 
   const handleToggleManualEdit = React.useCallback(() => {
-    setManualEdit((prev) => {
-      const next = !prev;
-      if (!prev && next) {
-        setRewardApprove(savedRewardValue ?? rewardAutoValue);
-        setRevisionApprove(savedRevisionValue ?? revisionAutoValue);
-        setPublicationApprove(savedPublicationValue ?? publicationAutoValue);
-      }
-      return next;
-    });
-  }, [
-    rewardAutoValue,
-    publicationAutoValue,
-    revisionAutoValue,
-    savedPublicationValue,
-    savedRewardValue,
-    savedRevisionValue,
-  ]);
+    setManualEdit((prev) => !prev);
+  }, []);
 
 
   // รวมอัตโนมัติ (Total อ่านอย่างเดียว)
   useEffect(() => {
-    const sum = Number(rewardApprove || 0) + Number(revisionApprove || 0) + Number(publicationApprove || 0);
-    const net = Math.max(0, sum);
+    const sum =
+      Number(rewardApprove || 0) +
+      Number(revisionApprove || 0) +
+      Number(publicationApprove || 0);
+    const net = Math.max(0, sum - Number(extFunding || 0));
     setTotalApprove(net);
-  }, [rewardApprove, revisionApprove, publicationApprove]);
+  }, [rewardApprove, revisionApprove, publicationApprove, extFunding]);
 
   // Clamp helper สำหรับวงเงินร่วม (Revision+Publication)
   const clampShared = (val, other) => {
@@ -1801,7 +1794,7 @@ export default function PublicationSubmissionDetails({ submissionId, onBack }) {
     [pubDetail, submission, requestedSummary]
   );
 
-  const approvedTotal = approvedSummary?.total ?? null;
+  const approvedTotal = approvedSummary?.netTotal ?? approvedSummary?.total ?? null;
 
   const submittedAt =
     submission?.submitted_at ??
