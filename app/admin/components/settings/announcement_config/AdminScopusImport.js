@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { publicationsAPI, usersAPI, scopusConfigAPI } from "@/app/lib/api";
+import PageLayout from "../../common/PageLayout";
 
 const MESSAGE_TONE_STYLES = {
   success: "border-emerald-200 bg-emerald-50 text-emerald-700",
@@ -289,14 +290,14 @@ export default function AdminScopusImport() {
   }
 
   return (
-    <div className="space-y-8">
-      <div>
-        <h2 className="text-xl font-semibold text-slate-900">นำเข้าผลงานวิชาการ (Scopus)</h2>
-        <p className="mt-1 text-sm text-slate-600">
-          จัดการ Scopus Author ID, API Key และสั่งนำเข้าผลงานผ่านบริการ Scopus
-        </p>
-      </div>
-
+    <PageLayout
+      title="นำเข้าผลงานวิชาการ (Scopus)"
+      subtitle="จัดการ Scopus Author ID, API Key และสั่งนำเข้าผลงานผ่านบริการ Scopus"
+      breadcrumbs={[
+        { label: "หน้าแรก", href: "/admin" },
+        { label: "นำเข้าผลงานวิชาการ (Scopus)" },
+      ]}
+    >
       <div className="space-y-6">
         <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
           <div className="flex items-start justify-between gap-3">
@@ -647,6 +648,6 @@ export default function AdminScopusImport() {
           </div>
         </div>
       </div>
-    </div>
+    </PageLayout>
   );
 }

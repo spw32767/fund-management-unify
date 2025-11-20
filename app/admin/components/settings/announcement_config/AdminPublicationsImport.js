@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { publicationsAPI, usersAPI } from "@/app/lib/api";
+import PageLayout from "../../common/PageLayout";
 
 // Author ID helpers
 function normalizeAuthorId(s) {
@@ -283,14 +284,14 @@ export default function AdminPublicationsImport() {
   const hasNext = runsPagination.has_next ?? (runsPagination.total_pages ? currentPage < runsPagination.total_pages : false);
 
   return (
-    <div className="space-y-8">
-      <div>
-        <h2 className="text-xl font-semibold text-slate-900">นำเข้าผลงานวิชาการ (Google Scholar)</h2>
-        <p className="mt-1 text-sm text-slate-600">
-          จัดการการนำเข้าผลงานจาก Google Scholar ทั้งแบบรายบุคคลและแบบกลุ่ม
-        </p>
-      </div>
-
+    <PageLayout
+      title="นำเข้าผลงานวิชาการ (Google Scholar)"
+      subtitle="จัดการการนำเข้าผลงานจาก Google Scholar ทั้งแบบรายบุคคลและแบบกลุ่ม"
+      breadcrumbs={[
+        { label: "หน้าแรก", href: "/admin" },
+        { label: "นำเข้าผลงานวิชาการ (Google Scholar)" },
+      ]}
+    >
       <div className="space-y-6">
         <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
           <div className="flex flex-col gap-2">
@@ -651,6 +652,6 @@ export default function AdminPublicationsImport() {
           </div>
         </div>
       </div>
-    </div>
+    </PageLayout>
   );
 }

@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { kkuPeopleAPI } from "@/app/lib/api";
+import PageLayout from "../../common/PageLayout";
 
 const PAGE_SIZE = 20;
 
@@ -185,13 +186,21 @@ export default function AdminKkuPeopleScraper() {
   const canRun = !runBusy && !inProgress;
 
   return (
-    <div className="space-y-6">
-      <div className="bg-white shadow-sm border border-slate-200 rounded-xl p-6">
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-          <div>
-            <h2 className="text-lg font-semibold text-slate-800">KKU People Scraper</h2>
-            <p className="text-sm text-slate-500">รันสคริปต์เพื่อนำเข้าข้อมูลบุคลากรจากเว็บไซต์คณะ</p>
-          </div>
+    <PageLayout
+      title="KKU Profile Scraper"
+      subtitle="รันสคริปต์เพื่อนำเข้าข้อมูลบุคลากรจากเว็บไซต์คณะ"
+      breadcrumbs={[
+        { label: "หน้าแรก", href: "/admin" },
+        { label: "KKU Profile Scraper" },
+      ]}
+    >
+      <div className="space-y-6">
+        <div className="bg-white shadow-sm border border-slate-200 rounded-xl p-6">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+            <div>
+              <h2 className="text-lg font-semibold text-slate-800">KKU Profile Scraper</h2>
+              <p className="text-sm text-slate-500">รันสคริปต์เพื่อนำเข้าข้อมูลบุคลากรจากเว็บไซต์คณะ</p>
+            </div>
           <div className="flex flex-wrap gap-2">
             <button
               type="button"
@@ -362,7 +371,8 @@ export default function AdminKkuPeopleScraper() {
             </div>
           </div>
         ) : null}
+        </div>
       </div>
-    </div>
+    </PageLayout>
   );
 }
