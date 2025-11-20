@@ -522,12 +522,12 @@ func ApproveSubmission(c *gin.Context) {
 	}
 
 	// ✅ central truth
-	updates := map[string]interface{}{
-		"status_id":         2, // approved
-		"updated_at":        now,
-		"admin_approved_by": adminID,
-		"admin_approved_at": now,
-	}
+        updates := map[string]interface{}{
+                "status_id":   2, // approved
+                "updated_at":  now,
+                "approved_by": adminID,
+                "approved_at": now,
+        }
 	// (ออปชัน) เก็บความเห็นของแอดมินตอนอนุมัติ
 	if strings.TrimSpace(req.ApprovalComment) != "" {
 		updates["admin_comment"] = strings.TrimSpace(req.ApprovalComment)
