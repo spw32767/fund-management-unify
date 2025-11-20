@@ -12,6 +12,7 @@ import { toast } from 'react-hot-toast';
 
 import adminAPI from '@/app/lib/admin_api';
 import apiClient from '@/app/lib/api';
+import { systemConfigAPI } from '@/app/lib/system_config_api';
 
 // =========================
 // Helpers
@@ -80,6 +81,13 @@ function buildBudgetLabel(source = {}) {
   return name || 'ทุนย่อย';
 }
 
+// ลบข้อความ "งบ #xxx" ที่ต่อท้ายหมวดทุน
+function stripBudgetCode(name) {
+  const safe = String(name ?? '').trim();
+  if (!safe) return '-';
+  return safe.replace(/\s*งบ\s*#?\s*\d+\s*$/i, '').trim() || safe;
+}
+
 // แปลง rows ดิบ → โครงหมวดหมู่
 function groupRowsToCategories(rows) {
   const list = asArray(rows);
@@ -88,7 +96,9 @@ function groupRowsToCategories(rows) {
   const map = new Map();
   for (const r of list) {
     const categoryId = r.category_id ?? r.CategoryID ?? r.categoryId ?? null;
-    const categoryName = r.category_name ?? r.CategoryName ?? r.category ?? '-';
+    const categoryName = stripBudgetCode(
+      r.category_name ?? r.CategoryName ?? r.category ?? '-'
+    );
     const catKey = `${categoryId}::${categoryName}`;
 
     if (!map.has(catKey)) {
@@ -155,9 +165,13 @@ export default function ApprovalRecords() {
     async function loadMeta() {
       setLoadingMeta(true);
       try {
-        const [yearsRes, usersRes] = await Promise.all([
-          adminAPI.getYears(),                       // GET /admin/years
-          apiClient.get('/users', { page_size: 1000 }) // GET /users
+        const [yearsRes, currentYearRes, usersRes] = await Promise.all([
+          adminAPI.getYears(), // GET /admin/years
+          systemConfigAPI.getCurrentYear().catch((err) => {
+            console.error('โหลด current year ไม่สำเร็จ', err);
+            return null;
+          }),
+          apiClient.get('/users', { page_size: 1000 }), // GET /users
         ]);
 
         const yearListRaw = Array.isArray(yearsRes) ? yearsRes : yearsRes?.years || yearsRes?.data || [];
@@ -178,10 +192,20 @@ export default function ApprovalRecords() {
         setYears(yearList);
         setUsers(visibleUsers);
 
+        const currentYearValue =
+          currentYearRes?.current_year ?? currentYearRes?.data?.current_year ?? null;
+        const defaultYear = yearList.find(
+          (y) =>
+            (currentYearValue != null &&
+              (String(y.label) === String(currentYearValue) || y.id === Number(currentYearValue))) ||
+            false
+        );
+
         // defaults
         if (!yearId && yearList.length) {
-          setYearId(yearList[0].id);
-          setYearLabel(yearList[0].label);
+          const chosen = defaultYear ?? yearList[0];
+          setYearId(chosen.id);
+          setYearLabel(chosen.label);
         }
         if (!userId && visibleUsers.length) {
           setUserId(visibleUsers[0].user_id);
@@ -227,7 +251,9 @@ export default function ApprovalRecords() {
         if (Array.isArray(catsA)) {
           cats = catsA.map((c) => ({
             categoryId: c.categoryId ?? c.category_id ?? null,
-            categoryName: c.categoryName ?? c.category_name ?? '-',
+            categoryName: stripBudgetCode(
+              c.categoryName ?? c.category_name ?? '-'
+            ),
             items: asArray(c.items).map((it) => ({
               label: buildBudgetLabel({
                 subcategory_name: it.subcategory_name ?? it.SubcategoryName,
