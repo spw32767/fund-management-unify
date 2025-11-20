@@ -2,7 +2,7 @@
 'use client';
 
 import React, { useEffect, useMemo, useState } from 'react';
-import { FileCheck, FileText, Filter, Download } from 'lucide-react';
+import { FileCheck, FileText, Filter } from 'lucide-react';
 
 import PageLayout from '../common/PageLayout';
 import Card from '../common/Card';
@@ -244,6 +244,8 @@ export default function ApprovalRecords() {
 
         // ----- คลาย payload ให้รองรับหลายรูปแบบ -----
         const payload = res?.data ?? res ?? {};
+        console.log('approval-records/totals params', params);
+        console.log('approval-records/totals payload', payload);
         let cats = [];
 
         // (A) categories พร้อมใช้
@@ -284,6 +286,8 @@ export default function ApprovalRecords() {
           cats = groupRowsToCategories(rowsCandidate);
         }
 
+        console.log('approval-records/totals categories', cats);
+
         if (!alive) return;
         setCategories(cats);
       } catch (e) {
@@ -306,10 +310,6 @@ export default function ApprovalRecords() {
 
   const selectedUser = users.find((u) => String(u.user_id) === String(userId));
 
-  const handleExport = () => {
-    toast('กำลังพัฒนา Export CSV/Excel', { icon: '🛠️' });
-  };
-
   return (
     <PageLayout
       title="บันทึกข้อมูลการอนุมัติทุน"
@@ -319,14 +319,6 @@ export default function ApprovalRecords() {
         { label: 'หน้าแรก', href: '/admin' },
         { label: 'บันทึกข้อมูลการอนุมัติทุน' },
       ]}
-      actions={
-        <div className="flex gap-2">
-          <button onClick={handleExport} className="btn btn-primary" disabled={loadingMeta || loadingData}>
-            <Download size={18} />
-            Export
-          </button>
-        </div>
-      }
     >
       {/* ตัวกรอง */}
       <div className="mb-6">
