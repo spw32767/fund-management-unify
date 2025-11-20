@@ -1941,7 +1941,44 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
 
   // Approve/Reject handlers
   const approve = async (payload) => {
-    await adminSubmissionAPI.approveSubmission(submission.submission_id, { ...payload });
+    const isPublicationReward =
+      normalizeThaiText(submission?.submission_type) === normalizeThaiText('publication_reward') ||
+      normalizeThaiText(submission?.SubmissionType) === normalizeThaiText('publication_reward');
+
+    const retryableApprove = async () =>
+      adminSubmissionAPI.approveSubmission(submission.submission_id, { ...payload });
+
+    try {
+      await retryableApprove();
+    } catch (error) {
+      const backendMessage = error?.response?.data?.error || error?.message || '';
+
+      if (isPublicationReward && backendMessage.includes('Failed to update submission status')) {
+        // Some publication reward rows are missing detail records; create/update them first then retry approval.
+        const totalAmount = Number(
+          payload?.total_approve_amount ?? payload?.approved_amount ?? payload?.approve_amount ?? 0
+        );
+
+        const sanitizedTotal = Number.isFinite(totalAmount) ? Math.max(0, Math.min(totalAmount, MAX_ALLOWED_AMOUNT)) : 0;
+
+        const approvalAmountsPayload = {
+          reward_approve_amount: sanitizedTotal,
+          revision_fee_approve_amount: 0,
+          publication_fee_approve_amount: 0,
+          total_approve_amount: sanitizedTotal,
+        };
+
+        await adminSubmissionAPI.updateApprovalAmounts(
+          submission.submission_id,
+          approvalAmountsPayload
+        );
+
+        await retryableApprove();
+      } else {
+        throw error;
+      }
+    }
+
     // แจ้งเตือนผู้ยื่น: อนุมัติ (backend จะดึงจำนวนเงินจากตาราง detail เอง)
     try {
       await notificationsAPI.notifySubmissionApproved(
