@@ -862,6 +862,23 @@ function ApprovalPanel({ submission, pubDetail, requestedSummary, approvedSummar
   // ซ่อน 2 ฟิลด์เมื่อไม่พบเพดาน
   const hideSharedFeeFields = !!capError && /ไม่สามารถเบิกค่าใช้จ่ายนี้ได้/.test(capError);
 
+  const computeSharedBase = React.useCallback(() => {
+    if (hideSharedFeeFields) {
+      return { revision: 0, publication: 0 };
+    }
+
+    let revisionBase = Math.max(0, Number(approvedRevisionDefault || 0));
+    let publicationBase = Math.max(0, Number(approvedPublicationDefault || 0));
+
+    if (typeof feeCap === 'number') {
+      revisionBase = Math.min(revisionBase, feeCap);
+      const remainAfterRevision = Math.max(0, feeCap - revisionBase);
+      publicationBase = Math.min(publicationBase, remainAfterRevision);
+    }
+
+    return { revision: revisionBase, publication: publicationBase };
+  }, [approvedRevisionDefault, approvedPublicationDefault, feeCap, hideSharedFeeFields]);
+
   // ADD
   const [hydrated, setHydrated] = useState(false);
 
@@ -926,37 +943,30 @@ function ApprovalPanel({ submission, pubDetail, requestedSummary, approvedSummar
     fetchCap();
   }, [pubDetail?.quartile, pubDetail?.journal_quartile, pubDetail?.publication_year, pubDetail?.publication_date]);
 
-  // REPLACE — hydrate จาก FI แค่ครั้งแรกหลังรู้ผลเพดาน และอย่ารีเซ็ตเมื่อปิดสวิตช์
+  // REPLACE — hydrate จาก FI และเติมค่าอัตโนมัติหากไม่เปิดโหมดปรับแก้
   useEffect(() => {
     if (capLoading) return;
 
-    const rewardBase = approvedRewardDefault;
-    const revisionBase = feeCap == null ? 0 : approvedRevisionDefault;
-    const publicationBase = feeCap == null ? 0 : approvedPublicationDefault;
+    const { revision: baseRevision, publication: basePublication } = computeSharedBase();
 
-    // ครั้งแรกเท่านั้น
     if (!hydrated) {
-      setRewardApprove(rewardBase);
-      setRevisionApprove(revisionBase);
-      setPublicationApprove(publicationBase);
+      setRewardApprove(approvedRewardDefault);
+      setRevisionApprove(baseRevision);
+      setPublicationApprove(basePublication);
       setHydrated(true);
       return;
     }
 
-    // ถ้าภายหลังถูกบังคับซ่อน 2 ฟิลด์ ให้บังคับเป็น 0 (ไม่แตะ reward)
-    if (feeCap == null) {
-      if (revisionApprove !== 0) setRevisionApprove(0);
-      if (publicationApprove !== 0) setPublicationApprove(0);
+    if (!manualEdit) {
+      setRevisionApprove(baseRevision);
+      setPublicationApprove(basePublication);
     }
   }, [
     capLoading,
+    computeSharedBase,
     approvedRewardDefault,
-    approvedRevisionDefault,
-    approvedPublicationDefault,
-    feeCap,
     hydrated,
-    revisionApprove,
-    publicationApprove,
+    manualEdit,
   ]);
 
 
@@ -1002,14 +1012,24 @@ function ApprovalPanel({ submission, pubDetail, requestedSummary, approvedSummar
 
   const handleChangeRevision = (next) => {
     if (!manualEdit || feeCap == null) return;
-    const clamped = clampShared(Number(next || 0), publicationApprove);
+    const requestedLimit =
+      requestedRevision == null
+        ? null
+        : Math.max(0, Number(requestedRevision) || 0);
+    const clampedShared = clampShared(Number(next || 0), publicationApprove);
+    const clamped = Math.min(clampedShared, requestedLimit ?? clampedShared);
     setRevisionApprove(clamped);
     setErrors((e) => ({ ...e, sharedCap: undefined, revisionApprove: undefined }));
   };
 
   const handleChangePublication = (next) => {
     if (!manualEdit || feeCap == null) return;
-    const clamped = clampShared(Number(next || 0), revisionApprove);
+    const requestedLimit =
+      requestedPublication == null
+        ? null
+        : Math.max(0, Number(requestedPublication) || 0);
+    const clampedShared = clampShared(Number(next || 0), revisionApprove);
+    const clamped = Math.min(clampedShared, requestedLimit ?? clampedShared);
     setPublicationApprove(clamped);
     setErrors((e) => ({ ...e, sharedCap: undefined, publicationApprove: undefined }));
   };
@@ -1044,8 +1064,7 @@ function ApprovalPanel({ submission, pubDetail, requestedSummary, approvedSummar
 
   // รีเซ็ตกลับค่าเริ่มต้นจาก FI (หรือ 0 ถ้าซ่อนฟิลด์ร่วม)
   const recalc = () => {
-    const baseRevision = feeCap == null ? 0 : approvedRevisionDefault;
-    const basePublication = feeCap == null ? 0 : approvedPublicationDefault;
+    const { revision: baseRevision, publication: basePublication } = computeSharedBase();
     setRewardApprove(approvedRewardDefault);
     setRevisionApprove(baseRevision);
     setPublicationApprove(basePublication);
