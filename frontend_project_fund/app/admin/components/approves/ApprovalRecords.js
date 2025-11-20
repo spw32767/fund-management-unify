@@ -51,6 +51,35 @@ function asArray(maybe) {
   return [];
 }
 
+// ประกอบชื่อ "ทุนย่อย" + "เงื่อนไขย่อย" ตามรูปแบบใหม่
+function buildBudgetLabel(source = {}) {
+  const baseName =
+    source.subcategory_name ||
+    source.SubcategoryName ||
+    source.subcategory_budget_name ||
+    source.SubcategoryBudgetName ||
+    source.label ||
+    source.name ||
+    source.budget_name ||
+    'ทุนย่อย';
+
+  const rawCondition =
+    source.fund_description ||
+    source.FundDescription ||
+    source.fund_condition ||
+    source.subcategory_budget_label ||
+    source.SubcategoryBudgetLabel ||
+    '';
+
+  const name = String(baseName || '').trim();
+  const condition = String(rawCondition || '').trim();
+
+  if (condition && condition !== name) {
+    return `${name} ${condition}`.trim();
+  }
+  return name || 'ทุนย่อย';
+}
+
 // แปลง rows ดิบ → โครงหมวดหมู่
 function groupRowsToCategories(rows) {
   const list = asArray(rows);
@@ -71,13 +100,16 @@ function groupRowsToCategories(rows) {
       });
     }
 
-    const label =
-      r.subcategory_budget_label ||
-      r.subcategory_budget_name ||
-      r.subcategory_name ||
-      r.SubcategoryBudgetLabel ||
-      r.SubcategoryName ||
-      'ทุนย่อย';
+    const label = buildBudgetLabel({
+      subcategory_name: r.subcategory_name ?? r.SubcategoryName,
+      fund_description: r.fund_description ?? r.FundDescription,
+      fund_condition: r.fund_condition ?? r.FundCondition,
+      subcategory_budget_label: r.subcategory_budget_label ?? r.SubcategoryBudgetLabel,
+      subcategory_budget_name: r.subcategory_budget_name ?? r.SubcategoryBudgetName,
+      label: r.label ?? r.Label,
+      name: r.name ?? r.Name,
+      budget_name: r.budget_name ?? r.BudgetName,
+    });
 
     const amount = Number(
       r.approved_amount ??
@@ -197,7 +229,16 @@ export default function ApprovalRecords() {
             categoryId: c.categoryId ?? c.category_id ?? null,
             categoryName: c.categoryName ?? c.category_name ?? '-',
             items: asArray(c.items).map((it) => ({
-              label: it.label ?? it.name ?? it.budget_name ?? it.subcategory_name ?? '-',
+              label: buildBudgetLabel({
+                subcategory_name: it.subcategory_name ?? it.SubcategoryName,
+                fund_description: it.fund_description ?? it.FundDescription,
+                fund_condition: it.fund_condition ?? it.FundCondition,
+                subcategory_budget_label: it.subcategory_budget_label ?? it.SubcategoryBudgetLabel,
+                subcategory_budget_name: it.subcategory_budget_name ?? it.SubcategoryBudgetName,
+                label: it.label ?? it.Label,
+                name: it.name ?? it.Name,
+                budget_name: it.budget_name ?? it.BudgetName,
+              }),
               amount: Number(it.amount ?? it.total ?? 0) || 0,
             })),
             total:
