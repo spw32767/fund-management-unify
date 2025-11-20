@@ -101,6 +101,8 @@ const safeNumber = (value, fallback = 0) => {
   return Number.isFinite(n) ? n : fallback;
 };
 
+const MAX_ALLOWED_AMOUNT = 1_000_000;
+
 const RESEARCH_FUND_KEYWORD = 'ทุนส่งเสริมการวิจัย';
 
 const normalizeThaiText = (value) => {
@@ -604,9 +606,12 @@ function FundApprovalPanel({ submission, fundDetail, onApprove, onReject, onRequ
     const resolved = resolveApprovedAmount(submission, fundDetail, null);
     const numeric = Number(resolved);
     if (Number.isFinite(numeric) && numeric >= 0) {
-      return numeric;
+      return Math.min(numeric, MAX_ALLOWED_AMOUNT);
     }
-    return Number.isFinite(requested) ? requested : 0;
+    if (Number.isFinite(requested)) {
+      return Math.min(requested, MAX_ALLOWED_AMOUNT);
+    }
+    return 0;
   }, [submission, fundDetail, requested]);
 
   const [approved, setApproved] = React.useState(
@@ -622,6 +627,10 @@ function FundApprovalPanel({ submission, fundDetail, onApprove, onReject, onRequ
     submission?.admin_comment ?? submission?.comment ?? ''
   );
   const [errors, setErrors] = React.useState({});
+  const approvedNumber = Number(approved);
+  const isApprovedNumber = Number.isFinite(approvedNumber);
+  const exceedsRequested = isApprovedNumber && approvedNumber > requested;
+  const exceedsMaximum = isApprovedNumber && approvedNumber > MAX_ALLOWED_AMOUNT;
 
   const escapeHtml = (value = '') =>
     String(value)
@@ -655,7 +664,7 @@ function FundApprovalPanel({ submission, fundDetail, onApprove, onReject, onRequ
     const a = Number(approved);
     if (!Number.isFinite(a)) nextErrors.approved = 'กรุณากรอกจำนวนเงินเป็นตัวเลข';
     else if (a < 0) nextErrors.approved = 'จำนวนเงินต้องไม่ติดลบ';
-    else if (a > requested) nextErrors.approved = `ต้องไม่เกินจำนวนที่ขอ (${baht(requested)})`;
+    else if (a > MAX_ALLOWED_AMOUNT) nextErrors.approved = `จำนวนเงินต้องไม่เกิน ${baht(MAX_ALLOWED_AMOUNT)}`;
 
     setErrors((prev) => {
       const merged = { ...prev, ...nextErrors };
@@ -671,6 +680,8 @@ function FundApprovalPanel({ submission, fundDetail, onApprove, onReject, onRequ
   const handleApprove = async () => {
     if (!validate()) return false;
 
+    const numericApproved = Number(approved || 0);
+
     const html = `
       <div style="text-align:left;font-size:14px;line-height:1.6;display:grid;row-gap:.6rem;">
         <div style="display:flex;justify-content:space-between;align-items:center;">
@@ -678,7 +689,7 @@ function FundApprovalPanel({ submission, fundDetail, onApprove, onReject, onRequ
         </div>
         <div style="display:flex;justify-content:space-between;align-items:center;">
           <span style="font-weight:700;">จำนวนที่จะอนุมัติ</span>
-          <span style="font-weight:700;color:#047857;">${baht(Number(approved || 0))}</span>
+          <span style="font-weight:700;color:#047857;">${baht(numericApproved)}</span>
         </div>
         <div style="display:flex;justify-content:space-between;align-items:center;">
           <span>หมายเลขอ้างอิงประกาศผลการพิจารณา</span><strong>${escapeHtml(announceRef || '—')}</strong>
@@ -701,7 +712,12 @@ function FundApprovalPanel({ submission, fundDetail, onApprove, onReject, onRequ
       preConfirm: async () => {
         try {
           await onApprove({
-            approved_amount: Number(approved),
+            approved_amount: numericApproved,
+            approval_amount: numericApproved,
+            approve_amount: numericApproved,
+            approvedAmount: numericApproved,
+            approveAmount: numericApproved,
+            total_approve_amount: numericApproved,
             announce_reference_number: announceRef?.trim() || null,
             approval_comment: comment?.trim() || null,
             admin_comment: comment?.trim() || null,
@@ -945,12 +961,16 @@ function FundApprovalPanel({ submission, fundDetail, onApprove, onReject, onRequ
             จำนวนเงินที่จะอนุมัติ
             <br /><span className="text-xs font-normal text-gray-600">Approved Amount</span>
           </label>
-          <div className="flex flex-col w-full">
-            <div className={[
-              'inline-flex items-center rounded-md border bg-white shadow-sm transition-all w-full',
-              'focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-blue-500',
-              errors.approved ? 'border-red-400' : 'border-gray-300 hover:border-blue-300',
-            ].join(' ')}>
+            <div className="flex flex-col w-full">
+              <div className={[
+                'inline-flex items-center rounded-md border bg-white shadow-sm transition-all w-full',
+                'focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-blue-500',
+                errors.approved || exceedsMaximum
+                  ? 'border-red-400'
+                  : exceedsRequested
+                    ? 'border-amber-300 hover:border-amber-400'
+                    : 'border-gray-300 hover:border-blue-300',
+              ].join(' ')}>
               <input
                 type="text"
                 inputMode="decimal"
@@ -967,8 +987,21 @@ function FundApprovalPanel({ submission, fundDetail, onApprove, onReject, onRequ
               />
               <span className="px-3 text-gray-500 select-none">฿</span>
             </div>
-            <div className="h-5 mt-1">
-              {errors.approved ? <p className="text-red-600 text-xs">{errors.approved}</p> : null}
+            <div className="mt-1 min-h-[20px] space-y-1">
+              {errors.approved ? (
+                <p className="text-red-600 text-xs">{errors.approved}</p>
+              ) : null}
+              {!errors.approved && exceedsMaximum ? (
+                <p className="text-red-600 text-xs">
+                  จำนวนเงินต้องไม่เกิน {baht(MAX_ALLOWED_AMOUNT)}
+                </p>
+              ) : null}
+              {!errors.approved && exceedsRequested ? (
+                <p className="text-amber-600 text-xs inline-flex items-center gap-1">
+                  <AlertTriangle size={12} />
+                  กำลังใส่เงินเกินจำนวนที่ขอ ระบบจะบันทึกตามที่ระบุ
+                </p>
+              ) : null}
             </div>
           </div>
         </div>
@@ -1769,7 +1802,24 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
   const handleEventAmountChange = (e) => {
     const value = e.target.value;
     setEventForm((prev) => ({ ...prev, amount: value }));
-    setEventErrors((prev) => ({ ...prev, amount: undefined, status: undefined }));
+    setEventErrors((prev) => {
+      const updated = { ...prev, status: undefined };
+      const numeric = Number(value);
+
+      if (value === '') {
+        updated.amount = undefined;
+      } else if (!Number.isFinite(numeric)) {
+        updated.amount = 'กรุณากรอกจำนวนเงินเป็นตัวเลข';
+      } else if (numeric < 0) {
+        updated.amount = 'จำนวนเงินต้องไม่ติดลบ';
+      } else if (numeric > MAX_ALLOWED_AMOUNT) {
+        updated.amount = `จำนวนเงินต้องไม่เกิน ${baht(MAX_ALLOWED_AMOUNT)}`;
+      } else {
+        updated.amount = undefined;
+      }
+
+      return updated;
+    });
   };
 
   const handleEventStatusChange = (e) => {
@@ -1809,6 +1859,8 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
       errors.amount = 'กรุณากรอกจำนวนเงินเป็นตัวเลข';
     } else if (amountValue < 0) {
       errors.amount = 'จำนวนเงินต้องไม่ติดลบ';
+    } else if (amountValue > MAX_ALLOWED_AMOUNT) {
+      errors.amount = `จำนวนเงินต้องไม่เกิน ${baht(MAX_ALLOWED_AMOUNT)}`;
     }
 
     if (!normalizedStatus || !['approved', 'closed'].includes(normalizedStatus)) {
@@ -1889,7 +1941,44 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
 
   // Approve/Reject handlers
   const approve = async (payload) => {
-    await adminSubmissionAPI.approveSubmission(submission.submission_id, { ...payload });
+    const isPublicationReward =
+      normalizeThaiText(submission?.submission_type) === normalizeThaiText('publication_reward') ||
+      normalizeThaiText(submission?.SubmissionType) === normalizeThaiText('publication_reward');
+
+    const retryableApprove = async () =>
+      adminSubmissionAPI.approveSubmission(submission.submission_id, { ...payload });
+
+    try {
+      await retryableApprove();
+    } catch (error) {
+      const backendMessage = error?.response?.data?.error || error?.message || '';
+
+      if (isPublicationReward && backendMessage.includes('Failed to update submission status')) {
+        // Some publication reward rows are missing detail records; create/update them first then retry approval.
+        const totalAmount = Number(
+          payload?.total_approve_amount ?? payload?.approved_amount ?? payload?.approve_amount ?? 0
+        );
+
+        const sanitizedTotal = Number.isFinite(totalAmount) ? Math.max(0, Math.min(totalAmount, MAX_ALLOWED_AMOUNT)) : 0;
+
+        const approvalAmountsPayload = {
+          reward_approve_amount: sanitizedTotal,
+          revision_fee_approve_amount: 0,
+          publication_fee_approve_amount: 0,
+          total_approve_amount: sanitizedTotal,
+        };
+
+        await adminSubmissionAPI.updateApprovalAmounts(
+          submission.submission_id,
+          approvalAmountsPayload
+        );
+
+        await retryableApprove();
+      } else {
+        throw error;
+      }
+    }
+
     // แจ้งเตือนผู้ยื่น: อนุมัติ (backend จะดึงจำนวนเงินจากตาราง detail เอง)
     try {
       await notificationsAPI.notifySubmissionApproved(
@@ -2643,6 +2732,7 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
                   <input
                     type="number"
                     min="0"
+                    max={MAX_ALLOWED_AMOUNT}
                     step="0.01"
                     value={eventForm.amount}
                     onChange={handleEventAmountChange}

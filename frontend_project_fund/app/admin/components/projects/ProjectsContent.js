@@ -2650,6 +2650,10 @@ export default function ProjectsContent() {
       subtitle="สร้าง แก้ไข และติดตามข้อมูลโครงการ รวมถึงประเภทและแผนงบประมาณ"
       icon={Briefcase}
       loading={loading}
+      breadcrumbs={[
+        { label: "หน้าแรก", href: "/admin" },
+        { label: "จัดการโครงการ" },
+      ]}
     >
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
         <div className="border-b border-gray-200 px-6 pt-4">

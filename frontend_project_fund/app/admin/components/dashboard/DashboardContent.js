@@ -663,6 +663,10 @@ export default function DashboardContent({ onNavigate }) {
       subtitle="ภาพรวมการดำเนินงานและการใช้งบประมาณของระบบ"
       icon={LayoutDashboard}
       loading={loading}
+      breadcrumbs={[
+        { label: "หน้าแรก", href: "/admin" },
+        { label: "แดชบอร์ดผู้ดูแลระบบ" },
+      ]}
       actions={(
         <div className="flex flex-col w-full gap-3 lg:flex-row lg:items-center lg:justify-between">
           <FilterControls
