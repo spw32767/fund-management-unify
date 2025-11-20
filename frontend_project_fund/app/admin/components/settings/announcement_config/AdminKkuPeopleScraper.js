@@ -189,6 +189,10 @@ export default function AdminKkuPeopleScraper() {
     <PageLayout
       title="KKU Profile Scraper"
       subtitle="รันสคริปต์เพื่อนำเข้าข้อมูลบุคลากรจากเว็บไซต์คณะ"
+      breadcrumbs={[
+        { label: "หน้าแรก", href: "/admin" },
+        { label: "KKU Profile Scraper" },
+      ]}
     >
       <div className="space-y-6">
         <div className="bg-white shadow-sm border border-slate-200 rounded-xl p-6">

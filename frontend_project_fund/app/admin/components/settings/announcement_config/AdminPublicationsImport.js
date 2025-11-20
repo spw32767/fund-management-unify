@@ -287,6 +287,10 @@ export default function AdminPublicationsImport() {
     <PageLayout
       title="นำเข้าผลงานวิชาการ (Google Scholar)"
       subtitle="จัดการการนำเข้าผลงานจาก Google Scholar ทั้งแบบรายบุคคลและแบบกลุ่ม"
+      breadcrumbs={[
+        { label: "หน้าแรก", href: "/admin" },
+        { label: "นำเข้าผลงานวิชาการ (Google Scholar)" },
+      ]}
     >
       <div className="space-y-6">
         <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">

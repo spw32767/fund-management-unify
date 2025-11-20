@@ -293,6 +293,10 @@ export default function AdminScopusImport() {
     <PageLayout
       title="นำเข้าผลงานวิชาการ (Scopus)"
       subtitle="จัดการ Scopus Author ID, API Key และสั่งนำเข้าผลงานผ่านบริการ Scopus"
+      breadcrumbs={[
+        { label: "หน้าแรก", href: "/admin" },
+        { label: "นำเข้าผลงานวิชาการ (Scopus)" },
+      ]}
     >
       <div className="space-y-6">
         <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
