@@ -134,7 +134,7 @@ function AdminPageContent({ initialPage = 'dashboard' }) {
 
   const getPageTitle = () => {
       const titles = {
-        'dashboard': 'แดชบอร์ด',
+        'dashboard': 'แดชบอร์ดผู้ดูแลระบบ',
         'research-fund': 'ทุนส่งเสริมงานวิจัย',
         'promotion-fund': 'ทุนอุดหนุนกิจกรรม',
         'applications-list': 'รายการการขอทุน',
@@ -142,9 +142,9 @@ function AdminPageContent({ initialPage = 'dashboard' }) {
         'fund-settings': 'ตั้งค่าทุน',
         'projects': 'จัดการโครงการ',
         'approval-records': 'บันทึกข้อมูลการอนุมัติทุน',
-        'publications-import': 'นำเข้าผลงาน (Scholar)',
-        'scopus-import': 'นำเข้าผลงาน (Scopus)',
-        'kku-people-scraper': 'KKU People Scraper',
+        'publications-import': 'นำเข้าผลงานวิชาการ (Google Scholar)',
+        'scopus-import': 'นำเข้าผลงานวิชาการ (Scopus)',
+        'kku-people-scraper': 'KKU Profile Scraper',
         'notifications': 'การแจ้งเตือน'
     };
     return titles[currentPage] || currentPage;

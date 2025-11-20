@@ -32,7 +32,7 @@ export default function Navigation({
   const menuItems = [
     {
       id: 'dashboard',
-      label: 'แดชบอร์ด',
+      label: 'แดชบอร์ดผู้ดูแลระบบ',
       icon: LayoutDashboard,
       hasSubmenu: false
     },
@@ -68,7 +68,7 @@ export default function Navigation({
     },
     {
       id: 'projects',
-      label: 'โครงการ',
+      label: 'จัดการโครงการ',
       icon: Briefcase,
       hasSubmenu: false
     },
@@ -86,19 +86,19 @@ export default function Navigation({
     },
     {
       id: 'publications-import',
-      label: 'นำเข้าผลงาน (Scholar)',
+      label: 'นำเข้าผลงานวิชาการ (Google Scholar)',
       icon: BookOpen,
       hasSubmenu: false
     },
     {
       id: 'scopus-import',
-      label: 'นำเข้าผลงาน (Scopus)',
+      label: 'นำเข้าผลงานวิชาการ (Scopus)',
       icon: Globe,
       hasSubmenu: false
     },
     {
       id: 'kku-people-scraper',
-      label: 'KKU People Scraper',
+      label: 'KKU Profile Scraper',
       icon: Users,
       hasSubmenu: false
     }
