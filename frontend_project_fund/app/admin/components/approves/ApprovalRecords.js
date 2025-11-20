@@ -253,8 +253,6 @@ export default function ApprovalRecords() {
 
         // ----- คลาย payload ให้รองรับหลายรูปแบบ -----
         const payload = res?.data ?? res ?? {};
-        console.log('approval-records/totals params', params);
-        console.log('approval-records/totals payload', payload);
         let cats = [];
 
         // (A) categories พร้อมใช้
@@ -294,8 +292,6 @@ export default function ApprovalRecords() {
 
           cats = groupRowsToCategories(rowsCandidate);
         }
-
-        console.log('approval-records/totals categories', cats);
 
         if (!alive) return;
         setCategories(cats);
