@@ -717,7 +717,7 @@ function FundApprovalPanel({ submission, fundDetail, onApprove, onReject, onRequ
             approve_amount: numericApproved,
             approvedAmount: numericApproved,
             approveAmount: numericApproved,
-            total_approved_amount: numericApproved,
+            total_approve_amount: numericApproved,
             announce_reference_number: announceRef?.trim() || null,
             approval_comment: comment?.trim() || null,
             admin_comment: comment?.trim() || null,
