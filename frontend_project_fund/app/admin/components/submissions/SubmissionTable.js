@@ -234,7 +234,7 @@ export default function SubmissionTable({
 
   // ---------- Table ----------
   return (
-    <div className="overflow-hidden md:rounded-lg">
+    <div className="overflow-x-auto rounded-lg border border-gray-200 bg-white shadow-sm">
       <table className="min-w-full divide-y divide-gray-200">
         <thead className="bg-gray-50">
           <tr>

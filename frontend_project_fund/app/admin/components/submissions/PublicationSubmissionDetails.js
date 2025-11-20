@@ -721,8 +721,12 @@ function ApprovalPanel({ submission, pubDetail, requestedSummary, approvedSummar
   const statusId = Number(submission?.status_id);
   const approvable = statusId === 1; // อยู่ระหว่างการพิจารณา
   if (!approvable) {
-    const requestedTotal = Number(requestedSummary?.total ?? 0);
-    const approvedTotalNumber = Number(approvedSummary?.total ?? 0);
+    const requestedTotal = Number(
+      requestedSummary?.netTotal ?? requestedSummary?.total ?? 0
+    );
+    const approvedTotalNumber = Number(
+      approvedSummary?.netTotal ?? approvedSummary?.total ?? 0
+    );
 
     const announceValue =
       pubDetail?.announce_reference_number ||
@@ -823,19 +827,20 @@ function ApprovalPanel({ submission, pubDetail, requestedSummary, approvedSummar
   // *แก้ไขตามที่ผู้ใช้ร้องขอ: เพื่อให้ 'เงินรางวัลที่จะอนุมัติ' แสดงค่า default เป็น 'เงินรางวัลที่ขอ'
   // หาก approvedSummary?.rewardRaw เป็นค่า falsy (null, undefined, 0) จะใช้ requestedReward แทน
   // ซึ่งจะทำให้ค่าเริ่มต้นแสดงเป็นค่าที่ขอ หากยังไม่มีการบันทึกค่าอนุมัติที่ชัดเจน
-  const approvedRewardDefault = approvedSummary?.rewardRaw
-    ? approvedSummary.rewardRaw
-    : requestedReward;
-  const approvedRevisionDefault = approvedSummary?.revisionRaw != null 
-    ? approvedSummary.revisionRaw 
-    : requestedRevision;
-  const approvedPublicationDefault = approvedSummary?.publicationRaw != null 
-    ? approvedSummary.publicationRaw 
-    : requestedPublication;
-  const approvedTotalDefault = approvedSummary?.total ?? Math.max(0, requestedBaseTotal);
+  const rewardAutoValue = requestedReward;
+  const approvedRevisionDefault =
+    approvedSummary?.revisionRaw ?? requestedRevision;
+  const approvedPublicationDefault =
+    approvedSummary?.publicationRaw ?? requestedPublication;
+  const requestedNetDefault = Math.max(
+    0,
+    Number(requestedBaseTotal || 0) - Number(extFunding || 0)
+  );
+  const approvedTotalDefault =
+    approvedSummary?.netTotal ?? requestedNetDefault;
 
   // Approved values
-  const [rewardApprove, setRewardApprove] = useState(approvedRewardDefault);
+  const [rewardApprove, setRewardApprove] = useState(rewardAutoValue);
   const [revisionApprove, setRevisionApprove] = useState(approvedRevisionDefault);
   const [publicationApprove, setPublicationApprove] = useState(approvedPublicationDefault);
   const [totalApprove, setTotalApprove] = useState(approvedTotalDefault);
@@ -862,12 +867,11 @@ function ApprovalPanel({ submission, pubDetail, requestedSummary, approvedSummar
   // ซ่อน 2 ฟิลด์เมื่อไม่พบเพดาน
   const hideSharedFeeFields = !!capError && /ไม่สามารถเบิกค่าใช้จ่ายนี้ได้/.test(capError);
 
-  // ADD
-  const [hydrated, setHydrated] = useState(false);
+  const revisionAutoValue = hideSharedFeeFields ? 0 : requestedRevision;
+  const publicationAutoValue = hideSharedFeeFields ? 0 : requestedPublication;
 
   useEffect(() => {
-    // เปลี่ยน submission แล้วให้ hydrate ใหม่
-    setHydrated(false);
+    setManualEdit(false);
   }, [submission?.submission_id]);
 
   useEffect(() => {
@@ -926,46 +930,38 @@ function ApprovalPanel({ submission, pubDetail, requestedSummary, approvedSummar
     fetchCap();
   }, [pubDetail?.quartile, pubDetail?.journal_quartile, pubDetail?.publication_year, pubDetail?.publication_date]);
 
-  // REPLACE — hydrate จาก FI แค่ครั้งแรกหลังรู้ผลเพดาน และอย่ารีเซ็ตเมื่อปิดสวิตช์
-  useEffect(() => {
-    if (capLoading) return;
-
-    const rewardBase = approvedRewardDefault;
-    const revisionBase = feeCap == null ? 0 : approvedRevisionDefault;
-    const publicationBase = feeCap == null ? 0 : approvedPublicationDefault;
-
-    // ครั้งแรกเท่านั้น
-    if (!hydrated) {
-      setRewardApprove(rewardBase);
-      setRevisionApprove(revisionBase);
-      setPublicationApprove(publicationBase);
-      setHydrated(true);
+  const applyAutoSharedFeeValues = React.useCallback(() => {
+    if (hideSharedFeeFields) {
+      setRevisionApprove(0);
+      setPublicationApprove(0);
       return;
     }
 
-    // ถ้าภายหลังถูกบังคับซ่อน 2 ฟิลด์ ให้บังคับเป็น 0 (ไม่แตะ reward)
-    if (feeCap == null) {
-      if (revisionApprove !== 0) setRevisionApprove(0);
-      if (publicationApprove !== 0) setPublicationApprove(0);
-    }
-  }, [
-    capLoading,
-    approvedRewardDefault,
-    approvedRevisionDefault,
-    approvedPublicationDefault,
-    feeCap,
-    hydrated,
-    revisionApprove,
-    publicationApprove,
-  ]);
+    setRevisionApprove(revisionAutoValue);
+    setPublicationApprove(publicationAutoValue);
+  }, [hideSharedFeeFields, revisionAutoValue, publicationAutoValue]);
+
+  // เติมค่าอัตโนมัติเมื่อไม่เปิดโหมดแก้ไข
+  useEffect(() => {
+    if (manualEdit) return;
+    setRewardApprove(rewardAutoValue);
+    applyAutoSharedFeeValues();
+  }, [manualEdit, rewardAutoValue, applyAutoSharedFeeValues]);
+
+  const handleToggleManualEdit = React.useCallback(() => {
+    setManualEdit((prev) => !prev);
+  }, []);
 
 
   // รวมอัตโนมัติ (Total อ่านอย่างเดียว)
   useEffect(() => {
-    const sum = Number(rewardApprove || 0) + Number(revisionApprove || 0) + Number(publicationApprove || 0);
-    const net = Math.max(0, sum);
+    const sum =
+      Number(rewardApprove || 0) +
+      Number(revisionApprove || 0) +
+      Number(publicationApprove || 0);
+    const net = Math.max(0, sum - Number(extFunding || 0));
     setTotalApprove(net);
-  }, [rewardApprove, revisionApprove, publicationApprove]);
+  }, [rewardApprove, revisionApprove, publicationApprove, extFunding]);
 
   // Clamp helper สำหรับวงเงินร่วม (Revision+Publication)
   const clampShared = (val, other) => {
@@ -1042,13 +1038,10 @@ function ApprovalPanel({ submission, pubDetail, requestedSummary, approvedSummar
     return Object.keys(e).length === 0;
   };
 
-  // รีเซ็ตกลับค่าเริ่มต้นจาก FI (หรือ 0 ถ้าซ่อนฟิลด์ร่วม)
+  // รีเซ็ตกลับค่าเริ่มต้นจาก FI/คำขอ
   const recalc = () => {
-    const baseRevision = feeCap == null ? 0 : approvedRevisionDefault;
-    const basePublication = feeCap == null ? 0 : approvedPublicationDefault;
-    setRewardApprove(approvedRewardDefault);
-    setRevisionApprove(baseRevision);
-    setPublicationApprove(basePublication);
+    setRewardApprove(rewardAutoValue);
+    applyAutoSharedFeeValues();
   };
 
   const escapeHtml = (value = '') =>
@@ -1436,7 +1429,7 @@ function ApprovalPanel({ submission, pubDetail, requestedSummary, approvedSummar
                   type="button"
                   role="switch"
                   aria-checked={manualEdit}
-                  onClick={() => setManualEdit((v) => !v)}
+                  onClick={handleToggleManualEdit}
                   className={`relative inline-flex h-5 w-9 items-center rounded-full transition ${
                     manualEdit ? 'bg-blue-600' : 'bg-gray-300'
                   }`}
@@ -1801,7 +1794,7 @@ export default function PublicationSubmissionDetails({ submissionId, onBack }) {
     [pubDetail, submission, requestedSummary]
   );
 
-  const approvedTotal = approvedSummary?.total ?? null;
+  const approvedTotal = approvedSummary?.netTotal ?? approvedSummary?.total ?? null;
 
   const submittedAt =
     submission?.submitted_at ??

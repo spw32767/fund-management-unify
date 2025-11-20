@@ -28,6 +28,11 @@ const RewardConfigManager = () => {
   const [selectedYear, setSelectedYear] = useState('');
   const [years, setYears] = useState([]);
   const [copying, setCopying] = useState(false);
+  const [copyModalOpen, setCopyModalOpen] = useState(false);
+  const [copyMode, setCopyMode] = useState('new');
+  const [copyNewYear, setCopyNewYear] = useState('');
+  const [copyExistingYear, setCopyExistingYear] = useState('');
+  const [copyError, setCopyError] = useState('');
 
   // ====== Modal (เดิม) ======
   const [showRateForm, setShowRateForm] = useState(false);
@@ -67,6 +72,30 @@ const RewardConfigManager = () => {
     () => years.filter((year) => year !== selectedYear),
     [years, selectedYear]
   );
+
+  const selectedYearNumber = useMemo(() => {
+    const numeric = Number(selectedYear);
+    return Number.isFinite(numeric) ? numeric : null;
+  }, [selectedYear]);
+
+  const nextYear = useMemo(() => {
+    if (!selectedYearNumber) return '';
+    return String(selectedYearNumber + 1);
+  }, [selectedYearNumber]);
+
+  const existingYearNumbers = useMemo(
+    () => years.map((year) => Number(year)).filter((value) => Number.isFinite(value)),
+    [years]
+  );
+
+  const hasExistingTargets = existingTargetYears.length > 0;
+
+  const resetCopyState = () => {
+    setCopyMode('new');
+    setCopyNewYear(nextYear || '');
+    setCopyExistingYear(hasExistingTargets ? String(existingTargetYears[0]) : '');
+    setCopyError('');
+  };
 
   const authorStatusOptions = [
     { value: 'first_author', label: 'First Author (ผู้ประพันธ์ชื่อแรก)' },
@@ -391,7 +420,7 @@ const RewardConfigManager = () => {
     return Array.isArray(dataset) && dataset.length > 0;
   }, [activeSubTab, rewardRates, rewardConfigs, selectedYear]);
 
-  const copyToNewYear = async () => {
+  const openCopyModal = async () => {
     if (!selectedYear) {
       await Swal.fire('แจ้งเตือน', 'กรุณาเลือกปีที่ต้องการคัดลอกก่อน', 'warning');
       return;
@@ -406,131 +435,75 @@ const RewardConfigManager = () => {
       return;
     }
 
-    const numericSource = Number(selectedYear);
-    const defaultYear = Number.isFinite(numericSource) ? String(numericSource + 1) : '';
-    const hasExistingTargets = existingTargetYears.length > 0;
-    const existingOptionsMarkup = existingTargetYears
-      .map((year) => `<option value="${year}">พ.ศ. ${year}</option>`)
-      .join('');
+    resetCopyState();
+    setCopyModalOpen(true);
+  };
 
-    const dialogHtml = `
-      <div class="text-left space-y-4">
-        <div class="rounded-lg border border-gray-200 p-3" data-copy-section="new">
-          <label class="flex items-start gap-2">
-            <input type="radio" name="reward-copy-mode" value="new" class="mt-1" checked />
-            <div>
-              <p class="font-medium text-gray-800">คัดลอกไปปีใหม่</p>
-              <p class="text-sm text-gray-600 mt-1">ระบบจะสร้างข้อมูลปีใหม่ตามปีที่ระบุ</p>
-            </div>
-          </label>
-          <input id="reward-copy-new-year" class="swal2-input mt-3" placeholder="เช่น 2569" value="${defaultYear}" />
-        </div>
-        <div class="rounded-lg border border-gray-200 p-3 ${hasExistingTargets ? '' : 'opacity-50'}" data-copy-section="existing">
-          <label class="flex items-start gap-2">
-            <input type="radio" name="reward-copy-mode" value="existing" class="mt-1" ${hasExistingTargets ? '' : 'disabled'} />
-            <div>
-              <p class="font-medium text-gray-800">เพิ่มไปยังปีที่มีอยู่</p>
-              <p class="text-sm text-gray-600 mt-1">เพิ่มหรือแทนที่ข้อมูลในปีที่เลือก</p>
-            </div>
-          </label>
-          <select id="reward-copy-existing-year" class="swal2-select mt-3" ${hasExistingTargets ? '' : 'disabled'}>
-            <option value="">เลือกปีปลายทาง</option>
-            ${existingOptionsMarkup}
-          </select>
-        </div>
-      </div>
-    `;
+  const closeCopyModal = () => {
+    setCopyModalOpen(false);
+    setCopyError('');
+  };
 
-    const { value, isConfirmed } = await Swal.fire({
-      title: `คัดลอก ${copyTargetLabel} จากปี ${selectedYear}`,
-      html: dialogHtml,
-      focusConfirm: false,
-      showCancelButton: true,
-      confirmButtonText: 'คัดลอก',
-      cancelButtonText: 'ยกเลิก',
-      didOpen: (popup) => {
-        const updateModeState = () => {
-          const mode = popup.querySelector('input[name="reward-copy-mode"]:checked')?.value || 'new';
-          const newSection = popup.querySelector('[data-copy-section="new"]');
-          const existingSection = popup.querySelector('[data-copy-section="existing"]');
-          const newInput = popup.querySelector('#reward-copy-new-year');
-          const existingSelect = popup.querySelector('#reward-copy-existing-year');
+  const handleCopySubmit = async (event) => {
+    event?.preventDefault();
+    setCopyError('');
 
-          if (newSection) {
-            newSection.classList.toggle('opacity-50', mode !== 'new');
-          }
-          if (newInput) {
-            newInput.disabled = mode !== 'new';
-          }
-          if (existingSection) {
-            const disableExisting = mode !== 'existing' || !hasExistingTargets;
-            existingSection.classList.toggle('opacity-50', disableExisting);
-            if (existingSelect) {
-              existingSelect.disabled = disableExisting;
-              if (!disableExisting && !existingSelect.value && existingSelect.options.length > 1) {
-                existingSelect.selectedIndex = 1;
-              }
-            }
-          }
-        };
+    if (copyMode === 'existing') {
+      if (!hasExistingTargets) {
+        setCopyError('ยังไม่มีปีปลายทางให้เลือก');
+        return;
+      }
 
-        updateModeState();
-        popup
-          .querySelectorAll('input[name="reward-copy-mode"]')
-          .forEach((radio) => radio.addEventListener('change', updateModeState));
-      },
-      preConfirm: () => {
-        const popup = Swal.getPopup();
-        const mode = popup.querySelector('input[name="reward-copy-mode"]:checked')?.value || 'new';
+      if (!copyExistingYear) {
+        setCopyError('กรุณาเลือกปีที่ต้องการเพิ่มข้อมูล');
+        return;
+      }
 
-        if (mode === 'existing') {
-          if (!hasExistingTargets) {
-            Swal.showValidationMessage('ยังไม่มีปีปลายทางให้เลือก');
-            return false;
-          }
-          const select = popup.querySelector('#reward-copy-existing-year');
-          if (!select || !select.value) {
-            Swal.showValidationMessage('กรุณาเลือกปีที่ต้องการเพิ่มข้อมูล');
-            return false;
-          }
-          if (String(select.value) === String(selectedYear)) {
-            Swal.showValidationMessage('กรุณาเลือกปีปลายทางที่แตกต่างจากปีต้นทาง');
-            return false;
-          }
-          return { mode: 'existing', year: select.value };
+      try {
+        setCopying(true);
+        const targetYear = copyExistingYear;
+        if (activeSubTab === 'rates') {
+          await adminAPI.copyPublicationRewardRates(selectedYear, targetYear);
+        } else {
+          await adminAPI.copyRewardConfigs(selectedYear, targetYear);
         }
+        await Swal.fire('สำเร็จ', `คัดลอก ${copyTargetLabel} ไปยังปี ${targetYear} เรียบร้อย`, 'success');
+        await loadAvailableYears();
+        setSelectedYear(String(targetYear));
+        setCopyModalOpen(false);
+      } catch (error) {
+        Swal.fire('Error', error?.response?.data?.message || 'ไม่สามารถคัดลอกข้อมูลได้', 'error');
+      } finally {
+        setCopying(false);
+      }
 
-        const input = popup.querySelector('#reward-copy-new-year');
-        const value = (input?.value || '').trim();
-        if (!value) {
-          Swal.showValidationMessage('กรุณาระบุปี');
-          return false;
-        }
-        if (!/^\d{4}$/.test(value)) {
-          Swal.showValidationMessage('กรุณาระบุปีในรูปแบบ พ.ศ. 4 หลัก');
-          return false;
-        }
-        if (parseInt(value, 10) < 2500) {
-          Swal.showValidationMessage('ปีต้องมากกว่า 2500');
-          return false;
-        }
-        if (value === String(selectedYear)) {
-          Swal.showValidationMessage('กรุณาระบุปีที่แตกต่างจากปีต้นทาง');
-          return false;
-        }
-        if (years.includes(value)) {
-          Swal.showValidationMessage('ปีนี้มีข้อมูลอยู่แล้ว กรุณาเลือกตัวเลือก "เพิ่มไปยังปีที่มีอยู่"');
-          return false;
-        }
-        return { mode: 'new', year: value };
-      },
-    });
+      return;
+    }
 
-    if (!isConfirmed || !value) return;
+    const targetYear = (copyNewYear || '').trim();
+    if (!targetYear) {
+      setCopyError('กรุณาระบุปี');
+      return;
+    }
+    if (!/^\d{4}$/.test(targetYear)) {
+      setCopyError('กรุณาระบุปีในรูปแบบ พ.ศ. 4 หลัก');
+      return;
+    }
+    if (parseInt(targetYear, 10) < 2500) {
+      setCopyError('ปีต้องมากกว่า 2500');
+      return;
+    }
+    if (targetYear === String(selectedYear)) {
+      setCopyError('กรุณาระบุปีที่แตกต่างจากปีต้นทาง');
+      return;
+    }
+    if (existingYearNumbers.includes(Number(targetYear))) {
+      setCopyError('ปีนี้มีข้อมูลอยู่แล้ว กรุณาเลือกตัวเลือก "เพิ่มไปยังปีที่มีอยู่"');
+      return;
+    }
 
     try {
       setCopying(true);
-      const targetYear = value.year;
       if (activeSubTab === 'rates') {
         await adminAPI.copyPublicationRewardRates(selectedYear, targetYear);
       } else {
@@ -539,6 +512,7 @@ const RewardConfigManager = () => {
       await Swal.fire('สำเร็จ', `คัดลอก ${copyTargetLabel} ไปยังปี ${targetYear} เรียบร้อย`, 'success');
       await loadAvailableYears();
       setSelectedYear(String(targetYear));
+      setCopyModalOpen(false);
     } catch (error) {
       Swal.fire('Error', error?.response?.data?.message || 'ไม่สามารถคัดลอกข้อมูลได้', 'error');
     } finally {
@@ -556,7 +530,7 @@ const RewardConfigManager = () => {
       actions={
         years.length > 0 ? (
           <button
-            onClick={copyToNewYear}
+            onClick={openCopyModal}
             disabled={!selectedYear || copying || loading || !hasCopyableData}
             className="inline-flex items-center gap-2 rounded-lg border border-blue-200 px-4 py-2 text-sm font-medium text-blue-600 transition hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-60"
           >
@@ -853,6 +827,118 @@ const RewardConfigManager = () => {
           </div>
         </div>
       )}
+
+      <SettingsModal
+        open={copyModalOpen}
+        onClose={closeCopyModal}
+        size="lg"
+        bodyClassName="max-h-[75vh] overflow-y-auto px-6 py-6"
+        footerClassName="flex items-center justify-end gap-3 px-6 py-4"
+        headerContent={
+          <div className="flex items-center gap-3 text-gray-700">
+            <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-blue-50 text-blue-600">
+              <Copy size={18} />
+            </span>
+            <div>
+              <p className="text-base font-semibold text-gray-900">คัดลอก {copyTargetLabel}</p>
+              <p className="text-sm text-gray-500">นำข้อมูลจากปี {selectedYear || '-'} ไปยังปีใหม่หรือปีที่มีอยู่</p>
+            </div>
+          </div>
+        }
+      >
+        <form onSubmit={handleCopySubmit} className="space-y-5">
+          <div className="space-y-4">
+            <div
+              className={`rounded-xl border p-4 transition ${
+                copyMode === 'new' ? 'border-blue-200 bg-blue-50/60' : 'border-gray-200'
+              }`}
+            >
+              <label className="flex items-start gap-3">
+                <input
+                  type="radio"
+                  name="reward-copy-mode"
+                  value="new"
+                  checked={copyMode === 'new'}
+                  onChange={() => setCopyMode('new')}
+                  className="mt-1"
+                />
+                <div className="space-y-1">
+                  <p className="font-medium text-gray-900">คัดลอกไปปีใหม่</p>
+                  <p className="text-sm text-gray-600">ระบบจะสร้างข้อมูลปีใหม่ตามปีที่ระบุ</p>
+                </div>
+              </label>
+              <input
+                type="number"
+                value={copyNewYear}
+                onChange={(event) => setCopyNewYear(event.target.value)}
+                placeholder="เช่น 2569"
+                className="mt-3 w-full rounded-lg border border-gray-300 px-3 py-2 text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-200"
+                disabled={copyMode !== 'new'}
+              />
+            </div>
+
+            <div
+              className={`rounded-xl border p-4 transition ${
+                copyMode === 'existing' ? 'border-blue-200 bg-blue-50/60' : 'border-gray-200'
+              } ${!hasExistingTargets ? 'opacity-60' : ''}`}
+            >
+              <label className="flex items-start gap-3">
+                <input
+                  type="radio"
+                  name="reward-copy-mode"
+                  value="existing"
+                  checked={copyMode === 'existing'}
+                  onChange={() => setCopyMode('existing')}
+                  className="mt-1"
+                  disabled={!hasExistingTargets}
+                />
+                <div className="space-y-1">
+                  <p className="font-medium text-gray-900">เพิ่มไปยังปีที่มีอยู่</p>
+                  <p className="text-sm text-gray-600">เพิ่มหรือแทนที่ข้อมูลในปีที่เลือก</p>
+                </div>
+              </label>
+              <select
+                value={copyExistingYear}
+                onChange={(event) => setCopyExistingYear(event.target.value)}
+                className="mt-3 w-full rounded-lg border border-gray-300 px-3 py-2 text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-200"
+                disabled={!hasExistingTargets || copyMode !== 'existing'}
+              >
+                <option value="">เลือกปีปลายทาง</option>
+                {existingTargetYears.map((year) => (
+                  <option key={year} value={year}>
+                    พ.ศ. {year}
+                  </option>
+                ))}
+              </select>
+              {!hasExistingTargets ? (
+                <p className="mt-2 text-sm text-gray-500">ยังไม่มีปีปลายทางให้เลือก</p>
+              ) : null}
+            </div>
+          </div>
+
+          {copyError ? (
+            <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{copyError}</div>
+          ) : null}
+
+          <div className="flex flex-col gap-3 pt-2 sm:flex-row sm:items-center sm:justify-end">
+            <button
+              type="button"
+              onClick={closeCopyModal}
+              className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-600 transition hover:bg-gray-100"
+            >
+              ยกเลิก
+            </button>
+            <button
+              type="submit"
+              disabled={copying}
+              className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-70"
+            >
+              <Copy size={16} />
+              {copying ? `กำลังก็อป ${copyTargetLabel}...` : 'คัดลอก'}
+            </button>
+          </div>
+        </form>
+      </SettingsModal>
 
       <SettingsModal
         open={showRateForm}
