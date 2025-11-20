@@ -54,23 +54,25 @@ function asArray(maybe) {
 
 // ประกอบชื่อ "ทุนย่อย" + "เงื่อนไขย่อย" ตามรูปแบบใหม่
 function buildBudgetLabel(source = {}) {
-  const baseName =
+  const baseName = stripBudgetCodeText(
     source.subcategory_name ||
-    source.SubcategoryName ||
-    source.subcategory_budget_name ||
-    source.SubcategoryBudgetName ||
-    source.label ||
-    source.name ||
-    source.budget_name ||
-    'ทุนย่อย';
+      source.SubcategoryName ||
+      source.subcategory_budget_name ||
+      source.SubcategoryBudgetName ||
+      source.label ||
+      source.name ||
+      source.budget_name ||
+      'ทุนย่อย'
+  );
 
-  const rawCondition =
+  const rawCondition = stripBudgetCodeText(
     source.fund_description ||
-    source.FundDescription ||
-    source.fund_condition ||
-    source.subcategory_budget_label ||
-    source.SubcategoryBudgetLabel ||
-    '';
+      source.FundDescription ||
+      source.fund_condition ||
+      source.subcategory_budget_label ||
+      source.SubcategoryBudgetLabel ||
+      ''
+  );
 
   const name = String(baseName || '').trim();
   const condition = String(rawCondition || '').trim();
@@ -86,6 +88,13 @@ function stripBudgetCode(name) {
   const safe = String(name ?? '').trim();
   if (!safe) return '-';
   return safe.replace(/\s*งบ\s*#?\s*\d+\s*$/i, '').trim() || safe;
+}
+
+// เวอร์ชันไม่คืนค่า '-' สำหรับกรณีข้อความว่าง ใช้ทำความสะอาด label
+function stripBudgetCodeText(text) {
+  const safe = String(text ?? '').trim();
+  if (!safe) return '';
+  return safe.replace(/\s*งบ\s*#?\s*\d+\s*$/i, '').trim();
 }
 
 // แปลง rows ดิบ → โครงหมวดหมู่
