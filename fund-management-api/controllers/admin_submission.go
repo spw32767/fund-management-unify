@@ -522,12 +522,12 @@ func ApproveSubmission(c *gin.Context) {
 	}
 
 	// ✅ central truth
-        updates := map[string]interface{}{
-                "status_id":   2, // approved
-                "updated_at":  now,
-                "approved_by": adminID,
-                "approved_at": now,
-        }
+	updates := map[string]interface{}{
+		"status_id":         2, // approved
+		"updated_at":        now,
+		"admin_approved_by": adminID,
+		"admin_approved_at": now,
+	}
 	// (ออปชัน) เก็บความเห็นของแอดมินตอนอนุมัติ
 	if strings.TrimSpace(req.ApprovalComment) != "" {
 		updates["admin_comment"] = strings.TrimSpace(req.ApprovalComment)
@@ -578,6 +578,28 @@ func ApproveSubmission(c *gin.Context) {
 		} else if err := tx.Save(&d).Error; err != nil {
 			tx.Rollback()
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update detail"})
+			return
+		}
+	} else if submission.SubmissionType == "fund_application" {
+		approvedAmount := 0.0
+		if req.TotalApproveAmount != nil {
+			approvedAmount = *req.TotalApproveAmount
+		} else if req.ApprovedAmount != nil {
+			approvedAmount = *req.ApprovedAmount
+		}
+
+		announceRef := strings.TrimSpace(req.AnnounceReferenceNumber)
+
+		if err := tx.Model(&models.FundApplicationDetail{}).
+			Where("submission_id = ?", submissionID).
+			Updates(map[string]interface{}{
+				"approved_amount":           approvedAmount,
+				"announce_reference_number": announceRef,
+				"approved_by":               adminID,
+				"approved_at":               now,
+			}).Error; err != nil {
+			tx.Rollback()
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update fund application detail"})
 			return
 		}
 	}
