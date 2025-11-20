@@ -150,23 +150,25 @@ function AdminPageContent({ initialPage = 'dashboard' }) {
     return titles[currentPage] || currentPage;
   };
 
+  const navigationMenu = (
+    <Navigation
+      currentPage={currentPage}
+      setCurrentPage={setCurrentPage}
+      handleNavigate={handleNavigate}
+      submenuOpen={submenuOpen}
+      setSubmenuOpen={setSubmenuOpen}
+    />
+  );
+
   return (
     <div className="min-h-screen bg-gray-100">
-      <Header 
-        isOpen={isOpen} 
-        setIsOpen={setIsOpen} 
-        Navigation={() => (
-          <Navigation
-            currentPage={currentPage}
-            setCurrentPage={setCurrentPage}
-            handleNavigate={handleNavigate}
-            submenuOpen={submenuOpen}
-            setSubmenuOpen={setSubmenuOpen}
-          />
-        )}
+      <Header
+        isOpen={isOpen}
+        setIsOpen={setIsOpen}
+        Navigation={navigationMenu}
       />
 
-      <div className="flex mt-20 min-h-[calc(100vh-5rem)]">
+      <div className="flex min-h-[calc(100vh-5rem)] mt-24 sm:mt-20">
         {/* Desktop Sidebar */}
         <div className="hidden md:block w-64 bg-white border-r border-gray-300 fixed h-[calc(100vh-5rem)] overflow-y-auto shadow-sm">
           <div className="p-5">
@@ -186,9 +188,9 @@ function AdminPageContent({ initialPage = 'dashboard' }) {
         </div>
 
         {/* Main Content */}
-        <div className="md:ml-64 flex-1">
+        <div className="md:ml-64 flex-1 w-full">
           {/* Page Content */}
-          <div className="px-8 pb-8">
+          <div className="px-4 pb-8 pt-4 sm:px-6 lg:px-8">
             {renderPageContent()}
           </div>
         </div>

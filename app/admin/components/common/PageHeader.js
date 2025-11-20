@@ -9,11 +9,11 @@ export default function PageHeader({
   breadcrumbs 
 }) {
   return (
-    <div className="mt-6 mb-6">
+    <div className="mb-6 mt-6 space-y-4">
       {/* Breadcrumbs */}
       {breadcrumbs && (
-        <nav className="text-sm mb-2">
-          <ol className="flex items-center space-x-2">
+        <nav className="text-sm">
+          <ol className="flex flex-wrap items-center gap-1 text-gray-500">
             {breadcrumbs.map((crumb, index) => (
               <li key={index} className="flex items-center">
                 {index > 0 && <span className="mx-2 text-gray-400">/</span>}
@@ -31,9 +31,9 @@ export default function PageHeader({
       )}
 
       {/* Main Header */}
-      <div className="flex justify-between items-start">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-800 flex items-center gap-3">
+          <h1 className="flex items-center gap-3 text-2xl font-bold text-gray-800 leading-tight sm:text-3xl">
             {Icon && <Icon size={32} className="text-gray-600" />}
             {title}
           </h1>
@@ -41,9 +41,9 @@ export default function PageHeader({
             <p className="mt-1 text-gray-600">{subtitle}</p>
           )}
         </div>
-        
+
         {actions && (
-          <div className="flex gap-2">
+          <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
             {actions}
           </div>
         )}
