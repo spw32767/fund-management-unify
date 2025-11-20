@@ -20,14 +20,22 @@
 }
 
 
+html,
 body {
-  background: var(--background);
-  color: var(--foreground);
+  min-height: 100%;
+  width: 100%;
+}
+
+body {
+  background-color: #f5f7fb;
+  color: #0f172a;
   font-family: "Anuphan", sans-serif;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
 }
 
 html {
-font-size: 100%;
+  font-size: 100%;
 }
 
 /* globals.css - เพิ่มใน app/globals.css */
