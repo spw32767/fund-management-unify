@@ -70,6 +70,17 @@ export default function AdminScopusResearchSearch() {
       setStatsError("");
       try {
         const res = await publicationsAPI.getScopusPublicationStatsForUser(userId);
+        console.log("[AdminScopusResearchSearch] Stats response", {
+          userId,
+          meta: res?.meta,
+          dataPreview: res?.data
+            ? {
+                total_documents: res.data.total_documents,
+                total_citations: res.data.total_citations,
+                h_index: res.data.h_index,
+              }
+            : null,
+        });
         setStats(res?.data || null);
         setStatsMeta(res?.meta || { has_scopus_id: false, has_author_record: false });
       } catch (error) {
@@ -95,6 +106,13 @@ export default function AdminScopusResearchSearch() {
           params.q = pubQuery.trim();
         }
         const res = await publicationsAPI.getScopusPublicationsForUser(userId, params);
+        console.log("[AdminScopusResearchSearch] Publications response", {
+          userId,
+          params,
+          meta: res?.meta,
+          dataCount: Array.isArray(res?.data) ? res.data.length : 0,
+          firstItem: Array.isArray(res?.data) && res.data.length > 0 ? res.data[0] : null,
+        });
         const items = res?.data || [];
         setPublications(items);
         setPubMeta(res?.paging || { total: items.length, limit: PUB_PAGE_SIZE, offset });
@@ -159,6 +177,7 @@ export default function AdminScopusResearchSearch() {
   };
 
   const handleSelectUser = (hit) => {
+    console.log("[AdminScopusResearchSearch] Select user", hit);
     setSelectedUser(hit);
   };
 
