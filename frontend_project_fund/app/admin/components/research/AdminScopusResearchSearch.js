@@ -70,9 +70,12 @@ export default function AdminScopusResearchSearch() {
       setStatsError("");
       try {
         const res = await publicationsAPI.getScopusPublicationStatsForUser(userId);
+        const meta = res?.meta || {};
+        const hasScopusId = meta.has_scopus_id ?? !!(selectedUser?.scopus_id || selectedUser?.scopusID);
+        const hasAuthorRecord = meta.has_author_record ?? !!res?.data;
         console.log("[AdminScopusResearchSearch] Stats response", {
           userId,
-          meta: res?.meta,
+          meta,
           dataPreview: res?.data
             ? {
                 total_documents: res.data.total_documents,
@@ -82,7 +85,7 @@ export default function AdminScopusResearchSearch() {
             : null,
         });
         setStats(res?.data || null);
-        setStatsMeta(res?.meta || { has_scopus_id: false, has_author_record: false });
+        setStatsMeta({ has_scopus_id: hasScopusId, has_author_record: hasAuthorRecord });
       } catch (error) {
         console.error("Load stats error", error);
         setStats(null);
@@ -92,7 +95,7 @@ export default function AdminScopusResearchSearch() {
         setStatsLoading(false);
       }
     },
-    [selectedUserId]
+    [selectedUserId, selectedUser]
   );
 
   const fetchPublications = useCallback(
@@ -106,17 +109,20 @@ export default function AdminScopusResearchSearch() {
           params.q = pubQuery.trim();
         }
         const res = await publicationsAPI.getScopusPublicationsForUser(userId, params);
+        const meta = res?.meta || {};
+        const items = res?.data || [];
+        const hasScopusId = meta.has_scopus_id ?? !!(selectedUser?.scopus_id || selectedUser?.scopusID);
+        const hasAuthorRecord = meta.has_author_record ?? items.length > 0;
         console.log("[AdminScopusResearchSearch] Publications response", {
           userId,
           params,
-          meta: res?.meta,
+          meta,
           dataCount: Array.isArray(res?.data) ? res.data.length : 0,
           firstItem: Array.isArray(res?.data) && res.data.length > 0 ? res.data[0] : null,
         });
-        const items = res?.data || [];
         setPublications(items);
         setPubMeta(res?.paging || { total: items.length, limit: PUB_PAGE_SIZE, offset });
-        setPubFlags(res?.meta || { has_scopus_id: true, has_author_record: true });
+        setPubFlags({ has_scopus_id: hasScopusId, has_author_record: hasAuthorRecord });
       } catch (error) {
         console.error("Load publications error", error);
         setPublications([]);
@@ -127,7 +133,7 @@ export default function AdminScopusResearchSearch() {
         setPubLoading(false);
       }
     },
-    [pubQuery, selectedUserId]
+    [pubQuery, selectedUserId, selectedUser]
   );
 
   useEffect(() => {
