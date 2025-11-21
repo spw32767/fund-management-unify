@@ -71,11 +71,17 @@ export default function AdminScopusResearchSearch() {
       try {
         const res = await publicationsAPI.getScopusPublicationStatsForUser(userId);
         const meta = res?.meta || {};
-        const hasScopusId = meta.has_scopus_id ?? !!(selectedUser?.scopus_id || selectedUser?.scopusID);
+        const matchedUser =
+          selectedUser && String(selectedUserId) === String(userId)
+            ? selectedUser
+            : scopusUsers.find((u) => String(u.user_id) === String(userId));
+        const hasScopusId = meta.has_scopus_id ?? !!(matchedUser?.scopus_id || matchedUser?.scopusID);
         const hasAuthorRecord = meta.has_author_record ?? !!res?.data;
         console.log("[AdminScopusResearchSearch] Stats response", {
           userId,
           meta,
+          hasScopusId,
+          hasAuthorRecord,
           dataPreview: res?.data
             ? {
                 total_documents: res.data.total_documents,
@@ -95,7 +101,7 @@ export default function AdminScopusResearchSearch() {
         setStatsLoading(false);
       }
     },
-    [selectedUserId, selectedUser]
+    [scopusUsers, selectedUserId, selectedUser]
   );
 
   const fetchPublications = useCallback(
@@ -111,12 +117,18 @@ export default function AdminScopusResearchSearch() {
         const res = await publicationsAPI.getScopusPublicationsForUser(userId, params);
         const meta = res?.meta || {};
         const items = res?.data || [];
-        const hasScopusId = meta.has_scopus_id ?? !!(selectedUser?.scopus_id || selectedUser?.scopusID);
+        const matchedUser =
+          selectedUser && String(selectedUserId) === String(userId)
+            ? selectedUser
+            : scopusUsers.find((u) => String(u.user_id) === String(userId));
+        const hasScopusId = meta.has_scopus_id ?? !!(matchedUser?.scopus_id || matchedUser?.scopusID);
         const hasAuthorRecord = meta.has_author_record ?? items.length > 0;
         console.log("[AdminScopusResearchSearch] Publications response", {
           userId,
           params,
           meta,
+          hasScopusId,
+          hasAuthorRecord,
           dataCount: Array.isArray(res?.data) ? res.data.length : 0,
           firstItem: Array.isArray(res?.data) && res.data.length > 0 ? res.data[0] : null,
         });
@@ -133,7 +145,7 @@ export default function AdminScopusResearchSearch() {
         setPubLoading(false);
       }
     },
-    [pubQuery, selectedUserId, selectedUser]
+    [pubQuery, scopusUsers, selectedUserId, selectedUser]
   );
 
   useEffect(() => {
