@@ -18,6 +18,7 @@ import LegacySubmissionManager from "./components/submissions/legacy/LegacySubmi
 import AdminPublicationsImport from "./components/settings/announcement_config/AdminPublicationsImport";
 import AdminKkuPeopleScraper from "./components/settings/announcement_config/AdminKkuPeopleScraper";
 import AdminScopusImport from "./components/settings/announcement_config/AdminScopusImport";
+import AdminScopusResearchSearch from "./components/research/AdminScopusResearchSearch";
 import ApprovalRecords from "./components/approves/ApprovalRecords";
 import AdminNotificationCenter from "./components/notifications/NotificationCenter";
 
@@ -33,12 +34,14 @@ function AdminPageContent({ initialPage = 'dashboard' }) {
       'research-fund',
       'promotion-fund',
       'applications-list',
+      'scopus-research-search',
       'legacy-submissions',
       'fund-settings',
       'projects',
       'approval-records',
       'publications-import',
       'scopus-import',
+      'scopus-research-search',
       'kku-people-scraper',
       'notifications',
     ];
@@ -111,6 +114,8 @@ function AdminPageContent({ initialPage = 'dashboard' }) {
         return <PromotionFundContent onNavigate={handleNavigate} />;
       case 'applications-list':
         return <SubmissionsManagement currentPage={handleNavigate} />;
+      case 'scopus-research-search':
+        return <AdminScopusResearchSearch onNavigate={handleNavigate} />;
       case 'legacy-submissions':
         return <LegacySubmissionManager />;
       case 'fund-settings':
@@ -138,12 +143,14 @@ function AdminPageContent({ initialPage = 'dashboard' }) {
         'research-fund': 'ทุนส่งเสริมงานวิจัย',
         'promotion-fund': 'ทุนอุดหนุนกิจกรรม',
         'applications-list': 'รายการการขอทุน',
+        'scopus-research-search': 'ค้นหางานวิจัย',
         'legacy-submissions': 'จัดการคำร้อง (ข้อมูลเก่า)',
         'fund-settings': 'ตั้งค่าทุน',
         'projects': 'จัดการโครงการ',
         'approval-records': 'บันทึกข้อมูลการอนุมัติทุน',
         'publications-import': 'นำเข้าผลงานวิชาการ (Google Scholar)',
         'scopus-import': 'นำเข้าผลงานวิชาการ (Scopus)',
+        'scopus-research-search': 'ค้นหางานวิจัย',
         'kku-people-scraper': 'KKU Profile Scraper',
         'notifications': 'การแจ้งเตือน'
     };
