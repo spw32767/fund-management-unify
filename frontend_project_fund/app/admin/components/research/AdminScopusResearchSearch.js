@@ -283,8 +283,8 @@ export default function AdminScopusResearchSearch() {
       subtitle="ดูรายชื่อผู้ใช้ที่เชื่อมโยง Scopus และเปิดรายละเอียดผลงานแบบเดียวกับหน้าจัดการคำร้อง"
       icon={UserSearch}
     >
-      <div className="grid gap-6 lg:grid-cols-[1.05fr,1.8fr] xl:grid-cols-[1fr,2fr]">
-        <div className="rounded-2xl border border-slate-200 bg-white shadow-sm">
+      <div className="grid gap-6 lg:grid-cols-[340px,1fr] xl:grid-cols-[380px,1fr]">
+        <div className="h-full rounded-2xl border border-slate-200 bg-white shadow-sm lg:sticky lg:top-4 lg:max-h-[calc(100vh-160px)] lg:overflow-hidden">
           <div className="flex flex-col gap-2 border-b border-slate-200 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <p className="text-sm font-semibold text-slate-900">รายชื่อผู้ใช้ที่มี Scopus ID</p>
@@ -300,7 +300,7 @@ export default function AdminScopusResearchSearch() {
             </div>
           )}
 
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto lg:max-h-[calc(100vh-320px)] lg:overflow-y-auto">
             <table className="min-w-full divide-y divide-slate-200 text-sm">
               <thead className="bg-slate-50 text-xs uppercase text-slate-600">
                 <tr>
