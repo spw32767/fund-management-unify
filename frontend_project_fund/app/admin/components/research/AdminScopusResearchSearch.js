@@ -1,4 +1,3 @@
-// app/admin/components/research/AdminScopusResearchSearch.js
 "use client";
 
 import dynamic from "next/dynamic";
@@ -38,6 +37,8 @@ export default function AdminScopusResearchSearch() {
   const [pubFlags, setPubFlags] = useState({ has_scopus_id: false, has_author_record: false });
   const [pubLoading, setPubLoading] = useState(false);
   const [pubError, setPubError] = useState("");
+
+  const [activeTab, setActiveTab] = useState("stats");
 
   const loadUsers = useCallback(
     async (offset = 0) => {
@@ -283,8 +284,8 @@ export default function AdminScopusResearchSearch() {
       subtitle="ดูรายชื่อผู้ใช้ที่เชื่อมโยง Scopus และเปิดรายละเอียดผลงานแบบเดียวกับหน้าจัดการคำร้อง"
       icon={UserSearch}
     >
-      <div className="grid gap-6 lg:grid-cols-[340px,1fr] xl:grid-cols-[380px,1fr]">
-        <div className="h-full rounded-2xl border border-slate-200 bg-white shadow-sm lg:sticky lg:top-4 lg:max-h-[calc(100vh-160px)] lg:overflow-hidden">
+      <div className="grid gap-6 xl:grid-cols-[1fr,1.9fr]">
+        <div className="rounded-2xl border border-slate-200 bg-white shadow-sm">
           <div className="flex flex-col gap-2 border-b border-slate-200 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <p className="text-sm font-semibold text-slate-900">รายชื่อผู้ใช้ที่มี Scopus ID</p>
@@ -300,7 +301,7 @@ export default function AdminScopusResearchSearch() {
             </div>
           )}
 
-          <div className="overflow-x-auto lg:max-h-[calc(100vh-320px)] lg:overflow-y-auto">
+          <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-slate-200 text-sm">
               <thead className="bg-slate-50 text-xs uppercase text-slate-600">
                 <tr>
@@ -354,7 +355,7 @@ export default function AdminScopusResearchSearch() {
                               }`}
                               onClick={() => setSelectedUser(hit)}
                             >
-                              ดูรายละเอียด
+                              {isActive ? "กำลังดู" : "ดูรายละเอียด"}
                             </button>
                           </div>
                         </td>
@@ -366,16 +367,16 @@ export default function AdminScopusResearchSearch() {
             </table>
           </div>
 
-          <div className="flex flex-col gap-3 border-t border-slate-200 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
-            <div className="text-xs text-slate-600">
-              หน้า {userPage} / {userTotalPages}
-            </div>
-            <div className="flex items-center gap-2">
+          <div className="flex items-center justify-between px-5 py-4 text-xs text-slate-600">
+            <span>
+              แสดง {(userPaging.offset || 0) + 1}-{Math.min((userPaging.offset || 0) + (userPaging.limit || USER_PAGE_SIZE), userPaging.total || 0)} จาก {userPaging.total || 0}
+            </span>
+            <div className="space-x-2">
               <button
                 type="button"
                 onClick={() => handleUserPageChange(-1)}
                 disabled={userPage <= 1 || userLoading}
-                className="rounded-lg border border-slate-300 px-3 py-1 text-sm font-semibold text-slate-600 shadow-sm transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                className="rounded border px-3 py-1 disabled:opacity-50"
               >
                 ก่อนหน้า
               </button>
@@ -383,7 +384,7 @@ export default function AdminScopusResearchSearch() {
                 type="button"
                 onClick={() => handleUserPageChange(1)}
                 disabled={userPage >= userTotalPages || userLoading}
-                className="rounded-lg border border-slate-300 px-3 py-1 text-sm font-semibold text-slate-600 shadow-sm transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                className="rounded border px-3 py-1 disabled:opacity-50"
               >
                 ถัดไป
               </button>
@@ -392,18 +393,48 @@ export default function AdminScopusResearchSearch() {
         </div>
 
         <div className="space-y-4">
-          <div className="rounded-2xl border border-slate-200 bg-white shadow-sm">
-            <div className="flex flex-col gap-2 border-b border-slate-200 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="sticky top-4 z-10 rounded-2xl border border-slate-200 bg-white/90 px-5 py-4 shadow backdrop-blur">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <p className="text-sm font-semibold text-slate-900">รายละเอียด Scopus</p>
-                <p className="text-xs text-slate-500">จำนวนเอกสาร การอ้างอิง และแนวโน้มรายปี</p>
+                <p className="text-sm font-semibold text-slate-900">ผู้ใช้ที่เลือก</p>
+                <p className="text-xs text-slate-500">
+                  {selectedUser ? selectedUser.name || "ไม่ระบุชื่อ" : "เลือกผู้ใช้ทางซ้ายเพื่อเริ่ม"}
+                </p>
+                {selectedUser && (
+                  <p className="text-[11px] text-slate-500">Scopus ID: {selectedUser.scopus_id || selectedUser.scopusID || "-"}</p>
+                )}
               </div>
-              <div className="rounded-full bg-indigo-50 px-3 py-1 text-[12px] font-semibold text-indigo-700">
-                {selectedUser ? selectedUser.name || "ไม่ระบุชื่อ" : "ยังไม่เลือกผู้ใช้"}
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  className={`rounded-full px-4 py-2 text-sm font-semibold shadow-sm transition ${
+                    activeTab === "stats"
+                      ? "bg-indigo-600 text-white"
+                      : "border border-slate-200 bg-white text-slate-800 hover:border-slate-300"
+                  }`}
+                  onClick={() => setActiveTab("stats")}
+                  disabled={!selectedUserId}
+                >
+                  สถิติ/กราฟ
+                </button>
+                <button
+                  type="button"
+                  className={`rounded-full px-4 py-2 text-sm font-semibold shadow-sm transition ${
+                    activeTab === "publications"
+                      ? "bg-indigo-600 text-white"
+                      : "border border-slate-200 bg-white text-slate-800 hover:border-slate-300"
+                  }`}
+                  onClick={() => setActiveTab("publications")}
+                  disabled={!selectedUserId}
+                >
+                  รายการเอกสาร
+                </button>
               </div>
             </div>
+          </div>
 
-            <div className="space-y-4 p-5">
+          {activeTab === "stats" ? (
+            <div className="space-y-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
               <div className="grid gap-4 lg:grid-cols-3">
                 <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 shadow-sm">
                   <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-wide text-slate-500">
@@ -505,163 +536,163 @@ export default function AdminScopusResearchSearch() {
                 )}
               </div>
             </div>
-          </div>
-
-          <div className="rounded-2xl border border-slate-200 bg-white shadow-sm">
-            <div className="flex flex-col gap-3 border-b border-slate-200 px-5 py-4 lg:flex-row lg:items-center lg:justify-between">
-              <div>
-                <p className="text-sm font-semibold text-slate-900">ผลงานวิจัยจาก Scopus</p>
-                <p className="text-xs text-slate-500">ค้นหาในชื่อเรื่องและเปิดลิงก์อ้างอิง</p>
-              </div>
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                <div className="relative w-full sm:w-64">
-                  <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
-                  <input
-                    className="w-full rounded-lg border border-slate-300 bg-white px-9 py-2 text-sm shadow-sm focus:border-slate-500 focus:outline-none focus:ring-2 focus:ring-slate-200"
-                    placeholder="ค้นหาชื่อเรื่อง"
-                    value={pubQuery}
-                    onChange={(e) => setPubQuery(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        e.preventDefault();
-                        fetchPublications(0);
-                      }
-                    }}
-                    disabled={!selectedUserId}
-                  />
+          ) : (
+            <div className="rounded-2xl border border-slate-200 bg-white shadow-sm">
+              <div className="flex flex-col gap-3 border-b border-slate-200 px-5 py-4 lg:flex-row lg:items-center lg:justify-between">
+                <div>
+                  <p className="text-sm font-semibold text-slate-900">ผลงานวิจัยจาก Scopus</p>
+                  <p className="text-xs text-slate-500">ค้นหาในชื่อเรื่องและเปิดลิงก์อ้างอิง</p>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => fetchPublications(0)}
-                  disabled={!selectedUserId || pubLoading}
-                  className="inline-flex items-center justify-center rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-950 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  {pubLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}ค้นหาเอกสาร
-                </button>
-              </div>
-            </div>
-
-            <div className="p-5">
-              {pubError ? (
-                <div className="flex items-start gap-2 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
-                  <AlertCircle className="mt-0.5 h-4 w-4" />
-                  <span>{pubError}</span>
-                </div>
-              ) : statusMessage() ? (
-                <div className="flex items-start gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">
-                  <AlertCircle className="mt-0.5 h-4 w-4 text-slate-500" />
-                  <span>{statusMessage()}</span>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  <div className="overflow-x-auto">
-                    {pubLoading ? (
-                      <div className="space-y-2 animate-pulse">
-                        {[...Array(5)].map((_, i) => (
-                          <div key={i} className="h-6 rounded bg-slate-100" />
-                        ))}
-                      </div>
-                    ) : publications.length === 0 ? (
-                      <div className="py-6 text-center text-slate-500">ไม่พบข้อมูลงานวิจัยจาก Scopus</div>
-                    ) : (
-                      <>
-                        <table className="min-w-full divide-y divide-gray-200 text-sm">
-                          <thead className="bg-gray-50">
-                            <tr>
-                              <th className="w-14 px-4 py-2 text-center font-medium text-gray-700">ลำดับ</th>
-                              <th className="px-4 py-2 text-left font-medium text-gray-700">ชื่อเรื่อง</th>
-                              <th className="w-24 px-4 py-2 text-right font-medium text-gray-700">Cited by</th>
-                              <th className="w-20 px-4 py-2 text-center font-medium text-gray-700">ปี</th>
-                              <th className="w-32 px-4 py-2 text-left font-medium text-gray-700">ลิงก์</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-gray-200">
-                            {publications.map((pub, index) => {
-                              const rowNumber = (pubMeta.offset || 0) + index + 1;
-                              const citedByValue =
-                                pub.cited_by !== undefined && pub.cited_by !== null ? pub.cited_by : null;
-                              const yearValue = pub.publication_year || "-";
-                              return (
-                                <tr key={`${pub.id}-${pub.eid}`} className="hover:bg-gray-50">
-                                  <td className="px-4 py-2 text-center text-gray-700">{rowNumber}</td>
-                                  <td className="max-w-xs px-4 py-2 lg:max-w-md">
-                                    <div className="space-y-1">
-                                      <span className="block truncate font-semibold text-gray-900" title={pub.title}>
-                                        {pub.title || "ไม่ระบุชื่อเรือง"}
-                                      </span>
-                                      {pub.venue || pub.publication_name ? (
-                                        <span className="block truncate text-xs text-gray-500">
-                                          {pub.venue || pub.publication_name}
-                                        </span>
-                                      ) : null}
-                                      {pub.scopus_id ? (
-                                        <span className="block text-[11px] text-gray-500">Scopus ID: {pub.scopus_id}</span>
-                                      ) : null}
-                                      {pub.eid ? <span className="block text-[11px] text-gray-500">EID: {pub.eid}</span> : null}
-                                    </div>
-                                  </td>
-                                  <td className="px-4 py-2 text-right text-gray-700">{citedByValue ?? "-"}</td>
-                                  <td className="px-4 py-2 text-center text-gray-700">{yearValue}</td>
-                                  <td className="px-4 py-2">
-                                    <div className="flex flex-wrap gap-2 text-xs">
-                                      {pub.url && (
-                                        <a
-                                          href={pub.url}
-                                          target="_blank"
-                                          rel="noreferrer"
-                                          className="inline-flex items-center gap-1 rounded-full border border-slate-300 px-2 py-1 text-slate-700 transition hover:border-slate-900 hover:text-slate-900"
-                                        >
-                                          DOI/URL <ExternalLink size={14} />
-                                        </a>
-                                      )}
-                                      {pub.scopus_url && (
-                                        <a
-                                          href={pub.scopus_url}
-                                          target="_blank"
-                                          rel="noreferrer"
-                                          className="inline-flex items-center gap-1 rounded-full border border-indigo-200 bg-indigo-50 px-2 py-1 text-indigo-700 transition hover:border-indigo-400"
-                                        >
-                                          Scopus <ExternalLink size={14} />
-                                        </a>
-                                      )}
-                                    </div>
-                                  </td>
-                                </tr>
-                              );
-                            })}
-                          </tbody>
-                        </table>
-                        <div className="mt-4 flex items-center justify-between text-sm text-slate-700">
-                          <span>
-                            แสดง {(pubMeta.offset || 0) + 1}-
-                            {Math.min((pubMeta.offset || 0) + (pubMeta.limit || PUB_PAGE_SIZE), pubMeta.total || 0)} จาก {pubMeta.total || 0}
-                          </span>
-                          <div className="space-x-2">
-                            <button
-                              type="button"
-                              onClick={() => handlePageChange(-1)}
-                              disabled={currentPage <= 1 || pubLoading}
-                              className="rounded border px-3 py-1 text-sm disabled:opacity-50"
-                            >
-                              ก่อนหน้า
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handlePageChange(1)}
-                              disabled={currentPage >= totalPages || pubLoading}
-                              className="rounded border px-3 py-1 text-sm disabled:opacity-50"
-                            >
-                              ถัดไป
-                            </button>
-                          </div>
-                        </div>
-                      </>
-                    )}
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                  <div className="relative w-full sm:w-64">
+                    <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+                    <input
+                      className="w-full rounded-lg border border-slate-300 bg-white px-9 py-2 text-sm shadow-sm focus:border-slate-500 focus:outline-none focus:ring-2 focus:ring-slate-200"
+                      placeholder="ค้นหาชื่อเรื่อง"
+                      value={pubQuery}
+                      onChange={(e) => setPubQuery(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          fetchPublications(0);
+                        }
+                      }}
+                      disabled={!selectedUserId}
+                    />
                   </div>
+                  <button
+                    type="button"
+                    onClick={() => fetchPublications(0)}
+                    disabled={!selectedUserId || pubLoading}
+                    className="inline-flex items-center justify-center rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-950 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {pubLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}ค้นหาเอกสาร
+                  </button>
                 </div>
-              )}
+              </div>
+
+              <div className="p-5">
+                {pubError ? (
+                  <div className="flex items-start gap-2 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
+                    <AlertCircle className="mt-0.5 h-4 w-4" />
+                    <span>{pubError}</span>
+                  </div>
+                ) : statusMessage() ? (
+                  <div className="flex items-start gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">
+                    <AlertCircle className="mt-0.5 h-4 w-4 text-slate-500" />
+                    <span>{statusMessage()}</span>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    <div className="overflow-x-auto">
+                      {pubLoading ? (
+                        <div className="space-y-2 animate-pulse">
+                          {[...Array(5)].map((_, i) => (
+                            <div key={i} className="h-6 rounded bg-slate-100" />
+                          ))}
+                        </div>
+                      ) : publications.length === 0 ? (
+                        <div className="py-6 text-center text-slate-500">ไม่พบข้อมูลงานวิจัยจาก Scopus</div>
+                      ) : (
+                        <>
+                          <table className="min-w-full divide-y divide-gray-200 text-sm">
+                            <thead className="bg-gray-50">
+                              <tr>
+                                <th className="w-14 px-4 py-2 text-center font-medium text-gray-700">ลำดับ</th>
+                                <th className="px-4 py-2 text-left font-medium text-gray-700">ชื่อเรื่อง</th>
+                                <th className="w-24 px-4 py-2 text-right font-medium text-gray-700">Cited by</th>
+                                <th className="w-20 px-4 py-2 text-center font-medium text-gray-700">ปี</th>
+                                <th className="w-32 px-4 py-2 text-left font-medium text-gray-700">ลิงก์</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-200">
+                              {publications.map((pub, index) => {
+                                const rowNumber = (pubMeta.offset || 0) + index + 1;
+                                const citedByValue =
+                                  pub.cited_by !== undefined && pub.cited_by !== null ? pub.cited_by : null;
+                                const yearValue = pub.publication_year || "-";
+                                return (
+                                  <tr key={`${pub.id}-${pub.eid}`} className="hover:bg-gray-50">
+                                    <td className="px-4 py-2 text-center text-gray-700">{rowNumber}</td>
+                                    <td className="max-w-xs px-4 py-2 lg:max-w-md">
+                                      <div className="space-y-1">
+                                        <span className="block truncate font-semibold text-gray-900" title={pub.title}>
+                                          {pub.title || "ไม่ระบุชื่อเรื่อง"}
+                                        </span>
+                                        {pub.venue || pub.publication_name ? (
+                                          <span className="block truncate text-xs text-gray-500">
+                                            {pub.venue || pub.publication_name}
+                                          </span>
+                                        ) : null}
+                                        {pub.scopus_id ? (
+                                          <span className="block text-[11px] text-gray-500">Scopus ID: {pub.scopus_id}</span>
+                                        ) : null}
+                                        {pub.eid ? <span className="block text-[11px] text-gray-500">EID: {pub.eid}</span> : null}
+                                      </div>
+                                    </td>
+                                    <td className="px-4 py-2 text-right text-gray-700">{citedByValue ?? "-"}</td>
+                                    <td className="px-4 py-2 text-center text-gray-700">{yearValue}</td>
+                                    <td className="px-4 py-2">
+                                      <div className="flex flex-wrap gap-2 text-xs">
+                                        {pub.url && (
+                                          <a
+                                            href={pub.url}
+                                            target="_blank"
+                                            rel="noreferrer"
+                                            className="inline-flex items-center gap-1 rounded-full border border-slate-300 px-2 py-1 text-slate-700 transition hover:border-slate-900 hover:text-slate-900"
+                                          >
+                                            DOI/URL <ExternalLink size={14} />
+                                          </a>
+                                        )}
+                                        {pub.scopus_url && (
+                                          <a
+                                            href={pub.scopus_url}
+                                            target="_blank"
+                                            rel="noreferrer"
+                                            className="inline-flex items-center gap-1 rounded-full border border-indigo-200 bg-indigo-50 px-2 py-1 text-indigo-700 transition hover:border-indigo-400"
+                                          >
+                                            Scopus <ExternalLink size={14} />
+                                          </a>
+                                        )}
+                                      </div>
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                          <div className="mt-4 flex items-center justify-between text-sm text-slate-700">
+                            <span>
+                              แสดง {(pubMeta.offset || 0) + 1}-
+                              {Math.min((pubMeta.offset || 0) + (pubMeta.limit || PUB_PAGE_SIZE), pubMeta.total || 0)} จาก {pubMeta.total || 0}
+                            </span>
+                            <div className="space-x-2">
+                              <button
+                                type="button"
+                                onClick={() => handlePageChange(-1)}
+                                disabled={currentPage <= 1 || pubLoading}
+                                className="rounded border px-3 py-1 text-sm disabled:opacity-50"
+                              >
+                                ก่อนหน้า
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handlePageChange(1)}
+                                disabled={currentPage >= totalPages || pubLoading}
+                                className="rounded border px-3 py-1 text-sm disabled:opacity-50"
+                              >
+                                ถัดไป
+                              </button>
+                            </div>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
+          )}
         </div>
       </div>
     </PageLayout>
