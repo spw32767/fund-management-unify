@@ -2,7 +2,7 @@
 'use client';
 
 import React, { useEffect, useMemo, useState } from 'react';
-import { FileCheck, FileText, Filter, Download } from 'lucide-react';
+import { FileCheck, FileText, Filter } from 'lucide-react';
 
 import PageLayout from '../common/PageLayout';
 import Card from '../common/Card';
@@ -12,6 +12,7 @@ import { toast } from 'react-hot-toast';
 
 import adminAPI from '@/app/lib/admin_api';
 import apiClient from '@/app/lib/api';
+import { systemConfigAPI } from '@/app/lib/system_config_api';
 
 // =========================
 // Helpers
@@ -51,6 +52,51 @@ function asArray(maybe) {
   return [];
 }
 
+// ประกอบชื่อ "ทุนย่อย" + "เงื่อนไขย่อย" ตามรูปแบบใหม่
+function buildBudgetLabel(source = {}) {
+  const baseName = stripBudgetCodeText(
+    source.subcategory_name ||
+      source.SubcategoryName ||
+      source.subcategory_budget_name ||
+      source.SubcategoryBudgetName ||
+      source.label ||
+      source.name ||
+      source.budget_name ||
+      'ทุนย่อย'
+  );
+
+  const rawCondition = stripBudgetCodeText(
+    source.fund_description ||
+      source.FundDescription ||
+      source.fund_condition ||
+      source.subcategory_budget_label ||
+      source.SubcategoryBudgetLabel ||
+      ''
+  );
+
+  const name = String(baseName || '').trim();
+  const condition = String(rawCondition || '').trim();
+
+  if (condition && condition !== name) {
+    return `${name} ${condition}`.trim();
+  }
+  return name || 'ทุนย่อย';
+}
+
+// ลบข้อความ "งบ #xxx" ที่ต่อท้ายหมวดทุน
+function stripBudgetCode(name) {
+  const safe = String(name ?? '').trim();
+  if (!safe) return '-';
+  return safe.replace(/\s*งบ\s*#?\s*\d+\s*$/i, '').trim() || safe;
+}
+
+// เวอร์ชันไม่คืนค่า '-' สำหรับกรณีข้อความว่าง ใช้ทำความสะอาด label
+function stripBudgetCodeText(text) {
+  const safe = String(text ?? '').trim();
+  if (!safe) return '';
+  return safe.replace(/\s*งบ\s*#?\s*\d+\s*$/i, '').trim();
+}
+
 // แปลง rows ดิบ → โครงหมวดหมู่
 function groupRowsToCategories(rows) {
   const list = asArray(rows);
@@ -59,7 +105,9 @@ function groupRowsToCategories(rows) {
   const map = new Map();
   for (const r of list) {
     const categoryId = r.category_id ?? r.CategoryID ?? r.categoryId ?? null;
-    const categoryName = r.category_name ?? r.CategoryName ?? r.category ?? '-';
+    const categoryName = stripBudgetCode(
+      r.category_name ?? r.CategoryName ?? r.category ?? '-'
+    );
     const catKey = `${categoryId}::${categoryName}`;
 
     if (!map.has(catKey)) {
@@ -71,13 +119,16 @@ function groupRowsToCategories(rows) {
       });
     }
 
-    const label =
-      r.subcategory_budget_label ||
-      r.subcategory_budget_name ||
-      r.subcategory_name ||
-      r.SubcategoryBudgetLabel ||
-      r.SubcategoryName ||
-      'ทุนย่อย';
+    const label = buildBudgetLabel({
+      subcategory_name: r.subcategory_name ?? r.SubcategoryName,
+      fund_description: r.fund_description ?? r.FundDescription,
+      fund_condition: r.fund_condition ?? r.FundCondition,
+      subcategory_budget_label: r.subcategory_budget_label ?? r.SubcategoryBudgetLabel,
+      subcategory_budget_name: r.subcategory_budget_name ?? r.SubcategoryBudgetName,
+      label: r.label ?? r.Label,
+      name: r.name ?? r.Name,
+      budget_name: r.budget_name ?? r.BudgetName,
+    });
 
     const amount = Number(
       r.approved_amount ??
@@ -123,9 +174,13 @@ export default function ApprovalRecords() {
     async function loadMeta() {
       setLoadingMeta(true);
       try {
-        const [yearsRes, usersRes] = await Promise.all([
-          adminAPI.getYears(),                       // GET /admin/years
-          apiClient.get('/users', { page_size: 1000 }) // GET /users
+        const [yearsRes, currentYearRes, usersRes] = await Promise.all([
+          adminAPI.getYears(), // GET /admin/years
+          systemConfigAPI.getCurrentYear().catch((err) => {
+            console.error('โหลด current year ไม่สำเร็จ', err);
+            return null;
+          }),
+          apiClient.get('/users', { page_size: 1000 }), // GET /users
         ]);
 
         const yearListRaw = Array.isArray(yearsRes) ? yearsRes : yearsRes?.years || yearsRes?.data || [];
@@ -146,10 +201,20 @@ export default function ApprovalRecords() {
         setYears(yearList);
         setUsers(visibleUsers);
 
+        const currentYearValue =
+          currentYearRes?.current_year ?? currentYearRes?.data?.current_year ?? null;
+        const defaultYear = yearList.find(
+          (y) =>
+            (currentYearValue != null &&
+              (String(y.label) === String(currentYearValue) || y.id === Number(currentYearValue))) ||
+            false
+        );
+
         // defaults
         if (!yearId && yearList.length) {
-          setYearId(yearList[0].id);
-          setYearLabel(yearList[0].label);
+          const chosen = defaultYear ?? yearList[0];
+          setYearId(chosen.id);
+          setYearLabel(chosen.label);
         }
         if (!userId && visibleUsers.length) {
           setUserId(visibleUsers[0].user_id);
@@ -195,9 +260,20 @@ export default function ApprovalRecords() {
         if (Array.isArray(catsA)) {
           cats = catsA.map((c) => ({
             categoryId: c.categoryId ?? c.category_id ?? null,
-            categoryName: c.categoryName ?? c.category_name ?? '-',
+            categoryName: stripBudgetCode(
+              c.categoryName ?? c.category_name ?? '-'
+            ),
             items: asArray(c.items).map((it) => ({
-              label: it.label ?? it.name ?? it.budget_name ?? it.subcategory_name ?? '-',
+              label: buildBudgetLabel({
+                subcategory_name: it.subcategory_name ?? it.SubcategoryName,
+                fund_description: it.fund_description ?? it.FundDescription,
+                fund_condition: it.fund_condition ?? it.FundCondition,
+                subcategory_budget_label: it.subcategory_budget_label ?? it.SubcategoryBudgetLabel,
+                subcategory_budget_name: it.subcategory_budget_name ?? it.SubcategoryBudgetName,
+                label: it.label ?? it.Label,
+                name: it.name ?? it.Name,
+                budget_name: it.budget_name ?? it.BudgetName,
+              }),
               amount: Number(it.amount ?? it.total ?? 0) || 0,
             })),
             total:
@@ -239,10 +315,6 @@ export default function ApprovalRecords() {
 
   const selectedUser = users.find((u) => String(u.user_id) === String(userId));
 
-  const handleExport = () => {
-    toast('กำลังพัฒนา Export CSV/Excel', { icon: '🛠️' });
-  };
-
   return (
     <PageLayout
       title="บันทึกข้อมูลการอนุมัติทุน"
@@ -252,14 +324,6 @@ export default function ApprovalRecords() {
         { label: 'หน้าแรก', href: '/admin' },
         { label: 'บันทึกข้อมูลการอนุมัติทุน' },
       ]}
-      actions={
-        <div className="flex gap-2">
-          <button onClick={handleExport} className="btn btn-primary" disabled={loadingMeta || loadingData}>
-            <Download size={18} />
-            Export
-          </button>
-        </div>
-      }
     >
       {/* ตัวกรอง */}
       <div className="mb-6">
