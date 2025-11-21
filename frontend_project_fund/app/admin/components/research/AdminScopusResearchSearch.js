@@ -64,12 +64,12 @@ export default function AdminScopusResearchSearch() {
   );
 
   const fetchStats = useCallback(
-    async () => {
-      if (!selectedUserId) return;
+    async (userId = selectedUserId) => {
+      if (!userId) return;
       setStatsLoading(true);
       setStatsError("");
       try {
-        const res = await publicationsAPI.getScopusPublicationStatsForUser(selectedUserId);
+        const res = await publicationsAPI.getScopusPublicationStatsForUser(userId);
         setStats(res?.data || null);
         setStatsMeta(res?.meta || { has_scopus_id: false, has_author_record: false });
       } catch (error) {
@@ -85,8 +85,8 @@ export default function AdminScopusResearchSearch() {
   );
 
   const fetchPublications = useCallback(
-    async (offset = 0) => {
-      if (!selectedUserId) return;
+    async (offset = 0, userId = selectedUserId) => {
+      if (!userId) return;
       setPubLoading(true);
       setPubError("");
       try {
@@ -94,7 +94,7 @@ export default function AdminScopusResearchSearch() {
         if (pubQuery.trim()) {
           params.q = pubQuery.trim();
         }
-        const res = await publicationsAPI.getScopusPublicationsForUser(selectedUserId, params);
+        const res = await publicationsAPI.getScopusPublicationsForUser(userId, params);
         const items = res?.data || [];
         setPublications(items);
         setPubMeta(res?.paging || { total: items.length, limit: PUB_PAGE_SIZE, offset });
@@ -112,6 +112,19 @@ export default function AdminScopusResearchSearch() {
     [pubQuery, selectedUserId]
   );
 
+  const handleSelectUser = useCallback(
+    (user) => {
+      const userId = user?.user_id || user?.UserID;
+      setSelectedUser(user || null);
+      setPubMeta((prev) => ({ ...prev, offset: 0 }));
+      if (userId) {
+        fetchPublications(0, userId);
+        fetchStats(userId);
+      }
+    },
+    [fetchPublications, fetchStats]
+  );
+
   useEffect(() => {
     loadUsers(0);
   }, [loadUsers]);
@@ -119,10 +132,14 @@ export default function AdminScopusResearchSearch() {
   useEffect(() => {
     if (selectedUserId) {
       setPubMeta((prev) => ({ ...prev, offset: 0 }));
-      fetchPublications(0);
-      fetchStats();
+      if (!pubLoading) {
+        fetchPublications(0, selectedUserId);
+      }
+      if (!statsLoading) {
+        fetchStats(selectedUserId);
+      }
     }
-  }, [selectedUserId, fetchPublications, fetchStats]);
+  }, [selectedUserId, fetchPublications, fetchStats, pubLoading, statsLoading]);
 
   const totalPages = useMemo(
     () => Math.max(1, Math.ceil((pubMeta?.total || 0) / (pubMeta?.limit || PUB_PAGE_SIZE))),
@@ -245,7 +262,7 @@ export default function AdminScopusResearchSearch() {
                                   ? "border border-indigo-200 bg-indigo-600 text-white hover:bg-indigo-700"
                                   : "border border-slate-300 bg-white text-slate-800 hover:border-slate-400"
                               }`}
-                              onClick={() => setSelectedUser(hit)}
+                              onClick={() => handleSelectUser(hit)}
                             >
                               ดูรายละเอียด
                             </button>
