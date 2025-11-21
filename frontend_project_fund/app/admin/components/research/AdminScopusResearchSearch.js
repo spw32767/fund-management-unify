@@ -158,6 +158,10 @@ export default function AdminScopusResearchSearch() {
     fetchPublications(nextOffset);
   };
 
+  const handleSelectUser = (hit) => {
+    setSelectedUser(hit);
+  };
+
   const statusMessage = () => {
     if (!selectedUserId) return "เลือกผู้ใช้เพื่อดูข้อมูลงานวิจัย";
     if (!pubFlags?.has_scopus_id) return "ผู้ใช้นี้ยังไม่มี Scopus ID";
@@ -542,6 +546,3 @@ export default function AdminScopusResearchSearch() {
     </PageLayout>
   );
 }
-  const handleSelectUser = (hit) => {
-    setSelectedUser(hit);
-  };
