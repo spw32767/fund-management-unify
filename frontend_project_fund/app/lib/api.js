@@ -1003,6 +1003,14 @@ export const publicationsAPI = {
   async searchScholarAuthorsAdmin(q) {
     return apiClient.get('/admin/user-publications/scholar/search', { q });
   },
+  async getScopusPublicationsForUser(userId, params = {}) {
+    const payload = { ...params, user_id: userId };
+    return apiClient.get('/teacher/user-publications/scopus', payload);
+  },
+  async getScopusPublicationStatsForUser(userId, params = {}) {
+    const payload = { ...params, user_id: userId };
+    return apiClient.get('/teacher/user-publications/scopus/stats', payload);
+  },
   async importScholarForUser(userId, authorId) {
     const url = `/admin/user-publications/import/scholar?user_id=${encodeURIComponent(
       userId

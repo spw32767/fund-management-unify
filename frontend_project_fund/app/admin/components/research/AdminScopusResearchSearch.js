@@ -1,0 +1,393 @@
+// app/admin/components/research/AdminScopusResearchSearch.js
+"use client";
+
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { AlertCircle, ExternalLink, FileText, Loader2, Search, UserRoundSearch } from "lucide-react";
+import { publicationsAPI, usersAPI } from "../../../lib/api";
+
+const PAGE_SIZE = 10;
+
+export default function AdminScopusResearchSearch() {
+  const [userQuery, setUserQuery] = useState("");
+  const [userResults, setUserResults] = useState([]);
+  const [searchingUsers, setSearchingUsers] = useState(false);
+  const [userError, setUserError] = useState("");
+
+  const [selectedUser, setSelectedUser] = useState(null);
+  const [pubQuery, setPubQuery] = useState("");
+  const [publications, setPublications] = useState([]);
+  const [pubMeta, setPubMeta] = useState({ total: 0, limit: PAGE_SIZE, offset: 0 });
+  const [pubFlags, setPubFlags] = useState({ has_scopus_id: false, has_author_record: false });
+  const [pubLoading, setPubLoading] = useState(false);
+  const [pubError, setPubError] = useState("");
+
+  const selectedUserId = selectedUser?.user_id || selectedUser?.UserID;
+
+  const filteredUserResults = useMemo(
+    () => userResults.filter((u) => u.scopus_id && String(u.scopus_id).trim() !== ""),
+    [userResults]
+  );
+
+  const searchUsers = async () => {
+    if (!userQuery.trim()) return;
+
+    setSearchingUsers(true);
+    setUserError("");
+
+    try {
+      const res = await usersAPI.search(userQuery.trim());
+      const hits = res?.data || res?.users || [];
+      setUserResults(Array.isArray(hits) ? hits : []);
+    } catch (error) {
+      console.error("Search users error", error);
+      setUserResults([]);
+      setUserError(error?.message || "ไม่สามารถค้นหาผู้ใช้ได้");
+    } finally {
+      setSearchingUsers(false);
+    }
+  };
+
+  const fetchPublications = useCallback(
+    async (offset = 0) => {
+      if (!selectedUserId) return;
+      setPubLoading(true);
+      setPubError("");
+      try {
+        const params = { limit: PAGE_SIZE, offset, sort: "year", direction: "desc" };
+        if (pubQuery.trim()) {
+          params.q = pubQuery.trim();
+        }
+        const res = await publicationsAPI.getScopusPublicationsForUser(selectedUserId, params);
+        const items = res?.data || [];
+        setPublications(items);
+        setPubMeta(res?.paging || { total: items.length, limit: PAGE_SIZE, offset });
+        setPubFlags(res?.meta || { has_scopus_id: true, has_author_record: true });
+      } catch (error) {
+        console.error("Load publications error", error);
+        setPublications([]);
+        setPubMeta({ total: 0, limit: PAGE_SIZE, offset: 0 });
+        setPubFlags({ has_scopus_id: false, has_author_record: false });
+        setPubError(error?.message || "ไม่สามารถดึงข้อมูลงานวิจัยได้");
+      } finally {
+        setPubLoading(false);
+      }
+    },
+    [pubQuery, selectedUserId]
+  );
+
+  useEffect(() => {
+    setPubMeta((prev) => ({ ...prev, offset: 0 }));
+    if (selectedUserId) {
+      fetchPublications(0);
+    }
+  }, [selectedUserId, fetchPublications]);
+
+  const totalPages = Math.max(1, Math.ceil((pubMeta?.total || 0) / (pubMeta?.limit || PAGE_SIZE)));
+  const currentPage = Math.floor((pubMeta?.offset || 0) / (pubMeta?.limit || PAGE_SIZE)) + 1;
+
+  const handlePageChange = (direction) => {
+    if (pubLoading) return;
+    const nextPage = currentPage + direction;
+    if (nextPage < 1 || nextPage > totalPages) return;
+    const nextOffset = (nextPage - 1) * (pubMeta?.limit || PAGE_SIZE);
+    fetchPublications(nextOffset);
+  };
+
+  const statusMessage = () => {
+    if (!selectedUserId) return "เลือกผู้ใช้เพื่อดูข้อมูลงานวิจัย";
+    if (!pubFlags?.has_scopus_id) return "ผู้ใช้นี้ยังไม่มี Scopus ID";
+    if (!pubFlags?.has_author_record) return "ยังไม่พบข้อมูลจาก Scopus สำหรับผู้ใช้นี้";
+    return "";
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <div className="flex flex-col gap-2 border-b border-slate-200 p-6 sm:flex-row sm:items-center sm:justify-between">
+          <div className="space-y-1">
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Scopus Research</p>
+            <h1 className="text-2xl font-semibold text-slate-900">ค้นหางานวิจัย</h1>
+            <p className="text-sm text-slate-600">
+              เลือกผู้ใช้ที่มี Scopus ID เพื่อดูและค้นหาผลงานวิชาการจาก Scopus
+            </p>
+          </div>
+        </div>
+
+        <div className="grid gap-6 p-6 lg:grid-cols-[360px,1fr]">
+          <div className="space-y-4">
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+              <div className="flex items-start gap-3">
+                <div className="rounded-lg bg-slate-900/90 p-2 text-white shadow-sm">
+                  <UserRoundSearch size={20} />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-slate-900">ค้นหาผู้ใช้</p>
+                  <p className="text-xs text-slate-500">แสดงเฉพาะผู้ใช้ที่มี Scopus ID ในระบบ</p>
+                </div>
+              </div>
+
+              <div className="mt-4 space-y-3">
+                <div className="flex flex-col gap-2 sm:flex-row">
+                  <div className="relative flex-1">
+                    <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+                    <input
+                      className="w-full rounded-lg border border-slate-300 bg-white px-9 py-2 text-sm shadow-sm focus:border-slate-500 focus:outline-none focus:ring-2 focus:ring-slate-200"
+                      placeholder="พิมพ์ชื่อหรืออีเมล"
+                      value={userQuery}
+                      onChange={(e) => setUserQuery(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          searchUsers();
+                        }
+                      }}
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={searchUsers}
+                    disabled={!userQuery.trim() || searchingUsers}
+                    className="inline-flex items-center justify-center rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-950 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {searchingUsers && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}ค้นหา
+                  </button>
+                </div>
+
+                {userError && (
+                  <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                    <AlertCircle className="mt-0.5 h-4 w-4" />
+                    <span>{userError}</span>
+                  </div>
+                )}
+
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    <span>ผลการค้นหา</span>
+                    <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] text-slate-600">
+                      {filteredUserResults.length}
+                    </span>
+                  </div>
+
+                  <div className="max-h-[360px] space-y-2 overflow-y-auto pr-1">
+                    {filteredUserResults.length === 0 ? (
+                      <div className="rounded-lg border border-dashed border-slate-200 bg-white px-3 py-4 text-center text-xs text-slate-500">
+                        {userQuery.trim()
+                          ? "ไม่พบผู้ใช้ที่มี Scopus ID"
+                          : "ค้นหาผู้ใช้เพื่อเริ่มต้น"}
+                      </div>
+                    ) : (
+                      filteredUserResults.map((hit) => {
+                        const isActive = String(hit.user_id) === String(selectedUserId);
+                        return (
+                          <button
+                            key={hit.user_id}
+                            type="button"
+                            onClick={() => setSelectedUser(hit)}
+                            className={`w-full rounded-lg border px-3 py-3 text-left shadow-sm transition ${
+                              isActive
+                                ? "border-slate-900 bg-white ring-1 ring-slate-300"
+                                : "border-slate-200 bg-white hover:border-slate-300"
+                            }`}
+                          >
+                            <div className="flex items-start gap-3">
+                              <div className="rounded-md bg-indigo-50 px-2 py-1 text-[11px] font-semibold text-indigo-700">
+                                ID {hit.user_id}
+                              </div>
+                              <div className="flex-1 space-y-1">
+                                <div className="text-sm font-semibold text-slate-900">{hit.name || "ไม่ระบุชื่อ"}</div>
+                                {hit.email && <div className="text-xs text-slate-500">{hit.email}</div>}
+                                <div className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700">
+                                  Scopus ID <code className="font-mono text-xs">{hit.scopus_id}</code>
+                                </div>
+                              </div>
+                            </div>
+                          </button>
+                        );
+                      })
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">
+                <FileText size={14} /> ผลงานจาก Scopus
+              </div>
+              {selectedUser && (
+                <div className="inline-flex items-center gap-2 rounded-full bg-indigo-50 px-3 py-1 text-xs font-semibold text-indigo-700">
+                  ผู้ใช้: {selectedUser.name || "ไม่ระบุชื่อ"}
+                </div>
+              )}
+            </div>
+
+            <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
+              <div className="border-b border-slate-200 p-4">
+                <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                  <div className="space-y-1">
+                    <p className="text-sm font-semibold text-slate-900">ผลงานวิจัยจาก Scopus</p>
+                    <p className="text-xs text-slate-500">
+                      สามารถค้นหาด้วยคำสำคัญในชื่อเรื่อง และเรียกดูเฉพาะผู้ใช้ที่มี Scopus ID
+                    </p>
+                  </div>
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                    <div className="relative w-full sm:w-64">
+                      <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+                      <input
+                        className="w-full rounded-lg border border-slate-300 bg-white px-9 py-2 text-sm shadow-sm focus:border-slate-500 focus:outline-none focus:ring-2 focus:ring-slate-200"
+                        placeholder="ค้นหาชื่อเรื่อง"
+                        value={pubQuery}
+                        onChange={(e) => setPubQuery(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            fetchPublications(0);
+                          }
+                        }}
+                        disabled={!selectedUserId}
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => fetchPublications(0)}
+                      disabled={!selectedUserId || pubLoading}
+                      className="inline-flex items-center justify-center rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-950 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {pubLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}ค้นหาเอกสาร
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-4">
+                {pubError ? (
+                  <div className="flex items-start gap-2 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
+                    <AlertCircle className="mt-0.5 h-4 w-4" />
+                    <span>{pubError}</span>
+                  </div>
+                ) : statusMessage() ? (
+                  <div className="flex items-start gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">
+                    <AlertCircle className="mt-0.5 h-4 w-4 text-slate-500" />
+                    <span>{statusMessage()}</span>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    <div className="overflow-x-auto">
+                      <table className="min-w-full divide-y divide-slate-200 text-sm">
+                        <thead className="bg-slate-50 text-xs uppercase text-slate-600">
+                          <tr>
+                            <th className="px-3 py-2 text-left font-semibold">ชื่อเรื่อง</th>
+                            <th className="px-3 py-2 text-left font-semibold">วารสาร/แหล่งเผยแพร่</th>
+                            <th className="px-3 py-2 text-left font-semibold">ปี</th>
+                            <th className="px-3 py-2 text-left font-semibold">Cited by</th>
+                            <th className="px-3 py-2 text-left font-semibold">ลิงก์</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-200">
+                          {pubLoading ? (
+                            <tr>
+                              <td colSpan="5" className="px-3 py-6 text-center text-slate-500">
+                                <div className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1 text-sm font-medium text-slate-700">
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                  กำลังโหลดข้อมูล
+                                </div>
+                              </td>
+                            </tr>
+                          ) : publications.length === 0 ? (
+                            <tr>
+                              <td colSpan="5" className="px-3 py-6 text-center text-slate-500">
+                                ไม่พบข้อมูลงานวิจัยจาก Scopus
+                              </td>
+                            </tr>
+                          ) : (
+                            publications.map((pub) => (
+                              <tr key={`${pub.id}-${pub.eid}`} className="hover:bg-slate-50">
+                                <td className="px-3 py-3">
+                                  <div className="space-y-1">
+                                    <div className="font-semibold text-slate-900">{pub.title || "ไม่ระบุชื่อเรื่อง"}</div>
+                                    {pub.scopus_id && (
+                                      <div className="text-[11px] text-slate-500">Scopus ID: {pub.scopus_id}</div>
+                                    )}
+                                    {pub.eid && (
+                                      <div className="text-[11px] text-slate-500">EID: {pub.eid}</div>
+                                    )}
+                                  </div>
+                                </td>
+                                <td className="px-3 py-3 text-slate-700">
+                                  {pub.publication_name || pub.venue || "-"}
+                                </td>
+                                <td className="px-3 py-3 text-slate-700">
+                                  {pub.publication_year || "-"}
+                                </td>
+                                <td className="px-3 py-3 text-slate-700">
+                                  {pub.cited_by ?? "-"}
+                                </td>
+                                <td className="px-3 py-3">
+                                  <div className="flex flex-wrap gap-2 text-xs">
+                                    {pub.url && (
+                                      <a
+                                        href={pub.url}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        className="inline-flex items-center gap-1 rounded-full border border-slate-300 px-2 py-1 text-slate-700 transition hover:border-slate-900 hover:text-slate-900"
+                                      >
+                                        DOI/URL <ExternalLink size={14} />
+                                      </a>
+                                    )}
+                                    {pub.scopus_url && (
+                                      <a
+                                        href={pub.scopus_url}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        className="inline-flex items-center gap-1 rounded-full border border-indigo-200 bg-indigo-50 px-2 py-1 text-indigo-700 transition hover:border-indigo-400"
+                                      >
+                                        Scopus <ExternalLink size={14} />
+                                      </a>
+                                    )}
+                                  </div>
+                                </td>
+                              </tr>
+                            ))
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    <div className="flex flex-col gap-3 border-t border-slate-200 pt-3 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="text-xs text-slate-600">
+                        แสดง {(pubMeta.offset || 0) + 1} - {Math.min((pubMeta.offset || 0) + (pubMeta.limit || PAGE_SIZE), pubMeta.total || 0)} จาก {pubMeta.total || 0} รายการ
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => handlePageChange(-1)}
+                          disabled={currentPage <= 1 || pubLoading}
+                          className="rounded-lg border border-slate-300 px-3 py-1 text-sm font-semibold text-slate-600 shadow-sm transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          ก่อนหน้า
+                        </button>
+                        <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-1 text-sm font-semibold text-slate-700">
+                          หน้า {currentPage} / {totalPages}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handlePageChange(1)}
+                          disabled={currentPage >= totalPages || pubLoading}
+                          className="rounded-lg border border-slate-300 px-3 py-1 text-sm font-semibold text-slate-600 shadow-sm transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          ถัดไป
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
