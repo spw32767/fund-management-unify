@@ -38,7 +38,8 @@ export default function AdminScopusResearchSearch() {
   const [pubLoading, setPubLoading] = useState(false);
   const [pubError, setPubError] = useState("");
 
-  const [activeTab, setActiveTab] = useState("stats");
+  const [activeTab, setActiveTab] = useState("publications");
+  const [userSearch, setUserSearch] = useState("");
 
   const loadUsers = useCallback(
     async (offset = 0) => {
@@ -215,6 +216,17 @@ export default function AdminScopusResearchSearch() {
     { documents: 0, citations: 0 }
   );
 
+  const filteredUsers = useMemo(() => {
+    if (!userSearch.trim()) return scopusUsers;
+    const term = userSearch.toLowerCase();
+    return scopusUsers.filter((hit) => {
+      const name = (hit.name || "").toLowerCase();
+      const email = (hit.email || "").toLowerCase();
+      const scopusId = String(hit.scopus_id || hit.scopusID || "").toLowerCase();
+      return name.includes(term) || email.includes(term) || scopusId.includes(term);
+    });
+  }, [scopusUsers, userSearch]);
+
   const axisLabelFormatter = (value) => {
     if (typeof value !== "number" || Number.isNaN(value)) {
       return value;
@@ -286,12 +298,24 @@ export default function AdminScopusResearchSearch() {
     >
       <div className="grid gap-6 lg:grid-cols-2 xl:grid-cols-[1.15fr,1.85fr]">
         <div className="rounded-2xl border border-slate-200 bg-white shadow-sm">
-          <div className="flex flex-col gap-2 border-b border-slate-200 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-col gap-3 border-b border-slate-200 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <p className="text-sm font-semibold text-slate-900">รายชื่อผู้ใช้ที่มี Scopus ID</p>
               <p className="text-xs text-slate-500">เลือกแถวแล้วกด “ดูรายละเอียด” เพื่อเปิดข้อมูลเหมือนหน้าจัดการคำร้อง</p>
             </div>
-            <div className="rounded-full bg-slate-100 px-3 py-1 text-[12px] font-semibold text-slate-700">รวม {userPaging.total} คน</div>
+            <div className="flex flex-col gap-2 sm:items-end">
+              <div className="relative w-full min-w-[240px] sm:w-64">
+                <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+                <input
+                  type="text"
+                  className="w-full rounded-lg border border-slate-300 bg-white px-9 py-2 text-sm shadow-sm focus:border-slate-500 focus:outline-none focus:ring-2 focus:ring-slate-200"
+                  placeholder="ค้นหารายชื่อ / Scopus ID"
+                  value={userSearch}
+                  onChange={(e) => setUserSearch(e.target.value)}
+                />
+              </div>
+              <div className="rounded-full bg-slate-100 px-3 py-1 text-[12px] font-semibold text-slate-700">รวม {userPaging.total} คน</div>
+            </div>
           </div>
 
           {userError && (
@@ -320,14 +344,14 @@ export default function AdminScopusResearchSearch() {
                       </div>
                     </td>
                   </tr>
-                ) : scopusUsers.length === 0 ? (
+                ) : filteredUsers.length === 0 ? (
                   <tr>
                     <td colSpan="4" className="px-4 py-8 text-center text-slate-500">
-                      ยังไม่มีผู้ใช้ที่บันทึก Scopus ID
+                      ไม่พบผู้ใช้ที่ตรงกับคำค้น
                     </td>
                   </tr>
                 ) : (
-                  scopusUsers.map((hit) => {
+                  filteredUsers.map((hit) => {
                     const isActive = String(hit.user_id) === String(selectedUserId);
                     return (
                       <tr key={hit.user_id} className={isActive ? "bg-indigo-50/60" : "hover:bg-slate-50"}>
@@ -394,10 +418,10 @@ export default function AdminScopusResearchSearch() {
 
         <div className="space-y-4">
           <div className="rounded-2xl border border-slate-200 bg-white px-5 py-4 shadow-sm">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <p className="text-sm font-semibold text-slate-900">ผู้ใช้ที่เลือก</p>
-                <p className="text-xs text-slate-500">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="text-sm font-semibold text-slate-900">ผู้ใช้ที่เลือก</p>
+                  <p className="text-xs text-slate-500">
                   {selectedUser ? selectedUser.name || "ไม่ระบุชื่อ" : "เลือกผู้ใช้ทางซ้ายเพื่อเริ่ม"}
                 </p>
                 {selectedUser && (
@@ -405,18 +429,6 @@ export default function AdminScopusResearchSearch() {
                 )}
               </div>
               <div className="flex gap-2">
-                <button
-                  type="button"
-                  className={`rounded-full px-4 py-2 text-sm font-semibold shadow-sm transition ${
-                    activeTab === "stats"
-                      ? "bg-indigo-600 text-white"
-                      : "border border-slate-200 bg-white text-slate-800 hover:border-slate-300"
-                  }`}
-                  onClick={() => setActiveTab("stats")}
-                  disabled={!selectedUserId}
-                >
-                  สถิติ/กราฟ
-                </button>
                 <button
                   type="button"
                   className={`rounded-full px-4 py-2 text-sm font-semibold shadow-sm transition ${
@@ -428,6 +440,18 @@ export default function AdminScopusResearchSearch() {
                   disabled={!selectedUserId}
                 >
                   รายการเอกสาร
+                </button>
+                <button
+                  type="button"
+                  className={`rounded-full px-4 py-2 text-sm font-semibold shadow-sm transition ${
+                    activeTab === "stats"
+                      ? "bg-indigo-600 text-white"
+                      : "border border-slate-200 bg-white text-slate-800 hover:border-slate-300"
+                  }`}
+                  onClick={() => setActiveTab("stats")}
+                  disabled={!selectedUserId}
+                >
+                  สถิติ/กราฟ
                 </button>
               </div>
             </div>
