@@ -92,3 +92,130 @@ func TestStatsByUserDeduplicatesDocumentsAndUsesMaxCitations(t *testing.T) {
 		t.Fatalf("unmet expectations: %v", err)
 	}
 }
+
+func TestStatsByUserWithoutAuthorDoesNotSetAuthorMeta(t *testing.T) {
+	userQueryPattern := regexp.MustCompile(`SELECT .*Scopus_id.*FROM .*users.*user_id = \\?`)
+	authorQueryPattern := regexp.MustCompile(`SELECT .*id.*FROM .*scopus_authors.*scopus_author_id = \\?`)
+	dedupCountPattern := regexp.MustCompile(`.*`)
+
+	steps := []*queryStep{
+		{
+			kind:    kindQuery,
+			pattern: userQueryPattern,
+			args:    []driver.Value{int64(1)},
+			columns: []string{"Scopus_id"},
+			rows:    [][]driver.Value{{"12345"}},
+		},
+		{
+			kind:    kindQuery,
+			pattern: authorQueryPattern,
+			args:    []driver.Value{"12345"},
+			columns: []string{"id"},
+			rows:    [][]driver.Value{},
+		},
+		{
+			kind:    kindQuery,
+			pattern: dedupCountPattern,
+			args:    []driver.Value{"12345"},
+			columns: []string{"count"},
+			rows:    [][]driver.Value{{int64(0)}},
+		},
+	}
+
+	db, state, cleanup := newScriptedGormDB(t, steps)
+	defer cleanup()
+
+	svc := NewScopusPublicationService(db)
+
+	stats, meta, err := svc.StatsByUser(1)
+	if err != nil {
+		t.Fatalf("StatsByUser returned error: %v", err)
+	}
+
+	if !meta.HasScopusID {
+		t.Fatalf("expected has_scopus_id to be true, got %#v", meta)
+	}
+	if meta.HasAuthor {
+		t.Fatalf("expected has_author_record to remain false when author is missing, got %#v", meta)
+	}
+
+	if stats.TotalDocuments != 0 || stats.TotalCitations != 0 || len(stats.Trend) != 0 {
+		t.Fatalf("expected empty stats for missing author, got %+v", stats)
+	}
+
+	if err := state.verifyComplete(); err != nil {
+		t.Fatalf("unmet expectations: %v", err)
+	}
+}
+
+func TestStatsByUserHonorsRequestedUserID(t *testing.T) {
+	userQueryPattern := regexp.MustCompile(`SELECT .*Scopus_id.*FROM .*users.*user_id = \?`)
+	authorQueryPattern := regexp.MustCompile(`SELECT .*id.*FROM .*scopus_authors.*scopus_author_id = \?`)
+	dedupCountPattern := regexp.MustCompile(`SELECT COUNT\(\*\) FROM \(SELECT .*sda\.author_id = \?`)
+	rawCountPattern := regexp.MustCompile(`SELECT COUNT.*FROM scopus_documents AS sd.*sda\.author_id = \?`)
+	trendPattern := regexp.MustCompile(`SELECT year, COUNT\(\*\) AS documents.*FROM \(SELECT .*sda\.author_id = \?`)
+
+	steps := []*queryStep{
+		{
+			kind:    kindQuery,
+			pattern: userQueryPattern,
+			args:    []driver.Value{int64(8)},
+			columns: []string{"Scopus_id"},
+			rows:    [][]driver.Value{{"SCOPUS-8"}},
+		},
+		{
+			kind:    kindQuery,
+			pattern: authorQueryPattern,
+			args:    []driver.Value{"SCOPUS-8"},
+			columns: []string{"id"},
+			rows:    [][]driver.Value{{int64(8)}},
+		},
+		{
+			kind:    kindQuery,
+			pattern: dedupCountPattern,
+			args:    []driver.Value{int64(8)},
+			columns: []string{"count"},
+			rows:    [][]driver.Value{{int64(1)}},
+		},
+		{
+			kind:    kindQuery,
+			pattern: rawCountPattern,
+			args:    []driver.Value{int64(8)},
+			columns: []string{"count"},
+			rows:    [][]driver.Value{{int64(1)}},
+		},
+		{
+			kind:    kindQuery,
+			pattern: trendPattern,
+			args:    []driver.Value{int64(8)},
+			columns: []string{"year", "documents", "citations"},
+			rows:    [][]driver.Value{{int64(2022), int64(1), int64(12)}},
+		},
+	}
+
+	db, state, cleanup := newScriptedGormDB(t, steps)
+	defer cleanup()
+
+	svc := NewScopusPublicationService(db)
+
+	stats, meta, err := svc.StatsByUser(8)
+	if err != nil {
+		t.Fatalf("StatsByUser returned error: %v", err)
+	}
+
+	if !meta.HasScopusID || !meta.HasAuthor {
+		t.Fatalf("expected meta flags to be true for user 8, got %#v", meta)
+	}
+
+	if stats.TotalDocuments != 1 || stats.TotalCitations != 12 {
+		t.Fatalf("unexpected stats for user 8: %+v", stats)
+	}
+
+	if len(stats.Trend) != 1 || stats.Trend[0].Year != 2022 || stats.Trend[0].Citations != 12 {
+		t.Fatalf("unexpected trend for user 8: %+v", stats.Trend)
+	}
+
+	if err := state.verifyComplete(); err != nil {
+		t.Fatalf("unmet expectations: %v", err)
+	}
+}
