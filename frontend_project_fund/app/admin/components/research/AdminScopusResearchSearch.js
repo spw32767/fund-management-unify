@@ -243,10 +243,10 @@ export default function AdminScopusResearchSearch() {
     });
   }, [scopusUsers, userSearch]);
 
-  const exportRows = useMemo(() => {
-    if (!Array.isArray(publications) || publications.length === 0) return [];
-    return publications.map((pub, index) => {
-      const rowNumber = (pubMeta.offset || 0) + index + 1;
+  const buildExportRows = useCallback((items, startOffset = 0) => {
+    if (!Array.isArray(items) || items.length === 0) return [];
+    return items.map((pub, index) => {
+      const rowNumber = startOffset + index + 1;
       const citedByValue =
         pub.cited_by !== undefined && pub.cited_by !== null ? pub.cited_by : "";
       const openAccessFlag =
@@ -274,7 +274,9 @@ export default function AdminScopusResearchSearch() {
         keywords,
       };
     });
-  }, [publications, pubMeta.offset]);
+  }, []);
+
+  const hasExportableData = useMemo(() => (pubMeta?.total || 0) > 0, [pubMeta?.total]);
 
   const axisLabelFormatter = (value) => {
     if (typeof value !== "number" || Number.isNaN(value)) {
@@ -283,25 +285,56 @@ export default function AdminScopusResearchSearch() {
     return formatNumber(value);
   };
 
-  const handleExport = useCallback(() => {
-    if (!selectedUserId || exportRows.length === 0) return;
+  const handleExport = useCallback(async () => {
+    if (!selectedUserId || !hasExportableData) return;
     setExporting(true);
     try {
+      const query = pubQuery.trim();
+      const limit = pubMeta?.limit || PUB_PAGE_SIZE;
+      let offset = 0;
+      let total = pubMeta?.total || 0;
+      const allRows = [];
+
+      while (offset === 0 || offset < total) {
+        const params = { limit, offset, sort: "year", direction: "desc" };
+        if (query) {
+          params.q = query;
+        }
+
+        const res = await publicationsAPI.getScopusPublicationsForUser(selectedUserId, params);
+        const items = Array.isArray(res?.data) ? res.data : [];
+        const paging = res?.paging || {};
+        total = paging.total ?? total;
+        const pageLimit = paging.limit || limit;
+
+        allRows.push(...buildExportRows(items, offset));
+
+        if (items.length < pageLimit) {
+          break;
+        }
+        offset += pageLimit;
+      }
+
+      if (allRows.length === 0) {
+        toast.error("ไม่พบข้อมูลงานวิจัยสำหรับส่งออก");
+        return;
+      }
+
       const timestamp = new Date().toISOString().replace(/[:T]/g, "-").split(".")[0];
       const userRef = selectedUser?.scopus_id || selectedUser?.scopusID || selectedUserId;
       const filename = `scopus_publications_${userRef}_${timestamp}.xlsx`;
-      downloadXlsx(EXPORT_COLUMNS, exportRows, {
+      downloadXlsx(EXPORT_COLUMNS, allRows, {
         sheetName: "Scopus Publications",
         filename,
       });
-      toast.success(`ส่งออก ${exportRows.length} รายการเรียบร้อยแล้ว`);
+      toast.success(`ส่งออก ${allRows.length} รายการเรียบร้อยแล้ว`);
     } catch (error) {
       console.error("Export publications error", error);
       toast.error("ไม่สามารถส่งออกไฟล์ได้");
     } finally {
       setExporting(false);
     }
-  }, [exportRows, selectedUser, selectedUserId]);
+  }, [buildExportRows, hasExportableData, pubMeta?.limit, pubMeta?.total, pubQuery, selectedUser, selectedUserId]);
 
   const chartOptions = {
     chart: {
@@ -664,7 +697,7 @@ export default function AdminScopusResearchSearch() {
                   <button
                     type="button"
                     onClick={handleExport}
-                    disabled={!selectedUserId || exporting || exportRows.length === 0}
+                    disabled={!selectedUserId || exporting || !hasExportableData}
                     className="inline-flex items-center justify-center rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-800 shadow-sm transition hover:border-slate-400 disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     {exporting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}ส่งออก Excel
