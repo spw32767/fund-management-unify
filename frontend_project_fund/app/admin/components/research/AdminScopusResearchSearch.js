@@ -2,7 +2,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { AlertCircle, BarChart3, ExternalLink, FileText, Loader2, Search, UserRoundSearch } from "lucide-react";
+import { AlertCircle, BarChart3, ExternalLink, FileText, Loader2, Search, UserSearch } from "lucide-react";
 import PageLayout from "../common/PageLayout";
 import { publicationsAPI, usersAPI } from "../../../lib/api";
 
@@ -174,7 +174,7 @@ export default function AdminScopusResearchSearch() {
     <PageLayout
       title="ค้นหางานวิจัย"
       subtitle="ดูรายชื่อผู้ใช้ที่เชื่อมโยง Scopus และเปิดรายละเอียดผลงานแบบเดียวกับหน้าจัดการคำร้อง"
-      icon={<UserRoundSearch className="h-5 w-5" />}
+      icon={UserSearch}
     >
       <div className="grid gap-6 lg:grid-cols-[1.05fr,1.8fr] xl:grid-cols-[1fr,2fr]">
         <div className="rounded-2xl border border-slate-200 bg-white shadow-sm">
