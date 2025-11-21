@@ -284,7 +284,7 @@ export default function AdminScopusResearchSearch() {
       subtitle="ดูรายชื่อผู้ใช้ที่เชื่อมโยง Scopus และเปิดรายละเอียดผลงานแบบเดียวกับหน้าจัดการคำร้อง"
       icon={UserSearch}
     >
-      <div className="grid gap-6 xl:grid-cols-[1fr,1.9fr]">
+      <div className="grid gap-6 lg:grid-cols-2 xl:grid-cols-[1.15fr,1.85fr]">
         <div className="rounded-2xl border border-slate-200 bg-white shadow-sm">
           <div className="flex flex-col gap-2 border-b border-slate-200 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
@@ -393,7 +393,7 @@ export default function AdminScopusResearchSearch() {
         </div>
 
         <div className="space-y-4">
-          <div className="sticky top-4 z-10 rounded-2xl border border-slate-200 bg-white/90 px-5 py-4 shadow backdrop-blur">
+          <div className="rounded-2xl border border-slate-200 bg-white px-5 py-4 shadow-sm">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <p className="text-sm font-semibold text-slate-900">ผู้ใช้ที่เลือก</p>
