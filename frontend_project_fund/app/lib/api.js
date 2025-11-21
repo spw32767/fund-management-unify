@@ -1057,6 +1057,9 @@ export const usersAPI = {
   async search(q) {
     return apiClient.get('/admin/users/search', { q });
   },
+  async listScopusUsers(params = {}) {
+    return apiClient.get('/admin/users/scopus', params);
+  },
   async setScholarAuthorId(userId, authorId) {
     return apiClient.post(`/admin/users/${encodeURIComponent(userId)}/scholar-author`, {
       author_id: authorId,

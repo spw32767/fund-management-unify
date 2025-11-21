@@ -2,50 +2,86 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { AlertCircle, ExternalLink, FileText, Loader2, Search, UserRoundSearch } from "lucide-react";
+import { AlertCircle, BarChart3, ExternalLink, FileText, Loader2, Search, UserRoundSearch } from "lucide-react";
 import { publicationsAPI, usersAPI } from "../../../lib/api";
 
-const PAGE_SIZE = 10;
+const PUB_PAGE_SIZE = 10;
+const USER_PAGE_SIZE = 20;
 
 export default function AdminScopusResearchSearch() {
-  const [userQuery, setUserQuery] = useState("");
-  const [userResults, setUserResults] = useState([]);
-  const [searchingUsers, setSearchingUsers] = useState(false);
+  const [scopusUsers, setScopusUsers] = useState([]);
+  const [userPaging, setUserPaging] = useState({ total: 0, limit: USER_PAGE_SIZE, offset: 0 });
+  const [userLoading, setUserLoading] = useState(false);
   const [userError, setUserError] = useState("");
 
   const [selectedUser, setSelectedUser] = useState(null);
+  const selectedUserId = selectedUser?.user_id || selectedUser?.UserID;
+
+  const [stats, setStats] = useState(null);
+  const [statsMeta, setStatsMeta] = useState({ has_scopus_id: false, has_author_record: false });
+  const [statsLoading, setStatsLoading] = useState(false);
+  const [statsError, setStatsError] = useState("");
+
   const [pubQuery, setPubQuery] = useState("");
   const [publications, setPublications] = useState([]);
-  const [pubMeta, setPubMeta] = useState({ total: 0, limit: PAGE_SIZE, offset: 0 });
+  const [pubMeta, setPubMeta] = useState({ total: 0, limit: PUB_PAGE_SIZE, offset: 0 });
   const [pubFlags, setPubFlags] = useState({ has_scopus_id: false, has_author_record: false });
   const [pubLoading, setPubLoading] = useState(false);
   const [pubError, setPubError] = useState("");
 
-  const selectedUserId = selectedUser?.user_id || selectedUser?.UserID;
+  const loadUsers = useCallback(
+    async (offset = 0) => {
+      setUserLoading(true);
+      setUserError("");
+      try {
+        const res = await usersAPI.listScopusUsers({ limit: USER_PAGE_SIZE, offset });
+        const hits = Array.isArray(res?.data) ? res.data : [];
+        setScopusUsers(hits);
+        setUserPaging(res?.paging || { total: hits.length, limit: USER_PAGE_SIZE, offset });
 
-  const filteredUserResults = useMemo(
-    () => userResults.filter((u) => u.scopus_id && String(u.scopus_id).trim() !== ""),
-    [userResults]
+        if (hits.length > 0) {
+          const stillSelected = hits.find((u) => String(u.user_id) === String(selectedUserId));
+          if (stillSelected) {
+            setSelectedUser(stillSelected);
+          } else if (!selectedUserId) {
+            setSelectedUser(hits[0]);
+          }
+        } else {
+          setSelectedUser(null);
+        }
+      } catch (error) {
+        console.error("Load scopus users error", error);
+        setScopusUsers([]);
+        setUserPaging({ total: 0, limit: USER_PAGE_SIZE, offset: 0 });
+        setSelectedUser(null);
+        setUserError(error?.message || "ไม่สามารถโหลดรายชื่อผู้ใช้ที่มี Scopus ID ได้");
+      } finally {
+        setUserLoading(false);
+      }
+    },
+    [selectedUserId]
   );
 
-  const searchUsers = async () => {
-    if (!userQuery.trim()) return;
-
-    setSearchingUsers(true);
-    setUserError("");
-
-    try {
-      const res = await usersAPI.search(userQuery.trim());
-      const hits = res?.data || res?.users || [];
-      setUserResults(Array.isArray(hits) ? hits : []);
-    } catch (error) {
-      console.error("Search users error", error);
-      setUserResults([]);
-      setUserError(error?.message || "ไม่สามารถค้นหาผู้ใช้ได้");
-    } finally {
-      setSearchingUsers(false);
-    }
-  };
+  const fetchStats = useCallback(
+    async () => {
+      if (!selectedUserId) return;
+      setStatsLoading(true);
+      setStatsError("");
+      try {
+        const res = await publicationsAPI.getScopusPublicationStatsForUser(selectedUserId);
+        setStats(res?.data || null);
+        setStatsMeta(res?.meta || { has_scopus_id: false, has_author_record: false });
+      } catch (error) {
+        console.error("Load stats error", error);
+        setStats(null);
+        setStatsMeta({ has_scopus_id: false, has_author_record: false });
+        setStatsError(error?.message || "ไม่สามารถโหลดสถิติผลงานวิจัยได้");
+      } finally {
+        setStatsLoading(false);
+      }
+    },
+    [selectedUserId]
+  );
 
   const fetchPublications = useCallback(
     async (offset = 0) => {
@@ -53,19 +89,19 @@ export default function AdminScopusResearchSearch() {
       setPubLoading(true);
       setPubError("");
       try {
-        const params = { limit: PAGE_SIZE, offset, sort: "year", direction: "desc" };
+        const params = { limit: PUB_PAGE_SIZE, offset, sort: "year", direction: "desc" };
         if (pubQuery.trim()) {
           params.q = pubQuery.trim();
         }
         const res = await publicationsAPI.getScopusPublicationsForUser(selectedUserId, params);
         const items = res?.data || [];
         setPublications(items);
-        setPubMeta(res?.paging || { total: items.length, limit: PAGE_SIZE, offset });
+        setPubMeta(res?.paging || { total: items.length, limit: PUB_PAGE_SIZE, offset });
         setPubFlags(res?.meta || { has_scopus_id: true, has_author_record: true });
       } catch (error) {
         console.error("Load publications error", error);
         setPublications([]);
-        setPubMeta({ total: 0, limit: PAGE_SIZE, offset: 0 });
+        setPubMeta({ total: 0, limit: PUB_PAGE_SIZE, offset: 0 });
         setPubFlags({ has_scopus_id: false, has_author_record: false });
         setPubError(error?.message || "ไม่สามารถดึงข้อมูลงานวิจัยได้");
       } finally {
@@ -76,20 +112,48 @@ export default function AdminScopusResearchSearch() {
   );
 
   useEffect(() => {
-    setPubMeta((prev) => ({ ...prev, offset: 0 }));
-    if (selectedUserId) {
-      fetchPublications(0);
-    }
-  }, [selectedUserId, fetchPublications]);
+    loadUsers(0);
+  }, [loadUsers]);
 
-  const totalPages = Math.max(1, Math.ceil((pubMeta?.total || 0) / (pubMeta?.limit || PAGE_SIZE)));
-  const currentPage = Math.floor((pubMeta?.offset || 0) / (pubMeta?.limit || PAGE_SIZE)) + 1;
+  useEffect(() => {
+    if (selectedUserId) {
+      setPubMeta((prev) => ({ ...prev, offset: 0 }));
+      fetchPublications(0);
+      fetchStats();
+    }
+  }, [selectedUserId, fetchPublications, fetchStats]);
+
+  const totalPages = useMemo(
+    () => Math.max(1, Math.ceil((pubMeta?.total || 0) / (pubMeta?.limit || PUB_PAGE_SIZE))),
+    [pubMeta]
+  );
+  const currentPage = useMemo(
+    () => Math.floor((pubMeta?.offset || 0) / (pubMeta?.limit || PUB_PAGE_SIZE)) + 1,
+    [pubMeta]
+  );
+
+  const userTotalPages = useMemo(
+    () => Math.max(1, Math.ceil((userPaging?.total || 0) / (userPaging?.limit || USER_PAGE_SIZE))),
+    [userPaging]
+  );
+  const userPage = useMemo(
+    () => Math.floor((userPaging?.offset || 0) / (userPaging?.limit || USER_PAGE_SIZE)) + 1,
+    [userPaging]
+  );
+
+  const handleUserPageChange = (direction) => {
+    if (userLoading) return;
+    const next = userPage + direction;
+    if (next < 1 || next > userTotalPages) return;
+    const nextOffset = (next - 1) * (userPaging?.limit || USER_PAGE_SIZE);
+    loadUsers(nextOffset);
+  };
 
   const handlePageChange = (direction) => {
     if (pubLoading) return;
     const nextPage = currentPage + direction;
     if (nextPage < 1 || nextPage > totalPages) return;
-    const nextOffset = (nextPage - 1) * (pubMeta?.limit || PAGE_SIZE);
+    const nextOffset = (nextPage - 1) * (pubMeta?.limit || PUB_PAGE_SIZE);
     fetchPublications(nextOffset);
   };
 
@@ -100,6 +164,11 @@ export default function AdminScopusResearchSearch() {
     return "";
   };
 
+  const maxTrendDocs = useMemo(() => {
+    if (!stats?.trend || stats.trend.length === 0) return 0;
+    return Math.max(...stats.trend.map((p) => p.documents || 0));
+  }, [stats]);
+
   return (
     <div className="space-y-6">
       <div className="rounded-2xl border border-slate-200 bg-white shadow-sm">
@@ -107,9 +176,7 @@ export default function AdminScopusResearchSearch() {
           <div className="space-y-1">
             <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Scopus Research</p>
             <h1 className="text-2xl font-semibold text-slate-900">ค้นหางานวิจัย</h1>
-            <p className="text-sm text-slate-600">
-              เลือกผู้ใช้ที่มี Scopus ID เพื่อดูและค้นหาผลงานวิชาการจาก Scopus
-            </p>
+            <p className="text-sm text-slate-600">แสดงผู้ใช้ที่มี Scopus ID และผลงานวิจัยที่ผูกกับ Scopus</p>
           </div>
         </div>
 
@@ -121,36 +188,17 @@ export default function AdminScopusResearchSearch() {
                   <UserRoundSearch size={20} />
                 </div>
                 <div>
-                  <p className="text-sm font-semibold text-slate-900">ค้นหาผู้ใช้</p>
-                  <p className="text-xs text-slate-500">แสดงเฉพาะผู้ใช้ที่มี Scopus ID ในระบบ</p>
+                  <p className="text-sm font-semibold text-slate-900">รายชื่อผู้ใช้ที่มี Scopus ID</p>
+                  <p className="text-xs text-slate-500">เลือกชื่อเพื่อดูจำนวนเอกสารและรายละเอียดผลงาน</p>
                 </div>
               </div>
 
               <div className="mt-4 space-y-3">
-                <div className="flex flex-col gap-2 sm:flex-row">
-                  <div className="relative flex-1">
-                    <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
-                    <input
-                      className="w-full rounded-lg border border-slate-300 bg-white px-9 py-2 text-sm shadow-sm focus:border-slate-500 focus:outline-none focus:ring-2 focus:ring-slate-200"
-                      placeholder="พิมพ์ชื่อหรืออีเมล"
-                      value={userQuery}
-                      onChange={(e) => setUserQuery(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") {
-                          e.preventDefault();
-                          searchUsers();
-                        }
-                      }}
-                    />
-                  </div>
-                  <button
-                    type="button"
-                    onClick={searchUsers}
-                    disabled={!userQuery.trim() || searchingUsers}
-                    className="inline-flex items-center justify-center rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-950 disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    {searchingUsers && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}ค้นหา
-                  </button>
+                <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  <span>ทั้งหมด</span>
+                  <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] text-slate-600">
+                    {userPaging.total}
+                  </span>
                 </div>
 
                 {userError && (
@@ -160,51 +208,68 @@ export default function AdminScopusResearchSearch() {
                   </div>
                 )}
 
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-wide text-slate-500">
-                    <span>ผลการค้นหา</span>
-                    <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] text-slate-600">
-                      {filteredUserResults.length}
-                    </span>
-                  </div>
-
-                  <div className="max-h-[360px] space-y-2 overflow-y-auto pr-1">
-                    {filteredUserResults.length === 0 ? (
-                      <div className="rounded-lg border border-dashed border-slate-200 bg-white px-3 py-4 text-center text-xs text-slate-500">
-                        {userQuery.trim()
-                          ? "ไม่พบผู้ใช้ที่มี Scopus ID"
-                          : "ค้นหาผู้ใช้เพื่อเริ่มต้น"}
-                      </div>
-                    ) : (
-                      filteredUserResults.map((hit) => {
-                        const isActive = String(hit.user_id) === String(selectedUserId);
-                        return (
-                          <button
-                            key={hit.user_id}
-                            type="button"
-                            onClick={() => setSelectedUser(hit)}
-                            className={`w-full rounded-lg border px-3 py-3 text-left shadow-sm transition ${
-                              isActive
-                                ? "border-slate-900 bg-white ring-1 ring-slate-300"
-                                : "border-slate-200 bg-white hover:border-slate-300"
-                            }`}
-                          >
-                            <div className="flex items-start gap-3">
-                              <div className="rounded-md bg-indigo-50 px-2 py-1 text-[11px] font-semibold text-indigo-700">
-                                ID {hit.user_id}
-                              </div>
-                              <div className="flex-1 space-y-1">
-                                <div className="text-sm font-semibold text-slate-900">{hit.name || "ไม่ระบุชื่อ"}</div>
-                                {hit.email && <div className="text-xs text-slate-500">{hit.email}</div>}
-                                <div className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700">
-                                  Scopus ID <code className="font-mono text-xs">{hit.scopus_id}</code>
-                                </div>
+                <div className="max-h-[380px] space-y-2 overflow-y-auto pr-1">
+                  {userLoading ? (
+                    <div className="flex items-center justify-center rounded-lg border border-slate-200 bg-white px-3 py-4 text-sm text-slate-500">
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" /> กำลังโหลดรายชื่อ
+                    </div>
+                  ) : scopusUsers.length === 0 ? (
+                    <div className="rounded-lg border border-dashed border-slate-200 bg-white px-3 py-4 text-center text-xs text-slate-500">
+                      ยังไม่มีผู้ใช้ที่บันทึก Scopus ID
+                    </div>
+                  ) : (
+                    scopusUsers.map((hit) => {
+                      const isActive = String(hit.user_id) === String(selectedUserId);
+                      return (
+                        <button
+                          key={hit.user_id}
+                          type="button"
+                          onClick={() => setSelectedUser(hit)}
+                          className={`w-full rounded-lg border px-3 py-3 text-left shadow-sm transition ${
+                            isActive
+                              ? "border-slate-900 bg-white ring-1 ring-slate-300"
+                              : "border-slate-200 bg-white hover:border-slate-300"
+                          }`}
+                        >
+                          <div className="flex items-start gap-3">
+                            <div className="rounded-md bg-indigo-50 px-2 py-1 text-[11px] font-semibold text-indigo-700">
+                              ID {hit.user_id}
+                            </div>
+                            <div className="flex-1 space-y-1">
+                              <div className="text-sm font-semibold text-slate-900">{hit.name || "ไม่ระบุชื่อ"}</div>
+                              {hit.email && <div className="text-xs text-slate-500">{hit.email}</div>}
+                              <div className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700">
+                                Scopus ID <code className="font-mono text-xs">{hit.scopus_id || hit.scopusID}</code>
                               </div>
                             </div>
-                          </button>
-                        );
-                      })
-                    )}
+                          </div>
+                        </button>
+                      );
+                    })
+                  )}
+                </div>
+
+                <div className="flex items-center justify-between text-xs text-slate-600">
+                  <span>
+                    หน้า {userPage} / {userTotalPages}
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => handleUserPageChange(-1)}
+                      disabled={userPage <= 1 || userLoading}
+                      className="rounded-lg border border-slate-300 px-3 py-1 font-semibold text-slate-600 shadow-sm transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      ก่อนหน้า
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleUserPageChange(1)}
+                      disabled={userPage >= userTotalPages || userLoading}
+                      className="rounded-lg border border-slate-300 px-3 py-1 font-semibold text-slate-600 shadow-sm transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      ถัดไป
+                    </button>
                   </div>
                 </div>
               </div>
@@ -227,10 +292,101 @@ export default function AdminScopusResearchSearch() {
               <div className="border-b border-slate-200 p-4">
                 <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                   <div className="space-y-1">
-                    <p className="text-sm font-semibold text-slate-900">ผลงานวิจัยจาก Scopus</p>
-                    <p className="text-xs text-slate-500">
-                      สามารถค้นหาด้วยคำสำคัญในชื่อเรื่อง และเรียกดูเฉพาะผู้ใช้ที่มี Scopus ID
-                    </p>
+                    <p className="text-sm font-semibold text-slate-900">สถิติผลงานวิจัย</p>
+                    <p className="text-xs text-slate-500">จำนวนเอกสารทั้งหมดและแนวโน้มรายปีจาก Scopus</p>
+                  </div>
+                  <div className="flex flex-col gap-2 text-sm text-slate-600 sm:flex-row sm:items-center sm:gap-3">
+                    <div className="rounded-lg bg-slate-50 px-3 py-1">Scopus ID: {selectedUser?.scopus_id || selectedUser?.scopusID || "-"}</div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid gap-4 p-4 lg:grid-cols-3">
+                <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+                  <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    <span>จำนวนเอกสาร</span>
+                    <BarChart3 size={14} />
+                  </div>
+                  <div className="mt-2 text-3xl font-bold text-slate-900">
+                    {statsLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : stats?.total_documents ?? "-"}
+                  </div>
+                  <p className="text-xs text-slate-500">รวมทั้งหมดจาก Scopus</p>
+                </div>
+
+                <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+                  <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    <span>จำนวนการอ้างอิง</span>
+                    <BarChart3 size={14} />
+                  </div>
+                  <div className="mt-2 text-3xl font-bold text-slate-900">
+                    {statsLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : stats?.total_citations ?? "-"}
+                  </div>
+                  <p className="text-xs text-slate-500">รวมการอ้างอิงจากเอกสารทั้งหมด</p>
+                </div>
+
+                <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+                  <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    <span>สถานะ Scopus</span>
+                    <FileText size={14} />
+                  </div>
+                  <div className="mt-2 text-sm text-slate-700">
+                    {statsError ? (
+                      <span className="text-rose-600">{statsError}</span>
+                    ) : !statsMeta.has_scopus_id ? (
+                      "ผู้ใช้นี้ยังไม่ได้ตั้งค่า Scopus ID"
+                    ) : !statsMeta.has_author_record ? (
+                      "ยังไม่พบข้อมูลบน Scopus"
+                    ) : (
+                      "เชื่อมโยง Scopus สำเร็จ"
+                    )}
+                  </div>
+                </div>
+
+                <div className="lg:col-span-3">
+                  <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+                    <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-900">
+                      แนวโน้มเอกสารถูกตีพิมพ์รายปี
+                    </div>
+                    {statsLoading ? (
+                      <div className="flex items-center gap-2 text-sm text-slate-600">
+                        <Loader2 className="h-4 w-4 animate-spin" /> กำลังโหลดข้อมูล
+                      </div>
+                    ) : stats?.trend?.length ? (
+                      <div className="space-y-2">
+                        {stats.trend.map((point) => {
+                          const width = maxTrendDocs ? Math.max(8, Math.round((point.documents / maxTrendDocs) * 100)) : 0;
+                          return (
+                            <div key={point.year} className="flex items-center gap-3 text-sm text-slate-700">
+                              <div className="w-16 text-xs font-semibold text-slate-600">{point.year}</div>
+                              <div className="flex-1 rounded-full bg-slate-100">
+                                <div
+                                  className="rounded-full bg-indigo-500 text-[11px] font-semibold text-white"
+                                  style={{ width: `${width}%`, minWidth: "36px" }}
+                                >
+                                  <span className="px-2">{point.documents} เรื่อง</span>
+                                </div>
+                              </div>
+                              <div className="w-20 text-right text-xs text-slate-500">อ้างอิง {point.citations}</div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 px-3 py-4 text-sm text-slate-600">
+                        ยังไม่มีข้อมูลแนวโน้มผลงาน
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
+              <div className="border-b border-slate-200 p-4">
+                <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                  <div className="space-y-1">
+                    <p className="text-sm font-semibold text-slate-900">รายการผลงานวิจัยจาก Scopus</p>
+                    <p className="text-xs text-slate-500">ค้นหาในชื่อเรื่องและเรียกดูรายละเอียดทีละรายการ</p>
                   </div>
                   <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                     <div className="relative w-full sm:w-64">
@@ -315,15 +471,9 @@ export default function AdminScopusResearchSearch() {
                                     )}
                                   </div>
                                 </td>
-                                <td className="px-3 py-3 text-slate-700">
-                                  {pub.publication_name || pub.venue || "-"}
-                                </td>
-                                <td className="px-3 py-3 text-slate-700">
-                                  {pub.publication_year || "-"}
-                                </td>
-                                <td className="px-3 py-3 text-slate-700">
-                                  {pub.cited_by ?? "-"}
-                                </td>
+                                <td className="px-3 py-3 text-slate-700">{pub.publication_name || pub.venue || "-"}</td>
+                                <td className="px-3 py-3 text-slate-700">{pub.publication_year || "-"}</td>
+                                <td className="px-3 py-3 text-slate-700">{pub.cited_by ?? "-"}</td>
                                 <td className="px-3 py-3">
                                   <div className="flex flex-wrap gap-2 text-xs">
                                     {pub.url && (
@@ -357,7 +507,7 @@ export default function AdminScopusResearchSearch() {
 
                     <div className="flex flex-col gap-3 border-t border-slate-200 pt-3 sm:flex-row sm:items-center sm:justify-between">
                       <div className="text-xs text-slate-600">
-                        แสดง {(pubMeta.offset || 0) + 1} - {Math.min((pubMeta.offset || 0) + (pubMeta.limit || PAGE_SIZE), pubMeta.total || 0)} จาก {pubMeta.total || 0} รายการ
+                        แสดง {(pubMeta.offset || 0) + 1} - {Math.min((pubMeta.offset || 0) + (pubMeta.limit || PUB_PAGE_SIZE), pubMeta.total || 0)} จาก {pubMeta.total || 0} รายการ
                       </div>
                       <div className="flex items-center gap-2">
                         <button
