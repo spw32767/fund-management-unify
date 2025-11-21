@@ -15,6 +15,7 @@ import {
   Briefcase,
   Globe,
   Bell,
+  Search
 } from "lucide-react";
 import { useAuth } from "../../../contexts/AuthContext";
 import { useRouter } from "next/navigation";
@@ -52,6 +53,12 @@ export default function Navigation({
       id: 'applications-list',
       label: 'รายการการขอทุน',
       icon: FileText,
+      hasSubmenu: false
+    },
+    {
+      id: 'scopus-research-search',
+      label: 'ค้นหางานวิจัย',
+      icon: Search,
       hasSubmenu: false
     },
     // {
