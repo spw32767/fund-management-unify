@@ -251,7 +251,7 @@ export function MemberPageContent({ initialPage = 'profile' }) {
         </div>
 
         {/* Main Content */}
-        <div className="md:ml-64 flex-1">
+        <div className="md:ml-64 flex-1 min-w-0 overflow-x-auto">
           {/* Page Content */}
           <div className="px-4 pb-8 pt-4 sm:px-6 lg:px-8">
             {renderPageContent()}

@@ -176,29 +176,34 @@ export default function Header({
 
   return (
     <header className="fixed top-0 z-40 w-full border-b border-gray-200 bg-white/95 backdrop-blur">
-      <div className="flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+      <div className="flex items-start justify-between gap-3 px-4 py-3 sm:items-center sm:px-6">
         {/* Logo Section */}
-        <div className="flex items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <button
-              className={`${
-                isOpen ? "invisible" : "inline-flex"
-              } items-center justify-center rounded-lg border border-gray-200 p-2 text-sm text-gray-600 transition hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-100 md:hidden`}
-              onClick={handleToggleMenu}
-              aria-label="open-mobile-menu"
-            >
+        <div className="flex items-start gap-3 sm:items-center">
+          <button
+            className="inline-flex items-center justify-center rounded-lg border border-gray-200 p-2 text-sm text-gray-600 transition hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-100 md:hidden"
+            onClick={handleToggleMenu}
+            aria-label={isOpen ? "close-mobile-menu" : "open-mobile-menu"}
+            aria-expanded={isOpen}
+          >
+            {isOpen ? (
+              <RxCross2 className="w-5 h-5 text-gray-700" />
+            ) : (
               <HiMenu className="w-5 h-5 text-gray-700" />
-            </button>
+            )}
+          </button>
 
+          <div className="flex items-start gap-3 sm:items-center">
             <div className={logoContainerClass}>{renderLogoContent()}</div>
-            <div>
+            <div className="min-w-0">
               <h1 className="text-lg font-bold text-gray-800 sm:text-xl">
                 {appName || "Fund Management"}
               </h1>
               <p className="text-xs text-gray-600">
                 {subtitles.member || "ระบบบริหารจัดการทุน - Member"}
               </p>
-              <p className="mt-1 text-xs text-gray-500">{currentPageTitle}</p>
+              <p className="mt-1 text-xs text-gray-500 truncate" title={currentPageTitle}>
+                {currentPageTitle}
+              </p>
             </div>
           </div>
         </div>
@@ -252,17 +257,6 @@ export default function Header({
             )}
           </div>
         </div>
-
-        {/* Mobile Menu Close Button */}
-        {isOpen && (
-          <button
-            className="md:hidden inline-flex items-center justify-center me-4 ms-3 p-2 w-10 h-10 text-sm text-gray-500 rounded-lg hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-gray-200"
-            onClick={handleCloseMenu}
-            aria-label="close-mobile-menu"
-          >
-            <RxCross2 className="w-5 h-5 text-gray-700" />
-          </button>
-        )}
       </div>
 
       {/* Mobile Menu Overlay */}
