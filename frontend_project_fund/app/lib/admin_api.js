@@ -188,9 +188,18 @@ export const adminAPI = {
   },
 
   // Get subcategories for admin (alias for getAllSubcategories)
-  async getSubcategories(categoryId = null) {
+  async getSubcategories(categoryId = null, yearId = null) {
     try {
-      const params = categoryId ? { category_id: categoryId } : {};
+      const params = {};
+
+      if (categoryId) {
+        params.category_id = categoryId;
+      }
+
+      if (yearId) {
+        params.year_id = yearId;
+      }
+
       const response = await apiClient.get('/admin/subcategories', params);
       return response.subcategories || [];
     } catch (error) {
@@ -587,7 +596,7 @@ export const adminAPI = {
       const categoriesWithDetails = await Promise.all(
         categories.map(async (category) => {
           try {
-            const subcategories = await this.getSubcategories(category.category_id);
+            const subcategories = await this.getSubcategories(category.category_id, yearId);
 
             const subcategoriesWithBudgets = subcategories.map((subcategory) => {
               const targetRoles = targetRolesUtils.parseTargetRoles(subcategory.target_roles);
