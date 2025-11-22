@@ -129,19 +129,6 @@ export default function Header({
     <header className="fixed top-0 z-40 w-full border-b border-gray-200 bg-white/95 backdrop-blur">
       <div className="flex items-start justify-between gap-3 px-4 py-3 sm:items-center sm:px-6">
         <div className="flex items-start gap-3 sm:items-center">
-          <button
-            className="inline-flex items-center justify-center rounded-lg border border-gray-200 p-2 text-sm text-gray-600 transition hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-100 md:hidden"
-            onClick={handleToggleMenu}
-            aria-label={isOpen ? "close-mobile-menu" : "open-mobile-menu"}
-            aria-expanded={isOpen}
-          >
-            {isOpen ? (
-              <RxCross2 className="w-5 h-5 text-gray-700" />
-            ) : (
-              <HiMenu className="w-5 h-5 text-gray-700" />
-            )}
-          </button>
-
           <div className="flex items-start gap-3 sm:items-center">
             <div className={logoContainerClass}>{renderLogoContent()}</div>
             <div className="min-w-0">
@@ -161,38 +148,53 @@ export default function Header({
           </div>
         </div>
 
-        <div className="hidden items-center gap-4 md:flex">
-          <NotificationBell />
-          <div className="text-right">
-            <p className="text-sm font-medium text-gray-800">{getUserDisplayName()}</p>
-            <p className="text-xs text-gray-600">{getUserRoleDisplay()}</p>
-          </div>
-          <div className="relative">
-            <button
-              onClick={() => setShowUserMenu(!showUserMenu)}
-              className="flex items-center gap-2 rounded-lg p-2 transition-colors hover:bg-gray-100"
-              aria-haspopup="menu"
-              aria-expanded={showUserMenu}
-            >
-              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-purple-500 text-white font-semibold">
-                {getInitials()}
-              </div>
-              <ChevronDown size={16} className="text-gray-600" />
-            </button>
-            {showUserMenu && (
-              <div className="absolute right-0 mt-2 w-48 rounded-lg border border-gray-200 bg-white py-2 shadow-lg">
-                <button
-                  onClick={() => {
-                    setShowUserMenu(false);
-                    handleLogout();
-                  }}
-                  className="flex w-full items-center gap-2 px-4 py-2 text-left text-red-600 transition hover:bg-red-50"
-                >
-                  <LogOut size={16} />
-                  <span>ออกจากระบบ</span>
-                </button>
-              </div>
+        <div className="flex items-center gap-3">
+          <button
+            className="inline-flex items-center justify-center rounded-lg border border-gray-200 p-2 text-sm text-gray-600 transition hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-100 md:hidden"
+            onClick={handleToggleMenu}
+            aria-label={isOpen ? "close-mobile-menu" : "open-mobile-menu"}
+            aria-expanded={isOpen}
+          >
+            {isOpen ? (
+              <RxCross2 className="w-5 h-5 text-gray-700" />
+            ) : (
+              <HiMenu className="w-5 h-5 text-gray-700" />
             )}
+          </button>
+
+          <div className="hidden items-center gap-4 md:flex">
+            <NotificationBell />
+            <div className="text-right">
+              <p className="text-sm font-medium text-gray-800">{getUserDisplayName()}</p>
+              <p className="text-xs text-gray-600">{getUserRoleDisplay()}</p>
+            </div>
+            <div className="relative">
+              <button
+                onClick={() => setShowUserMenu(!showUserMenu)}
+                className="flex items-center gap-2 rounded-lg p-2 transition-colors hover:bg-gray-100"
+                aria-haspopup="menu"
+                aria-expanded={showUserMenu}
+              >
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-purple-500 text-white font-semibold">
+                  {getInitials()}
+                </div>
+                <ChevronDown size={16} className="text-gray-600" />
+              </button>
+              {showUserMenu && (
+                <div className="absolute right-0 mt-2 w-48 rounded-lg border border-gray-200 bg-white py-2 shadow-lg">
+                  <button
+                    onClick={() => {
+                      setShowUserMenu(false);
+                      handleLogout();
+                    }}
+                    className="flex w-full items-center gap-2 px-4 py-2 text-left text-red-600 transition hover:bg-red-50"
+                  >
+                    <LogOut size={16} />
+                    <span>ออกจากระบบ</span>
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>
