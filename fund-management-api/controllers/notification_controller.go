@@ -454,6 +454,36 @@ func buildEmailTemplate(subject string, paragraphs []string, meta []emailMetaIte
 </html>`, template.HTMLEscapeString(subject), headerPadding, logoSection, template.HTMLEscapeString(subject), contentBuilder.String(), metaSection, buttonSection, footerSection)
 }
 
+func buildFormalEmailHTML(subject, recipientName, message string) string {
+	name := strings.TrimSpace(recipientName)
+	if name == "" {
+		name = "ผู้รับ"
+	}
+
+	escapedSubject := template.HTMLEscapeString(subject)
+	escapedGreeting := template.HTMLEscapeString(fmt.Sprintf("เรียน %s", name))
+	escapedMessage := template.HTMLEscapeString(strings.TrimSpace(message))
+	escapedMessage = strings.ReplaceAll(strings.ReplaceAll(escapedMessage, "\r\n", "\n"), "\r", "\n")
+	escapedMessage = strings.ReplaceAll(escapedMessage, "\n", "<br />")
+
+	return fmt.Sprintf(`<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>%s</title>
+</head>
+<body style="margin:0;padding:0;background-color:#f9fafb;font-family:'Segoe UI',Tahoma,Arial,sans-serif;">
+<div style="max-width:640px;margin:0 auto;padding:24px 20px;">
+  <div style="background-color:#ffffff;border:1px solid #e5e7eb;border-radius:12px;padding:24px 24px 28px 24px;">
+    <p style="margin:0 0 16px 0;font-size:16px;line-height:1.7;color:#111827;">%s</p>
+    <p style="margin:0 0 0 0;font-size:16px;line-height:1.7;color:#111827;word-break:break-word;">%s</p>
+  </div>
+</div>
+</body>
+</html>`, escapedSubject, escapedGreeting, escapedMessage)
+}
+
 func sendMailSafe(to []string, subject, html string) {
 	if err := config.SendMail(to, subject, html); err != nil {
 		log.Printf("notification email send failed (subject=%q to=%v): %v", subject, to, err)
@@ -700,18 +730,10 @@ func NotifySubmissionSubmitted(c *gin.Context) {
 		}
 	}
 
-	base := appBaseURL()
 	go func() {
 		if ownerEmail != "" {
 			subj := userMsg.Title
-			bodyText := template.HTMLEscapeString(userMsg.Body)
-			meta := []emailMetaItem{
-				{Label: "หมายเลขคำร้อง", Value: sub.SubmissionNumber},
-			}
-			if strings.TrimSpace(submitterName) != "" {
-				meta = append(meta, emailMetaItem{Label: "ผู้ส่งคำร้อง", Value: submitterName})
-			}
-			emailBody := buildEmailTemplate(subj, []string{bodyText}, meta, "เปิดดู", base, "")
+			emailBody := buildFormalEmailHTML(subj, submitterName, userMsg.Body)
 			sendMailSafe([]string{ownerEmail}, subj, emailBody)
 		}
 
@@ -723,13 +745,14 @@ func NotifySubmissionSubmitted(c *gin.Context) {
 		}
 		if len(emails) > 0 {
 			subj := headMsg.Title
-			bodyText := template.HTMLEscapeString(headMsg.Body)
-			meta := []emailMetaItem{{Label: "หมายเลขคำร้อง", Value: sub.SubmissionNumber}}
-			if strings.TrimSpace(submitterName) != "" {
-				meta = append(meta, emailMetaItem{Label: "ผู้ส่งคำร้อง", Value: submitterName})
+			for _, h := range heads {
+				if h.Email == nil || *h.Email == "" {
+					continue
+				}
+				name := buildThaiDisplayName(h, "")
+				emailBody := buildFormalEmailHTML(subj, name, headMsg.Body)
+				sendMailSafe([]string{*h.Email}, subj, emailBody)
 			}
-			emailBody := buildEmailTemplate(subj, []string{bodyText}, meta, "ดูรายละเอียด", base, "")
-			sendMailSafe(emails, subj, emailBody)
 		}
 	}()
 
@@ -783,16 +806,10 @@ func NotifyDeptHeadRecommended(c *gin.Context) {
 		_ = db.Exec(`CALL CreateNotification(?,?,?,?,?)`, a.UserID, adminMsg.Title, adminMsg.Body, "info", sub.SubmissionID).Error
 	}
 
-	base := appBaseURL()
 	go func() {
 		if ownerEmail != "" {
 			subj := userMsg.Title
-			message := template.HTMLEscapeString(userMsg.Body)
-			meta := []emailMetaItem{{Label: "หมายเลขคำร้อง", Value: sub.SubmissionNumber}}
-			if strings.TrimSpace(submitterName) != "" {
-				meta = append(meta, emailMetaItem{Label: "ผู้ส่งคำร้อง", Value: submitterName})
-			}
-			emailBody := buildEmailTemplate(subj, []string{message}, meta, "เปิดดู", base, "")
+			emailBody := buildFormalEmailHTML(subj, submitterName, userMsg.Body)
 			sendMailSafe([]string{ownerEmail}, subj, emailBody)
 		}
 		var adminEmails []string
@@ -803,13 +820,14 @@ func NotifyDeptHeadRecommended(c *gin.Context) {
 		}
 		if len(adminEmails) > 0 {
 			subj := adminMsg.Title
-			message := template.HTMLEscapeString(adminMsg.Body)
-			meta := []emailMetaItem{{Label: "หมายเลขคำร้อง", Value: sub.SubmissionNumber}}
-			if strings.TrimSpace(submitterName) != "" {
-				meta = append(meta, emailMetaItem{Label: "ผู้ส่งคำร้อง", Value: submitterName})
+			for _, a := range admins {
+				if a.Email == nil || *a.Email == "" {
+					continue
+				}
+				name := buildThaiDisplayName(a, "")
+				emailBody := buildFormalEmailHTML(subj, name, adminMsg.Body)
+				sendMailSafe([]string{*a.Email}, subj, emailBody)
 			}
-			emailBody := buildEmailTemplate(subj, []string{message}, meta, "เปิดดู", base, "")
-			sendMailSafe(adminEmails, subj, emailBody)
 		}
 	}()
 	c.JSON(http.StatusOK, gin.H{"ok": true})
@@ -859,16 +877,10 @@ func NotifyDeptHeadNotRecommended(c *gin.Context) {
 
 	_ = db.Exec(`CALL CreateNotification(?,?,?,?,?)`, sub.UserID, msg.Title, msg.Body, "warning", sub.SubmissionID).Error
 
-	base := appBaseURL()
 	go func() {
 		if ownerEmail != "" {
 			subj := msg.Title
-			bodyText := template.HTMLEscapeString(msg.Body)
-			meta := []emailMetaItem{{Label: "หมายเลขคำร้อง", Value: sub.SubmissionNumber}}
-			if strings.TrimSpace(submitterName) != "" {
-				meta = append(meta, emailMetaItem{Label: "ผู้ส่งคำร้อง", Value: submitterName})
-			}
-			emailBody := buildEmailTemplate(subj, []string{bodyText}, meta, "เปิดดู", base, "")
+			emailBody := buildFormalEmailHTML(subj, submitterName, msg.Body)
 			sendMailSafe([]string{ownerEmail}, subj, emailBody)
 		}
 	}()
@@ -938,20 +950,10 @@ func NotifyAdminApproved(c *gin.Context) {
 
 	_ = db.Exec(`CALL CreateNotification(?,?,?,?,?)`, sub.UserID, msg.Title, msg.Body, "success", sub.SubmissionID).Error
 
-	base := appBaseURL()
 	go func() {
 		if ownerEmail != "" {
 			subj := msg.Title
-			message := template.HTMLEscapeString(msg.Body)
-			meta := []emailMetaItem{
-				{Label: "หมายเลขคำร้อง", Value: sub.SubmissionNumber},
-				{Label: "ผู้ส่งคำร้อง", Value: submitterName},
-				{Label: "จำนวนเงินที่อนุมัติ", Value: fmt.Sprintf("%s บาท", amount)},
-			}
-			if announce != "" {
-				meta = append(meta, emailMetaItem{Label: "เลขอ้างอิงประกาศ", Value: announce})
-			}
-			emailBody := buildEmailTemplate(subj, []string{message}, meta, "ดูรายละเอียด", base, "")
+			emailBody := buildFormalEmailHTML(subj, submitterName, msg.Body)
 			sendMailSafe([]string{ownerEmail}, subj, emailBody)
 		}
 	}()
@@ -1023,16 +1025,10 @@ func NotifyAdminRejected(c *gin.Context) {
 	_ = db.Exec(`CALL CreateNotification(?,?,?,?,?)`,
 		sub.UserID, msg.Title, msg.Body, "error", sub.SubmissionID).Error
 
-	base := appBaseURL()
 	go func() {
 		if ownerEmail != "" {
 			subj := msg.Title
-			message := template.HTMLEscapeString(msg.Body)
-			meta := []emailMetaItem{{Label: "หมายเลขคำร้อง", Value: sub.SubmissionNumber}}
-			if strings.TrimSpace(submitterName) != "" {
-				meta = append(meta, emailMetaItem{Label: "ผู้ส่งคำร้อง", Value: submitterName})
-			}
-			emailBody := buildEmailTemplate(subj, []string{message}, meta, "ดูรายละเอียด", base, "")
+			emailBody := buildFormalEmailHTML(subj, submitterName, msg.Body)
 			sendMailSafe([]string{ownerEmail}, subj, emailBody)
 		}
 	}()
