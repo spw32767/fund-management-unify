@@ -1,6 +1,6 @@
 // FundSettingsContent.js - Updated Main Component with SweetAlert2
 import React, { useState, useEffect } from "react";
-import { Settings, Calendar, CalendarRange, DollarSign, PencilLine, FileText, FileStack, ListChecks } from "lucide-react";
+import { Settings, Calendar, CalendarRange, DollarSign, PencilLine, FileText, FileStack, ListChecks, BellRing } from "lucide-react";
 import Swal from 'sweetalert2';
 
 // Import separated components
@@ -14,6 +14,7 @@ import SystemConfigSettings from "@/app/admin/components/settings/system_config/
 import AnnouncementManager from "@/app/admin/components/settings/announcement_config/AnnouncementManager";
 import DocumentTypeManager from "@/app/admin/components/settings/document_config/DocumentTypeManager";
 import InstallmentManagementTab from "@/app/admin/components/settings/installment_config/InstallmentManagementTab";
+import NotificationTemplateManager from "@/app/admin/components/settings/notification_templates/NotificationTemplateManager";
 
 // Import modals
 import CategoryModal from "@/app/admin/components/settings/funds_config/CategoryModal";
@@ -31,6 +32,7 @@ const TAB_ITEMS = [
   { id: "installments", label: "ตั้งค่าวันตัดรอบการพิจารณา", icon: CalendarRange },
   { id: "reward-config", label: "จัดการเงินรางวัล", icon: Settings },
   { id: "reward-terms", label: "ข้อตกลงเงินรางวัล", icon: ListChecks },
+  { id: "notification-templates", label: "ข้อความแจ้งเตือน", icon: BellRing },
   { id: "system", label: "ตั้งค่าระบบ", icon: PencilLine },
   { id: "announcements", label: "ประกาศ/ไฟล์", icon: FileText },
   { id: "document-types", label: "ตั้งค่าเอกสารทุนแนบ", icon: FileStack },
@@ -1388,6 +1390,8 @@ export default function FundSettingsContent({ onNavigate }) {
         return <RewardConfigManager />;
       case "reward-terms":
         return <EndOfContractManager />;
+      case "notification-templates":
+        return <NotificationTemplateManager />;
       case "system":
         return <SystemConfigSettings />;
       case "announcements":
