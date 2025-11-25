@@ -231,7 +231,7 @@ export function MemberPageContent({ initialPage = 'profile' }) {
         )}
       />
 
-      <div className="flex mt-20 min-h-[calc(100vh-5rem)]">
+      <div className="flex mt-24 sm:mt-20 min-h-[calc(100vh-5rem)]">
         {/* Desktop Sidebar */}
         <div className="hidden md:block w-64 bg-white border-r border-gray-300 fixed h-[calc(100vh-5rem)] overflow-y-auto shadow-sm">
           <div className="p-5">
@@ -251,9 +251,9 @@ export function MemberPageContent({ initialPage = 'profile' }) {
         </div>
 
         {/* Main Content */}
-        <div className="md:ml-64 flex-1">
+        <div className="md:ml-64 flex-1 min-w-0 overflow-x-auto">
           {/* Page Content */}
-          <div className="px-8 pb-8">
+          <div className="px-4 pb-8 pt-4 sm:px-6 lg:px-8">
             {renderPageContent()}
           </div>
         </div>

@@ -11,7 +11,12 @@ import { useAuth } from "../../../contexts/AuthContext";
 import { BRANDING } from "../../../config/branding";
 import NotificationBell from "@/app/components/notifications/NotificationBell";
 
-export default function Header({ isOpen, setIsOpen, Navigation }) {
+export default function Header({
+  isOpen,
+  setIsOpen,
+  Navigation,
+  currentPageTitle = "แดชบอร์ดผู้ดูแลระบบ",
+}) {
   const { user, logout } = useAuth();
   const router = useRouter();
   const [showUserMenu, setShowUserMenu] = useState(false);
@@ -112,92 +117,102 @@ export default function Header({ isOpen, setIsOpen, Navigation }) {
     return Navigation;
   };
 
+  const handleToggleMenu = () => {
+    setIsOpen?.((prev) => !prev);
+  };
+
+  const handleCloseMenu = () => {
+    setIsOpen?.(false);
+  };
+
   return (
     <header className="fixed top-0 z-40 w-full border-b border-gray-200 bg-white/95 backdrop-blur">
-      <div className="flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-6">
-        <div className="flex items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
+      <div className="flex items-start justify-between gap-3 px-4 py-3 sm:items-center sm:px-6">
+        <div className="flex items-start gap-3 sm:items-center">
+          <div className="flex items-start gap-3 sm:items-center">
             <div className={logoContainerClass}>{renderLogoContent()}</div>
-            <div>
+            <div className="min-w-0">
               <h1 className="text-lg font-bold text-gray-800 sm:text-xl">
                 {appName || "Fund Management"}
               </h1>
               <p className="text-xs text-gray-600">
                 {subtitles.admin || "ระบบบริหารจัดการทุน - Admin"}
               </p>
+              <p
+                className="mt-1 text-xs text-gray-500 truncate"
+                title={currentPageTitle}
+              >
+                {currentPageTitle}
+              </p>
             </div>
           </div>
-
-          <button
-            className={`${
-              isOpen ? "invisible" : "inline-flex"
-            } items-center justify-center rounded-lg border border-gray-200 p-2 text-sm text-gray-600 transition hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-100 md:hidden`}
-            onClick={() => setIsOpen(true)}
-            aria-label="open-mobile-menu"
-          >
-            <HiMenu className="h-5 w-5" />
-          </button>
         </div>
 
-        <div className="hidden items-center gap-4 md:flex">
-          <NotificationBell />
-          <div className="text-right">
-            <p className="text-sm font-medium text-gray-800">{getUserDisplayName()}</p>
-            <p className="text-xs text-gray-600">{getUserRoleDisplay()}</p>
-          </div>
-          <div className="relative">
-            <button
-              onClick={() => setShowUserMenu(!showUserMenu)}
-              className="flex items-center gap-2 rounded-lg p-2 transition-colors hover:bg-gray-100"
-              aria-haspopup="menu"
-              aria-expanded={showUserMenu}
-            >
-              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-purple-500 text-white font-semibold">
-                {getInitials()}
-              </div>
-              <ChevronDown size={16} className="text-gray-600" />
-            </button>
-            {showUserMenu && (
-              <div className="absolute right-0 mt-2 w-48 rounded-lg border border-gray-200 bg-white py-2 shadow-lg">
-                <button
-                  onClick={() => {
-                    setShowUserMenu(false);
-                    handleLogout();
-                  }}
-                  className="flex w-full items-center gap-2 px-4 py-2 text-left text-red-600 transition hover:bg-red-50"
-                >
-                  <LogOut size={16} />
-                  <span>ออกจากระบบ</span>
-                </button>
-              </div>
+        <div className="flex items-center gap-3">
+          <button
+            className="inline-flex items-center justify-center rounded-lg border border-gray-200 p-2 text-sm text-gray-600 transition hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-100 md:hidden"
+            onClick={handleToggleMenu}
+            aria-label={isOpen ? "close-mobile-menu" : "open-mobile-menu"}
+            aria-expanded={isOpen}
+          >
+            {isOpen ? (
+              <RxCross2 className="w-5 h-5 text-gray-700" />
+            ) : (
+              <HiMenu className="w-5 h-5 text-gray-700" />
             )}
+          </button>
+
+          <div className="hidden items-center gap-4 md:flex">
+            <NotificationBell />
+            <div className="text-right">
+              <p className="text-sm font-medium text-gray-800">{getUserDisplayName()}</p>
+              <p className="text-xs text-gray-600">{getUserRoleDisplay()}</p>
+            </div>
+            <div className="relative">
+              <button
+                onClick={() => setShowUserMenu(!showUserMenu)}
+                className="flex items-center gap-2 rounded-lg p-2 transition-colors hover:bg-gray-100"
+                aria-haspopup="menu"
+                aria-expanded={showUserMenu}
+              >
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-purple-500 text-white font-semibold">
+                  {getInitials()}
+                </div>
+                <ChevronDown size={16} className="text-gray-600" />
+              </button>
+              {showUserMenu && (
+                <div className="absolute right-0 mt-2 w-48 rounded-lg border border-gray-200 bg-white py-2 shadow-lg">
+                  <button
+                    onClick={() => {
+                      setShowUserMenu(false);
+                      handleLogout();
+                    }}
+                    className="flex w-full items-center gap-2 px-4 py-2 text-left text-red-600 transition hover:bg-red-50"
+                  >
+                    <LogOut size={16} />
+                    <span>ออกจากระบบ</span>
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>
 
       {isOpen && (
-        <div className="fixed inset-0 z-50 md:hidden">
+        <div className="fixed inset-0 bg-gray-200/50 z-40" onClick={handleCloseMenu}>
           <div
-            className="absolute inset-0 bg-black/40"
-            onClick={() => setIsOpen(false)}
-          />
-          <div className="relative ml-auto flex h-full w-72 max-w-full flex-col bg-white shadow-xl">
-            <div className="flex items-center justify-between border-b border-gray-100 px-4 py-3">
-              <div>
-                <p className="text-sm font-medium text-gray-800">เมนูการจัดการ</p>
-                <p className="text-xs text-gray-500">{getUserDisplayName()}</p>
-              </div>
-              <button
-                onClick={() => setIsOpen(false)}
-                aria-label="close-mobile-menu"
-                className="rounded-lg p-1 text-gray-500 transition hover:text-gray-700"
-              >
-                <RxCross2 className="h-6 w-6" />
+            className="absolute top-0 right-0 h-screen w-72 max-w-full bg-white shadow ml-auto pt-5 px-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex justify-end mb-3">
+              <button onClick={handleCloseMenu} aria-label="close-mobile-menu">
+                <RxCross2 className="w-7 h-7 text-gray-600 hover:text-red-500" />
               </button>
             </div>
 
-            <div className="border-b border-gray-100 p-4">
-              <div className="mb-4 flex items-center gap-3">
+            <div className="mb-6 p-4 bg-gray-50 rounded-lg md:hidden">
+              <div className="flex items-center gap-3 mb-3">
                 <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-purple-500 text-white font-semibold">
                   {getInitials()}
                 </div>
@@ -221,7 +236,7 @@ export default function Header({ isOpen, setIsOpen, Navigation }) {
               </button>
             </div>
 
-            <div className="flex-1 overflow-y-auto px-4 py-4" onClick={(e) => e.stopPropagation()}>
+            <div className="flex-1 overflow-y-auto pb-6" onClick={(e) => e.stopPropagation()}>
               {renderNavigationContent()}
             </div>
           </div>
