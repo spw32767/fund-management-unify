@@ -57,10 +57,11 @@ type positionLite struct {
 func (positionLite) TableName() string { return "positions" }
 
 type submissionLite struct {
-	SubmissionID     uint   `gorm:"column:submission_id"`
-	SubmissionType   string `gorm:"column:submission_type"`
-	UserID           uint   `gorm:"column:user_id"`
-	SubmissionNumber string `gorm:"column:submission_number"`
+	SubmissionID     uint       `gorm:"column:submission_id"`
+	SubmissionType   string     `gorm:"column:submission_type"`
+	UserID           uint       `gorm:"column:user_id"`
+	SubmissionNumber string     `gorm:"column:submission_number"`
+	SubmittedAt      *time.Time `gorm:"column:submitted_at"`
 }
 
 func (submissionLite) TableName() string { return "submissions" }
@@ -266,6 +267,41 @@ func getApprovedAmountDisplay(db *gorm.DB, sub submissionLite) (string, bool) {
 		}
 	}
 	return "", false
+}
+
+func getSubmissionTitle(db *gorm.DB, sub submissionLite) string {
+	var title string
+
+	switch sub.SubmissionType {
+	case "fund_application":
+		var d struct{ ProjectTitle *string }
+		if err := db.Raw(`SELECT project_title FROM fund_application_details WHERE submission_id = ? LIMIT 1`, sub.SubmissionID).
+			Scan(&d).Error; err == nil && d.ProjectTitle != nil {
+			title = *d.ProjectTitle
+		}
+	case "publication_reward":
+		var d struct{ PaperTitle *string }
+		if err := db.Raw(`SELECT paper_title FROM publication_reward_details WHERE submission_id = ? LIMIT 1`, sub.SubmissionID).
+			Scan(&d).Error; err == nil && d.PaperTitle != nil {
+			title = *d.PaperTitle
+		}
+	}
+
+	title = strings.TrimSpace(title)
+	if title == "" {
+		return "-"
+	}
+	return title
+}
+
+func formatSubmittedAt(sub submissionLite) string {
+	if sub.SubmittedAt == nil {
+		return "-"
+	}
+
+	loc, _ := time.LoadLocation("Asia/Bangkok")
+	t := sub.SubmittedAt.In(loc)
+	return t.Format("02/01/2006 15:04")
 }
 
 func appBaseURL() string {
@@ -557,7 +593,7 @@ func NotifySubmissionSubmitted(c *gin.Context) {
 	_ = c.ShouldBindJSON(&payload)
 
 	var sub submissionLite
-	if err := db.Select("submission_id, submission_type, user_id, submission_number").
+	if err := db.Select("submission_id, submission_type, user_id, submission_number, submitted_at").
 		First(&sub, "submission_id = ?", sid).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "submission not found"})
 		return
@@ -575,9 +611,19 @@ func NotifySubmissionSubmitted(c *gin.Context) {
 		submitterName = ownerName
 	}
 
+	submissionTitle := getSubmissionTitle(db, sub)
+	submittedAt := formatSubmittedAt(sub)
+	webURL := strings.TrimSpace(appBaseURL())
+	if webURL == "" {
+		webURL = "-"
+	}
+
 	data := map[string]string{
 		"submission_number": sub.SubmissionNumber,
 		"submitter_name":    submitterName,
+		"submission_title":  submissionTitle,
+		"submitted_at":      submittedAt,
+		"web_url":           webURL,
 	}
 
 	userMsg, err := buildTemplatedMessage(db, "submission_submitted", "user", data)

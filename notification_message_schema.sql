@@ -19,7 +19,14 @@ INSERT INTO notification_message
     (event_key, send_to, title_template, body_template, description, variables)
 VALUES
     -- เมื่อผู้ใช้ส่งคำร้อง
-    ('submission_submitted', 'user', 'ส่งคำร้องสำเร็จ', 'ระบบได้รับคำร้อง {{submission_number}} ของคุณ {{submitter_name}} แล้ว', 'แจ้งผู้ยื่นเมื่อส่งคำร้องสำเร็จ', JSON_ARRAY('submission_number', 'submitter_name')),
+    (
+        'submission_submitted',
+        'user',
+        'ระบบได้รับคำร้องของท่านแล้ว (หมายเลข {{submission_number}})',
+        'เรียน {{submitter_name}} \nระบบกองทุนวิจัยฯ วิทยาลัยการคอมพิวเตอร์ขอแจ้งว่าได้รับคำร้องของท่านแล้ว มีรายละเอียดดังนี้ \n\n- หมายเลขคำร้อง: {{submission_number}} \n- ชื่อผลงานทางวิชาการ: {{submission_title}} \n- วันที่และเวลาที่ส่งคำร้อง: {{submitted_at}} \n\nขณะนี้คำร้องของท่านอยู่ระหว่างการพิจารณาโดยหัวหน้าสาขา \nหากต้องการติดตามสถานะของคำร้องกรุณาเข้าสู่ระบบที่ {{web_url}} เพื่อดูความคืบหน้า \n\nจึงเรียนมาเพื่อทราบ \n\nขอแสดงความนับถือ \nระบบกองทุนวิจัยฯ \nวิทยาลัยการคอมพิวเตอร์',
+        'แจ้งผู้ยื่นเมื่อส่งคำร้องสำเร็จ',
+        JSON_ARRAY('submission_number', 'submitter_name', 'submission_title', 'submitted_at', 'web_url')
+    ),
     ('submission_submitted', 'dept_head', 'คำร้องใหม่รอพิจารณา (หัวหน้าสาขา)', 'มีคำร้องใหม่ {{submission_number}} จากอาจารย์ {{submitter_name}} รอพิจารณา', 'แจ้งหัวหน้าสาขาเมื่อมีคำร้องใหม่', JSON_ARRAY('submission_number', 'submitter_name')),
 
     -- เมื่อหัวหน้าสาขาเห็นควรพิจารณา
