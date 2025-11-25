@@ -826,12 +826,12 @@ func NotifyDeptHeadNotRecommended(c *gin.Context) {
 		webURL = "-"
 	}
 
-	data := map[string]string{
-		"submission_number": sub.SubmissionNumber,
-		"submitter_name":    submitterName,
-		"reason":            reasonText,
-		"web_url":           webURL,
-	}
+data := map[string]string{
+"submission_number": sub.SubmissionNumber,
+"submitter_name":    submitterName,
+"head_rejection_reason": reasonText,
+"web_url":           webURL,
+}
 
 	msg, err := buildTemplatedMessage(db, "dept_head_not_recommended", "user", data)
 	if err != nil {
