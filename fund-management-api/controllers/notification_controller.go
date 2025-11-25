@@ -983,23 +983,33 @@ func NotifyAdminRejected(c *gin.Context) {
 	ownerName = strings.TrimSpace(ownerName)
 
 	submitterName := ownerName
+	submissionTitle := getSubmissionTitle(db, sub)
+	webURL := strings.TrimSpace(appBaseURL())
+	if webURL == "" {
+		webURL = "-"
+	}
 
-	reason := strings.TrimSpace(body.Reason)
-	if reason == "" {
+	contactInfo := appContactInfo()
+
+	adminRejectionReason := strings.TrimSpace(body.Reason)
+	if adminRejectionReason == "" {
 		var rr struct{ Reason *string }
 		_ = db.Raw(`SELECT admin_rejection_reason AS reason FROM submissions WHERE submission_id = ?`, sub.SubmissionID).Scan(&rr).Error
 		if rr.Reason != nil {
-			reason = *rr.Reason
+			adminRejectionReason = strings.TrimSpace(*rr.Reason)
 		}
 	}
-	reasonMessage := ""
-	if reason != "" {
-		reasonMessage = fmt.Sprintf(" เหตุผล: %s", reason)
+	if adminRejectionReason == "" {
+		adminRejectionReason = "ไม่ระบุ"
 	}
 
 	data := map[string]string{
-		"submission_number": sub.SubmissionNumber,
-		"reason":            reasonMessage,
+		"submission_number":      sub.SubmissionNumber,
+		"submitter_name":         submitterName,
+		"submission_title":       submissionTitle,
+		"admin_rejection_reason": adminRejectionReason,
+		"web_url":                webURL,
+		"contact_info":           contactInfo,
 	}
 
 	msg, err := buildTemplatedMessage(db, "admin_rejected", "user", data)
