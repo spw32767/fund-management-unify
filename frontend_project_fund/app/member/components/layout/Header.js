@@ -176,91 +176,89 @@ export default function Header({
 
   return (
     <header className="fixed top-0 z-40 w-full border-b border-gray-200 bg-white/95 backdrop-blur">
-      <div className="px-6 py-4 flex justify-between items-center">
+      <div className="flex items-start justify-between gap-3 px-4 py-3 sm:items-center sm:px-6">
         {/* Logo Section */}
+        <div className="flex items-start gap-3 sm:items-center">
+          <div className="flex items-start gap-3 sm:items-center">
+            <div className={logoContainerClass}>{renderLogoContent()}</div>
+            <div className="min-w-0">
+              <h1 className="text-lg font-bold text-gray-800 sm:text-xl">
+                {appName || "Fund Management"}
+              </h1>
+              <p className="text-xs text-gray-600">
+                {subtitles.member || "ระบบบริหารจัดการทุน - Member"}
+              </p>
+              <p className="mt-1 text-xs text-gray-500 truncate" title={currentPageTitle}>
+                {currentPageTitle}
+              </p>
+            </div>
+          </div>
+        </div>
+
         <div className="flex items-center gap-3">
           <button
-            className={`${
-              isOpen ? "hidden" : "block"
-            } inline-flex items-center justify-center me-4 ms-3 p-2 w-10 h-10 text-sm text-gray-500 rounded-lg md:hidden hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-gray-200`}
+            className="inline-flex items-center justify-center rounded-lg border border-gray-200 p-2 text-sm text-gray-600 transition hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-100 md:hidden"
             onClick={handleToggleMenu}
-            aria-label="open-mobile-menu"
+            aria-label={isOpen ? "close-mobile-menu" : "open-mobile-menu"}
+            aria-expanded={isOpen}
           >
-            <HiMenu className="w-5 h-5 text-gray-700" />
-          </button>
-
-          <div className={logoContainerClass}>{renderLogoContent()}</div>
-          <div>
-            <h1 className="text-xl font-bold text-gray-800">
-              {appName || "Fund Management"}
-            </h1>
-            <p className="text-xs text-gray-600">
-              {subtitles.member || "ระบบบริหารจัดการทุน - Member"}
-            </p>
-            <p className="text-xs text-gray-500 mt-1">{currentPageTitle}</p>
-          </div>
-        </div>
-
-        {/* Desktop User Menu */}
-        <div className="hidden md:flex items-center gap-4">
-          <NotificationBell onViewAll={goToNotifications} />
-
-          <div className="text-right">
-            <p className="text-sm font-medium text-gray-800">{displayName}</p>
-            {roleLabel ? (
-              <p className="text-xs text-gray-600">{roleLabel}</p>
-            ) : null}
-          </div>
-
-          {/* User Avatar with Dropdown */}
-          <div className="relative">
-            <button
-              onClick={() => setShowUserMenu(!showUserMenu)}
-              className="flex items-center gap-2 p-2 rounded-lg hover:bg-gray-100 transition-colors"
-            >
-              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center text-white font-semibold">
-                {initials}
-              </div>
-              <ChevronDown size={16} className="text-gray-600" />
-            </button>
-
-            {/* Dropdown Menu */}
-            {showUserMenu && (
-              <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-2 z-10">
-                <button
-                  onClick={() => {
-                    goToNotifications();
-                  }}
-                  className="flex items-center gap-2 w-full px-4 py-2 text-left text-gray-700 hover:bg-gray-50"
-                >
-                  <BellIcon size={16} />
-                  <span>การแจ้งเตือน</span>
-                </button>
-                <button
-                  onClick={() => {
-                    setShowUserMenu(false);
-                    handleLogout();
-                  }}
-                  className="flex items-center gap-2 w-full px-4 py-2 text-left text-red-600 hover:bg-red-50"
-                >
-                  <LogOut size={16} />
-                  <span>ออกจากระบบ</span>
-                </button>
-              </div>
+            {isOpen ? (
+              <RxCross2 className="w-5 h-5 text-gray-700" />
+            ) : (
+              <HiMenu className="w-5 h-5 text-gray-700" />
             )}
+          </button>
+
+          {/* Desktop User Menu */}
+          <div className="hidden items-center gap-4 md:flex">
+            <NotificationBell onViewAll={goToNotifications} />
+
+            <div className="text-right">
+              <p className="text-sm font-medium text-gray-800">{displayName}</p>
+              {roleLabel ? (
+                <p className="text-xs text-gray-600">{roleLabel}</p>
+              ) : null}
+            </div>
+
+            {/* User Avatar with Dropdown */}
+            <div className="relative">
+              <button
+                onClick={() => setShowUserMenu(!showUserMenu)}
+                className="flex items-center gap-2 rounded-lg p-2 transition-colors hover:bg-gray-100"
+              >
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-purple-500 text-white font-semibold">
+                  {initials}
+                </div>
+                <ChevronDown size={16} className="text-gray-600" />
+              </button>
+
+              {/* Dropdown Menu */}
+              {showUserMenu && (
+                <div className="absolute right-0 mt-2 w-48 rounded-lg border border-gray-200 bg-white py-2 shadow-lg z-10">
+                  <button
+                    onClick={() => {
+                      goToNotifications();
+                    }}
+                    className="flex w-full items-center gap-2 px-4 py-2 text-left text-gray-700 hover:bg-gray-50"
+                  >
+                    <BellIcon size={16} />
+                    <span>การแจ้งเตือน</span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowUserMenu(false);
+                      handleLogout();
+                    }}
+                    className="flex w-full items-center gap-2 px-4 py-2 text-left text-red-600 hover:bg-red-50"
+                  >
+                    <LogOut size={16} />
+                    <span>ออกจากระบบ</span>
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
-
-        {/* Mobile Menu Close Button */}
-        {isOpen && (
-          <button
-            className="md:hidden inline-flex items-center justify-center me-4 ms-3 p-2 w-10 h-10 text-sm text-gray-500 rounded-lg hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-gray-200"
-            onClick={handleCloseMenu}
-            aria-label="close-mobile-menu"
-          >
-            <RxCross2 className="w-5 h-5 text-gray-700" />
-          </button>
-        )}
       </div>
 
       {/* Mobile Menu Overlay */}
