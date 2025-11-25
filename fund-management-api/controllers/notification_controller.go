@@ -633,7 +633,7 @@ func NotifySubmissionSubmitted(c *gin.Context) {
 		return
 	}
 
-	headMsg, err := buildTemplatedMessage(db, "submission_submitted", "dept_head", data)
+	headTemplate, err := fetchNotificationTemplate(db, "submission_submitted", "dept_head")
 	if err != nil {
 		log.Printf("notify submission submitted: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "notification template missing"})
@@ -644,10 +644,30 @@ func NotifySubmissionSubmitted(c *gin.Context) {
 
 	headIDs := getCurrentDeptHeadIDs(db)
 	var heads []userLite
+	headMessages := make([]struct {
+		User userLite
+		Msg  templatedMessage
+	}, 0, len(headIDs))
 	if len(headIDs) > 0 {
 		_ = db.Where("user_id IN ?", headIDs).Find(&heads).Error
 		for _, h := range heads {
-			_ = db.Exec(`CALL CreateNotification(?,?,?,?,?)`, h.UserID, headMsg.Title, headMsg.Body, "info", sub.SubmissionID).Error
+			headData := map[string]string{}
+			for k, v := range data {
+				headData[k] = v
+			}
+			headData["depthead_name"] = buildThaiDisplayName(h, "")
+
+			msg := templatedMessage{
+				Title: applyTemplatePlaceholders(headTemplate.TitleTemplate, headData),
+				Body:  applyTemplatePlaceholders(headTemplate.BodyTemplate, headData),
+			}
+
+			headMessages = append(headMessages, struct {
+				User userLite
+				Msg  templatedMessage
+			}{User: h, Msg: msg})
+
+			_ = db.Exec(`CALL CreateNotification(?,?,?,?,?)`, h.UserID, msg.Title, msg.Body, "info", sub.SubmissionID).Error
 		}
 	}
 
@@ -658,22 +678,14 @@ func NotifySubmissionSubmitted(c *gin.Context) {
 			sendMailSafe([]string{ownerEmail}, subj, emailBody)
 		}
 
-		var emails []string
-		for _, h := range heads {
-			if h.Email != nil && *h.Email != "" {
-				emails = append(emails, *h.Email)
+		for _, hm := range headMessages {
+			if hm.User.Email == nil || *hm.User.Email == "" {
+				continue
 			}
-		}
-		if len(emails) > 0 {
-			subj := headMsg.Title
-			for _, h := range heads {
-				if h.Email == nil || *h.Email == "" {
-					continue
-				}
-				name := buildThaiDisplayName(h, "")
-				emailBody := buildFormalEmailHTML(subj, name, headMsg.Body)
-				sendMailSafe([]string{*h.Email}, subj, emailBody)
-			}
+			subj := hm.Msg.Title
+			name := buildThaiDisplayName(hm.User, "")
+			emailBody := buildFormalEmailHTML(subj, name, hm.Msg.Body)
+			sendMailSafe([]string{*hm.User.Email}, subj, emailBody)
 		}
 	}()
 
