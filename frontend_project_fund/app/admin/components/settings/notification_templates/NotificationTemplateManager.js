@@ -148,7 +148,9 @@ function TemplateEditor({ open, onClose, onSubmit, initial }) {
               onChange={(e) => handleChange("body_template", e.target.value)}
               required
             />
-            <p className="mt-1 text-xs text-gray-500">รองรับ placeholder เช่น {{submission_number}} หรือ {{reason}}</p>
+            <p className="mt-1 text-xs text-gray-500">
+              รองรับ placeholder เช่น {"{{submission_number}}"} หรือ {"{{reason}}"}
+            </p>
           </div>
 
           <div className="grid gap-4 md:grid-cols-2">
