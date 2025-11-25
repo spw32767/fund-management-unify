@@ -703,21 +703,29 @@ func NotifyDeptHeadRecommended(c *gin.Context) {
 		return
 	}
 
-	var sub submissionLite
-	if err := db.Select("submission_id, submission_type, user_id, submission_number").
-		First(&sub, "submission_id = ?", sid).Error; err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "submission not found"})
-		return
-	}
-	ownerName, ownerEmail := loadOwnerDisplay(db, sub.UserID)
-	ownerName = strings.TrimSpace(ownerName)
+        var sub submissionLite
+        if err := db.Select("submission_id, submission_type, user_id, submission_number").
+                First(&sub, "submission_id = ?", sid).Error; err != nil {
+                c.JSON(http.StatusNotFound, gin.H{"error": "submission not found"})
+                return
+        }
+        ownerName, ownerEmail := loadOwnerDisplay(db, sub.UserID)
+        ownerName = strings.TrimSpace(ownerName)
 
 	submitterName := ownerName
 
-	data := map[string]string{
-		"submission_number": sub.SubmissionNumber,
-		"submitter_name":    submitterName,
-	}
+        submissionTitle := getSubmissionTitle(db, sub)
+        webURL := strings.TrimSpace(appBaseURL())
+        if webURL == "" {
+                webURL = "-"
+        }
+
+        data := map[string]string{
+                "submission_number": sub.SubmissionNumber,
+                "submitter_name":    submitterName,
+                "submission_title":  submissionTitle,
+                "web_url":           webURL,
+        }
 
 	userMsg, err := buildTemplatedMessage(db, "dept_head_recommended", "user", data)
 	if err != nil {
