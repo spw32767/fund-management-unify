@@ -1,0 +1,36 @@
+-- Schema and seed data for notification_message table (no channel column; messages used for all channels).
+CREATE TABLE notification_message (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    event_key VARCHAR(100) NOT NULL,
+    send_to ENUM('user', 'dept_head', 'admin') NOT NULL,
+    title_template TEXT NOT NULL,
+    body_template TEXT NOT NULL,
+    description TEXT NULL,
+    variables JSON NOT NULL,
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    updated_by BIGINT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY uk_notification_message_event_audience (event_key, send_to)
+);
+
+-- Seed initial templates (pulling current in-app/email messages into DB)
+INSERT INTO notification_message
+    (event_key, send_to, title_template, body_template, description, variables)
+VALUES
+    -- เมื่อผู้ใช้ส่งคำร้อง
+    ('submission_submitted', 'user', 'ส่งคำร้องสำเร็จ', 'ระบบได้รับคำร้อง {{submission_number}} ของคุณ {{submitter_name}} แล้ว', 'แจ้งผู้ยื่นเมื่อส่งคำร้องสำเร็จ', JSON_ARRAY('submission_number', 'submitter_name')),
+    ('submission_submitted', 'dept_head', 'คำร้องใหม่รอพิจารณา (หัวหน้าสาขา)', 'มีคำร้องใหม่ {{submission_number}} จากอาจารย์ {{submitter_name}} รอพิจารณา', 'แจ้งหัวหน้าสาขาเมื่อมีคำร้องใหม่', JSON_ARRAY('submission_number', 'submitter_name')),
+
+    -- เมื่อหัวหน้าสาขาเห็นควรพิจารณา
+    ('dept_head_recommended', 'user', 'ผลพิจารณาจากหัวหน้าสาขา', 'คำร้องหมายเลข {{submission_number}} ของคุณได้รับการ "เห็นควรพิจารณา" จากหัวหน้าสาขาแล้ว', 'แจ้งผลให้ผู้ยื่นทราบ', JSON_ARRAY('submission_number')),
+    ('dept_head_recommended', 'admin', 'คำร้องใหม่รอการตัดสินใจ (แอดมิน)', 'คำร้อง {{submission_number}} ผ่านการเห็นควรพิจารณาจากหัวหน้าสาขาแล้ว', 'แจ้งทีมแอดมินเพื่อพิจารณาต่อ', JSON_ARRAY('submission_number')),
+
+    -- เมื่อหัวหน้าสาขาไม่เห็นควรพิจารณา
+    ('dept_head_not_recommended', 'user', 'ผลพิจารณาจากหัวหน้าสาขา', 'คำร้องหมายเลข {{submission_number}} ของคุณได้รับการ "ไม่เห็นควรพิจารณา"{{reason}}', 'แจ้งผลพร้อมเหตุผล (ถ้ามี)', JSON_ARRAY('submission_number', 'reason')),
+
+    -- แอดมินอนุมัติ
+    ('admin_approved', 'user', 'คำร้องได้รับการอนุมัติ', 'คำร้องหมายเลข {{submission_number}} ของคุณได้รับการอนุมัติ เป็นจำนวน {{amount}} บาท{{announce_ref}}', 'แจ้งผลอนุมัติพร้อมจำนวนเงิน/อ้างอิงประกาศ', JSON_ARRAY('submission_number', 'amount', 'announce_ref')),
+
+    -- แอดมินไม่อนุมัติ
+    ('admin_rejected', 'user', 'ผลการตัดสินใจ: ไม่อนุมัติ', 'คำร้องหมายเลข {{submission_number}} ของคุณไม่ได้รับการอนุมัติ{{reason}}', 'แจ้งผลไม่อนุมัติพร้อมเหตุผล (ถ้ามี)', JSON_ARRAY('submission_number', 'reason'));
