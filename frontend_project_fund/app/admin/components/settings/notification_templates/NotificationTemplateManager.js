@@ -8,6 +8,7 @@ import {
   Loader2,
   PlusCircle,
   RefreshCcw,
+  RotateCcw,
   Save,
   ToggleLeft,
   ToggleRight,
@@ -237,8 +238,13 @@ function StatusBadge({ active }) {
   );
 }
 
-function TemplateRow({ item, onEdit, onToggle, saving = false }) {
+function TemplateRow({ item, onEdit, onToggle, onReset, saving = false, resetting = false }) {
   const variableList = normalizeVariables(item.variables);
+  const defaultVariables = normalizeVariables(item.default_variables);
+  const isModified =
+    item.title_template !== item.default_title_template ||
+    item.body_template !== item.default_body_template ||
+    JSON.stringify(variableList) !== JSON.stringify(defaultVariables);
 
   return (
     <div className="grid items-start gap-3 rounded-xl border border-gray-100 bg-white px-4 py-3 shadow-sm transition hover:shadow">
@@ -250,7 +256,19 @@ function TemplateRow({ item, onEdit, onToggle, saving = false }) {
           </span>
           <StatusBadge active={item.is_active} />
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            onClick={() => onReset(item)}
+            disabled={resetting || !isModified}
+            className={`inline-flex items-center gap-1 rounded-lg border px-3 py-1 text-xs font-semibold transition ${
+              resetting || !isModified
+                ? "cursor-not-allowed border-gray-200 bg-gray-50 text-gray-400"
+                : "border-amber-200 text-amber-700 hover:border-amber-400 hover:bg-amber-50"
+            }`}
+          >
+            {resetting ? <Loader2 className="h-4 w-4 animate-spin" /> : <RotateCcw className="h-4 w-4" />}
+            รีเซ็ตเป็นค่าเริ่มต้น
+          </button>
           <button
             onClick={() => onToggle(item)}
             disabled={saving}
@@ -318,6 +336,7 @@ export default function NotificationTemplateManager() {
   const [editorOpen, setEditorOpen] = useState(false);
   const [editing, setEditing] = useState(null);
   const [savingToggleId, setSavingToggleId] = useState(null);
+  const [resettingId, setResettingId] = useState(null);
 
   const loadTemplates = useCallback(async () => {
     setLoading(true);
@@ -374,6 +393,20 @@ export default function NotificationTemplateManager() {
       setError("ไม่สามารถอัปเดตสถานะข้อความได้");
     } finally {
       setSavingToggleId(null);
+    }
+  };
+
+  const handleReset = async (item) => {
+    setResettingId(item.id);
+    try {
+      const updated = await notificationMessagesAPI.reset(item.id);
+      const newItem = updated?.notification_message || updated;
+      setTemplates((prev) => prev.map((row) => (row.id === item.id ? { ...row, ...newItem } : row)));
+    } catch (err) {
+      console.error("Failed to reset notification message", err);
+      setError("ไม่สามารถรีเซ็ตข้อความเป็นค่าเริ่มต้นได้");
+    } finally {
+      setResettingId(null);
     }
   };
 
@@ -462,7 +495,9 @@ export default function NotificationTemplateManager() {
                 item={item}
                 onEdit={handleEdit}
                 onToggle={handleToggle}
+                onReset={handleReset}
                 saving={savingToggleId === item.id}
+                resetting={resettingId === item.id}
               />
             ))}
           </div>
