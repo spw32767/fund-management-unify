@@ -45,7 +45,14 @@ VALUES
         'แจ้งผู้ยื่นเมื่อหัวหน้าสาขาเห็นควรพิจารณา',
         JSON_ARRAY('submission_number', 'submitter_name', 'submission_title', 'web_url')
     ),
-    ('dept_head_recommended', 'admin', 'คำร้องใหม่รอการตัดสินใจ (แอดมิน)', 'คำร้อง {{submission_number}} ผ่านการเห็นควรพิจารณาจากหัวหน้าสาขาแล้ว', 'แจ้งทีมแอดมินเพื่อพิจารณาต่อ', JSON_ARRAY('submission_number')),
+    (
+        'dept_head_recommended',
+        'admin',
+        'มีคำร้องใหม่รอการพิจารณา (หมายเลข {{submission_number}})',
+        'เรียน {{admin_name}}\n\nระบบกองทุนวิจัยฯ วิทยาลัยการคอมพิวเตอร์ขอแจ้งว่าได้รับคำร้องใหม่ มีรายละเอียดดังนี้\n\n- หมายเลขคำร้อง: {{submission_number}}\n- ชื่อผลงานทางวิชาการ: {{submission_title}}\n- ผู้ยื่นคำร้อง: {{submitter_name}}\n\nคำร้องดังกล่าวได้รับการเห็นควรพิจารณาโดยหัวหน้าสาขาแล้ว และรอให้ท่านพิจารณาดำเนินการต่อ โปรดเข้าสู่ระบบที่ {{web_url}} เพื่อดูรายละเอียดและดำเนินการตามขั้นตอน\n\nจึงเรียนมาเพื่อทราบ\n\nขอแสดงความนับถือ  \nระบบกองทุนวิจัยฯ  \nวิทยาลัยการคอมพิวเตอร์',
+        'แจ้งทีมแอดมินเพื่อพิจารณาต่อ',
+        JSON_ARRAY('submission_number', 'admin_name', 'submission_title', 'submitter_name', 'web_url')
+    ),
 
     -- เมื่อหัวหน้าสาขาไม่เห็นควรพิจารณา
     ('dept_head_not_recommended', 'user', 'ผลพิจารณาจากหัวหน้าสาขา', 'คำร้องหมายเลข {{submission_number}} ของคุณได้รับการ "ไม่เห็นควรพิจารณา"{{reason}}', 'แจ้งผลพร้อมเหตุผล (ถ้ามี)', JSON_ARRAY('submission_number', 'reason')),

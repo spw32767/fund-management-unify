@@ -703,29 +703,29 @@ func NotifyDeptHeadRecommended(c *gin.Context) {
 		return
 	}
 
-        var sub submissionLite
-        if err := db.Select("submission_id, submission_type, user_id, submission_number").
-                First(&sub, "submission_id = ?", sid).Error; err != nil {
-                c.JSON(http.StatusNotFound, gin.H{"error": "submission not found"})
-                return
-        }
-        ownerName, ownerEmail := loadOwnerDisplay(db, sub.UserID)
-        ownerName = strings.TrimSpace(ownerName)
+	var sub submissionLite
+	if err := db.Select("submission_id, submission_type, user_id, submission_number").
+		First(&sub, "submission_id = ?", sid).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "submission not found"})
+		return
+	}
+	ownerName, ownerEmail := loadOwnerDisplay(db, sub.UserID)
+	ownerName = strings.TrimSpace(ownerName)
 
 	submitterName := ownerName
 
-        submissionTitle := getSubmissionTitle(db, sub)
-        webURL := strings.TrimSpace(appBaseURL())
-        if webURL == "" {
-                webURL = "-"
-        }
+	submissionTitle := getSubmissionTitle(db, sub)
+	webURL := strings.TrimSpace(appBaseURL())
+	if webURL == "" {
+		webURL = "-"
+	}
 
-        data := map[string]string{
-                "submission_number": sub.SubmissionNumber,
-                "submitter_name":    submitterName,
-                "submission_title":  submissionTitle,
-                "web_url":           webURL,
-        }
+	data := map[string]string{
+		"submission_number": sub.SubmissionNumber,
+		"submitter_name":    submitterName,
+		"submission_title":  submissionTitle,
+		"web_url":           webURL,
+	}
 
 	userMsg, err := buildTemplatedMessage(db, "dept_head_recommended", "user", data)
 	if err != nil {
@@ -734,18 +734,29 @@ func NotifyDeptHeadRecommended(c *gin.Context) {
 		return
 	}
 
-	adminMsg, err := buildTemplatedMessage(db, "dept_head_recommended", "admin", data)
+	_ = db.Exec(`CALL CreateNotification(?,?,?,?,?)`, sub.UserID, userMsg.Title, userMsg.Body, "success", sub.SubmissionID).Error
+
+	adminTemplate, err := fetchNotificationTemplate(db, "dept_head_recommended", "admin")
 	if err != nil {
 		log.Printf("notify dept head recommended: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "notification template missing"})
 		return
 	}
 
-	_ = db.Exec(`CALL CreateNotification(?,?,?,?,?)`, sub.UserID, userMsg.Title, userMsg.Body, "success", sub.SubmissionID).Error
-
 	var admins []userLite
 	_ = db.Where("role_id = ?", 3).Find(&admins).Error
 	for _, a := range admins {
+		adminData := map[string]string{}
+		for k, v := range data {
+			adminData[k] = v
+		}
+		adminData["admin_name"] = buildThaiDisplayName(a, "")
+
+		adminMsg := templatedMessage{
+			Title: applyTemplatePlaceholders(adminTemplate.TitleTemplate, adminData),
+			Body:  applyTemplatePlaceholders(adminTemplate.BodyTemplate, adminData),
+		}
+
 		_ = db.Exec(`CALL CreateNotification(?,?,?,?,?)`, a.UserID, adminMsg.Title, adminMsg.Body, "info", sub.SubmissionID).Error
 	}
 
@@ -755,22 +766,26 @@ func NotifyDeptHeadRecommended(c *gin.Context) {
 			emailBody := buildFormalEmailHTML(subj, submitterName, userMsg.Body)
 			sendMailSafe([]string{ownerEmail}, subj, emailBody)
 		}
-		var adminEmails []string
 		for _, a := range admins {
-			if a.Email != nil && *a.Email != "" {
-				adminEmails = append(adminEmails, *a.Email)
+			if a.Email == nil || *a.Email == "" {
+				continue
 			}
-		}
-		if len(adminEmails) > 0 {
+
+			adminData := map[string]string{}
+			for k, v := range data {
+				adminData[k] = v
+			}
+			adminData["admin_name"] = buildThaiDisplayName(a, "")
+
+			adminMsg := templatedMessage{
+				Title: applyTemplatePlaceholders(adminTemplate.TitleTemplate, adminData),
+				Body:  applyTemplatePlaceholders(adminTemplate.BodyTemplate, adminData),
+			}
+
 			subj := adminMsg.Title
-			for _, a := range admins {
-				if a.Email == nil || *a.Email == "" {
-					continue
-				}
-				name := buildThaiDisplayName(a, "")
-				emailBody := buildFormalEmailHTML(subj, name, adminMsg.Body)
-				sendMailSafe([]string{*a.Email}, subj, emailBody)
-			}
+			name := adminData["admin_name"]
+			emailBody := buildFormalEmailHTML(subj, name, adminMsg.Body)
+			sendMailSafe([]string{*a.Email}, subj, emailBody)
 		}
 	}()
 	c.JSON(http.StatusOK, gin.H{"ok": true})
