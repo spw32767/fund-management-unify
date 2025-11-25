@@ -817,14 +817,20 @@ func NotifyDeptHeadNotRecommended(c *gin.Context) {
 	submitterName := ownerName
 
 	reasonText := strings.TrimSpace(req.Reason)
-	reasonMessage := ""
-	if reasonText != "" {
-		reasonMessage = fmt.Sprintf(" เหตุผล: %s", reasonText)
+	if reasonText == "" {
+		reasonText = "ไม่ระบุ"
+	}
+
+	webURL := strings.TrimSpace(appBaseURL())
+	if webURL == "" {
+		webURL = "-"
 	}
 
 	data := map[string]string{
 		"submission_number": sub.SubmissionNumber,
-		"reason":            reasonMessage,
+		"submitter_name":    submitterName,
+		"reason":            reasonText,
+		"web_url":           webURL,
 	}
 
 	msg, err := buildTemplatedMessage(db, "dept_head_not_recommended", "user", data)
