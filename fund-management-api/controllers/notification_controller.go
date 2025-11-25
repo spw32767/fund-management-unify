@@ -308,6 +308,14 @@ func appBaseURL() string {
 	return chooseBaseURL(os.Getenv("APP_BASE_URL"), true)
 }
 
+func appContactInfo() string {
+	raw := strings.TrimSpace(os.Getenv("APP_CONTACT_INFO"))
+	if raw == "" {
+		return "-"
+	}
+	return raw
+}
+
 func normalizeBaseURL(candidate string) string {
 	trimmed := strings.TrimSpace(candidate)
 	if trimmed == "" {
@@ -826,12 +834,12 @@ func NotifyDeptHeadNotRecommended(c *gin.Context) {
 		webURL = "-"
 	}
 
-data := map[string]string{
-"submission_number": sub.SubmissionNumber,
-"submitter_name":    submitterName,
-"head_rejection_reason": reasonText,
-"web_url":           webURL,
-}
+	data := map[string]string{
+		"submission_number":     sub.SubmissionNumber,
+		"submitter_name":        submitterName,
+		"head_rejection_reason": reasonText,
+		"web_url":               webURL,
+	}
 
 	msg, err := buildTemplatedMessage(db, "dept_head_not_recommended", "user", data)
 	if err != nil {
@@ -896,15 +904,27 @@ func NotifyAdminApproved(c *gin.Context) {
 		amount = "0.00"
 	}
 
-	announceNote := ""
-	if announce != "" {
-		announceNote = fmt.Sprintf(" (เลขอ้างอิงประกาศ: %s)", announce)
+	announceRef := announce
+	if announceRef == "" {
+		announceRef = "-"
 	}
+
+	submissionTitle := getSubmissionTitle(db, sub)
+	webURL := strings.TrimSpace(appBaseURL())
+	if webURL == "" {
+		webURL = "-"
+	}
+
+	contactInfo := appContactInfo()
 
 	data := map[string]string{
 		"submission_number": sub.SubmissionNumber,
+		"submitter_name":    submitterName,
+		"submission_title":  submissionTitle,
 		"amount":            amount,
-		"announce_ref":      announceNote,
+		"announce_ref":      announceRef,
+		"contact_info":      contactInfo,
+		"web_url":           webURL,
 	}
 
 	msg, err := buildTemplatedMessage(db, "admin_approved", "user", data)

@@ -65,7 +65,14 @@ VALUES
     ),
 
     -- แอดมินอนุมัติ
-    ('admin_approved', 'user', 'คำร้องได้รับการอนุมัติ', 'คำร้องหมายเลข {{submission_number}} ของคุณได้รับการอนุมัติ เป็นจำนวน {{amount}} บาท{{announce_ref}}', 'แจ้งผลอนุมัติพร้อมจำนวนเงิน/อ้างอิงประกาศ', JSON_ARRAY('submission_number', 'amount', 'announce_ref')),
+    (
+        'admin_approved',
+        'user',
+        'ผลการพิจารณาคำร้อง (หมายเลข {{submission_number}})',
+        'เรียน {{submitter_name}}\n\nระบบกองทุนวิจัยฯ วิทยาลัยการคอมพิวเตอร์ขอแจ้งว่า คำร้องหมายเลข {{submission_number}} เรื่อง {{submission_title}} ของท่านได้รับการอนุมัติ เป็นจำนวน {{amount}} บาท โดยพิจารณาตามประกาศกองทุนหมายเลข {{announce_ref}}\n\nหากมีข้อสงสัยหรือต้องการสอบถามเพิ่มเติม โปรดติดต่อ {{contact_info}}\n\nจึงเรียนมาเพื่อทราบ\n\nขอแสดงความนับถือ  \nระบบกองทุนวิจัยฯ  \nวิทยาลัยการคอมพิวเตอร์',
+        'แจ้งผลอนุมัติพร้อมรายละเอียดประกาศและช่องทางติดต่อ',
+        JSON_ARRAY('submission_number', 'submitter_name', 'submission_title', 'amount', 'announce_ref', 'contact_info')
+    ),
 
     -- แอดมินไม่อนุมัติ
     ('admin_rejected', 'user', 'ผลการตัดสินใจ: ไม่อนุมัติ', 'คำร้องหมายเลข {{submission_number}} ของคุณไม่ได้รับการอนุมัติ{{reason}}', 'แจ้งผลไม่อนุมัติพร้อมเหตุผล (ถ้ามี)', JSON_ARRAY('submission_number', 'reason'));
