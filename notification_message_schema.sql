@@ -82,6 +82,32 @@ VALUES
         JSON_ARRAY('submission_number', 'submitter_name', 'head_rejection_reason', 'web_url')
     ),
 
+    -- เมื่อหัวหน้าสาขาขอข้อมูลเพิ่มเติม
+    (
+        'dept_head_needs_more_info',
+        'user',
+        'คำร้องต้องการข้อมูลเพิ่มเติม (หมายเลข {{submission_number}})',
+        'เรียน {{submitter_name}}\n\nหัวหน้าสาขาได้ตรวจสอบคำร้องหมายเลข {{submission_number}} เรื่อง {{submission_title}} และขอข้อมูลเพิ่มเติม โดยมีรายละเอียดดังนี้\n{{head_comment}}\n\nกรุณาเข้าสู่ระบบที่ {{web_url}} เพื่อเพิ่มเติมข้อมูลหรือเอกสารตามที่ร้องขอ\n\nจึงเรียนมาเพื่อทราบ\n\nขอแสดงความนับถือ  \nระบบกองทุนวิจัยฯ  \nวิทยาลัยการคอมพิวเตอร์',
+        'คำร้องต้องการข้อมูลเพิ่มเติม (หมายเลข {{submission_number}})',
+        'เรียน {{submitter_name}}\n\nหัวหน้าสาขาได้ตรวจสอบคำร้องหมายเลข {{submission_number}} เรื่อง {{submission_title}} และขอข้อมูลเพิ่มเติม โดยมีรายละเอียดดังนี้\n{{head_comment}}\n\nกรุณาเข้าสู่ระบบที่ {{web_url}} เพื่อเพิ่มเติมข้อมูลหรือเอกสารตามที่ร้องขอ\n\nจึงเรียนมาเพื่อทราบ\n\nขอแสดงความนับถือ  \nระบบกองทุนวิจัยฯ  \nวิทยาลัยการคอมพิวเตอร์',
+        'แจ้งผู้ยื่นเมื่อหัวหน้าสาขาขอข้อมูลเพิ่มเติม',
+        JSON_ARRAY('submission_number', 'submitter_name', 'submission_title', 'head_comment', 'web_url'),
+        JSON_ARRAY('submission_number', 'submitter_name', 'submission_title', 'head_comment', 'web_url')
+    ),
+
+    -- เมื่อแอดมินขอข้อมูลเพิ่มเติม
+    (
+        'admin_needs_more_info',
+        'user',
+        'คำร้องต้องการข้อมูลเพิ่มเติม (หมายเลข {{submission_number}})',
+        'เรียน {{submitter_name}}\n\nผู้ดูแลระบบได้ตรวจสอบคำร้องหมายเลข {{submission_number}} เรื่อง {{submission_title}} และขอข้อมูลเพิ่มเติม โดยมีรายละเอียดดังนี้\n{{admin_comment}}\n\nกรุณาเข้าสู่ระบบที่ {{web_url}} เพื่อเพิ่มเติมข้อมูลหรือเอกสารตามที่ร้องขอ\n\nจึงเรียนมาเพื่อทราบ\n\nขอแสดงความนับถือ  \nระบบกองทุนวิจัยฯ  \nวิทยาลัยการคอมพิวเตอร์',
+        'คำร้องต้องการข้อมูลเพิ่มเติม (หมายเลข {{submission_number}})',
+        'เรียน {{submitter_name}}\n\nผู้ดูแลระบบได้ตรวจสอบคำร้องหมายเลข {{submission_number}} เรื่อง {{submission_title}} และขอข้อมูลเพิ่มเติม โดยมีรายละเอียดดังนี้\n{{admin_comment}}\n\nกรุณาเข้าสู่ระบบที่ {{web_url}} เพื่อเพิ่มเติมข้อมูลหรือเอกสารตามที่ร้องขอ\n\nจึงเรียนมาเพื่อทราบ\n\nขอแสดงความนับถือ  \nระบบกองทุนวิจัยฯ  \nวิทยาลัยการคอมพิวเตอร์',
+        'แจ้งผู้ยื่นเมื่อแอดมินขอข้อมูลเพิ่มเติม',
+        JSON_ARRAY('submission_number', 'submitter_name', 'submission_title', 'admin_comment', 'web_url'),
+        JSON_ARRAY('submission_number', 'submitter_name', 'submission_title', 'admin_comment', 'web_url')
+    ),
+
     -- แอดมินอนุมัติ
     (
         'admin_approved',
