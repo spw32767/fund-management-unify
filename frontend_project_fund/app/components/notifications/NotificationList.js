@@ -133,11 +133,20 @@ export default function NotificationList({
           notifications.map((notification) => (
             <div
               key={notification.notification_id}
-              className={`w-full rounded-xl border bg-white p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${
+              role="button"
+              tabIndex={0}
+              className={`w-full cursor-pointer rounded-xl border bg-white p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${
                 notification.is_read
                   ? "border-slate-100"
                   : "border-sky-100 ring-1 ring-sky-100 bg-gradient-to-br from-sky-50/60 to-white"
               }`}
+              onClick={() => toggleNotification(notification.notification_id)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
+                  toggleNotification(notification.notification_id);
+                }
+              }}
             >
               <div className="flex items-start gap-3">
                 <div
@@ -178,23 +187,13 @@ export default function NotificationList({
                         )}
                       </div>
                     </div>
-                    <button
-                      type="button"
-                      className="flex items-center gap-1 rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50"
-                      onClick={() => toggleNotification(notification.notification_id)}
-                    >
+                    <div className="rounded-full border border-slate-200 bg-white p-1 text-slate-600 shadow-sm">
                       {expandedIds.includes(notification.notification_id) ? (
-                        <>
-                          ซ่อน
-                          <ChevronUp size={16} />
-                        </>
+                        <ChevronUp size={16} />
                       ) : (
-                        <>
-                          รายละเอียด
-                          <ChevronDown size={16} />
-                        </>
+                        <ChevronDown size={16} />
                       )}
-                    </button>
+                    </div>
                   </div>
 
                   {expandedIds.includes(notification.notification_id) && (

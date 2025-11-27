@@ -6,6 +6,7 @@ import {
   Bell,
   CheckCheck,
   ChevronDown,
+  ChevronUp,
   Clock3,
   Inbox,
   Info,
@@ -21,6 +22,7 @@ export default function AdminNotificationCenter() {
   const [yearFilter, setYearFilter] = useState("all");
   const [sortOrder, setSortOrder] = useState("desc");
   const [visibleCount, setVisibleCount] = useState(0);
+  const [expandedIds, setExpandedIds] = useState([]);
 
   const PAGE_SIZE = 10;
 
@@ -149,6 +151,15 @@ export default function AdminNotificationCenter() {
     }
   };
 
+  const toggleNotification = async (id) => {
+    await markAsRead(id);
+    setExpandedIds((prevExpanded) =>
+      prevExpanded.includes(id)
+        ? prevExpanded.filter((existingId) => existingId !== id)
+        : [...prevExpanded, id]
+    );
+  };
+
   const markAllAsRead = async () => {
     try {
       await notificationsAPI.markAllRead();
@@ -265,66 +276,90 @@ export default function AdminNotificationCenter() {
                           ? "bg-rose-50 text-rose-700 ring-1 ring-rose-100"
                           : "bg-sky-50 text-sky-700 ring-1 ring-sky-100";
 
-                  const TypeIcon =
-                    type === "success"
-                      ? CheckCheck
-                      : type === "warning"
-                        ? AlertTriangle
+                const TypeIcon =
+                  type === "success"
+                    ? CheckCheck
+                    : type === "warning"
+                      ? AlertTriangle
                         : type === "error"
                           ? XCircle
                           : Info;
 
-                  return (
-                    <button
-                      key={notification.notification_id}
-                      type="button"
-                      onClick={() => markAsRead(notification.notification_id)}
-                      className={`h-full w-full rounded-xl border bg-white p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${
-                        isRead
-                          ? "border-slate-100"
-                          : "border-sky-100 ring-1 ring-sky-100 bg-gradient-to-br from-sky-50/70 to-white"
-                      }`}
-                    >
-                      <div className="flex items-start gap-3">
-                        <div
-                          className={`mt-1 flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 text-slate-600 ${
-                            isRead ? "" : "ring-2 ring-offset-2 ring-sky-200 ring-offset-sky-50"
-                          }`}
-                        >
-                          <TypeIcon className="h-5 w-5" />
-                        </div>
-                        <div className="flex-1 space-y-1">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <h4 className="text-sm font-semibold text-slate-900">{notification.title}</h4>
-                            <span className={`text-[11px] font-medium rounded-full px-2 py-0.5 ${typeBadge}`}>
-                              {type === "success"
-                                ? "สำเร็จ"
-                                : type === "warning"
-                                  ? "แจ้งเตือน"
-                                  : type === "error"
-                                    ? "ต้องดำเนินการ"
-                                    : "ทั่วไป"}
-                            </span>
-                            {!isRead && <span className="h-2 w-2 rounded-full bg-amber-400" aria-hidden="true" />}
-                          </div>
-                          <p className="text-sm leading-relaxed text-slate-600">{notification.message}</p>
-                          <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500">
-                            <span className="inline-flex items-center gap-1">
-                              <Clock3 className="h-4 w-4" /> {formatDateTime(notification.created_at)}
-                            </span>
-                            {notification.related_submission_id && (
-                              <span className="inline-flex items-center gap-1 rounded-full bg-sky-50 px-2.5 py-1 font-medium text-sky-700 ring-1 ring-sky-100">
-                                อ้างอิง #{notification.related_submission_id}
-                              </span>
-                            )}
-                          </div>
-                        </div>
+                const isExpanded = expandedIds.includes(notification.notification_id);
+
+                return (
+                  <div
+                    key={notification.notification_id}
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => toggleNotification(notification.notification_id)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
+                        toggleNotification(notification.notification_id);
+                      }
+                    }}
+                    className={`h-full w-full cursor-pointer rounded-xl border bg-white p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${
+                      isRead
+                        ? "border-slate-100"
+                        : "border-sky-100 ring-1 ring-sky-100 bg-gradient-to-br from-sky-50/70 to-white"
+                    }`}
+                  >
+                    <div className="flex items-start gap-3">
+                      <div
+                        className={`mt-1 flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 text-slate-600 ${
+                          isRead ? "" : "ring-2 ring-offset-2 ring-sky-200 ring-offset-sky-50"
+                        }`}
+                      >
+                        <TypeIcon className="h-5 w-5" />
                       </div>
-                    </button>
-                  );
-                })}
-              </div>
-            )}
+                      <div className="flex-1 space-y-2">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="space-y-1">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <h4 className="text-sm font-semibold text-slate-900">{notification.title}</h4>
+                              <span className={`text-[11px] font-medium rounded-full px-2 py-0.5 ${typeBadge}`}>
+                                {type === "success"
+                                  ? "สำเร็จ"
+                                  : type === "warning"
+                                    ? "แจ้งเตือน"
+                                    : type === "error"
+                                      ? "ต้องดำเนินการ"
+                                      : "ทั่วไป"}
+                              </span>
+                              {!isRead && <span className="h-2 w-2 rounded-full bg-amber-400" aria-hidden="true" />}
+                            </div>
+                            <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500">
+                              <span className="inline-flex items-center gap-1">
+                                <Clock3 className="h-4 w-4" /> {formatDateTime(notification.created_at)}
+                              </span>
+                              {notification.related_submission_id && (
+                                <span className="inline-flex items-center gap-1 rounded-full bg-sky-50 px-2.5 py-1 font-medium text-sky-700 ring-1 ring-sky-100">
+                                  อ้างอิง #{notification.related_submission_id}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                          <div className="rounded-full border border-slate-200 bg-white p-1 text-slate-600 shadow-sm">
+                            {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                          </div>
+                        </div>
+
+                        {isExpanded && (
+                          <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 shadow-inner">
+                            <div className="mb-2 text-[13px] font-semibold text-slate-800">รายละเอียดการแจ้งเตือน</div>
+                            <div className="whitespace-pre-line leading-relaxed text-slate-700">
+                              {notification.message}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
 
             <div className="flex items-center justify-center py-4">
               {hasMore ? (
