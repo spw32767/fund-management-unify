@@ -23,6 +23,10 @@ export const notificationMessagesAPI = {
   async update(id, payload) {
     return apiClient.put(`/admin/notification-messages/${id}`, payload);
   },
+
+  async reset(id) {
+    return apiClient.post(`/admin/notification-messages/${id}/reset`);
+  },
 };
 
 export default notificationMessagesAPI;
