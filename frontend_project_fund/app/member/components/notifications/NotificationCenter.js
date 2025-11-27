@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import PageLayout from "../common/PageLayout";
 import { notificationsAPI } from "@/app/lib/notifications_api";
+import { systemAPI } from "@/app/lib/api";
 
 export default function NotificationCenter() {
   const [notifications, setNotifications] = useState([]);
@@ -23,6 +24,7 @@ export default function NotificationCenter() {
   const [sortOrder, setSortOrder] = useState("desc");
   const [visibleCount, setVisibleCount] = useState(0);
   const [expandedIds, setExpandedIds] = useState([]);
+  const [availableYears, setAvailableYears] = useState([]);
 
   const PAGE_SIZE = 10;
 
@@ -32,19 +34,6 @@ export default function NotificationCenter() {
     () => notifications.filter((item) => !item.is_read).length,
     [notifications]
   );
-
-  const availableYears = useMemo(() => {
-    const years = notifications
-      .map((item) => {
-        const date = new Date(item?.created_at);
-        return Number.isNaN(date.getTime()) ? null : date.getFullYear();
-      })
-      .filter(Boolean);
-
-    const uniqueYears = Array.from(new Set(years));
-    uniqueYears.sort((a, b) => b - a);
-    return uniqueYears;
-  }, [notifications]);
 
   const filteredNotifications = useMemo(() => {
     const list = Array.isArray(notifications) ? [...notifications] : [];
@@ -129,9 +118,40 @@ export default function NotificationCenter() {
     }
   }, [PAGE_SIZE]);
 
+  const loadYears = useCallback(async () => {
+    try {
+      const yearRes = await systemAPI.getYears();
+      const rawYears = Array.isArray(yearRes?.years)
+        ? yearRes.years
+        : Array.isArray(yearRes?.data)
+          ? yearRes.data
+          : Array.isArray(yearRes)
+            ? yearRes
+            : [];
+
+      const normalizedYears = rawYears
+        .map((item) => {
+          const value = item?.year ?? item?.year_id ?? item;
+          const num = Number(value);
+          return Number.isNaN(num) ? null : num;
+        })
+        .filter(Boolean);
+
+      const uniqueYears = Array.from(new Set(normalizedYears)).sort(
+        (a, b) => b - a
+      );
+
+      setAvailableYears(uniqueYears);
+    } catch (error) {
+      console.error("Failed to load years for notifications", error);
+      setAvailableYears([]);
+    }
+  }, []);
+
   useEffect(() => {
     loadNotifications();
-  }, [loadNotifications]);
+    loadYears();
+  }, [loadNotifications, loadYears]);
 
   useEffect(() => {
     setVisibleCount(PAGE_SIZE);
