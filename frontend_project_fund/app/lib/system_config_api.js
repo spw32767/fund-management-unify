@@ -115,6 +115,7 @@ export const systemConfigAPI = {
       end_date: toISOorNull(root?.end_date),
       last_updated: toISOorNull(root?.last_updated),
       current_year: root?.current_year ?? null,
+      contact_info: root?.contact_info ?? null,
       now: toISOorNull(root?.now) ?? new Date().toISOString(),
 
       // flags

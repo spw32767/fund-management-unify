@@ -119,14 +119,15 @@ export async function GET() {
 
     const now = wJson?.now || new Date().toISOString();
 
-    return NextResponse.json(
-      {
-        success: true,
-        current_year,
-        start_date,
-        end_date,
-        window: wJson || null,  // มี is_open_effective, is_open_raw, now, ...
-        raw: adminData,         // แถวเต็มจาก /admin/system-config (ถ้ามี)
+      return NextResponse.json(
+        {
+          success: true,
+          current_year,
+          start_date,
+          end_date,
+          contact_info: adminData?.contact_info ?? null,
+          window: wJson || null,  // มี is_open_effective, is_open_raw, now, ...
+          raw: adminData,         // แถวเต็มจาก /admin/system-config (ถ้ามี)
         now,
         meta: {
           admin_ok: !!aRes.ok,
