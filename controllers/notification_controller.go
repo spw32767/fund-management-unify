@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"database/sql"
 	"fmt"
 	"html/template"
 	"log"
@@ -8,6 +9,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -57,10 +59,11 @@ type positionLite struct {
 func (positionLite) TableName() string { return "positions" }
 
 type submissionLite struct {
-	SubmissionID     uint   `gorm:"column:submission_id"`
-	SubmissionType   string `gorm:"column:submission_type"`
-	UserID           uint   `gorm:"column:user_id"`
-	SubmissionNumber string `gorm:"column:submission_number"`
+	SubmissionID     uint       `gorm:"column:submission_id"`
+	SubmissionType   string     `gorm:"column:submission_type"`
+	UserID           uint       `gorm:"column:user_id"`
+	SubmissionNumber string     `gorm:"column:submission_number"`
+	SubmittedAt      *time.Time `gorm:"column:submitted_at"`
 }
 
 func (submissionLite) TableName() string { return "submissions" }
@@ -124,6 +127,20 @@ func applyTemplatePlaceholders(text string, data map[string]string) string {
 		result = strings.ReplaceAll(result, placeholder, value)
 	}
 	return result
+}
+
+var urlRegex = regexp.MustCompile(`https?://[\w\-._~:/?#\[\]@!$&'()*+,;=%]+`)
+
+func linkifyURLs(text string) string {
+	if strings.TrimSpace(text) == "" {
+		return text
+	}
+
+	return urlRegex.ReplaceAllStringFunc(text, func(match string) string {
+		cleaned := strings.TrimRight(match, ".,)")
+		suffix := match[len(cleaned):]
+		return fmt.Sprintf(`<a href="%s" target="_blank" rel="noopener noreferrer" style="color:#1d4ed8;text-decoration:underline;">%s</a>%s`, template.HTMLEscapeString(cleaned), template.HTMLEscapeString(cleaned), template.HTMLEscapeString(suffix))
+	})
 }
 
 func buildTemplatedMessage(db *gorm.DB, eventKey, sendTo string, data map[string]string) (templatedMessage, error) {
@@ -268,8 +285,74 @@ func getApprovedAmountDisplay(db *gorm.DB, sub submissionLite) (string, bool) {
 	return "", false
 }
 
+func getSubmissionTitle(db *gorm.DB, sub submissionLite) string {
+	var title string
+
+	switch sub.SubmissionType {
+	case "fund_application":
+		var d struct{ ProjectTitle *string }
+		if err := db.Raw(`SELECT project_title FROM fund_application_details WHERE submission_id = ? LIMIT 1`, sub.SubmissionID).
+			Scan(&d).Error; err == nil && d.ProjectTitle != nil {
+			title = *d.ProjectTitle
+		}
+	case "publication_reward":
+		var d struct{ PaperTitle *string }
+		if err := db.Raw(`SELECT paper_title FROM publication_reward_details WHERE submission_id = ? LIMIT 1`, sub.SubmissionID).
+			Scan(&d).Error; err == nil && d.PaperTitle != nil {
+			title = *d.PaperTitle
+		}
+	}
+
+	title = strings.TrimSpace(title)
+	if title == "" {
+		return "-"
+	}
+	return title
+}
+
+func formatSubmittedAt(sub submissionLite) string {
+	if sub.SubmittedAt == nil {
+		return "-"
+	}
+
+	loc, _ := time.LoadLocation("Asia/Bangkok")
+	t := sub.SubmittedAt.In(loc)
+	return t.Format("02/01/2006 15:04")
+}
+
 func appBaseURL() string {
 	return chooseBaseURL(os.Getenv("APP_BASE_URL"), true)
+}
+
+func appContactInfo() string {
+	db := getDB()
+
+	var contact sql.NullString
+	if err := db.Raw(`
+                SELECT contact_info
+                FROM system_config
+                ORDER BY config_id DESC
+                LIMIT 1
+        `).Row().Scan(&contact); err == nil && contact.Valid {
+		normalized := strings.TrimSpace(contact.String)
+		if normalized != "" {
+			return normalized
+		}
+	}
+
+	raw := strings.TrimSpace(os.Getenv("APP_CONTACT_INFO"))
+	if raw == "" {
+		return "-"
+	}
+	return raw
+}
+
+func normalizeComment(text string) string {
+	trimmed := strings.TrimSpace(text)
+	if trimmed == "" {
+		return "ไม่ระบุ"
+	}
+	return trimmed
 }
 
 func normalizeBaseURL(candidate string) string {
@@ -334,10 +417,37 @@ func buildFormalEmailHTML(subject, recipientName, message string) string {
 	}
 
 	escapedSubject := template.HTMLEscapeString(subject)
-	escapedGreeting := template.HTMLEscapeString(fmt.Sprintf("เรียน %s", name))
-	escapedMessage := template.HTMLEscapeString(strings.TrimSpace(message))
-	escapedMessage = strings.ReplaceAll(strings.ReplaceAll(escapedMessage, "\r\n", "\n"), "\r", "\n")
+	normalizedMsg := strings.ReplaceAll(strings.ReplaceAll(message, "\r\n", "\n"), "\r", "\n")
+
+	greetingText := fmt.Sprintf("เรียน %s", name)
+	bodyText := strings.TrimSpace(normalizedMsg)
+	if trimmed := strings.TrimSpace(normalizedMsg); trimmed != "" {
+		lines := strings.Split(normalizedMsg, "\n")
+		for idx, line := range lines {
+			l := strings.TrimSpace(line)
+			if l == "" {
+				continue
+			}
+			if strings.HasPrefix(l, "เรียน") {
+				greetingText = l
+				bodyText = strings.TrimSpace(strings.Join(lines[idx+1:], "\n"))
+			} else {
+				bodyText = strings.TrimSpace(strings.Join(lines[idx:], "\n"))
+			}
+			break
+		}
+	}
+
+	escapedGreeting := template.HTMLEscapeString(greetingText)
+	escapedMessage := template.HTMLEscapeString(bodyText)
+	escapedMessage = linkifyURLs(escapedMessage)
 	escapedMessage = strings.ReplaceAll(escapedMessage, "\n", "<br />")
+
+	logo := getEmailLogoHTML()
+	logoBlock := ""
+	if logo != "" {
+		logoBlock = logo
+	}
 
 	return fmt.Sprintf(`<!DOCTYPE html>
 <html lang="th">
@@ -349,18 +459,74 @@ func buildFormalEmailHTML(subject, recipientName, message string) string {
 <body style="margin:0;padding:0;background-color:#f9fafb;font-family:'Segoe UI',Tahoma,Arial,sans-serif;">
 <div style="max-width:640px;margin:0 auto;padding:24px 20px;">
   <div style="background-color:#ffffff;border:1px solid #e5e7eb;border-radius:12px;padding:24px 24px 28px 24px;">
+    %s
     <p style="margin:0 0 16px 0;font-size:16px;line-height:1.7;color:#111827;">%s</p>
     <p style="margin:0 0 0 0;font-size:16px;line-height:1.7;color:#111827;word-break:break-word;">%s</p>
   </div>
 </div>
 </body>
-</html>`, escapedSubject, escapedGreeting, escapedMessage)
+</html>`, escapedSubject, logoBlock, escapedGreeting, escapedMessage)
 }
 
 func sendMailSafe(to []string, subject, html string) {
 	if err := config.SendMail(to, subject, html); err != nil {
 		log.Printf("notification email send failed (subject=%q to=%v): %v", subject, to, err)
 	}
+}
+
+func notifyNeedsMoreInfo(submissionID int, actor string, comment string) error {
+	db := getDB()
+
+	var sub submissionLite
+	if err := db.Select("submission_id, submission_type, user_id, submission_number").
+		First(&sub, "submission_id = ?", submissionID).Error; err != nil {
+		return err
+	}
+
+	submitterName, submitterEmail := loadOwnerDisplay(db, sub.UserID)
+	submitterName = strings.TrimSpace(submitterName)
+
+	submissionTitle := getSubmissionTitle(db, sub)
+
+	webURL := strings.TrimSpace(appBaseURL())
+	if webURL == "" {
+		webURL = "-"
+	}
+
+	contactInfo := appContactInfo()
+
+	commentKey := "head_comment"
+	eventKey := "dept_head_needs_more_info"
+	if strings.EqualFold(actor, "admin") {
+		commentKey = "admin_comment"
+		eventKey = "admin_needs_more_info"
+	}
+
+	commentText := normalizeComment(comment)
+
+	data := map[string]string{
+		"submission_number": sub.SubmissionNumber,
+		"submitter_name":    submitterName,
+		"submission_title":  submissionTitle,
+		"web_url":           webURL,
+		"contact_info":      contactInfo,
+		commentKey:          commentText,
+	}
+
+	msg, err := buildTemplatedMessage(db, eventKey, "user", data)
+	if err != nil {
+		return err
+	}
+
+	_ = db.Exec(`CALL CreateNotification(?,?,?,?,?)`, sub.UserID, msg.Title, msg.Body, "info", sub.SubmissionID).Error
+
+	if submitterEmail != "" {
+		subj := msg.Title
+		emailBody := buildFormalEmailHTML(subj, submitterName, msg.Body)
+		sendMailSafe([]string{submitterEmail}, subj, emailBody)
+	}
+
+	return nil
 }
 
 /* ==========================
@@ -557,7 +723,7 @@ func NotifySubmissionSubmitted(c *gin.Context) {
 	_ = c.ShouldBindJSON(&payload)
 
 	var sub submissionLite
-	if err := db.Select("submission_id, submission_type, user_id, submission_number").
+	if err := db.Select("submission_id, submission_type, user_id, submission_number, submitted_at").
 		First(&sub, "submission_id = ?", sid).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "submission not found"})
 		return
@@ -575,9 +741,22 @@ func NotifySubmissionSubmitted(c *gin.Context) {
 		submitterName = ownerName
 	}
 
+	submissionTitle := getSubmissionTitle(db, sub)
+	submittedAt := formatSubmittedAt(sub)
+	webURL := strings.TrimSpace(appBaseURL())
+	if webURL == "" {
+		webURL = "-"
+	}
+
+	contactInfo := appContactInfo()
+
 	data := map[string]string{
 		"submission_number": sub.SubmissionNumber,
 		"submitter_name":    submitterName,
+		"submission_title":  submissionTitle,
+		"submitted_at":      submittedAt,
+		"web_url":           webURL,
+		"contact_info":      contactInfo,
 	}
 
 	userMsg, err := buildTemplatedMessage(db, "submission_submitted", "user", data)
@@ -587,7 +766,7 @@ func NotifySubmissionSubmitted(c *gin.Context) {
 		return
 	}
 
-	headMsg, err := buildTemplatedMessage(db, "submission_submitted", "dept_head", data)
+	headTemplate, err := fetchNotificationTemplate(db, "submission_submitted", "dept_head")
 	if err != nil {
 		log.Printf("notify submission submitted: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "notification template missing"})
@@ -598,10 +777,30 @@ func NotifySubmissionSubmitted(c *gin.Context) {
 
 	headIDs := getCurrentDeptHeadIDs(db)
 	var heads []userLite
+	headMessages := make([]struct {
+		User userLite
+		Msg  templatedMessage
+	}, 0, len(headIDs))
 	if len(headIDs) > 0 {
 		_ = db.Where("user_id IN ?", headIDs).Find(&heads).Error
 		for _, h := range heads {
-			_ = db.Exec(`CALL CreateNotification(?,?,?,?,?)`, h.UserID, headMsg.Title, headMsg.Body, "info", sub.SubmissionID).Error
+			headData := map[string]string{}
+			for k, v := range data {
+				headData[k] = v
+			}
+			headData["depthead_name"] = buildThaiDisplayName(h, "")
+
+			msg := templatedMessage{
+				Title: applyTemplatePlaceholders(headTemplate.TitleTemplate, headData),
+				Body:  applyTemplatePlaceholders(headTemplate.BodyTemplate, headData),
+			}
+
+			headMessages = append(headMessages, struct {
+				User userLite
+				Msg  templatedMessage
+			}{User: h, Msg: msg})
+
+			_ = db.Exec(`CALL CreateNotification(?,?,?,?,?)`, h.UserID, msg.Title, msg.Body, "info", sub.SubmissionID).Error
 		}
 	}
 
@@ -612,22 +811,14 @@ func NotifySubmissionSubmitted(c *gin.Context) {
 			sendMailSafe([]string{ownerEmail}, subj, emailBody)
 		}
 
-		var emails []string
-		for _, h := range heads {
-			if h.Email != nil && *h.Email != "" {
-				emails = append(emails, *h.Email)
+		for _, hm := range headMessages {
+			if hm.User.Email == nil || *hm.User.Email == "" {
+				continue
 			}
-		}
-		if len(emails) > 0 {
-			subj := headMsg.Title
-			for _, h := range heads {
-				if h.Email == nil || *h.Email == "" {
-					continue
-				}
-				name := buildThaiDisplayName(h, "")
-				emailBody := buildFormalEmailHTML(subj, name, headMsg.Body)
-				sendMailSafe([]string{*h.Email}, subj, emailBody)
-			}
+			subj := hm.Msg.Title
+			name := buildThaiDisplayName(hm.User, "")
+			emailBody := buildFormalEmailHTML(subj, name, hm.Msg.Body)
+			sendMailSafe([]string{*hm.User.Email}, subj, emailBody)
 		}
 	}()
 
@@ -656,9 +847,20 @@ func NotifyDeptHeadRecommended(c *gin.Context) {
 
 	submitterName := ownerName
 
+	submissionTitle := getSubmissionTitle(db, sub)
+	webURL := strings.TrimSpace(appBaseURL())
+	if webURL == "" {
+		webURL = "-"
+	}
+
+	contactInfo := appContactInfo()
+
 	data := map[string]string{
 		"submission_number": sub.SubmissionNumber,
 		"submitter_name":    submitterName,
+		"submission_title":  submissionTitle,
+		"web_url":           webURL,
+		"contact_info":      contactInfo,
 	}
 
 	userMsg, err := buildTemplatedMessage(db, "dept_head_recommended", "user", data)
@@ -668,18 +870,29 @@ func NotifyDeptHeadRecommended(c *gin.Context) {
 		return
 	}
 
-	adminMsg, err := buildTemplatedMessage(db, "dept_head_recommended", "admin", data)
+	_ = db.Exec(`CALL CreateNotification(?,?,?,?,?)`, sub.UserID, userMsg.Title, userMsg.Body, "success", sub.SubmissionID).Error
+
+	adminTemplate, err := fetchNotificationTemplate(db, "dept_head_recommended", "admin")
 	if err != nil {
 		log.Printf("notify dept head recommended: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "notification template missing"})
 		return
 	}
 
-	_ = db.Exec(`CALL CreateNotification(?,?,?,?,?)`, sub.UserID, userMsg.Title, userMsg.Body, "success", sub.SubmissionID).Error
-
 	var admins []userLite
 	_ = db.Where("role_id = ?", 3).Find(&admins).Error
 	for _, a := range admins {
+		adminData := map[string]string{}
+		for k, v := range data {
+			adminData[k] = v
+		}
+		adminData["admin_name"] = buildThaiDisplayName(a, "")
+
+		adminMsg := templatedMessage{
+			Title: applyTemplatePlaceholders(adminTemplate.TitleTemplate, adminData),
+			Body:  applyTemplatePlaceholders(adminTemplate.BodyTemplate, adminData),
+		}
+
 		_ = db.Exec(`CALL CreateNotification(?,?,?,?,?)`, a.UserID, adminMsg.Title, adminMsg.Body, "info", sub.SubmissionID).Error
 	}
 
@@ -689,22 +902,26 @@ func NotifyDeptHeadRecommended(c *gin.Context) {
 			emailBody := buildFormalEmailHTML(subj, submitterName, userMsg.Body)
 			sendMailSafe([]string{ownerEmail}, subj, emailBody)
 		}
-		var adminEmails []string
 		for _, a := range admins {
-			if a.Email != nil && *a.Email != "" {
-				adminEmails = append(adminEmails, *a.Email)
+			if a.Email == nil || *a.Email == "" {
+				continue
 			}
-		}
-		if len(adminEmails) > 0 {
+
+			adminData := map[string]string{}
+			for k, v := range data {
+				adminData[k] = v
+			}
+			adminData["admin_name"] = buildThaiDisplayName(a, "")
+
+			adminMsg := templatedMessage{
+				Title: applyTemplatePlaceholders(adminTemplate.TitleTemplate, adminData),
+				Body:  applyTemplatePlaceholders(adminTemplate.BodyTemplate, adminData),
+			}
+
 			subj := adminMsg.Title
-			for _, a := range admins {
-				if a.Email == nil || *a.Email == "" {
-					continue
-				}
-				name := buildThaiDisplayName(a, "")
-				emailBody := buildFormalEmailHTML(subj, name, adminMsg.Body)
-				sendMailSafe([]string{*a.Email}, subj, emailBody)
-			}
+			name := adminData["admin_name"]
+			emailBody := buildFormalEmailHTML(subj, name, adminMsg.Body)
+			sendMailSafe([]string{*a.Email}, subj, emailBody)
 		}
 	}()
 	c.JSON(http.StatusOK, gin.H{"ok": true})
@@ -736,14 +953,23 @@ func NotifyDeptHeadNotRecommended(c *gin.Context) {
 	submitterName := ownerName
 
 	reasonText := strings.TrimSpace(req.Reason)
-	reasonMessage := ""
-	if reasonText != "" {
-		reasonMessage = fmt.Sprintf(" เหตุผล: %s", reasonText)
+	if reasonText == "" {
+		reasonText = "ไม่ระบุ"
+	}
+
+	contactInfo := appContactInfo()
+
+	webURL := strings.TrimSpace(appBaseURL())
+	if webURL == "" {
+		webURL = "-"
 	}
 
 	data := map[string]string{
-		"submission_number": sub.SubmissionNumber,
-		"reason":            reasonMessage,
+		"submission_number":     sub.SubmissionNumber,
+		"submitter_name":        submitterName,
+		"head_rejection_reason": reasonText,
+		"web_url":               webURL,
+		"contact_info":          contactInfo,
 	}
 
 	msg, err := buildTemplatedMessage(db, "dept_head_not_recommended", "user", data)
@@ -809,15 +1035,27 @@ func NotifyAdminApproved(c *gin.Context) {
 		amount = "0.00"
 	}
 
-	announceNote := ""
-	if announce != "" {
-		announceNote = fmt.Sprintf(" (เลขอ้างอิงประกาศ: %s)", announce)
+	announceRef := announce
+	if announceRef == "" {
+		announceRef = "-"
 	}
+
+	submissionTitle := getSubmissionTitle(db, sub)
+	webURL := strings.TrimSpace(appBaseURL())
+	if webURL == "" {
+		webURL = "-"
+	}
+
+	contactInfo := appContactInfo()
 
 	data := map[string]string{
 		"submission_number": sub.SubmissionNumber,
+		"submitter_name":    submitterName,
+		"submission_title":  submissionTitle,
 		"amount":            amount,
-		"announce_ref":      announceNote,
+		"announce_ref":      announceRef,
+		"contact_info":      contactInfo,
+		"web_url":           webURL,
 	}
 
 	msg, err := buildTemplatedMessage(db, "admin_approved", "user", data)
@@ -876,23 +1114,33 @@ func NotifyAdminRejected(c *gin.Context) {
 	ownerName = strings.TrimSpace(ownerName)
 
 	submitterName := ownerName
+	submissionTitle := getSubmissionTitle(db, sub)
+	webURL := strings.TrimSpace(appBaseURL())
+	if webURL == "" {
+		webURL = "-"
+	}
 
-	reason := strings.TrimSpace(body.Reason)
-	if reason == "" {
+	contactInfo := appContactInfo()
+
+	adminRejectionReason := strings.TrimSpace(body.Reason)
+	if adminRejectionReason == "" {
 		var rr struct{ Reason *string }
 		_ = db.Raw(`SELECT admin_rejection_reason AS reason FROM submissions WHERE submission_id = ?`, sub.SubmissionID).Scan(&rr).Error
 		if rr.Reason != nil {
-			reason = *rr.Reason
+			adminRejectionReason = strings.TrimSpace(*rr.Reason)
 		}
 	}
-	reasonMessage := ""
-	if reason != "" {
-		reasonMessage = fmt.Sprintf(" เหตุผล: %s", reason)
+	if adminRejectionReason == "" {
+		adminRejectionReason = "ไม่ระบุ"
 	}
 
 	data := map[string]string{
-		"submission_number": sub.SubmissionNumber,
-		"reason":            reasonMessage,
+		"submission_number":      sub.SubmissionNumber,
+		"submitter_name":         submitterName,
+		"submission_title":       submissionTitle,
+		"admin_rejection_reason": adminRejectionReason,
+		"web_url":                webURL,
+		"contact_info":           contactInfo,
 	}
 
 	msg, err := buildTemplatedMessage(db, "admin_rejected", "user", data)
