@@ -129,6 +129,7 @@ From the response `entry`:
 |-----------------------|--------------------------------------|-----------|
 | eid                   | `eid`                                 | as-is     |
 | scopus_id             | `dc:identifier`                       | as-is     |
+| scopus_link           | `link[]` entry with `@ref = "scopus"` (fallback: `prism:url`) | store first matching `@href` |
 | title                 | `dc:title`                            | as-is     |
 | abstract              | `dc:description`                      | as-is     |
 | aggregation_type      | `prism:aggregationType`               | as-is     |
