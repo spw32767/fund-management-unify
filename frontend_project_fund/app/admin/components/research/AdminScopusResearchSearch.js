@@ -97,8 +97,19 @@ export default function AdminScopusResearchSearch() {
       setStatsError("");
       try {
         const res = await publicationsAPI.getScopusPublicationStatsForUser(selectedUserId);
-        setStats(res?.data || null);
-        setStatsMeta(res?.meta || { has_scopus_id: false, has_author_record: false });
+        const statsData = res?.data || null;
+        const meta = res?.meta;
+        const derivedMeta = meta
+          ? {
+              has_scopus_id: Boolean(meta.has_scopus_id),
+              has_author_record: Boolean(meta.has_author_record),
+            }
+          : {
+              has_scopus_id: Boolean(statsData),
+              has_author_record: Boolean(statsData),
+            };
+        setStats(statsData);
+        setStatsMeta(derivedMeta);
       } catch (error) {
         console.error("Load stats error", error);
         setStats(null);
@@ -123,9 +134,19 @@ export default function AdminScopusResearchSearch() {
         }
         const res = await publicationsAPI.getScopusPublicationsForUser(selectedUserId, params);
         const items = res?.data || [];
+        const meta = res?.meta;
+        const derivedFlags = meta
+          ? {
+              has_scopus_id: Boolean(meta.has_scopus_id),
+              has_author_record: Boolean(meta.has_author_record),
+            }
+          : {
+              has_scopus_id: items.length > 0,
+              has_author_record: items.length > 0,
+            };
         setPublications(items);
         setPubMeta(res?.paging || { total: items.length, limit: PUB_PAGE_SIZE, offset });
-        setPubFlags(res?.meta || { has_scopus_id: true, has_author_record: true });
+        setPubFlags(derivedFlags);
       } catch (error) {
         console.error("Load publications error", error);
         setPublications([]);
