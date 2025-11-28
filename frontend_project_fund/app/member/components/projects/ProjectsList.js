@@ -53,6 +53,14 @@ const formatParticipants = (value) => {
   return numeric.toLocaleString("th-TH");
 };
 
+const formatBeneficiaries = (value) => {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric) || numeric <= 0) {
+    return "-";
+  }
+  return numeric.toLocaleString("th-TH");
+};
+
 const formatFileSize = (size) => {
   const numeric = Number(size);
   if (!Number.isFinite(numeric) || numeric <= 0) {
@@ -216,6 +224,7 @@ const SORT_FIELDS = [
   { id: "project_name", label: "ชื่อโครงการ" },
   { id: "budget_amount", label: "งบประมาณโครงการ" },
   { id: "participants", label: "จำนวนผู้เข้าร่วม" },
+  { id: "beneficiaries_count", label: "หน่วยงาน/ชุมชนที่ได้รับประโยชน์" },
 ];
 
 const SORT_DIRECTIONS = [
@@ -313,6 +322,8 @@ export default function ProjectsList() {
           return Number(project.budget_amount) || 0;
         case "participants":
           return Number(project.participants) || 0;
+        case "beneficiaries_count":
+          return Number(project.beneficiaries_count) || 0;
         case "event_date":
         default: {
           const date = project.event_date ? new Date(project.event_date) : null;
@@ -683,6 +694,16 @@ export default function ProjectsList() {
                             <div>
                             <p className="text-sm text-gray-500">จำนวนผู้เข้าร่วม</p>
                             <p className="text-base font-medium text-gray-900">{formatParticipants(project.participants)}</p>
+                            </div>
+                        </div>
+
+                        <div className="flex items-start gap-3">
+                            <div className="p-2 rounded-full bg-indigo-50 text-indigo-600">
+                            <Users size={18} />
+                            </div>
+                            <div>
+                            <p className="text-sm text-gray-500">หน่วยงาน/ชุมชนที่ได้รับประโยชน์</p>
+                            <p className="text-base font-medium text-gray-900">{formatBeneficiaries(project.beneficiaries_count)}</p>
                             </div>
                         </div>
                       </div>
