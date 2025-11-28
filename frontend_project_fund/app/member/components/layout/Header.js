@@ -179,14 +179,14 @@ export default function Header({
       <div className="flex items-start justify-between gap-3 px-4 py-3 sm:items-center sm:px-6">
         {/* Logo Section */}
         <div className="flex items-start gap-3 sm:items-center">
-          <div className="flex items-start gap-3 sm:items-center">
+            <div className="flex items-start gap-3 sm:items-center">
             <div className={logoContainerClass}>{renderLogoContent()}</div>
             <div className="min-w-0">
               <h1 className="text-lg font-bold text-gray-800 sm:text-xl">
-                {appName || "Fund Management"}
+                {subtitles.member || "กองทุนวิจัยฯ วิทยาลัยการคอมพิวเตอร์"}
               </h1>
-              <p className="text-xs text-gray-600">
-                {subtitles.member || "ระบบบริหารจัดการทุน - Member"}
+              <p className="text-sm text-gray-700 leading-tight">
+                {appName || "Fund Management"}
               </p>
               <p className="mt-1 text-xs text-gray-500 truncate" title={currentPageTitle}>
                 {currentPageTitle}

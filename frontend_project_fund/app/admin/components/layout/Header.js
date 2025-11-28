@@ -133,10 +133,10 @@ export default function Header({
             <div className={logoContainerClass}>{renderLogoContent()}</div>
             <div className="min-w-0">
               <h1 className="text-lg font-bold text-gray-800 sm:text-xl">
-                {appName || "Fund Management"}
+                {subtitles.admin || "กองทุนวิจัยฯ วิทยาลัยการคอมพิวเตอร์"}
               </h1>
-              <p className="text-xs text-gray-600">
-                {subtitles.admin || "ระบบบริหารจัดการทุน - Admin"}
+              <p className="text-sm text-gray-700 leading-tight">
+                {appName || "Fund Management"}
               </p>
               <p
                 className="mt-1 text-xs text-gray-500 truncate"

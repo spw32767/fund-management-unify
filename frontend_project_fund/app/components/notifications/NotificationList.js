@@ -1,10 +1,14 @@
 // NotificationList.js
 "use client";
 
+import { useState } from "react";
+
 import {
   AlertTriangle,
   CheckCheck,
   CheckCircle,
+  ChevronDown,
+  ChevronUp,
   Clock3,
   Info,
   X,
@@ -20,6 +24,8 @@ export default function NotificationList({
   isLoading = false,
   errorMessage = "",
 }) {
+  const [expandedIds, setExpandedIds] = useState([]);
+
   const getIcon = (type) => {
     switch (type) {
       case "success":
@@ -69,6 +75,15 @@ export default function NotificationList({
 
   const unreadCount = notifications?.filter?.((item) => !item.is_read).length || 0;
 
+  const toggleNotification = (notificationId) => {
+    onMarkAsRead(notificationId);
+    setExpandedIds((prevExpanded) =>
+      prevExpanded.includes(notificationId)
+        ? prevExpanded.filter((id) => id !== notificationId)
+        : [...prevExpanded, notificationId]
+    );
+  };
+
   return (
     <div className="flex flex-col rounded-2xl bg-white shadow-xl border border-slate-200 overflow-hidden">
       <div className="bg-gradient-to-r from-sky-600 via-indigo-600 to-blue-700 text-white px-5 py-4">
@@ -116,15 +131,22 @@ export default function NotificationList({
           </div>
         ) : (
           notifications.map((notification) => (
-            <button
-              type="button"
+            <div
               key={notification.notification_id}
-              className={`w-full rounded-xl border bg-white p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${
+              role="button"
+              tabIndex={0}
+              className={`w-full cursor-pointer rounded-xl border bg-white p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${
                 notification.is_read
                   ? "border-slate-100"
                   : "border-sky-100 ring-1 ring-sky-100 bg-gradient-to-br from-sky-50/60 to-white"
               }`}
-              onClick={() => onMarkAsRead(notification.notification_id)}
+              onClick={() => toggleNotification(notification.notification_id)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
+                  toggleNotification(notification.notification_id);
+                }
+              }}
             >
               <div className="flex items-start gap-3">
                 <div
@@ -134,40 +156,59 @@ export default function NotificationList({
                 >
                   {getIcon(notification.type)}
                 </div>
-                <div className="flex-1 space-y-1">
-                  <div className="flex items-center gap-2">
-                    <h4 className="text-sm font-semibold text-slate-900">
-                      {notification.title}
-                    </h4>
-                    <span className={`text-[11px] font-medium rounded-full px-2 py-0.5 ${typeBadge(notification.type)}`}>
-                      {notification.type === "success"
-                        ? "สำเร็จ"
-                        : notification.type === "warning"
-                          ? "แจ้งเตือน"
-                          : notification.type === "error"
-                            ? "ต้องดำเนินการ"
-                            : "ทั่วไป"}
-                    </span>
-                    {!notification.is_read && (
-                      <span className="h-2 w-2 rounded-full bg-amber-400" aria-hidden="true" />
-                    )}
+                <div className="flex-1 space-y-2">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="space-y-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h4 className="text-sm font-semibold text-slate-900">
+                          {notification.title}
+                        </h4>
+                        <span className={`text-[11px] font-medium rounded-full px-2 py-0.5 ${typeBadge(notification.type)}`}>
+                          {notification.type === "success"
+                            ? "สำเร็จ"
+                            : notification.type === "warning"
+                              ? "แจ้งเตือน"
+                              : notification.type === "error"
+                                ? "ต้องดำเนินการ"
+                                : "ทั่วไป"}
+                        </span>
+                        {!notification.is_read && (
+                          <span className="h-2 w-2 rounded-full bg-amber-400" aria-hidden="true" />
+                        )}
+                      </div>
+                      <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500">
+                        <span className="inline-flex items-center gap-1">
+                          <Clock3 size={14} /> {formatDate(notification.created_at)}
+                        </span>
+                        {notification.related_submission_id && (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-sky-50 px-2.5 py-1 font-medium text-sky-700 ring-1 ring-sky-100">
+                            อ้างอิง #{notification.related_submission_id}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="rounded-full border border-slate-200 bg-white p-1 text-slate-600 shadow-sm">
+                      {expandedIds.includes(notification.notification_id) ? (
+                        <ChevronUp size={16} />
+                      ) : (
+                        <ChevronDown size={16} />
+                      )}
+                    </div>
                   </div>
-                  <p className="text-sm text-slate-600 leading-relaxed">
-                    {notification.message}
-                  </p>
-                  <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500">
-                    <span className="inline-flex items-center gap-1">
-                      <Clock3 size={14} /> {formatDate(notification.created_at)}
-                    </span>
-                    {notification.related_submission_id && (
-                      <span className="inline-flex items-center gap-1 rounded-full bg-sky-50 px-2.5 py-1 font-medium text-sky-700 ring-1 ring-sky-100">
-                        อ้างอิง #{notification.related_submission_id}
-                      </span>
-                    )}
-                  </div>
+
+                  {expandedIds.includes(notification.notification_id) && (
+                    <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 shadow-inner">
+                      <div className="mb-2 text-[13px] font-semibold text-slate-800">
+                        รายละเอียดการแจ้งเตือน
+                      </div>
+                      <div className="whitespace-pre-line leading-relaxed text-slate-700">
+                        {notification.message}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
-            </button>
+            </div>
           ))
         )}
       </div>

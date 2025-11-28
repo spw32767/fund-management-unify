@@ -3230,7 +3230,7 @@ export default function GenericFundApplicationForm({
                       {errors.project_title}
                     </p>
                   ) : (
-                    <p className="text-xs text-gray-500">ข้อมูลนี้จะถูกส่งไปยังระบบในช่อง Project Title</p>
+                    <p className="text-xs text-gray-500"></p>
                   )}
                 </div>
 
@@ -3255,7 +3255,7 @@ export default function GenericFundApplicationForm({
                       {errors.project_description}
                     </p>
                   ) : (
-                    <p className="text-xs text-gray-500">ใช้สำหรับบันทึกข้อมูลลงในช่อง Project Description</p>
+                    <p className="text-xs text-gray-500"></p>
                   )}
                 </div>
               </div>
@@ -3292,9 +3292,6 @@ export default function GenericFundApplicationForm({
                   ) : (
                     <div className="space-y-1 text-xs text-gray-500">
                       <p>กรอกตัวเลขจำนวนเต็มหรือทศนิยมได้ เช่น 50000 หรือ 50000.00</p>
-                      <p>
-                        <span className="font-medium text-gray-600">ยอดคำขอปัจจุบัน:</span> {formattedRequestedAmount} บาท
-                      </p>
                     </div>
                   )}
                 </div>

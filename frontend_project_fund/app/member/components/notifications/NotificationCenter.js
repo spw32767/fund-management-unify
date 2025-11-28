@@ -6,6 +6,7 @@ import {
   Bell,
   CheckCheck,
   ChevronDown,
+  ChevronUp,
   Clock3,
   Inbox,
   Info,
@@ -13,6 +14,7 @@ import {
 } from "lucide-react";
 import PageLayout from "../common/PageLayout";
 import { notificationsAPI } from "@/app/lib/notifications_api";
+import { systemAPI } from "@/app/lib/api";
 
 export default function NotificationCenter() {
   const [notifications, setNotifications] = useState([]);
@@ -21,6 +23,8 @@ export default function NotificationCenter() {
   const [yearFilter, setYearFilter] = useState("all");
   const [sortOrder, setSortOrder] = useState("desc");
   const [visibleCount, setVisibleCount] = useState(0);
+  const [expandedIds, setExpandedIds] = useState([]);
+  const [availableYears, setAvailableYears] = useState([]);
 
   const PAGE_SIZE = 10;
 
@@ -30,19 +34,6 @@ export default function NotificationCenter() {
     () => notifications.filter((item) => !item.is_read).length,
     [notifications]
   );
-
-  const availableYears = useMemo(() => {
-    const years = notifications
-      .map((item) => {
-        const date = new Date(item?.created_at);
-        return Number.isNaN(date.getTime()) ? null : date.getFullYear();
-      })
-      .filter(Boolean);
-
-    const uniqueYears = Array.from(new Set(years));
-    uniqueYears.sort((a, b) => b - a);
-    return uniqueYears;
-  }, [notifications]);
 
   const filteredNotifications = useMemo(() => {
     const list = Array.isArray(notifications) ? [...notifications] : [];
@@ -127,9 +118,40 @@ export default function NotificationCenter() {
     }
   }, [PAGE_SIZE]);
 
+  const loadYears = useCallback(async () => {
+    try {
+      const yearRes = await systemAPI.getYears();
+      const rawYears = Array.isArray(yearRes?.years)
+        ? yearRes.years
+        : Array.isArray(yearRes?.data)
+          ? yearRes.data
+          : Array.isArray(yearRes)
+            ? yearRes
+            : [];
+
+      const normalizedYears = rawYears
+        .map((item) => {
+          const value = item?.year ?? item?.year_id ?? item;
+          const num = Number(value);
+          return Number.isNaN(num) ? null : num;
+        })
+        .filter(Boolean);
+
+      const uniqueYears = Array.from(new Set(normalizedYears)).sort(
+        (a, b) => b - a
+      );
+
+      setAvailableYears(uniqueYears);
+    } catch (error) {
+      console.error("Failed to load years for notifications", error);
+      setAvailableYears([]);
+    }
+  }, []);
+
   useEffect(() => {
     loadNotifications();
-  }, [loadNotifications]);
+    loadYears();
+  }, [loadNotifications, loadYears]);
 
   useEffect(() => {
     setVisibleCount(PAGE_SIZE);
@@ -148,6 +170,15 @@ export default function NotificationCenter() {
     } catch (error) {
       console.error("Failed to mark notification as read", error);
     }
+  };
+
+  const toggleNotification = async (id) => {
+    await markAsRead(id);
+    setExpandedIds((prevExpanded) =>
+      prevExpanded.includes(id)
+        ? prevExpanded.filter((existingId) => existingId !== id)
+        : [...prevExpanded, id]
+    );
   };
 
   const markAllAsRead = async () => {
@@ -271,12 +302,21 @@ export default function NotificationCenter() {
                         ? XCircle
                         : Info;
 
+                const isExpanded = expandedIds.includes(notification.notification_id);
+
                 return (
-                  <button
+                  <div
                     key={notification.notification_id}
-                    type="button"
-                    onClick={() => markAsRead(notification.notification_id)}
-                    className={`w-full rounded-xl border bg-white p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => toggleNotification(notification.notification_id)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
+                        toggleNotification(notification.notification_id);
+                      }
+                    }}
+                    className={`w-full cursor-pointer rounded-xl border bg-white p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${
                       isRead
                         ? "border-slate-100"
                         : "border-sky-100 ring-1 ring-sky-100 bg-gradient-to-br from-sky-50/70 to-white"
@@ -290,34 +330,51 @@ export default function NotificationCenter() {
                       >
                         <TypeIcon className="h-5 w-5" />
                       </div>
-                      <div className="flex-1 space-y-1">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <h4 className="text-sm font-semibold text-slate-900">{notification.title}</h4>
-                          <span className={`text-[11px] font-medium rounded-full px-2 py-0.5 ${typeBadge}`}>
-                            {type === "success"
-                              ? "สำเร็จ"
-                              : type === "warning"
-                                ? "แจ้งเตือน"
-                                : type === "error"
-                                  ? "ต้องดำเนินการ"
-                                  : "ทั่วไป"}
-                          </span>
-                          {!isRead && <span className="h-2 w-2 rounded-full bg-amber-400" aria-hidden="true" />}
+                      <div className="flex-1 space-y-2">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="space-y-1">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <h4 className="text-sm font-semibold text-slate-900">{notification.title}</h4>
+                              <span className={`text-[11px] font-medium rounded-full px-2 py-0.5 ${typeBadge}`}>
+                                  {type === "success"
+                                    ? "สำเร็จ"
+                                    : type === "warning"
+                                      ? "แจ้งเตือน"
+                                      : type === "error"
+                                        ? "ต้องดำเนินการ"
+                                        : "ทั่วไป"}
+                              </span>
+                              {!isRead && <span className="h-2 w-2 rounded-full bg-amber-400" aria-hidden="true" />}
+                            </div>
+                            <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500">
+                              <span className="inline-flex items-center gap-1">
+                                <Clock3 className="h-4 w-4" /> {formatDateTime(notification.created_at)}
+                              </span>
+                              {notification.related_submission_id && (
+                                <span className="inline-flex items-center gap-1 rounded-full bg-sky-50 px-2.5 py-1 font-medium text-sky-700 ring-1 ring-sky-100">
+                                  อ้างอิง #{notification.related_submission_id}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                          <div className="rounded-full border border-slate-200 bg-white p-1 text-slate-600 shadow-sm">
+                            {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                          </div>
                         </div>
-                        <p className="text-sm leading-relaxed text-slate-600">{notification.message}</p>
-                        <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500">
-                          <span className="inline-flex items-center gap-1">
-                            <Clock3 className="h-4 w-4" /> {formatDateTime(notification.created_at)}
-                          </span>
-                          {notification.related_submission_id && (
-                            <span className="inline-flex items-center gap-1 rounded-full bg-sky-50 px-2.5 py-1 font-medium text-sky-700 ring-1 ring-sky-100">
-                              อ้างอิง #{notification.related_submission_id}
-                            </span>
-                          )}
-                        </div>
+
+                        {isExpanded && (
+                          <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 shadow-inner">
+                            <div className="mb-2 text-[13px] font-semibold text-slate-800">
+                              รายละเอียดการแจ้งเตือน
+                            </div>
+                            <div className="whitespace-pre-line leading-relaxed text-slate-700">
+                              {notification.message}
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </div>
-                  </button>
+                  </div>
                 );
               })
             )}
