@@ -91,14 +91,34 @@ export default function AdminScopusResearchSearch() {
   );
 
   const fetchStats = useCallback(
-    async () => {
-      if (!selectedUserId) return;
+    async (userId = selectedUserId) => {
+      if (!userId) return;
       setStatsLoading(true);
       setStatsError("");
       try {
-        const res = await publicationsAPI.getScopusPublicationStatsForUser(selectedUserId);
+        const res = await publicationsAPI.getScopusPublicationStatsForUser(userId);
+        const meta = res?.meta || {};
+        const matchedUser =
+          selectedUser && String(selectedUserId) === String(userId)
+            ? selectedUser
+            : scopusUsers.find((u) => String(u.user_id) === String(userId));
+        const hasScopusId = meta.has_scopus_id ?? !!(matchedUser?.scopus_id || matchedUser?.scopusID);
+        const hasAuthorRecord = meta.has_author_record ?? !!res?.data;
+        console.log("[AdminScopusResearchSearch] Stats response", {
+          userId,
+          meta,
+          hasScopusId,
+          hasAuthorRecord,
+          dataPreview: res?.data
+            ? {
+                total_documents: res.data.total_documents,
+                total_citations: res.data.total_citations,
+                h_index: res.data.h_index,
+              }
+            : null,
+        });
         setStats(res?.data || null);
-        setStatsMeta(res?.meta || { has_scopus_id: false, has_author_record: false });
+        setStatsMeta({ has_scopus_id: hasScopusId, has_author_record: hasAuthorRecord });
       } catch (error) {
         console.error("Load stats error", error);
         setStats(null);
@@ -108,12 +128,12 @@ export default function AdminScopusResearchSearch() {
         setStatsLoading(false);
       }
     },
-    [selectedUserId]
+    [scopusUsers, selectedUserId, selectedUser]
   );
 
   const fetchPublications = useCallback(
-    async (offset = 0) => {
-      if (!selectedUserId) return;
+    async (offset = 0, userId = selectedUserId) => {
+      if (!userId) return;
       setPubLoading(true);
       setPubError("");
       try {
@@ -121,11 +141,27 @@ export default function AdminScopusResearchSearch() {
         if (pubQuery.trim()) {
           params.q = pubQuery.trim();
         }
-        const res = await publicationsAPI.getScopusPublicationsForUser(selectedUserId, params);
+        const res = await publicationsAPI.getScopusPublicationsForUser(userId, params);
+        const meta = res?.meta || {};
         const items = res?.data || [];
+        const matchedUser =
+          selectedUser && String(selectedUserId) === String(userId)
+            ? selectedUser
+            : scopusUsers.find((u) => String(u.user_id) === String(userId));
+        const hasScopusId = meta.has_scopus_id ?? !!(matchedUser?.scopus_id || matchedUser?.scopusID);
+        const hasAuthorRecord = meta.has_author_record ?? items.length > 0;
+        console.log("[AdminScopusResearchSearch] Publications response", {
+          userId,
+          params,
+          meta,
+          hasScopusId,
+          hasAuthorRecord,
+          dataCount: Array.isArray(res?.data) ? res.data.length : 0,
+          firstItem: Array.isArray(res?.data) && res.data.length > 0 ? res.data[0] : null,
+        });
         setPublications(items);
         setPubMeta(res?.paging || { total: items.length, limit: PUB_PAGE_SIZE, offset });
-        setPubFlags(res?.meta || { has_scopus_id: true, has_author_record: true });
+        setPubFlags({ has_scopus_id: hasScopusId, has_author_record: hasAuthorRecord });
       } catch (error) {
         console.error("Load publications error", error);
         setPublications([]);
@@ -136,7 +172,7 @@ export default function AdminScopusResearchSearch() {
         setPubLoading(false);
       }
     },
-    [pubQuery, selectedUserId]
+    [pubQuery, scopusUsers, selectedUserId, selectedUser]
   );
 
   useEffect(() => {
@@ -146,8 +182,8 @@ export default function AdminScopusResearchSearch() {
   useEffect(() => {
     if (selectedUserId) {
       setPubMeta((prev) => ({ ...prev, offset: 0 }));
-      fetchPublications(0);
-      fetchStats();
+      fetchPublications(0, selectedUserId);
+      fetchStats(selectedUserId);
     }
   }, [selectedUserId, fetchPublications, fetchStats]);
 
@@ -183,6 +219,11 @@ export default function AdminScopusResearchSearch() {
     if (nextPage < 1 || nextPage > totalPages) return;
     const nextOffset = (nextPage - 1) * (pubMeta?.limit || PUB_PAGE_SIZE);
     fetchPublications(nextOffset);
+  };
+
+  const handleSelectUser = (hit) => {
+    console.log("[AdminScopusResearchSearch] Select user", hit);
+    setSelectedUser(hit);
   };
 
   const statusMessage = () => {
@@ -479,7 +520,7 @@ export default function AdminScopusResearchSearch() {
                                   ? "border border-indigo-200 bg-indigo-600 text-white hover:bg-indigo-700"
                                   : "border border-slate-300 bg-white text-slate-800 hover:border-slate-400"
                               }`}
-                              onClick={() => setSelectedUser(hit)}
+                              onClick={() => handleSelectUser(hit)}
                             >
                               {isActive ? "กำลังดู" : "ดูรายละเอียด"}
                             </button>
