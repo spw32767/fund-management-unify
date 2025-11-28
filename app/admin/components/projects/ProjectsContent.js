@@ -49,6 +49,7 @@ const initialProjectForm = {
   plan_id: "",
   budget_amount: "",
   participants: "",
+  beneficiaries_count: "",
   notes: "",
   attachment: null,
 };
@@ -315,6 +316,7 @@ function ProjectsTable({ projects, onEdit, onDelete }) {
             <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">วันที่จัด</th>
             <th className="px-4 py-3 text-right text-sm font-semibold text-gray-600">งบประมาณ</th>
             <th className="px-4 py-3 text-right text-sm font-semibold text-gray-600">ผู้เข้าร่วม</th>
+            <th className="px-4 py-3 text-right text-sm font-semibold text-gray-600">หน่วยงาน/ชุมชนที่ได้รับประโยชน์</th>
             <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">หมายเหตุ</th>
             <th className="px-4 py-3 text-center text-sm font-semibold text-gray-600">จัดการ</th>
           </tr>
@@ -369,6 +371,14 @@ function ProjectsTable({ projects, onEdit, onDelete }) {
                   {typeof project.participants === "number"
                     ? project.participants.toLocaleString("th-TH")
                     : project.participants || "-"}
+                </span>
+              </td>
+              <td className="px-4 py-3 text-right">
+                <span className="inline-flex items-center gap-1 justify-end">
+                  <Users size={15} className="text-indigo-500" />
+                  {typeof project.beneficiaries_count === "number"
+                    ? project.beneficiaries_count.toLocaleString("th-TH")
+                    : project.beneficiaries_count || "-"}
                 </span>
               </td>
               <td className="px-4 py-3">
@@ -974,6 +984,21 @@ function ProjectForm({
             min="0"
             className="w-full rounded-md border border-gray-300 focus:border-blue-500 focus:ring-blue-500 px-3 py-2"
             placeholder="เช่น 120"
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            หน่วยงาน/ชุมชนที่ได้รับประโยชน์ (แห่ง)
+          </label>
+          <input
+            type="number"
+            name="beneficiaries_count"
+            value={formData.beneficiaries_count}
+            onChange={onChange}
+            min="0"
+            className="w-full rounded-md border border-gray-300 focus:border-blue-500 focus:ring-blue-500 px-3 py-2"
+            placeholder="เช่น 10"
           />
         </div>
 
@@ -1919,6 +1944,9 @@ export default function ProjectsContent() {
     const participantsValue = projectForm.participants
       ? Number(projectForm.participants)
       : 0;
+    const beneficiariesValue = projectForm.beneficiaries_count
+      ? Number(projectForm.beneficiaries_count)
+      : 0;
     const budgetString = projectForm.budget_amount
       ? projectForm.budget_amount.toString().trim()
       : "";
@@ -1960,6 +1988,14 @@ export default function ProjectsContent() {
       return;
     }
 
+    if (beneficiariesValue < 0) {
+      Toast.fire({
+        icon: "warning",
+        title: "จำนวนหน่วยงาน/ชุมชนที่ได้รับประโยชน์ต้องมากกว่าหรือเท่ากับ 0",
+      });
+      return;
+    }
+
     const formPayload = new FormData();
     formPayload.append("project_name", projectForm.project_name.trim());
     formPayload.append("type_id", typeId.toString());
@@ -1967,6 +2003,7 @@ export default function ProjectsContent() {
     formPayload.append("plan_id", planId.toString());
     formPayload.append("budget_amount", budgetString);
     formPayload.append("participants", participantsValue.toString());
+    formPayload.append("beneficiaries_count", beneficiariesValue.toString());
     formPayload.append("notes", projectForm.notes ? projectForm.notes.trim() : "");
 
     if (projectForm.attachment) {
@@ -2019,6 +2056,7 @@ export default function ProjectsContent() {
           ? ""
           : normalizeBudgetInputValue(project.budget_amount),
       participants: project.participants?.toString() || "",
+      beneficiaries_count: project.beneficiaries_count?.toString() || "",
       notes: project.notes || "",
       attachment: null,
     });

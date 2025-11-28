@@ -201,6 +201,8 @@ const normalizeProject = (project) => {
     event_date: project.event_date ?? project.EventDate ?? null,
     budget_amount: toNumber(project.budget_amount ?? project.BudgetAmount) ?? 0,
     participants: toNumber(project.participants ?? project.Participants) ?? 0,
+    beneficiaries_count:
+      toNumber(project.beneficiaries_count ?? project.BeneficiariesCount) ?? 0,
     notes: project.notes ?? project.Notes ?? "",
     attachments,
     members,

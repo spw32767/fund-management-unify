@@ -126,11 +126,11 @@ export default function PublicHeader({
             {renderLogoContent()}
           </div>
           <div>
-            <h1 className="text-xl font-bold text-gray-800">
-              {appName || "Fund Management"}
+            <h1 className="text-lg sm:text-xl font-bold text-gray-800">
+              {subtitles.public || subtitles.member || "กองทุนวิจัยฯ วิทยาลัยการคอมพิวเตอร์"}
             </h1>
-            <p className="text-xs text-gray-600">
-              {subtitles.public || subtitles.member || "ระบบบริหารจัดการทุน"}
+            <p className="text-sm text-gray-700 leading-tight">
+              {appName || "Fund Management"}
             </p>
             <p className="text-xs text-gray-500 mt-1">{currentPageTitle}</p>
           </div>

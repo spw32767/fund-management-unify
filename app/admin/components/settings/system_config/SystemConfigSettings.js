@@ -281,6 +281,7 @@ export default function SystemConfigSettings() {
     current_year: "",
     start_date: "",
     end_date: "",
+    contact_info: "",
     main_annoucement: "",
     reward_announcement: "",
     activity_support_announcement: "",
@@ -371,6 +372,7 @@ export default function SystemConfigSettings() {
       current_year: normalized.current_year ?? "",
       start_date: normalized.start_date ? toLocalInput(normalized.start_date) : "",
       end_date: normalized.end_date ? toLocalInput(normalized.end_date) : "",
+      contact_info: normalized.contact_info ?? "",
       main_annoucement: normalized.main_annoucement ?? "",
       reward_announcement: normalized.reward_announcement ?? "",
       activity_support_announcement: normalized.activity_support_announcement ?? "",
@@ -699,6 +701,7 @@ export default function SystemConfigSettings() {
         current_year: String(form.current_year).trim(),
         start_date: toISOOrNull(form.start_date),
         end_date: toISOOrNull(form.end_date),
+        contact_info: String(form.contact_info || "").trim() || null,
       };
       await systemConfigAPI.updateWindow(payload);
       toast("success", "บันทึกปีงบประมาณ & ช่วงเวลา สำเร็จ");
@@ -945,6 +948,18 @@ export default function SystemConfigSettings() {
                     className="w-full rounded-lg border border-gray-300 px-4 py-2 text-sm text-gray-800 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
                     placeholder="เช่น 2568"
                   />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-gray-700">ช่องทางติดต่อ (สำหรับแจ้งในอีเมล)</label>
+                  <textarea
+                    value={form.contact_info}
+                    onChange={(e) => setForm((f) => ({ ...f, contact_info: e.target.value }))}
+                    rows={3}
+                    className="w-full rounded-lg border border-gray-300 px-4 py-2 text-sm text-gray-800 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
+                    placeholder="เช่น researchfund@kku.ac.th, โทร 043-xxx หรือช่องทางติดต่ออื่น ๆ"
+                  />
+                  <p className="text-xs text-gray-500">{"ข้อความนี้จะถูกใช้แทน {{contact_info}} ในอีเมลแจ้งเตือน"}</p>
                 </div>
 
                 <div className="grid gap-4 sm:grid-cols-2">
