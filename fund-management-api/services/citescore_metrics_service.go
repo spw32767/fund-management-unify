@@ -365,6 +365,39 @@ type citeScoreInformationHolder struct {
 	Items citeScoreInfos `json:"citeScoreInfo"`
 }
 
+func (h *citeScoreInformationHolder) UnmarshalJSON(data []byte) error {
+	if len(data) == 0 || string(data) == "null" {
+		return nil
+	}
+
+	// The API can return either a single object or an array of objects,
+	// each containing a citeScoreInfo collection. Normalize to a flat list
+	// of citeScoreInfo entries.
+	type wrapper struct {
+		Items citeScoreInfos `json:"citeScoreInfo"`
+	}
+
+	if data[0] == '[' {
+		var arr []wrapper
+		if err := json.Unmarshal(data, &arr); err != nil {
+			return err
+		}
+		var merged citeScoreInfos
+		for _, w := range arr {
+			merged = append(merged, w.Items...)
+		}
+		h.Items = merged
+		return nil
+	}
+
+	var single wrapper
+	if err := json.Unmarshal(data, &single); err != nil {
+		return err
+	}
+	h.Items = single.Items
+	return nil
+}
+
 type citeScoreInfos []citeScoreInfo
 
 type citeScoreInfo struct {
