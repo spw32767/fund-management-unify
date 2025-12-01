@@ -1003,6 +1003,9 @@ export const publicationsAPI = {
   async searchScholarAuthorsAdmin(q) {
     return apiClient.get('/admin/user-publications/scholar/search', { q });
   },
+  async searchScopusPublications(params = {}) {
+    return apiClient.get('/admin/publications/scopus', params);
+  },
   async getScopusPublicationsForUser(userId, params = {}) {
     const payload = { ...params, user_id: userId };
     return apiClient.get('/teacher/user-publications/scopus', payload);
@@ -1050,6 +1053,10 @@ export const scopusConfigAPI = {
   },
   async updateAPIKey(value) {
     return apiClient.put('/admin/scopus/config', { value });
+  },
+  async backfillMetrics() {
+    const res = await apiClient.post('/admin/scopus/metrics/backfill');
+    return res.summary || res;
   },
 };
 
