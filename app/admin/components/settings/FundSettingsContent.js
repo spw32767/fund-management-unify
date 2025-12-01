@@ -1,6 +1,6 @@
 // FundSettingsContent.js - Updated Main Component with SweetAlert2
 import React, { useState, useEffect } from "react";
-import { Settings, Calendar, CalendarRange, DollarSign, PencilLine, FileText, FileStack, ListChecks, BellRing } from "lucide-react";
+import { Settings, Calendar, CalendarRange, DollarSign, PencilLine, FileText, FileStack, ListChecks, BellRing, Layers, Wallet } from "lucide-react";
 import Swal from 'sweetalert2';
 
 // Import separated components
@@ -15,6 +15,8 @@ import AnnouncementManager from "@/app/admin/components/settings/announcement_co
 import DocumentTypeManager from "@/app/admin/components/settings/document_config/DocumentTypeManager";
 import InstallmentManagementTab from "@/app/admin/components/settings/installment_config/InstallmentManagementTab";
 import NotificationTemplateManager from "@/app/admin/components/settings/notification_templates/NotificationTemplateManager";
+import ProjectTypesManager from "@/app/admin/components/settings/project_config/ProjectTypesManager";
+import BudgetPlansManager from "@/app/admin/components/settings/project_config/BudgetPlansManager";
 
 // Import modals
 import CategoryModal from "@/app/admin/components/settings/funds_config/CategoryModal";
@@ -28,6 +30,8 @@ import systemConfigAPI from "@/app/lib/system_config_api";
 
 const TAB_ITEMS = [
   { id: "funds", label: "จัดการทุน", icon: DollarSign },
+  { id: "project-types", label: "ประเภทโครงการ", icon: Layers },
+  { id: "project-plans", label: "แผนงบประมาณ", icon: Wallet },
   { id: "years", label: "จัดการปีงบประมาณ", icon: Calendar },
   { id: "installments", label: "ตั้งค่าวันตัดรอบการพิจารณา", icon: CalendarRange },
   { id: "reward-config", label: "จัดการเงินรางวัล", icon: Settings },
@@ -1376,6 +1380,10 @@ export default function FundSettingsContent({ onNavigate }) {
     switch (activeTab) {
       case "funds":
         return <FundManagementTab {...fundManagementTabProps} />;
+      case "project-types":
+        return <ProjectTypesManager />;
+      case "project-plans":
+        return <BudgetPlansManager />;
       case "years":
         return (
           <YearManagementTab

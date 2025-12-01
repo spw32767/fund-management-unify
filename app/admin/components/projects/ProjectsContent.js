@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   Briefcase,
   Layers,
@@ -13,7 +13,6 @@ import {
   Users,
   FileText,
   Paperclip,
-  GripVertical,
   Save,
   Loader2,
   UserPlus,
@@ -52,16 +51,6 @@ const initialProjectForm = {
   beneficiaries_count: "",
   notes: "",
   attachment: null,
-};
-
-const initialTypeForm = {
-  name_th: "",
-  name_en: "",
-};
-
-const initialPlanForm = {
-  name_th: "",
-  name_en: "",
 };
 
 const initialMemberForm = {
@@ -1118,272 +1107,9 @@ function ProjectForm({
   );
 }
 
-function ConfigList({
-  title,
-  description,
-  icon: Icon,
-  items,
-  form,
-  onFormChange,
-  onSubmit,
-  onCancel,
-  editingItem,
-  onEdit,
-  onToggleActive,
-  saving,
-  emptyText,
-  disableDeleteNotice,
-  draggingId,
-  dragOverId,
-  onDragStart,
-  onDragOver,
-  onDragEnd,
-  orderDirty,
-  onPersistOrder,
-  savingOrder,
-  toggleLoadingIds,
-  isReordering,
-}) {
-  const highlightInputs = Boolean(editingItem);
-  const inputBaseClass =
-    "w-full rounded-md border border-gray-300 focus:border-blue-500 focus:ring-blue-500 px-3 py-2 transition";
-  const highlightClass = highlightInputs
-    ? "border-blue-400 bg-blue-50 ring-2 ring-blue-200"
-    : "";
-  const editingItemId =
-    editingItem?.type_id ?? editingItem?.plan_id ?? editingItem?.id ?? null;
-
-  return (
-    <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-6 space-y-6">
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <div>
-          <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-            <Icon size={20} className="text-blue-600" />
-            {title}
-          </h3>
-          <p className="text-sm text-gray-500">{description}</p>
-        </div>
-        {onPersistOrder && (
-          <div className="flex items-center gap-3">
-            {orderDirty && !savingOrder ? (
-              <span className="text-xs text-amber-600">
-                มีการเปลี่ยนลำดับที่ยังไม่บันทึก
-              </span>
-            ) : null}
-            <button
-              type="button"
-              onClick={onPersistOrder}
-              disabled={!orderDirty || savingOrder || items.length === 0}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-md border border-blue-200 bg-white text-sm font-medium text-blue-600 hover:bg-blue-50 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {savingOrder ? (
-                <>
-                  <RefreshCcw size={16} className="animate-spin" />
-                  กำลังบันทึก...
-                </>
-              ) : (
-                <>
-                  <Save size={16} />
-                  บันทึกลำดับ
-                </>
-              )}
-            </button>
-          </div>
-        )}
-      </div>
-
-      <form onSubmit={onSubmit} className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="md:col-span-2">
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            ชื่อ (ภาษาไทย)
-          </label>
-          <input
-            type="text"
-            name="name_th"
-            value={form.name_th}
-            onChange={onFormChange}
-            required
-            className={`${inputBaseClass} ${highlightClass}`}
-            placeholder="ระบุชื่อภาษาไทย"
-          />
-        </div>
-        <div className="md:col-span-2">
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            ชื่อ (ภาษาอังกฤษ)
-          </label>
-          <input
-            type="text"
-            name="name_en"
-            value={form.name_en}
-            onChange={onFormChange}
-            className={`${inputBaseClass} ${highlightClass}`}
-            placeholder="ระบุชื่อภาษาอังกฤษ (ถ้ามี)"
-          />
-        </div>
-        {editingItem ? (
-          <div className="md:col-span-4 flex items-center gap-2 rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-700">
-            <Pencil size={16} className="text-blue-500" />
-            <span>
-              กำลังแก้ไข: {editingItem.name_th || editingItem.name_en || `ID ${editingItemId}`}
-            </span>
-          </div>
-        ) : null}
-        <div className="md:col-span-4 flex justify-end gap-3">
-          {editingItem && (
-            <button
-              type="button"
-              onClick={onCancel}
-              className="px-4 py-2 rounded-md border border-gray-300 text-gray-600 hover:bg-gray-100"
-            >
-              ยกเลิกการแก้ไข
-            </button>
-          )}
-          <button
-            type="submit"
-            disabled={saving}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-60"
-          >
-            {saving ? (
-              <>
-                <RefreshCcw size={16} className="animate-spin" />
-                กำลังบันทึก...
-              </>
-            ) : (
-              <>
-                <Plus size={16} />
-                {editingItem ? "อัปเดตข้อมูล" : "บันทึกข้อมูล"}
-              </>
-            )}
-          </button>
-        </div>
-      </form>
-
-      {disableDeleteNotice && (
-        <div className="rounded-md bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-700">
-          ไม่สามารถลบข้อมูลชุดนี้ได้ เพื่อรักษาลำดับรหัสให้ต่อเนื่อง
-        </div>
-      )}
-
-      <div className="space-y-3">
-        {items.length === 0 ? (
-          <div className="border border-dashed border-gray-300 rounded-lg p-6 text-center text-gray-500">
-            {emptyText}
-          </div>
-        ) : (
-          items.map((item, index) => {
-            const itemId = item.type_id ?? item.plan_id ?? item.id ?? index;
-            const isDragging = draggingId === itemId;
-            const isDragOver = dragOverId === itemId && draggingId !== itemId;
-            const isEditingItem = editingItemId === itemId;
-            const isToggleLoading = toggleLoadingIds?.has?.(itemId);
-            const toggleDisabled =
-              !onToggleActive || isReordering || isToggleLoading;
-
-            return (
-              <div
-                key={itemId}
-                draggable
-                onDragStart={(event) => {
-                  event.dataTransfer.effectAllowed = "move";
-                  try {
-                    event.dataTransfer.setData("text/plain", String(itemId));
-                  } catch (error) {
-                    // ignore
-                  }
-                  onDragStart?.(event, item);
-                }}
-                onDragOver={(event) => {
-                  event.preventDefault();
-                  onDragOver?.(event, item);
-                }}
-                onDragEnd={(event) => onDragEnd?.(event)}
-                onDrop={(event) => event.preventDefault()}
-                className={`flex flex-wrap items-center justify-between gap-3 border rounded-lg px-4 py-3 transition-colors bg-white ${
-                  isDragging ? "ring-2 ring-blue-300 bg-blue-50" : "border-gray-200"
-                } ${isDragOver ? "ring-2 ring-blue-200" : ""} ${
-                  isEditingItem ? "border-blue-300" : ""
-                }`}
-              >
-                <div className="flex items-center gap-3 min-w-[220px]">
-                  <div
-                    className="flex items-center gap-2 text-gray-400 select-none cursor-grab"
-                    title="ลากเพื่อจัดลำดับ"
-                  >
-                    <GripVertical size={18} />
-                    <span className="text-xs text-gray-500">#{index + 1}</span>
-                  </div>
-                  <div>
-                    <div className="text-sm font-semibold text-gray-900">
-                      {item.name_th || "-"}
-                      <span className="text-xs text-gray-400 ml-2">
-                        ID: {item.type_id ?? item.plan_id ?? "-"}
-                      </span>
-                    </div>
-                    <div className="text-xs text-gray-500">
-                      {item.name_en || "ไม่มีชื่อภาษาอังกฤษ"}
-                    </div>
-                  </div>
-                </div>
-                <div className="flex items-center gap-4 flex-wrap justify-end text-sm text-gray-500">
-                  <span className="text-xs text-gray-500">ลำดับ: {index + 1}</span>
-                  {onToggleActive && (
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => onToggleActive(item)}
-                        disabled={toggleDisabled}
-                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition ${
-                          item.is_active ? "bg-emerald-500" : "bg-gray-300"
-                        } ${
-                          toggleDisabled
-                            ? "opacity-50 cursor-not-allowed"
-                            : "cursor-pointer"
-                        }`}
-                        title={item.is_active ? "ปิดการใช้งาน" : "เปิดการใช้งาน"}
-                      >
-                        <span
-                          className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition ${
-                            item.is_active ? "translate-x-5" : "translate-x-1"
-                          }`}
-                        />
-                      </button>
-                      <span
-                        className={`text-sm ${
-                          item.is_active ? "text-emerald-600" : "text-gray-400"
-                        }`}
-                      >
-                        {item.is_active ? "เปิด" : "ปิด"}
-                      </span>
-                      {isToggleLoading ? (
-                        <RefreshCcw
-                          size={16}
-                          className="animate-spin text-blue-500"
-                        />
-                      ) : null}
-                    </div>
-                  )}
-                  <button
-                    onClick={() => onEdit(item)}
-                    className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-800 text-sm"
-                  >
-                    <Pencil size={14} /> แก้ไข
-                  </button>
-                </div>
-              </div>
-            );
-          })
-        )}
-      </div>
-    </div>
-  );
-}
-
 export default function ProjectsContent() {
-  const [activeTab, setActiveTab] = useState("projects");
   const [loading, setLoading] = useState(true);
   const [savingProject, setSavingProject] = useState(false);
-  const [savingType, setSavingType] = useState(false);
-  const [savingPlan, setSavingPlan] = useState(false);
 
   const [projects, setProjects] = useState([]);
   const [projectTypes, setProjectTypes] = useState([]);
@@ -1395,26 +1121,6 @@ export default function ProjectsContent() {
   const [showProjectForm, setShowProjectForm] = useState(false);
   const [editingProject, setEditingProject] = useState(null);
   const [projectFileKey, setProjectFileKey] = useState(0);
-
-  const [typeForm, setTypeForm] = useState(initialTypeForm);
-  const [editingType, setEditingType] = useState(null);
-
-  const [planForm, setPlanForm] = useState(initialPlanForm);
-  const [editingPlan, setEditingPlan] = useState(null);
-
-  const typeDragIdRef = useRef(null);
-  const planDragIdRef = useRef(null);
-
-  const [typeDragId, setTypeDragId] = useState(null);
-  const [typeDragOverId, setTypeDragOverId] = useState(null);
-  const [planDragId, setPlanDragId] = useState(null);
-  const [planDragOverId, setPlanDragOverId] = useState(null);
-  const [typeOrderDirty, setTypeOrderDirty] = useState(false);
-  const [planOrderDirty, setPlanOrderDirty] = useState(false);
-  const [savingTypeOrder, setSavingTypeOrder] = useState(false);
-  const [savingPlanOrder, setSavingPlanOrder] = useState(false);
-  const [typeToggleLoading, setTypeToggleLoading] = useState(() => new Set());
-  const [planToggleLoading, setPlanToggleLoading] = useState(() => new Set());
 
   const [memberCandidates, setMemberCandidates] = useState([]);
   const [projectMembers, setProjectMembers] = useState([]);
@@ -1614,16 +1320,6 @@ export default function ProjectsContent() {
       setProjects(projectList);
       setProjectTypes(typeList);
       setBudgetPlans(planList);
-      setTypeOrderDirty(false);
-      setPlanOrderDirty(false);
-      setTypeDragId(null);
-      setTypeDragOverId(null);
-      setPlanDragId(null);
-      setPlanDragOverId(null);
-      typeDragIdRef.current = null;
-      planDragIdRef.current = null;
-      setTypeToggleLoading(new Set());
-      setPlanToggleLoading(new Set());
     } catch (error) {
       console.error(error);
       Toast.fire({ icon: "error", title: "ไม่สามารถโหลดข้อมูลได้" });
@@ -2358,334 +2054,10 @@ export default function ProjectsContent() {
     }
   };
 
-  const handleTypeFormChange = (event) => {
-    const { name, value, type, checked } = event.target;
-    setTypeForm((prev) => ({
-      ...prev,
-      [name]: type === "checkbox" ? checked : value,
-    }));
-  };
-
-  const handlePlanFormChange = (event) => {
-    const { name, value, type, checked } = event.target;
-    setPlanForm((prev) => ({
-      ...prev,
-      [name]: type === "checkbox" ? checked : value,
-    }));
-  };
-
-  const submitTypeForm = async (event) => {
-    event.preventDefault();
-    if (!typeForm.name_th) {
-      Toast.fire({ icon: "warning", title: "กรุณาระบุชื่อภาษาไทย" });
-      return;
-    }
-
-    const normalizedThaiName = normalizeText(typeForm.name_th);
-    const editingId = editingType?.type_id ?? null;
-    const duplicateType = projectTypes.some(
-      (item) =>
-        normalizeText(item.name_th) === normalizedThaiName &&
-        (item.type_id ?? null) !== editingId
-    );
-
-    if (duplicateType) {
-      Toast.fire({ icon: "warning", title: "ชื่อประเภทโครงการซ้ำกัน" });
-      return;
-    }
-
-    const payload = {
-      name_th: typeForm.name_th.trim(),
-      name_en: typeForm.name_en.trim(),
-    };
-
-    try {
-      setSavingType(true);
-      if (editingType) {
-        await adminAPI.updateProjectType(editingType.type_id, payload);
-        Toast.fire({ icon: "success", title: "อัปเดตประเภทโครงการแล้ว" });
-      } else {
-        await adminAPI.createProjectType(payload);
-        Toast.fire({ icon: "success", title: "เพิ่มประเภทโครงการเรียบร้อย" });
-      }
-      await loadAll();
-      setTypeForm(initialTypeForm);
-      setEditingType(null);
-    } catch (error) {
-      if (error?.status === 409) {
-        Toast.fire({ icon: "warning", title: "ชื่อประเภทโครงการซ้ำกัน" });
-      } else {
-        console.error(error);
-        Toast.fire({ icon: "error", title: error.message || "บันทึกประเภทไม่สำเร็จ" });
-      }
-    } finally {
-      setSavingType(false);
-    }
-  };
-
-  const submitPlanForm = async (event) => {
-    event.preventDefault();
-    if (!planForm.name_th) {
-      Toast.fire({ icon: "warning", title: "กรุณาระบุชื่อภาษาไทย" });
-      return;
-    }
-
-    const normalizedThaiName = normalizeText(planForm.name_th);
-    const editingId = editingPlan?.plan_id ?? null;
-    const duplicatePlan = budgetPlans.some(
-      (item) =>
-        normalizeText(item.name_th) === normalizedThaiName &&
-        (item.plan_id ?? null) !== editingId
-    );
-
-    if (duplicatePlan) {
-      Toast.fire({ icon: "warning", title: "ชื่อแผนงบประมาณซ้ำกัน" });
-      return;
-    }
-
-    const payload = {
-      name_th: planForm.name_th.trim(),
-      name_en: planForm.name_en.trim(),
-    };
-
-    try {
-      setSavingPlan(true);
-      if (editingPlan) {
-        await adminAPI.updateProjectBudgetPlan(editingPlan.plan_id, payload);
-        Toast.fire({ icon: "success", title: "อัปเดตแผนงบประมาณแล้ว" });
-      } else {
-        await adminAPI.createProjectBudgetPlan(payload);
-        Toast.fire({ icon: "success", title: "เพิ่มแผนงบประมาณเรียบร้อย" });
-      }
-      await loadAll();
-      setPlanForm(initialPlanForm);
-      setEditingPlan(null);
-    } catch (error) {
-      if (error?.status === 409) {
-        Toast.fire({ icon: "warning", title: "ชื่อแผนงบประมาณซ้ำกัน" });
-      } else {
-        console.error(error);
-        Toast.fire({ icon: "error", title: error.message || "บันทึกแผนงบประมาณไม่สำเร็จ" });
-      }
-    } finally {
-      setSavingPlan(false);
-    }
-  };
-
-  const updateToggleLoadingSet = (setter, id, shouldAdd) => {
-    setter((prev) => {
-      const next = new Set(prev);
-      if (shouldAdd) {
-        next.add(id);
-      } else {
-        next.delete(id);
-      }
-      return next;
-    });
-  };
-
-  const handleTypeDragStart = (_event, item) => {
-    const id = item.type_id ?? item.id;
-    typeDragIdRef.current = id;
-    setTypeDragId(id);
-  };
-
-  const handleTypeDragOver = (_event, item) => {
-    const overId = item.type_id ?? item.id;
-    setTypeDragOverId(overId);
-    const draggingId = typeDragIdRef.current;
-    if (!draggingId || draggingId === overId) {
-      return;
-    }
-
-    setProjectTypes((prev) => {
-      const updated = [...prev];
-      const fromIndex = updated.findIndex(
-        (entry) => (entry.type_id ?? entry.id) === draggingId
-      );
-      const toIndex = updated.findIndex(
-        (entry) => (entry.type_id ?? entry.id) === overId
-      );
-      if (fromIndex === -1 || toIndex === -1 || fromIndex === toIndex) {
-        return prev;
-      }
-
-      const [moved] = updated.splice(fromIndex, 1);
-      updated.splice(toIndex, 0, moved);
-      return updated.map((entry, index) => ({
-        ...entry,
-        display_order: index + 1,
-      }));
-    });
-
-    setTypeOrderDirty(true);
-  };
-
-  const handleTypeDragEnd = () => {
-    typeDragIdRef.current = null;
-    setTypeDragId(null);
-    setTypeDragOverId(null);
-  };
-
-  const handlePlanDragStart = (_event, item) => {
-    const id = item.plan_id ?? item.id;
-    planDragIdRef.current = id;
-    setPlanDragId(id);
-  };
-
-  const handlePlanDragOver = (_event, item) => {
-    const overId = item.plan_id ?? item.id;
-    setPlanDragOverId(overId);
-    const draggingId = planDragIdRef.current;
-    if (!draggingId || draggingId === overId) {
-      return;
-    }
-
-    setBudgetPlans((prev) => {
-      const updated = [...prev];
-      const fromIndex = updated.findIndex(
-        (entry) => (entry.plan_id ?? entry.id) === draggingId
-      );
-      const toIndex = updated.findIndex(
-        (entry) => (entry.plan_id ?? entry.id) === overId
-      );
-      if (fromIndex === -1 || toIndex === -1 || fromIndex === toIndex) {
-        return prev;
-      }
-
-      const [moved] = updated.splice(fromIndex, 1);
-      updated.splice(toIndex, 0, moved);
-      return updated.map((entry, index) => ({
-        ...entry,
-        display_order: index + 1,
-      }));
-    });
-
-    setPlanOrderDirty(true);
-  };
-
-  const handlePlanDragEnd = () => {
-    planDragIdRef.current = null;
-    setPlanDragId(null);
-    setPlanDragOverId(null);
-  };
-
-  const persistTypeOrder = async () => {
-    if (!projectTypes.length) {
-      Toast.fire({ icon: "info", title: "ไม่มีข้อมูลให้บันทึกลำดับ" });
-      return;
-    }
-    try {
-      setSavingTypeOrder(true);
-      const orderPayload = projectTypes.map((item) => item.type_id);
-      await adminAPI.reorderProjectTypes(orderPayload);
-      setProjectTypes((prev) =>
-        prev.map((entry, index) => ({
-          ...entry,
-          display_order: index + 1,
-        }))
-      );
-      setTypeOrderDirty(false);
-      Toast.fire({ icon: "success", title: "บันทึกลำดับประเภทโครงการแล้ว" });
-    } catch (error) {
-      console.error(error);
-      Toast.fire({ icon: "error", title: error.message || "บันทึกลำดับประเภทไม่สำเร็จ" });
-    } finally {
-      setSavingTypeOrder(false);
-      handleTypeDragEnd();
-    }
-  };
-
-  const persistPlanOrder = async () => {
-    if (!budgetPlans.length) {
-      Toast.fire({ icon: "info", title: "ไม่มีข้อมูลให้บันทึกลำดับ" });
-      return;
-    }
-    try {
-      setSavingPlanOrder(true);
-      const orderPayload = budgetPlans.map((item) => item.plan_id);
-      await adminAPI.reorderProjectBudgetPlans(orderPayload);
-      setBudgetPlans((prev) =>
-        prev.map((entry, index) => ({
-          ...entry,
-          display_order: index + 1,
-        }))
-      );
-      setPlanOrderDirty(false);
-      Toast.fire({ icon: "success", title: "บันทึกลำดับแผนงบประมาณแล้ว" });
-    } catch (error) {
-      console.error(error);
-      Toast.fire({ icon: "error", title: error.message || "บันทึกลำดับแผนงบประมาณไม่สำเร็จ" });
-    } finally {
-      setSavingPlanOrder(false);
-      handlePlanDragEnd();
-    }
-  };
-
-  const handleToggleTypeActive = async (item) => {
-    const id = item.type_id ?? item.id;
-    const nextStatus = !item.is_active;
-    updateToggleLoadingSet(setTypeToggleLoading, id, true);
-    try {
-      await adminAPI.updateProjectType(id, { is_active: nextStatus });
-      setProjectTypes((prev) =>
-        prev.map((entry) =>
-          (entry.type_id ?? entry.id) === id
-            ? { ...entry, is_active: nextStatus }
-            : entry
-        )
-      );
-      Toast.fire({
-        icon: "success",
-        title: nextStatus
-          ? "เปิดใช้งานประเภทโครงการแล้ว"
-          : "ปิดใช้งานประเภทโครงการแล้ว",
-      });
-    } catch (error) {
-      console.error(error);
-      Toast.fire({ icon: "error", title: error.message || "เปลี่ยนสถานะไม่สำเร็จ" });
-    } finally {
-      updateToggleLoadingSet(setTypeToggleLoading, id, false);
-    }
-  };
-
-  const handleTogglePlanActive = async (item) => {
-    const id = item.plan_id ?? item.id;
-    const nextStatus = !item.is_active;
-    updateToggleLoadingSet(setPlanToggleLoading, id, true);
-    try {
-      await adminAPI.updateProjectBudgetPlan(id, { is_active: nextStatus });
-      setBudgetPlans((prev) =>
-        prev.map((entry) =>
-          (entry.plan_id ?? entry.id) === id
-            ? { ...entry, is_active: nextStatus }
-            : entry
-        )
-      );
-      Toast.fire({
-        icon: "success",
-        title: nextStatus
-          ? "เปิดใช้งานแผนงบประมาณแล้ว"
-          : "ปิดใช้งานแผนงบประมาณแล้ว",
-      });
-    } catch (error) {
-      console.error(error);
-      Toast.fire({ icon: "error", title: error.message || "เปลี่ยนสถานะไม่สำเร็จ" });
-    } finally {
-      updateToggleLoadingSet(setPlanToggleLoading, id, false);
-    }
-  };
-
-  const tabItems = useMemo(() => ([
-    { id: "projects", label: "รายการโครงการ", icon: Briefcase },
-    { id: "types", label: "ประเภทโครงการ", icon: Layers },
-    { id: "plans", label: "แผนงบประมาณ", icon: Wallet },
-  ]), []);
-
   return (
     <PageLayout
       title="จัดการโครงการ"
-      subtitle="สร้าง แก้ไข และติดตามข้อมูลโครงการ รวมถึงประเภทและแผนงบประมาณ"
+      subtitle="สร้าง แก้ไข และติดตามข้อมูลโครงการ"
       icon={Briefcase}
       loading={loading}
       breadcrumbs={[
@@ -2693,184 +2065,90 @@ export default function ProjectsContent() {
         { label: "จัดการโครงการ" },
       ]}
     >
-      <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
-        <div className="border-b border-gray-200 px-6 pt-4">
-          <nav className="-mb-px flex flex-wrap gap-4">
-            {tabItems.map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center gap-2 border-b-2 px-1 pb-3 text-sm font-medium transition-colors ${
-                  activeTab === tab.id
-                    ? "border-blue-600 text-blue-600"
-                    : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
-                }`}
-              >
-                <tab.icon size={16} />
-                {tab.label}
-              </button>
-            ))}
-          </nav>
+      <div className="space-y-6">
+        <div className="bg-white border border-blue-100 rounded-xl shadow-sm p-4 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+          <div className="flex items-start gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-50 text-blue-600">
+              <FileText size={18} />
+            </div>
+            <div>
+              <p className="text-sm text-gray-600">รายการโครงการทั้งหมด</p>
+              <p className="text-2xl font-semibold text-gray-900">{projects.length.toLocaleString("th-TH")} รายการ</p>
+            </div>
+          </div>
+          <button
+            onClick={() => {
+              setShowProjectForm(true);
+              setEditingProject(null);
+              setProjectForm({ ...initialProjectForm });
+              setProjectFileKey((key) => key + 1);
+              setProjectMembers([]);
+              setProjectDraftMembers([]);
+              setProjectDraftMemberForm(initialMemberForm);
+              setProjectDraftEditingIndex(null);
+              setMemberForm(initialMemberForm);
+              setEditingMember(null);
+              setMemberDeleteLoading(new Set());
+            }}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white shadow-sm"
+          >
+            <Plus size={16} />
+            เพิ่มโครงการ
+          </button>
         </div>
 
-        <div className="p-6 space-y-6 bg-gray-50">
-          {activeTab === "projects" && (
-            <>
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div className="text-sm text-gray-500 flex items-center gap-2">
-                  <FileText size={16} className="text-blue-500" />
-                  รายการทั้งหมด {projects.length} โครงการ
-                </div>
-                <button
-                  onClick={() => {
-                    setShowProjectForm(true);
-                    setEditingProject(null);
-                    setProjectForm({ ...initialProjectForm });
-                    setProjectFileKey((key) => key + 1);
-                    setProjectMembers([]);
-                    setProjectDraftMembers([]);
-                    setProjectDraftMemberForm(initialMemberForm);
-                    setProjectDraftEditingIndex(null);
-                    setMemberForm(initialMemberForm);
-                    setEditingMember(null);
-                    setMemberDeleteLoading(new Set());
-                  }}
-                  className="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-blue-600 hover:bg-blue-700 text-white"
-                >
-                  <Plus size={16} />
-                  เพิ่มโครงการ
-                </button>
-              </div>
-
-              <ProjectForm
-                open={showProjectForm}
-                formData={projectForm}
-                types={projectTypeOptions}
-                plans={budgetPlanOptions}
-                onClose={resetProjectForm}
-                onChange={handleProjectChange}
-                onFileChange={handleProjectFileChange}
-                onClearAttachment={handleClearProjectAttachment}
-                onSubmit={handleSubmitProject}
-                saving={savingProject}
-                isEditing={!!editingProject}
-                fileInputKey={projectFileKey}
-                attachmentFile={projectForm.attachment}
-                existingAttachment={editingProject?.attachments?.[0] || null}
-                memberCandidates={memberCandidates}
-                availableMemberCandidates={availableDraftMemberCandidates}
-                draftMembers={projectDraftMembers}
-                draftMemberForm={projectDraftMemberForm}
-                onDraftMemberChange={handleDraftMemberFormChange}
-                onDraftMemberSubmit={handleSubmitDraftMember}
-                onDraftMemberEdit={handleEditDraftMember}
-                onDraftMemberRemove={handleRemoveDraftMember}
-                draftMemberEditingIndex={projectDraftEditingIndex}
-                onDraftMemberCancel={handleCancelDraftMemberEdit}
-                editMembersPanel=
-                  {showProjectForm && editingProject ? (
-                    <ProjectFormMembersSection
-                      memberOptions={availableMemberCandidates}
-                      allCandidates={memberCandidates}
-                      form={memberForm}
-                      members={projectMemberRows}
-                      onFormChange={handleMemberFormChange}
-                      onSubmit={handleSubmitMember}
-                      onEdit={handleEditMemberAtIndex}
-                      onRemove={handleDeleteMemberAtIndex}
-                      onCancelEdit={handleCancelMemberEdit}
-                      editingIndex={editingMemberIndex}
-                      disabled={savingMember || loadingMembers}
-                      loading={loadingMembers}
-                      deleteLoadingIds={memberDeleteLoading}
-                      saving={savingMember}
-                    />
-                  ) : null}
-              />
-
-              <ProjectsTable
-                projects={projects}
-                onEdit={handleEditProject}
-                onDelete={handleDeleteProject}
-              />
-            </>
-          )}
-
-          {activeTab === "types" && (
-          <ConfigList
-            title="ประเภทโครงการ"
-            description="สร้างและแก้ไขชื่อประเภท โดยรหัสจะเรียงต่อเนื่องอัตโนมัติ"
-            icon={Layers}
-            items={projectTypes}
-            form={typeForm}
-            onFormChange={handleTypeFormChange}
-            onSubmit={submitTypeForm}
-            onCancel={() => {
-              setTypeForm(initialTypeForm);
-              setEditingType(null);
-            }}
-            editingItem={editingType}
-            onEdit={(item) => {
-              setEditingType(item);
-              setTypeForm({
-                name_th: item.name_th || "",
-                name_en: item.name_en || "",
-              });
-            }}
-            onToggleActive={handleToggleTypeActive}
-            saving={savingType}
-            emptyText="ยังไม่มีประเภทโครงการ"
-            disableDeleteNotice
-            draggingId={typeDragId}
-            dragOverId={typeDragOverId}
-            onDragStart={handleTypeDragStart}
-            onDragOver={handleTypeDragOver}
-            onDragEnd={handleTypeDragEnd}
-            orderDirty={typeOrderDirty}
-            onPersistOrder={persistTypeOrder}
-            savingOrder={savingTypeOrder}
-            toggleLoadingIds={typeToggleLoading}
-            isReordering={typeDragId !== null}
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6 space-y-6">
+          <ProjectForm
+            open={showProjectForm}
+            formData={projectForm}
+            types={projectTypeOptions}
+            plans={budgetPlanOptions}
+            onClose={resetProjectForm}
+            onChange={handleProjectChange}
+            onFileChange={handleProjectFileChange}
+            onClearAttachment={handleClearProjectAttachment}
+            onSubmit={handleSubmitProject}
+            saving={savingProject}
+            isEditing={!!editingProject}
+            fileInputKey={projectFileKey}
+            attachmentFile={projectForm.attachment}
+            existingAttachment={editingProject?.attachments?.[0] || null}
+            memberCandidates={memberCandidates}
+            availableMemberCandidates={availableDraftMemberCandidates}
+            draftMembers={projectDraftMembers}
+            draftMemberForm={projectDraftMemberForm}
+            onDraftMemberChange={handleDraftMemberFormChange}
+            onDraftMemberSubmit={handleSubmitDraftMember}
+            onDraftMemberEdit={handleEditDraftMember}
+            onDraftMemberRemove={handleRemoveDraftMember}
+            draftMemberEditingIndex={projectDraftEditingIndex}
+            onDraftMemberCancel={handleCancelDraftMemberEdit}
+            editMembersPanel=
+              {showProjectForm && editingProject ? (
+                <ProjectFormMembersSection
+                  memberOptions={availableMemberCandidates}
+                  allCandidates={memberCandidates}
+                  form={memberForm}
+                  members={projectMemberRows}
+                  onFormChange={handleMemberFormChange}
+                  onSubmit={handleSubmitMember}
+                  onEdit={handleEditMemberAtIndex}
+                  onRemove={handleDeleteMemberAtIndex}
+                  onCancelEdit={handleCancelMemberEdit}
+                  editingIndex={editingMemberIndex}
+                  disabled={savingMember || loadingMembers}
+                  loading={loadingMembers}
+                  deleteLoadingIds={memberDeleteLoading}
+                  saving={savingMember}
+                />
+              ) : null}
           />
-        )}
 
-        {activeTab === "plans" && (
-          <ConfigList
-              title="แผนงบประมาณ"
-              description="กำหนดแผนงบประมาณสำหรับอ้างอิงในการบันทึกโครงการ"
-              icon={Wallet}
-              items={budgetPlans}
-              form={planForm}
-              onFormChange={handlePlanFormChange}
-              onSubmit={submitPlanForm}
-            onCancel={() => {
-              setPlanForm(initialPlanForm);
-              setEditingPlan(null);
-            }}
-            editingItem={editingPlan}
-            onEdit={(item) => {
-              setEditingPlan(item);
-              setPlanForm({
-                name_th: item.name_th || "",
-                name_en: item.name_en || "",
-              });
-            }}
-            onToggleActive={handleTogglePlanActive}
-            saving={savingPlan}
-            emptyText="ยังไม่มีแผนงบประมาณ"
-            disableDeleteNotice
-            draggingId={planDragId}
-            dragOverId={planDragOverId}
-            onDragStart={handlePlanDragStart}
-            onDragOver={handlePlanDragOver}
-            onDragEnd={handlePlanDragEnd}
-            orderDirty={planOrderDirty}
-            onPersistOrder={persistPlanOrder}
-            savingOrder={savingPlanOrder}
-            toggleLoadingIds={planToggleLoading}
-            isReordering={planDragId !== null}
+          <ProjectsTable
+            projects={projects}
+            onEdit={handleEditProject}
+            onDelete={handleDeleteProject}
           />
-        )}
         </div>
       </div>
     </PageLayout>
