@@ -76,4 +76,5 @@ Avoid calling multiple times for the same journal.
 - If needed, parse multiple subject areas and pick best percentile.
 - Use the API response structure already provided in `cite_score_example_response.json`.
 - Database schema is already in place (from `fund_cpkku_v61.sql`).
+- If your database was initialized before CiteScore landed, run `fund-management-api/migrations/20241011_add_cite_count_sce.sql` to add the `cite_count_sce` column expected by the model.
 
