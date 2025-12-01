@@ -156,7 +156,7 @@ func (s *CiteScoreMetricsService) BackfillMissingMetrics(ctx context.Context) (*
 }
 
 func (s *CiteScoreMetricsService) metricExists(ctx context.Context, issn, sourceID string, metricYear int) (bool, error) {
-	query := s.db.WithContext(ctx).Model(&models.ScopusSourceMetric{}).Select("1")
+	query := s.db.WithContext(ctx).Model(&models.ScopusSourceMetric{})
 	if sourceID != "" {
 		query = query.Where("source_id = ?", sourceID)
 	} else {
@@ -174,7 +174,7 @@ func (s *CiteScoreMetricsService) metricExists(ctx context.Context, issn, source
 }
 
 func (s *CiteScoreMetricsService) metricExistsAny(ctx context.Context, issn, sourceID string) (bool, error) {
-	query := s.db.WithContext(ctx).Model(&models.ScopusSourceMetric{}).Select("1")
+	query := s.db.WithContext(ctx).Model(&models.ScopusSourceMetric{})
 	if sourceID != "" {
 		query = query.Where("source_id = ?", sourceID)
 	} else {
