@@ -252,6 +252,10 @@ func (s *CiteScoreMetricsService) persistMetrics(ctx context.Context, entry *cit
 		if metricYear == 0 {
 			continue
 		}
+		if info.CiteScoreInformationList == nil {
+			continue
+		}
+
 		for _, csInfo := range info.CiteScoreInformationList.Items {
 			docType := strings.TrimSpace(csInfo.DocType)
 			if docType == "" {
@@ -357,9 +361,9 @@ type citeScoreYearInfoList struct {
 type citeScoreYearInfos []citeScoreYearInfo
 
 type citeScoreYearInfo struct {
-	Year                     string                     `json:"@year"`
-	Status                   string                     `json:"@status"`
-	CiteScoreInformationList citeScoreInformationHolder `json:"citeScoreInformationList"`
+	Year                     string                      `json:"@year"`
+	Status                   string                      `json:"@status"`
+	CiteScoreInformationList *citeScoreInformationHolder `json:"citeScoreInformationList"`
 }
 
 type citeScoreInformationHolder struct {
