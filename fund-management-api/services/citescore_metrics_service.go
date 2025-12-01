@@ -368,6 +368,29 @@ type citeScoreYearInfo struct {
 	RawCiteScoreInformation json.RawMessage `json:"citeScoreInformationList"`
 }
 
+func (i *citeScoreYearInfo) UnmarshalJSON(data []byte) error {
+	if len(data) == 0 || bytes.Equal(bytes.TrimSpace(data), []byte("null")) {
+		return nil
+	}
+
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+
+	if v, ok := raw["@year"]; ok {
+		_ = json.Unmarshal(v, &i.Year)
+	}
+	if v, ok := raw["@status"]; ok {
+		_ = json.Unmarshal(v, &i.Status)
+	}
+	if v, ok := raw["citeScoreInformationList"]; ok {
+		i.RawCiteScoreInformation = v
+	}
+
+	return nil
+}
+
 type citeScoreInformationHolder struct {
 	Items citeScoreInfos `json:"citeScoreInfo"`
 }
