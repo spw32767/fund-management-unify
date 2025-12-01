@@ -20,7 +20,7 @@ import (
 	"gorm.io/gorm/clause"
 )
 
-const citeScoreBaseURL = "https://api.elsevier.com/content/serial/title/issn"
+const citeScoreBaseURL = "https://api.elsevier.com/content/serial/title"
 
 // CiteScoreMetricsService fetches and stores CiteScore metrics for journals.
 type CiteScoreMetricsService struct {
@@ -191,15 +191,20 @@ func (s *CiteScoreMetricsService) metricExistsAny(ctx context.Context, issn, sou
 }
 
 func (s *CiteScoreMetricsService) fetchMetrics(ctx context.Context, apiKey, issn, sourceID string) (*citeScoreEntry, error) {
-	target := strings.TrimSpace(issn)
-	if target == "" {
-		target = strings.TrimSpace(sourceID)
-	}
-	if target == "" {
+	issn = strings.TrimSpace(issn)
+	sourceID = strings.TrimSpace(sourceID)
+
+	var reqPath string
+	switch {
+	case sourceID != "":
+		reqPath = fmt.Sprintf("%s/sourceId/%s", citeScoreBaseURL, url.PathEscape(sourceID))
+	case issn != "":
+		reqPath = fmt.Sprintf("%s/issn/%s", citeScoreBaseURL, url.PathEscape(issn))
+	default:
 		return nil, nil
 	}
 
-	reqURL, err := url.Parse(fmt.Sprintf("%s/%s", citeScoreBaseURL, url.PathEscape(target)))
+	reqURL, err := url.Parse(reqPath)
 	if err != nil {
 		return nil, err
 	}
