@@ -1,12 +1,11 @@
+// Variant: Tabbed layout with sticky summary header for Scopus research search
 "use client";
 
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { AlertCircle, BarChart3, Download, ExternalLink, FileText, Loader2, Search, UserSearch } from "lucide-react";
+import { AlertCircle, BarChart3, ExternalLink, FileText, Loader2, Search, UserSearch } from "lucide-react";
 import PageLayout from "../common/PageLayout";
 import { publicationsAPI, usersAPI } from "../../../lib/api";
-import { toast } from "react-hot-toast";
-import { downloadXlsx } from "@/app/admin/utils/xlsxExporter";
 
 const ReactApexChart = dynamic(() => import("react-apexcharts"), {
   ssr: false,
@@ -18,21 +17,8 @@ const ReactApexChart = dynamic(() => import("react-apexcharts"), {
 const PUB_PAGE_SIZE = 10;
 const USER_PAGE_SIZE = 20;
 const CITATION_RECENT_START_YEAR = 2020;
-const EXPORT_COLUMNS = [
-  { key: "rowNumber", header: "ลำดับ", width: 8 },
-  { key: "title", header: "ชื่อเรื่อง", width: 60 },
-  { key: "venue", header: "แหล่งเผยแพร่", width: 36 },
-  { key: "citedBy", header: "Cited by", width: 12 },
-  { key: "year", header: "ปี", width: 10 },
-  { key: "scopusId", header: "Scopus ID", width: 16 },
-  { key: "eid", header: "EID", width: 22 },
-  { key: "doiUrl", header: "DOI/URL", width: 32 },
-  { key: "scopusUrl", header: "Scopus URL", width: 32 },
-  { key: "openAccess", header: "Open Access", width: 14 },
-  { key: "keywords", header: "Keywords", width: 40 },
-];
 
-export default function AdminScopusResearchSearch() {
+export default function AdminScopusResearchSearchTabbed() {
   const [scopusUsers, setScopusUsers] = useState([]);
   const [userPaging, setUserPaging] = useState({ total: 0, limit: USER_PAGE_SIZE, offset: 0 });
   const [userLoading, setUserLoading] = useState(false);
@@ -53,9 +39,7 @@ export default function AdminScopusResearchSearch() {
   const [pubLoading, setPubLoading] = useState(false);
   const [pubError, setPubError] = useState("");
 
-  const [activeTab, setActiveTab] = useState("publications");
-  const [userSearch, setUserSearch] = useState("");
-  const [exporting, setExporting] = useState(false);
+  const [activeTab, setActiveTab] = useState("stats");
 
   const loadUsers = useCallback(
     async (offset = 0) => {
@@ -131,7 +115,7 @@ export default function AdminScopusResearchSearch() {
         setPublications([]);
         setPubMeta({ total: 0, limit: PUB_PAGE_SIZE, offset: 0 });
         setPubFlags({ has_scopus_id: false, has_author_record: false });
-        setPubError(error?.message || "ไม่สามารถดึงข้อมูลงานวิจัยได้");
+        setPubError(error?.message || "ไม่สามารถดึงข้อมูลงานวิจยได้");
       } finally {
         setPubLoading(false);
       }
@@ -232,109 +216,12 @@ export default function AdminScopusResearchSearch() {
     { documents: 0, citations: 0 }
   );
 
-  const filteredUsers = useMemo(() => {
-    if (!userSearch.trim()) return scopusUsers;
-    const term = userSearch.toLowerCase();
-    return scopusUsers.filter((hit) => {
-      const name = (hit.name || "").toLowerCase();
-      const email = (hit.email || "").toLowerCase();
-      const scopusId = String(hit.scopus_id || hit.scopusID || "").toLowerCase();
-      return name.includes(term) || email.includes(term) || scopusId.includes(term);
-    });
-  }, [scopusUsers, userSearch]);
-
-  const buildExportRows = useCallback((items, startOffset = 0) => {
-    if (!Array.isArray(items) || items.length === 0) return [];
-    return items.map((pub, index) => {
-      const rowNumber = startOffset + index + 1;
-      const citedByValue =
-        pub.cited_by !== undefined && pub.cited_by !== null ? pub.cited_by : "";
-      const openAccessFlag =
-        pub.open_access ?? pub.is_open_access ?? pub.openaccess ?? pub.openAccess;
-      const keywords = Array.isArray(pub.keywords)
-        ? pub.keywords.join("; ")
-        : pub.keywords || "";
-
-      return {
-        rowNumber,
-        title: pub.title || "",
-        venue: pub.venue || pub.publication_name || "",
-        citedBy: citedByValue,
-        year: pub.publication_year || pub.coverDate || "",
-        scopusId: pub.scopus_id || pub.scopusID || "",
-        eid: pub.eid || "",
-        doiUrl: pub.doi || pub.doi_url || pub.url || "",
-        scopusUrl: pub.scopus_url || "",
-        openAccess:
-          openAccessFlag === undefined || openAccessFlag === null
-            ? ""
-            : openAccessFlag
-            ? "Yes"
-            : "No",
-        keywords,
-      };
-    });
-  }, []);
-
-  const hasExportableData = useMemo(() => (pubMeta?.total || 0) > 0, [pubMeta?.total]);
-
   const axisLabelFormatter = (value) => {
     if (typeof value !== "number" || Number.isNaN(value)) {
       return value;
     }
     return formatNumber(value);
   };
-
-  const handleExport = useCallback(async () => {
-    if (!selectedUserId || !hasExportableData) return;
-    setExporting(true);
-    try {
-      const query = pubQuery.trim();
-      const limit = pubMeta?.limit || PUB_PAGE_SIZE;
-      let offset = 0;
-      let total = pubMeta?.total || 0;
-      const allRows = [];
-
-      while (offset === 0 || offset < total) {
-        const params = { limit, offset, sort: "year", direction: "desc" };
-        if (query) {
-          params.q = query;
-        }
-
-        const res = await publicationsAPI.getScopusPublicationsForUser(selectedUserId, params);
-        const items = Array.isArray(res?.data) ? res.data : [];
-        const paging = res?.paging || {};
-        total = paging.total ?? total;
-        const pageLimit = paging.limit || limit;
-
-        allRows.push(...buildExportRows(items, offset));
-
-        if (items.length < pageLimit) {
-          break;
-        }
-        offset += pageLimit;
-      }
-
-      if (allRows.length === 0) {
-        toast.error("ไม่พบข้อมูลงานวิจัยสำหรับส่งออก");
-        return;
-      }
-
-      const timestamp = new Date().toISOString().replace(/[:T]/g, "-").split(".")[0];
-      const userRef = selectedUser?.scopus_id || selectedUser?.scopusID || selectedUserId;
-      const filename = `scopus_publications_${userRef}_${timestamp}.xlsx`;
-      downloadXlsx(EXPORT_COLUMNS, allRows, {
-        sheetName: "Scopus Publications",
-        filename,
-      });
-      toast.success(`ส่งออก ${allRows.length} รายการเรียบร้อยแล้ว`);
-    } catch (error) {
-      console.error("Export publications error", error);
-      toast.error("ไม่สามารถส่งออกไฟล์ได้");
-    } finally {
-      setExporting(false);
-    }
-  }, [buildExportRows, hasExportableData, pubMeta?.limit, pubMeta?.total, pubQuery, selectedUser, selectedUserId]);
 
   const chartOptions = {
     chart: {
@@ -395,29 +282,17 @@ export default function AdminScopusResearchSearch() {
   return (
     <PageLayout
       title="ค้นหางานวิจัย"
-      subtitle="ดูรายชื่อผู้ใช้ที่เชื่อมโยงกับ Scopus และดูรายละเอียดผลงาน"
+      subtitle="ดูรายชื่อผู้ใช้ที่เชื่อมโยง Scopus และเปิดรายละเอียดผลงานแบบเดียวกับหน้าจัดการคำร้อง"
       icon={UserSearch}
     >
-      <div className="grid gap-6 lg:grid-cols-2 xl:grid-cols-[1.15fr,1.85fr]">
+      <div className="grid gap-6 xl:grid-cols-[1fr,1.9fr]">
         <div className="rounded-2xl border border-slate-200 bg-white shadow-sm">
-          <div className="flex flex-col gap-3 border-b border-slate-200 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-col gap-2 border-b border-slate-200 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <p className="text-sm font-semibold text-slate-900">รายชื่อผู้ใช้ที่มี Scopus ID</p>
               <p className="text-xs text-slate-500">เลือกแถวแล้วกด “ดูรายละเอียด” เพื่อเปิดข้อมูลเหมือนหน้าจัดการคำร้อง</p>
             </div>
-            <div className="flex flex-col gap-2 sm:items-end">
-              <div className="relative w-full min-w-[240px] sm:w-64">
-                <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
-                <input
-                  type="text"
-                  className="w-full rounded-lg border border-slate-300 bg-white px-9 py-2 text-sm shadow-sm focus:border-slate-500 focus:outline-none focus:ring-2 focus:ring-slate-200"
-                  placeholder="ค้นหารายชื่อ / Scopus ID"
-                  value={userSearch}
-                  onChange={(e) => setUserSearch(e.target.value)}
-                />
-              </div>
-              <div className="rounded-full bg-slate-100 px-3 py-1 text-[12px] font-semibold text-slate-700">รวม {userPaging.total} คน</div>
-            </div>
+            <div className="rounded-full bg-slate-100 px-3 py-1 text-[12px] font-semibold text-slate-700">รวม {userPaging.total} คน</div>
           </div>
 
           {userError && (
@@ -446,14 +321,14 @@ export default function AdminScopusResearchSearch() {
                       </div>
                     </td>
                   </tr>
-                ) : filteredUsers.length === 0 ? (
+                ) : scopusUsers.length === 0 ? (
                   <tr>
                     <td colSpan="4" className="px-4 py-8 text-center text-slate-500">
-                      ไม่พบผู้ใช้ที่ตรงกับคำค้น
+                      ยังไม่มีผู้ใช้ที่บันทึก Scopus ID
                     </td>
                   </tr>
                 ) : (
-                  filteredUsers.map((hit) => {
+                  scopusUsers.map((hit) => {
                     const isActive = String(hit.user_id) === String(selectedUserId);
                     return (
                       <tr key={hit.user_id} className={isActive ? "bg-indigo-50/60" : "hover:bg-slate-50"}>
@@ -519,11 +394,11 @@ export default function AdminScopusResearchSearch() {
         </div>
 
         <div className="space-y-4">
-          <div className="rounded-2xl border border-slate-200 bg-white px-5 py-4 shadow-sm">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <p className="text-sm font-semibold text-slate-900">ผู้ใช้ที่เลือก</p>
-                  <p className="text-xs text-slate-500">
+          <div className="sticky top-4 z-10 rounded-2xl border border-slate-200 bg-white/90 px-5 py-4 shadow backdrop-blur">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-sm font-semibold text-slate-900">ผู้ใช้ที่เลือก</p>
+                <p className="text-xs text-slate-500">
                   {selectedUser ? selectedUser.name || "ไม่ระบุชื่อ" : "เลือกผู้ใช้ทางซ้ายเพื่อเริ่ม"}
                 </p>
                 {selectedUser && (
@@ -531,18 +406,6 @@ export default function AdminScopusResearchSearch() {
                 )}
               </div>
               <div className="flex gap-2">
-                <button
-                  type="button"
-                  className={`rounded-full px-4 py-2 text-sm font-semibold shadow-sm transition ${
-                    activeTab === "publications"
-                      ? "bg-indigo-600 text-white"
-                      : "border border-slate-200 bg-white text-slate-800 hover:border-slate-300"
-                  }`}
-                  onClick={() => setActiveTab("publications")}
-                  disabled={!selectedUserId}
-                >
-                  รายการเอกสาร
-                </button>
                 <button
                   type="button"
                   className={`rounded-full px-4 py-2 text-sm font-semibold shadow-sm transition ${
@@ -554,6 +417,18 @@ export default function AdminScopusResearchSearch() {
                   disabled={!selectedUserId}
                 >
                   สถิติ/กราฟ
+                </button>
+                <button
+                  type="button"
+                  className={`rounded-full px-4 py-2 text-sm font-semibold shadow-sm transition ${
+                    activeTab === "publications"
+                      ? "bg-indigo-600 text-white"
+                      : "border border-slate-200 bg-white text-slate-800 hover:border-slate-300"
+                  }`}
+                  onClick={() => setActiveTab("publications")}
+                  disabled={!selectedUserId}
+                >
+                  รายการเอกสาร
                 </button>
               </div>
             </div>
@@ -694,14 +569,6 @@ export default function AdminScopusResearchSearch() {
                   >
                     {pubLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}ค้นหาเอกสาร
                   </button>
-                  <button
-                    type="button"
-                    onClick={handleExport}
-                    disabled={!selectedUserId || exporting || !hasExportableData}
-                    className="inline-flex items-center justify-center rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-800 shadow-sm transition hover:border-slate-400 disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    {exporting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}ส่งออก Excel
-                  </button>
                 </div>
               </div>
 
@@ -751,7 +618,7 @@ export default function AdminScopusResearchSearch() {
                                     <td className="max-w-xs px-4 py-2 lg:max-w-md">
                                       <div className="space-y-1">
                                         <span className="block truncate font-semibold text-gray-900" title={pub.title}>
-                                          {pub.title || "ไม่ระบุชื่อเรื่อง"}
+                                          {pub.title || "ไม่ระบุชื่อเรือง"}
                                         </span>
                                         {pub.venue || pub.publication_name ? (
                                           <span className="block truncate text-xs text-gray-500">
