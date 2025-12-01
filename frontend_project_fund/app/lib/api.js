@@ -1051,6 +1051,10 @@ export const scopusConfigAPI = {
   async updateAPIKey(value) {
     return apiClient.put('/admin/scopus/config', { value });
   },
+  async backfillMetrics() {
+    const res = await apiClient.post('/admin/scopus/metrics/backfill');
+    return res.summary || res;
+  },
 };
 
 export const usersAPI = {

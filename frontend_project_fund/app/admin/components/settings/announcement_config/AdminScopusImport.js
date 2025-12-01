@@ -37,6 +37,13 @@ const batchSummaryItems = [
   ...manualSummaryItems,
 ];
 
+const metricsSummaryItems = [
+  { key: "journals_scanned", label: "วารสารที่ตรวจสอบ" },
+  { key: "metrics_fetched", label: "ดึงข้อมูลใหม่" },
+  { key: "skipped_existing", label: "พบข้อมูลเดิม" },
+  { key: "errors", label: "ผิดพลาด" },
+];
+
 function looksLikeScopusId(value) {
   const normalized = (value || "").trim();
   return /^[0-9]{5,}$/.test(normalized);
@@ -82,6 +89,7 @@ export default function AdminScopusImport() {
   const [msgTone, setMsgTone] = useState("info");
   const [lastManualSummary, setLastManualSummary] = useState(null);
   const [lastBatchSummary, setLastBatchSummary] = useState(null);
+  const [lastMetricsSummary, setLastMetricsSummary] = useState(null);
   const [batchUserIds, setBatchUserIds] = useState("");
   const [batchLimit, setBatchLimit] = useState("");
 
@@ -94,6 +102,7 @@ export default function AdminScopusImport() {
   const [apiKeySaving, setApiKeySaving] = useState(false);
   const [apiKeyConfirming, setApiKeyConfirming] = useState(false);
   const [apiKeyValidationError, setApiKeyValidationError] = useState("");
+  const [metricsBackfillRunning, setMetricsBackfillRunning] = useState(false);
 
   const selectedUser = useMemo(
     () => userHits.find((hit) => String(hit.user_id) === String(userId)) || null,
@@ -103,6 +112,7 @@ export default function AdminScopusImport() {
   const disableManualActions = manualBusy || batchRunning;
   const disableSearchButton = !userQuery.trim() || searching || disableManualActions;
   const disableBatchButton = batchRunning || manualBusy;
+  const disableBackfillButton = metricsBackfillRunning;
 
   useEffect(() => {
     fetchApiKey();
@@ -286,6 +296,22 @@ export default function AdminScopusImport() {
       setMsgTone("error");
     } finally {
       setBatchRunning(false);
+    }
+  }
+
+  async function backfillCiteScoreMetrics() {
+    setMetricsBackfillRunning(true);
+    setMsg("");
+    try {
+      const summary = await scopusConfigAPI.backfillMetrics();
+      setLastMetricsSummary(summary);
+      setMsg("ดึง CiteScore metrics สำหรับวารสารที่มีอยู่แล้วสำเร็จ");
+      setMsgTone("success");
+    } catch (error) {
+      setMsg(error?.message || "ดึง CiteScore metrics ไม่สำเร็จ");
+      setMsgTone("error");
+    } finally {
+      setMetricsBackfillRunning(false);
     }
   }
 
@@ -645,6 +671,42 @@ export default function AdminScopusImport() {
             >
               {batchRunning ? "กำลังรัน..." : "เริ่ม Batch Import"}
             </button>
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <div className="flex flex-col gap-2">
+            <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">CiteScore Metrics</div>
+            <div className="text-xl font-semibold text-slate-900">เติมข้อมูลวารสารที่มีอยู่</div>
+            <p className="text-sm text-slate-600">
+              สแกนวารสารจากเอกสาร Scopus ที่มีอยู่แล้ว และดึง CiteScore / SJR / SNIP หากยังไม่เคยบันทึก
+            </p>
+          </div>
+
+          <div className="mt-6 grid gap-6 md:grid-cols-2">
+            <div className="space-y-4">
+              <p className="text-sm text-slate-600">
+                การทำงานนี้จะเรียก API ตามจำนวนวารสารที่ยังไม่มีข้อมูลในฐานข้อมูล ควรตรวจสอบว่า API Key ถูกต้องก่อนเริ่ม
+              </p>
+              <button
+                type="button"
+                onClick={backfillCiteScoreMetrics}
+                disabled={disableBackfillButton}
+                className="inline-flex items-center justify-center rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {metricsBackfillRunning ? "กำลังสแกน..." : "สั่งดึง CiteScore ให้เอกสารเดิม"}
+              </button>
+              <p className="text-[11px] text-slate-500">ไม่กระทบการนำเข้าปกติ และข้ามวารสารที่มีข้อมูลอยู่แล้ว</p>
+            </div>
+
+            <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-4">
+              <div className="text-sm font-semibold text-slate-900">สรุปการสแกนล่าสุด</div>
+              {lastMetricsSummary ? (
+                <SummaryGrid summary={lastMetricsSummary} items={metricsSummaryItems} />
+              ) : (
+                <p className="mt-2 text-xs text-slate-500">ยังไม่เคยสแกน</p>
+              )}
+            </div>
           </div>
         </div>
       </div>
