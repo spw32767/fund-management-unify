@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 
 import SettingsSectionCard from "@/app/admin/components/settings/common/SettingsSectionCard";
+import SettingsModal from "@/app/admin/components/settings/common/SettingsModal";
 import { notificationMessagesAPI } from "@/app/lib/notification_messages_api";
 
 const AUDIENCE_OPTIONS = [
@@ -53,6 +54,7 @@ const normalizeVariables = (value) => {
 function TemplateEditor({ open, onClose, onSubmit, initial }) {
   const [form, setForm] = useState(emptyTemplate);
   const [saving, setSaving] = useState(false);
+  const formId = "notification-template-form";
 
   useEffect(() => {
     if (initial) {
@@ -82,30 +84,50 @@ function TemplateEditor({ open, onClose, onSubmit, initial }) {
     }
   };
 
-  if (!open) return null;
-
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
-      <div className="w-full max-w-3xl rounded-2xl bg-white shadow-2xl">
-        <div className="flex items-center justify-between border-b px-6 py-4">
-          <div className="flex items-center gap-2 text-lg font-semibold text-gray-800">
-            <BellRing className="h-5 w-5 text-blue-600" />
-            {initial?.id ? "แก้ไขข้อความแจ้งเตือน" : "เพิ่มข้อความแจ้งเตือน"}
+    <SettingsModal
+      open={open}
+      onClose={onClose}
+      size="3xl"
+      headerContent={
+        <div className="flex items-center gap-3 text-gray-800">
+          <span className="inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-blue-50 text-blue-700">
+            <BellRing className="h-5 w-5" />
+          </span>
+          <div className="space-y-0.5">
+            <div className="text-lg font-semibold">
+              {initial?.id ? "แก้ไขข้อความแจ้งเตือน" : "เพิ่มข้อความแจ้งเตือน"}
+            </div>
+            <p className="text-sm text-gray-500">กำหนดรายละเอียดข้อความแจ้งเตือนที่จะใช้ในระบบ</p>
           </div>
+        </div>
+      }
+      bodyClassName="space-y-4 px-6 py-5 max-h-[75vh] overflow-y-auto"
+      footer={
+        <div className="flex items-center justify-end gap-3">
           <button
-            className="rounded-full p-2 text-gray-500 hover:bg-gray-100"
-            onClick={onClose}
             type="button"
-            aria-label="close"
+            onClick={onClose}
+            className="inline-flex items-center gap-2 rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
           >
-            <X className="h-5 w-5" />
+            <X className="h-4 w-4" /> ยกเลิก
+          </button>
+          <button
+            type="submit"
+            form={formId}
+            className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700"
+            disabled={saving}
+          >
+            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+            {saving ? "กำลังบันทึก..." : "บันทึก"}
           </button>
         </div>
-
-        <form onSubmit={handleSubmit} className="space-y-4 px-6 py-5">
-          <div className="grid gap-4 md:grid-cols-2">
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Event Key</label>
+      }
+    >
+      <form id={formId} onSubmit={handleSubmit} className="space-y-4">
+        <div className="grid gap-4 md:grid-cols-2">
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Event Key</label>
               <input
                 className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 shadow-sm focus:border-blue-500 focus:outline-none"
                 value={form.event_key}
@@ -201,27 +223,8 @@ function TemplateEditor({ open, onClose, onSubmit, initial }) {
             </button>
             <span className="text-xs text-gray-500">ปิดใช้งานเมื่อไม่ต้องการให้ข้อความนี้ถูกเลือกใช้</span>
           </div>
-
-          <div className="flex items-center justify-end gap-3 border-t pt-4">
-            <button
-              type="button"
-              onClick={onClose}
-              className="inline-flex items-center gap-2 rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
-            >
-              <X className="h-4 w-4" /> ยกเลิก
-            </button>
-            <button
-              type="submit"
-              className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700"
-              disabled={saving}
-            >
-              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-              {saving ? "กำลังบันทึก..." : "บันทึก"}
-            </button>
-          </div>
         </form>
-      </div>
-    </div>
+    </SettingsModal>
   );
 }
 

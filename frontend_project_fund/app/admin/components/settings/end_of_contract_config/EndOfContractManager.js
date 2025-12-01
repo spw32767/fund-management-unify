@@ -6,11 +6,10 @@ import {
   PlusCircle,
   Pencil,
   Trash2,
-  ArrowUp,
-  ArrowDown,
   RefreshCcw,
   Save,
   Loader2,
+  GripVertical,
 } from "lucide-react";
 import Swal from "sweetalert2";
 
@@ -220,30 +219,6 @@ const EndOfContractManager = () => {
     [loadTerms, showError, showSuccess]
   );
 
-  const handleMoveTerm = useCallback((termId, direction) => {
-    setTerms((prev) => {
-      const list = normalizeTermList(prev);
-      const currentIndex = list.findIndex((item) => item.eoc_id === termId);
-      if (currentIndex === -1) {
-        return prev;
-      }
-
-      const targetIndex = direction === "up" ? currentIndex - 1 : currentIndex + 1;
-      if (targetIndex < 0 || targetIndex >= list.length) {
-        return prev;
-      }
-
-      const newList = list.slice();
-      const [moved] = newList.splice(currentIndex, 1);
-      newList.splice(targetIndex, 0, moved);
-
-      return newList.map((item, index) => ({
-        ...item,
-        display_order: index + 1,
-      }));
-    });
-  }, []);
-
   const handleDragStart = useCallback((event, termId) => {
     setDraggingId(termId);
     if (event?.dataTransfer) {
@@ -341,8 +316,6 @@ const EndOfContractManager = () => {
   } disabled:cursor-not-allowed`;
   const operationButtonBaseClasses =
     "inline-flex items-center gap-1 rounded-lg border px-3 py-1 text-xs font-medium transition focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-60";
-  const moveOperationButtonClasses =
-    `${operationButtonBaseClasses} border-emerald-200 text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700 focus-visible:ring-2 focus-visible:ring-emerald-100 focus-visible:ring-offset-2`;
   const editOperationButtonClasses =
     `${operationButtonBaseClasses} border-blue-200 text-blue-600 hover:bg-blue-50 hover:text-blue-700 focus-visible:ring-2 focus-visible:ring-blue-100 focus-visible:ring-offset-2`;
   const deleteOperationButtonClasses =
@@ -421,26 +394,10 @@ const EndOfContractManager = () => {
                     <p className="mt-1 whitespace-pre-line text-sm leading-relaxed text-gray-800">{term.content}</p>
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => handleMoveTerm(term.eoc_id, "up")}
-                      disabled={index === 0 || loading || savingOrder}
-                      className={moveOperationButtonClasses}
-                      aria-label="เลื่อนขึ้น"
-                    >
-                      <ArrowUp className="h-4 w-4" />
-                      <span>เลื่อนขึ้น</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleMoveTerm(term.eoc_id, "down")}
-                      disabled={index === orderedTerms.length - 1 || loading || savingOrder}
-                      className={moveOperationButtonClasses}
-                      aria-label="เลื่อนลง"
-                    >
-                      <ArrowDown className="h-4 w-4" />
-                      <span>เลื่อนลง</span>
-                    </button>
+                    <div className="inline-flex items-center gap-2 rounded-full border border-dashed border-gray-300 bg-gray-50 px-3 py-1 text-xs font-medium text-gray-600">
+                      <GripVertical className="h-4 w-4 text-gray-400" />
+                      <span>ลากเพื่อจัดลำดับ</span>
+                    </div>
                     <button
                       type="button"
                       onClick={() => openEditModal(term)}
