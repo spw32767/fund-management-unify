@@ -3,8 +3,8 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: localhost:3306
--- Generation Time: 27 พ.ย. 2025 เมื่อ 04:38 PM
--- เวอร์ชันของเซิร์ฟเวอร์: 11.1.6-MariaDB-ubu2004
+-- Generation Time: Dec 01, 2025 at 10:10 AM
+-- Server version: 11.1.6-MariaDB-ubu2004
 -- PHP Version: 7.4.3-4ubuntu2.29
 
 SET SQL_MODE = "NO_AUTO_VALUE_ON_ZERO";
@@ -130,7 +130,7 @@ DELIMITER ;
 -- --------------------------------------------------------
 
 --
--- โครงสร้างตาราง `announcements`
+-- Table structure for table `announcements`
 --
 
 CREATE TABLE `announcements` (
@@ -156,7 +156,7 @@ CREATE TABLE `announcements` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='ตารางเก็บประกาศจากกองทุนวิจัยและนวัตกรรม';
 
 --
--- dump ตาราง `announcements`
+-- Dumping data for table `announcements`
 --
 
 INSERT INTO `announcements` (`announcement_id`, `title`, `description`, `file_name`, `file_path`, `file_size`, `mime_type`, `announcement_type`, `announcement_reference_number`, `priority`, `display_order`, `status`, `published_at`, `expired_at`, `year_id`, `created_by`, `create_at`, `update_at`, `delete_at`) VALUES
@@ -180,7 +180,7 @@ INSERT INTO `announcements` (`announcement_id`, `title`, `description`, `file_na
 -- --------------------------------------------------------
 
 --
--- โครงสร้างตาราง `announcement_assignments`
+-- Table structure for table `announcement_assignments`
 --
 
 CREATE TABLE `announcement_assignments` (
@@ -194,7 +194,7 @@ CREATE TABLE `announcement_assignments` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
--- dump ตาราง `announcement_assignments`
+-- Dumping data for table `announcement_assignments`
 --
 
 INSERT INTO `announcement_assignments` (`assignment_id`, `slot_code`, `announcement_id`, `start_date`, `end_date`, `changed_by`, `changed_at`) VALUES
@@ -211,7 +211,7 @@ INSERT INTO `announcement_assignments` (`assignment_id`, `slot_code`, `announcem
 -- --------------------------------------------------------
 
 --
--- โครงสร้างตาราง `application_status`
+-- Table structure for table `application_status`
 --
 
 CREATE TABLE `application_status` (
@@ -224,7 +224,7 @@ CREATE TABLE `application_status` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
--- dump ตาราง `application_status`
+-- Dumping data for table `application_status`
 --
 
 INSERT INTO `application_status` (`application_status_id`, `status_code`, `status_name`, `create_at`, `update_at`, `delete_at`) VALUES
@@ -239,7 +239,7 @@ INSERT INTO `application_status` (`application_status_id`, `status_code`, `statu
 -- --------------------------------------------------------
 
 --
--- โครงสร้างตาราง `audit_logs`
+-- Table structure for table `audit_logs`
 --
 
 CREATE TABLE `audit_logs` (
@@ -259,7 +259,7 @@ CREATE TABLE `audit_logs` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
--- dump ตาราง `audit_logs`
+-- Dumping data for table `audit_logs`
 --
 
 INSERT INTO `audit_logs` (`log_id`, `user_id`, `action`, `entity_type`, `entity_id`, `entity_number`, `old_values`, `new_values`, `changed_fields`, `ip_address`, `user_agent`, `description`, `created_at`) VALUES
@@ -728,7 +728,7 @@ INSERT INTO `audit_logs` (`log_id`, `user_id`, `action`, `entity_type`, `entity_
 -- --------------------------------------------------------
 
 --
--- โครงสร้างตาราง `cp_profile`
+-- Table structure for table `cp_profile`
 --
 
 CREATE TABLE `cp_profile` (
@@ -747,7 +747,7 @@ CREATE TABLE `cp_profile` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
--- dump ตาราง `cp_profile`
+-- Dumping data for table `cp_profile`
 --
 
 INSERT INTO `cp_profile` (`id`, `user_id`, `name_th`, `name_en`, `position`, `email`, `photo_url`, `profile_url`, `info`, `education`, `create_at`, `update_at`) VALUES
@@ -827,7 +827,7 @@ INSERT INTO `cp_profile` (`id`, `user_id`, `name_th`, `name_en`, `position`, `em
 -- --------------------------------------------------------
 
 --
--- โครงสร้างตาราง `dept_head_assignments`
+-- Table structure for table `dept_head_assignments`
 --
 
 CREATE TABLE `dept_head_assignments` (
@@ -842,7 +842,7 @@ CREATE TABLE `dept_head_assignments` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
--- dump ตาราง `dept_head_assignments`
+-- Dumping data for table `dept_head_assignments`
 --
 
 INSERT INTO `dept_head_assignments` (`assignment_id`, `head_user_id`, `restore_role_id`, `effective_from`, `effective_to`, `changed_by`, `changed_at`, `note`) VALUES
@@ -865,7 +865,7 @@ INSERT INTO `dept_head_assignments` (`assignment_id`, `head_user_id`, `restore_r
 -- --------------------------------------------------------
 
 --
--- โครงสร้างตาราง `document_types`
+-- Table structure for table `document_types`
 --
 
 CREATE TABLE `document_types` (
@@ -886,7 +886,7 @@ CREATE TABLE `document_types` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
--- dump ตาราง `document_types`
+-- Dumping data for table `document_types`
 --
 
 INSERT INTO `document_types` (`document_type_id`, `document_type_name`, `code`, `category`, `required`, `multiple`, `document_order`, `is_required`, `create_at`, `update_at`, `delete_at`, `fund_types`, `subcategory_ids`, `subcategory_name`) VALUES
@@ -913,7 +913,7 @@ INSERT INTO `document_types` (`document_type_id`, `document_type_name`, `code`, 
 -- --------------------------------------------------------
 
 --
--- โครงสร้างตาราง `end_of_contract`
+-- Table structure for table `end_of_contract`
 --
 
 CREATE TABLE `end_of_contract` (
@@ -923,7 +923,7 @@ CREATE TABLE `end_of_contract` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
--- dump ตาราง `end_of_contract`
+-- Dumping data for table `end_of_contract`
 --
 
 INSERT INTO `end_of_contract` (`eoc_id`, `content`, `display_order`) VALUES
@@ -934,7 +934,7 @@ INSERT INTO `end_of_contract` (`eoc_id`, `content`, `display_order`) VALUES
 -- --------------------------------------------------------
 
 --
--- โครงสร้างตาราง `file_uploads`
+-- Table structure for table `file_uploads`
 --
 
 CREATE TABLE `file_uploads` (
@@ -955,7 +955,7 @@ CREATE TABLE `file_uploads` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
--- dump ตาราง `file_uploads`
+-- Dumping data for table `file_uploads`
 --
 
 INSERT INTO `file_uploads` (`file_id`, `original_name`, `stored_path`, `folder_type`, `submission_id`, `file_size`, `mime_type`, `file_hash`, `is_public`, `uploaded_by`, `uploaded_at`, `create_at`, `update_at`, `delete_at`) VALUES
@@ -1320,7 +1320,7 @@ INSERT INTO `file_uploads` (`file_id`, `original_name`, `stored_path`, `folder_t
 -- --------------------------------------------------------
 
 --
--- โครงสร้างตาราง `fund_application_details`
+-- Table structure for table `fund_application_details`
 --
 
 CREATE TABLE `fund_application_details` (
@@ -1344,7 +1344,7 @@ CREATE TABLE `fund_application_details` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
--- dump ตาราง `fund_application_details`
+-- Dumping data for table `fund_application_details`
 --
 
 INSERT INTO `fund_application_details` (`detail_id`, `submission_id`, `subcategory_id`, `project_title`, `project_description`, `requested_amount`, `approved_amount`, `approved_by`, `approved_at`, `rejected_by`, `rejected_at`, `closed_at`, `announce_reference_number`, `comment`, `main_annoucement`, `activity_support_announcement`, `author_name_list`) VALUES
@@ -1399,7 +1399,7 @@ INSERT INTO `fund_application_details` (`detail_id`, `submission_id`, `subcatego
 -- --------------------------------------------------------
 
 --
--- โครงสร้างตาราง `fund_categories`
+-- Table structure for table `fund_categories`
 --
 
 CREATE TABLE `fund_categories` (
@@ -1414,7 +1414,7 @@ CREATE TABLE `fund_categories` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
--- dump ตาราง `fund_categories`
+-- Dumping data for table `fund_categories`
 --
 
 INSERT INTO `fund_categories` (`category_id`, `category_name`, `status`, `year_id`, `comment`, `create_at`, `update_at`, `delete_at`) VALUES
@@ -1431,7 +1431,7 @@ INSERT INTO `fund_categories` (`category_id`, `category_name`, `status`, `year_i
 -- --------------------------------------------------------
 
 --
--- โครงสร้างตาราง `fund_forms`
+-- Table structure for table `fund_forms`
 --
 
 CREATE TABLE `fund_forms` (
@@ -1455,7 +1455,7 @@ CREATE TABLE `fund_forms` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='ตารางเก็บแบบฟอร์มและเอกสารที่เกี่ยวข้องกับการขอทุน';
 
 --
--- dump ตาราง `fund_forms`
+-- Dumping data for table `fund_forms`
 --
 
 INSERT INTO `fund_forms` (`form_id`, `title`, `description`, `file_name`, `file_path`, `file_size`, `mime_type`, `form_type`, `fund_category`, `is_required`, `display_order`, `status`, `year_id`, `created_by`, `create_at`, `update_at`, `delete_at`) VALUES
@@ -1468,7 +1468,7 @@ INSERT INTO `fund_forms` (`form_id`, `title`, `description`, `file_name`, `file_
 -- --------------------------------------------------------
 
 --
--- โครงสร้างตาราง `fund_installment_periods`
+-- Table structure for table `fund_installment_periods`
 --
 
 CREATE TABLE `fund_installment_periods` (
@@ -1485,7 +1485,7 @@ CREATE TABLE `fund_installment_periods` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
 
 --
--- dump ตาราง `fund_installment_periods`
+-- Dumping data for table `fund_installment_periods`
 --
 
 INSERT INTO `fund_installment_periods` (`installment_period_id`, `year_id`, `installment_number`, `cutoff_date`, `name`, `status`, `remark`, `created_at`, `updated_at`, `deleted_at`) VALUES
@@ -1503,7 +1503,7 @@ INSERT INTO `fund_installment_periods` (`installment_period_id`, `year_id`, `ins
 -- --------------------------------------------------------
 
 --
--- โครงสร้างตาราง `fund_subcategories`
+-- Table structure for table `fund_subcategories`
 --
 
 CREATE TABLE `fund_subcategories` (
@@ -1524,7 +1524,7 @@ CREATE TABLE `fund_subcategories` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
--- dump ตาราง `fund_subcategories`
+-- Dumping data for table `fund_subcategories`
 --
 
 INSERT INTO `fund_subcategories` (`subcategory_id`, `category_id`, `subcategory_name`, `subcategory_code`, `fund_condition`, `target_roles`, `form_type`, `form_url`, `year_id`, `status`, `comment`, `create_at`, `update_at`, `delete_at`) VALUES
@@ -1617,7 +1617,7 @@ INSERT INTO `fund_subcategories` (`subcategory_id`, `category_id`, `subcategory_
 -- --------------------------------------------------------
 
 --
--- โครงสร้างตาราง `innovations`
+-- Table structure for table `innovations`
 --
 
 CREATE TABLE `innovations` (
@@ -1632,7 +1632,7 @@ CREATE TABLE `innovations` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
--- dump ตาราง `innovations`
+-- Dumping data for table `innovations`
 --
 
 INSERT INTO `innovations` (`id`, `user_id`, `title`, `innovation_type`, `description`, `registered_date`, `created_at`, `updated_at`) VALUES
@@ -1641,7 +1641,7 @@ INSERT INTO `innovations` (`id`, `user_id`, `title`, `innovation_type`, `descrip
 -- --------------------------------------------------------
 
 --
--- โครงสร้างตาราง `kku_people_import_runs`
+-- Table structure for table `kku_people_import_runs`
 --
 
 CREATE TABLE `kku_people_import_runs` (
@@ -1666,7 +1666,7 @@ CREATE TABLE `kku_people_import_runs` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
--- dump ตาราง `kku_people_import_runs`
+-- Dumping data for table `kku_people_import_runs`
 --
 
 INSERT INTO `kku_people_import_runs` (`id`, `trigger_source`, `dry_run`, `status`, `error_message`, `started_at`, `finished_at`, `duration_seconds`, `fetched_count`, `created_count`, `updated_count`, `failed_count`, `exit_code`, `stdout`, `stderr`, `created_at`, `updated_at`, `deleted_at`) VALUES
@@ -1682,7 +1682,7 @@ INSERT INTO `kku_people_import_runs` (`id`, `trigger_source`, `dry_run`, `status
 -- --------------------------------------------------------
 
 --
--- โครงสร้างตาราง `notifications`
+-- Table structure for table `notifications`
 --
 
 CREATE TABLE `notifications` (
@@ -1699,7 +1699,7 @@ CREATE TABLE `notifications` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
--- dump ตาราง `notifications`
+-- Dumping data for table `notifications`
 --
 
 INSERT INTO `notifications` (`notification_id`, `user_id`, `title`, `message`, `type`, `is_read`, `related_submission_id`, `create_at`, `update_at`, `delete_at`) VALUES
@@ -1823,14 +1823,14 @@ INSERT INTO `notifications` (`notification_id`, `user_id`, `title`, `message`, `
 (315, 13, 'คำร้องใหม่รอพิจารณา (หัวหน้าสาขา)', 'มีคำร้องใหม่ FA-2568-0043 จากอาจารย์ ผศ. สมชาย ใจดี รอพิจารณา', 'info', 0, 272, '2025-11-09 14:46:33', '2025-11-09 14:46:33', NULL),
 (316, 8, 'ส่งคำร้องสำเร็จ', 'ระบบได้รับคำร้อง FA-2568-0044 ของคุณ ผศ. สมชาย ใจดี แล้ว', 'success', 1, 273, '2025-11-09 14:46:54', '2025-11-17 08:46:59', NULL),
 (317, 13, 'คำร้องใหม่รอพิจารณา (หัวหน้าสาขา)', 'มีคำร้องใหม่ FA-2568-0044 จากอาจารย์ ผศ. สมชาย ใจดี รอพิจารณา', 'info', 1, 273, '2025-11-09 14:46:54', '2025-11-19 11:23:10', NULL),
-(318, 8, 'ส่งคำร้องสำเร็จ', 'ระบบได้รับคำร้อง FA-2568-0046 ของคุณ ผศ. สมชาย ใจดี แล้ว', 'success', 0, 275, '2025-11-19 02:39:56', '2025-11-19 02:55:24', NULL),
+(318, 8, 'ส่งคำร้องสำเร็จ', 'ระบบได้รับคำร้อง FA-2568-0046 ของคุณ ผศ. สมชาย ใจดี แล้ว', 'success', 1, 275, '2025-11-19 02:39:56', '2025-11-27 18:24:24', NULL),
 (319, 13, 'คำร้องใหม่รอพิจารณา (หัวหน้าสาขา)', 'มีคำร้องใหม่ FA-2568-0046 จากอาจารย์ ผศ. สมชาย ใจดี รอพิจารณา', 'info', 1, 275, '2025-11-19 02:39:56', '2025-11-19 11:23:09', NULL),
-(320, 8, 'คำร้องได้รับการอนุมัติ', 'คำร้องหมายเลข FA-2568-0044 ของคุณได้รับการอนุมัติ เป็นจำนวน 0.00 บาท (เลขอ้างอิงประกาศ: 123)', 'success', 0, 273, '2025-11-20 12:08:38', '2025-11-20 12:08:38', NULL),
-(321, 8, 'ผลการตัดสินใจ: ไม่อนุมัติ', 'คำร้องหมายเลข FA-2568-0046 ของคุณไม่ได้รับการอนุมัติ เหตุผล: ไม่', 'error', 0, 275, '2025-11-20 14:23:21', '2025-11-20 14:23:21', NULL),
-(322, 8, 'คำร้องได้รับการอนุมัติ', 'คำร้องหมายเลข FA-2568-0044 ของคุณได้รับการอนุมัติ เป็นจำนวน 2220.00 บาท (เลขอ้างอิงประกาศ: 321)', 'success', 0, 273, '2025-11-20 14:54:05', '2025-11-20 14:54:05', NULL),
-(323, 8, 'ระบบได้รับคำร้องของท่านแล้ว (หมายเลข FA-2568-0047)', 'เรียน ผศ. สมชาย ใจดี \n\nระบบกองทุนวิจัยฯ วิทยาลัยการคอมพิวเตอร์ขอแจ้งว่าได้รับคำร้องของท่านแล้ว มีรายละเอียดดังนี้ \n\n- หมายเลขคำร้อง: FA-2568-0047 \n- ชื่อผลงานทางวิชาการ: Test Project \n- วันที่และเวลาที่ส่งคำร้อง: 27/11/2025 21:10 \n\nขณะนี้คำร้องของท่านอยู่ระหว่างการพิจารณาโดยหัวหน้าสาขา \nหากต้องการติดตามสถานะของคำร้องกรุณาเข้าสู่ระบบที่ http://127.0.0.1:3000/ เพื่อดูความคืบหน้า \n\nหากมีข้อสงสัยหรือต้องการสอบถามเพิ่มเติม โปรดติดต่อ {{contact_info}}\n\nจึงเรียนมาเพื่อทราบ \n\nขอแสดงความนับถือ \nระบบกองทุนวิจัยฯ \nวิทยาลัยการคอมพิวเตอร์', 'success', 0, 276, '2025-11-27 15:10:45', '2025-11-27 15:10:45', NULL),
+(320, 8, 'คำร้องได้รับการอนุมัติ', 'คำร้องหมายเลข FA-2568-0044 ของคุณได้รับการอนุมัติ เป็นจำนวน 0.00 บาท (เลขอ้างอิงประกาศ: 123)', 'success', 1, 273, '2025-11-20 12:08:38', '2025-11-27 18:24:24', NULL),
+(321, 8, 'ผลการตัดสินใจ: ไม่อนุมัติ', 'คำร้องหมายเลข FA-2568-0046 ของคุณไม่ได้รับการอนุมัติ เหตุผล: ไม่', 'error', 1, 275, '2025-11-20 14:23:21', '2025-11-27 18:24:24', NULL),
+(322, 8, 'คำร้องได้รับการอนุมัติ', 'คำร้องหมายเลข FA-2568-0044 ของคุณได้รับการอนุมัติ เป็นจำนวน 2220.00 บาท (เลขอ้างอิงประกาศ: 321)', 'success', 1, 273, '2025-11-20 14:54:05', '2025-11-27 18:24:24', NULL),
+(323, 8, 'ระบบได้รับคำร้องของท่านแล้ว (หมายเลข FA-2568-0047)', 'เรียน ผศ. สมชาย ใจดี \n\nระบบกองทุนวิจัยฯ วิทยาลัยการคอมพิวเตอร์ขอแจ้งว่าได้รับคำร้องของท่านแล้ว มีรายละเอียดดังนี้ \n\n- หมายเลขคำร้อง: FA-2568-0047 \n- ชื่อผลงานทางวิชาการ: Test Project \n- วันที่และเวลาที่ส่งคำร้อง: 27/11/2025 21:10 \n\nขณะนี้คำร้องของท่านอยู่ระหว่างการพิจารณาโดยหัวหน้าสาขา \nหากต้องการติดตามสถานะของคำร้องกรุณาเข้าสู่ระบบที่ http://127.0.0.1:3000/ เพื่อดูความคืบหน้า \n\nหากมีข้อสงสัยหรือต้องการสอบถามเพิ่มเติม โปรดติดต่อ {{contact_info}}\n\nจึงเรียนมาเพื่อทราบ \n\nขอแสดงความนับถือ \nระบบกองทุนวิจัยฯ \nวิทยาลัยการคอมพิวเตอร์', 'success', 1, 276, '2025-11-27 15:10:45', '2025-11-27 18:24:22', NULL),
 (324, 13, 'มีคำร้องใหม่รอการพิจารณา (หมายเลข FA-2568-0047)', 'เรียน ผศ. ดร. หัวหน้า สาขา\n\nระบบกองทุนวิจัยฯ วิทยาลัยการคอมพิวเตอร์ขอแจ้งว่าได้รับคำร้องใหม่ มีรายละเอียดดังนี้ \n\n- หมายเลขคำร้อง: FA-2568-0047\n- ผู้ยื่นคำร้อง: ผศ. สมชาย ใจดี\n- ชื่อผลงานทางวิชาการ: Test Project\n- วันที่ส่งคำร้อง: 27/11/2025 21:10\n\nจึงขอให้ท่านพิจารณาคำร้องดังกล่าว โดยสามารถเข้าสู่ระบบที่ http://127.0.0.1:3000/ เพื่อดูรายละเอียดและดำเนินการต่อไป\n\nหากมีข้อสงสัยหรือต้องการสอบถามเพิ่มเติม โปรดติดต่อ {{contact_info}}\n\nจึงเรียนมาเพื่อทราบ\n\nขอแสดงความนับถือ  \nระบบกองทุนวิจัยฯ  \nวิทยาลัยการคอมพิวเตอร์', 'info', 0, 276, '2025-11-27 15:10:45', '2025-11-27 15:10:45', NULL),
-(325, 8, 'ระบบได้รับคำร้องของท่านแล้ว (หมายเลข FA-2568-0048)', 'เรียน ผศ. สมชาย ใจดี \n\nระบบกองทุนวิจัยฯ วิทยาลัยการคอมพิวเตอร์ขอแจ้งว่าได้รับคำร้องของท่านแล้ว มีรายละเอียดดังนี้ \n\n- หมายเลขคำร้อง: FA-2568-0048 \n- ชื่อผลงานทางวิชาการ: Test Project \n- วันที่และเวลาที่ส่งคำร้อง: 27/11/2025 21:56 \n\nขณะนี้คำร้องของท่านอยู่ระหว่างการพิจารณาโดยหัวหน้าสาขา \nหากต้องการติดตามสถานะของคำร้องกรุณาเข้าสู่ระบบที่ http://127.0.0.1:3000/ เพื่อดูความคืบหน้า \n\nหากมีข้อสงสัยหรือต้องการสอบถามเพิ่มเติม โปรดติดต่อ {{contact_info}}\n\nจึงเรียนมาเพื่อทราบ \n\nขอแสดงความนับถือ \nระบบกองทุนวิจัยฯ \nวิทยาลัยการคอมพิวเตอร์', 'success', 0, 277, '2025-11-27 15:56:06', '2025-11-27 15:56:06', NULL),
+(325, 8, 'ระบบได้รับคำร้องของท่านแล้ว (หมายเลข FA-2568-0048)', 'เรียน ผศ. สมชาย ใจดี \n\nระบบกองทุนวิจัยฯ วิทยาลัยการคอมพิวเตอร์ขอแจ้งว่าได้รับคำร้องของท่านแล้ว มีรายละเอียดดังนี้ \n\n- หมายเลขคำร้อง: FA-2568-0048 \n- ชื่อผลงานทางวิชาการ: Test Project \n- วันที่และเวลาที่ส่งคำร้อง: 27/11/2025 21:56 \n\nขณะนี้คำร้องของท่านอยู่ระหว่างการพิจารณาโดยหัวหน้าสาขา \nหากต้องการติดตามสถานะของคำร้องกรุณาเข้าสู่ระบบที่ http://127.0.0.1:3000/ เพื่อดูความคืบหน้า \n\nหากมีข้อสงสัยหรือต้องการสอบถามเพิ่มเติม โปรดติดต่อ {{contact_info}}\n\nจึงเรียนมาเพื่อทราบ \n\nขอแสดงความนับถือ \nระบบกองทุนวิจัยฯ \nวิทยาลัยการคอมพิวเตอร์', 'success', 1, 277, '2025-11-27 15:56:06', '2025-11-27 18:24:04', NULL),
 (326, 13, 'มีคำร้องใหม่รอการพิจารณา (หมายเลข FA-2568-0048)', 'เรียน ผศ. ดร. หัวหน้า สาขา\n\nระบบกองทุนวิจัยฯ วิทยาลัยการคอมพิวเตอร์ขอแจ้งว่าได้รับคำร้องใหม่ มีรายละเอียดดังนี้ \n\n- หมายเลขคำร้อง: FA-2568-0048\n- ผู้ยื่นคำร้อง: ผศ. สมชาย ใจดี\n- ชื่อผลงานทางวิชาการ: Test Project\n- วันที่ส่งคำร้อง: 27/11/2025 21:56\n\nจึงขอให้ท่านพิจารณาคำร้องดังกล่าว โดยสามารถเข้าสู่ระบบที่ http://127.0.0.1:3000/ เพื่อดูรายละเอียดและดำเนินการต่อไป\n\nหากมีข้อสงสัยหรือต้องการสอบถามเพิ่มเติม โปรดติดต่อ {{contact_info}}\n\nจึงเรียนมาเพื่อทราบ\n\nขอแสดงความนับถือ  \nระบบกองทุนวิจัยฯ  \nวิทยาลัยการคอมพิวเตอร์', 'info', 0, 277, '2025-11-27 15:56:06', '2025-11-27 15:56:06', NULL),
 (327, 8, 'ระบบได้รับคำร้องของท่านแล้ว (หมายเลข FA-2568-0049)', 'เรียน ผศ. สมชาย ใจดี \n\nระบบกองทุนวิจัยฯ วิทยาลัยการคอมพิวเตอร์ขอแจ้งว่าได้รับคำร้องของท่านแล้ว มีรายละเอียดดังนี้ \n\n- หมายเลขคำร้อง: FA-2568-0049 \n- ชื่อผลงานทางวิชาการ: Test Project \n- วันที่และเวลาที่ส่งคำร้อง: 27/11/2025 22:18 \n\nขณะนี้คำร้องของท่านอยู่ระหว่างการพิจารณาโดยหัวหน้าสาขา \nหากต้องการติดตามสถานะของคำร้องกรุณาเข้าสู่ระบบที่ http://127.0.0.1:3000/ เพื่อดูความคืบหน้า \n\nหากมีข้อสงสัยหรือต้องการสอบถามเพิ่มเติม โปรดติดต่อ researchfund@kku.ac.th, โทร 043-xxx-xxxx\n\nจึงเรียนมาเพื่อทราบ \n\nขอแสดงความนับถือ \nระบบกองทุนวิจัยฯ \nวิทยาลัยการคอมพิวเตอร์', 'success', 1, 278, '2025-11-27 16:18:19', '2025-11-27 16:29:41', NULL),
 (328, 13, 'มีคำร้องใหม่รอการพิจารณา (หมายเลข FA-2568-0049)', 'เรียน ผศ. ดร. หัวหน้า สาขา\n\nระบบกองทุนวิจัยฯ วิทยาลัยการคอมพิวเตอร์ขอแจ้งว่าได้รับคำร้องใหม่ มีรายละเอียดดังนี้ \n\n- หมายเลขคำร้อง: FA-2568-0049\n- ผู้ยื่นคำร้อง: ผศ. สมชาย ใจดี\n- ชื่อผลงานทางวิชาการ: Test Project\n- วันที่ส่งคำร้อง: 27/11/2025 22:18\n\nจึงขอให้ท่านพิจารณาคำร้องดังกล่าว โดยสามารถเข้าสู่ระบบที่ http://127.0.0.1:3000/ เพื่อดูรายละเอียดและดำเนินการต่อไป\n\nหากมีข้อสงสัยหรือต้องการสอบถามเพิ่มเติม โปรดติดต่อ researchfund@kku.ac.th, โทร 043-xxx-xxxx\n\nจึงเรียนมาเพื่อทราบ\n\nขอแสดงความนับถือ  \nระบบกองทุนวิจัยฯ  \nวิทยาลัยการคอมพิวเตอร์', 'info', 0, 278, '2025-11-27 16:18:19', '2025-11-27 16:18:19', NULL);
@@ -1838,7 +1838,7 @@ INSERT INTO `notifications` (`notification_id`, `user_id`, `title`, `message`, `
 -- --------------------------------------------------------
 
 --
--- โครงสร้างตาราง `notification_message`
+-- Table structure for table `notification_message`
 --
 
 CREATE TABLE `notification_message` (
@@ -1859,7 +1859,7 @@ CREATE TABLE `notification_message` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
--- dump ตาราง `notification_message`
+-- Dumping data for table `notification_message`
 --
 
 INSERT INTO `notification_message` (`id`, `event_key`, `send_to`, `title_template`, `body_template`, `default_title_template`, `default_body_template`, `description`, `variables`, `default_variables`, `is_active`, `updated_by`, `created_at`, `updated_at`) VALUES
@@ -1876,7 +1876,7 @@ INSERT INTO `notification_message` (`id`, `event_key`, `send_to`, `title_templat
 -- --------------------------------------------------------
 
 --
--- โครงสร้างตาราง `positions`
+-- Table structure for table `positions`
 --
 
 CREATE TABLE `positions` (
@@ -1889,7 +1889,7 @@ CREATE TABLE `positions` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
--- dump ตาราง `positions`
+-- Dumping data for table `positions`
 --
 
 INSERT INTO `positions` (`position_id`, `position_name`, `is_active`, `create_at`, `update_at`, `delete_at`) VALUES
@@ -1900,7 +1900,7 @@ INSERT INTO `positions` (`position_id`, `position_name`, `is_active`, `create_at
 -- --------------------------------------------------------
 
 --
--- โครงสร้างตาราง `projects`
+-- Table structure for table `projects`
 --
 
 CREATE TABLE `projects` (
@@ -1919,18 +1919,18 @@ CREATE TABLE `projects` (
 ) ;
 
 --
--- dump ตาราง `projects`
+-- Dumping data for table `projects`
 --
 
 INSERT INTO `projects` (`project_id`, `project_name`, `type_id`, `event_date`, `plan_id`, `budget_amount`, `participants`, `beneficiaries_count`, `notes`, `created_by`, `created_at`, `updated_at`) VALUES
 (3, 'ทุนส่งเสริมนักวิจัยรุ่นกลางเพื่อความเป็นเลิศทางวิชาการ', 3, '2025-11-11', 1, '49000.00', 112, 0, 'โครงการคนละครึ่งบาท', 7, '2025-11-14 19:06:40', '2025-11-18 10:55:46'),
-(4, 'ทุนพัฒนาอาจารย์ใหม่/นักวิจัยใหม่', 3, '2025-12-06', 4, '1234.50', 19, 0, '', 7, '2025-11-14 23:19:56', '2025-11-18 10:55:15'),
+(4, 'ทุนพัฒนาอาจารย์ใหม่/นักวิจัยใหม่', 3, '2025-12-06', 4, '1234.50', 19, 5, '', 7, '2025-11-14 23:19:56', '2025-11-28 08:45:15'),
 (5, 'ทุนสนับสนุนการพัฒนาชุดนวัตกรรมเพื่อถ่ายทอดเทคโนโลยีสู่ชุมชน', 3, '2025-11-06', 4, '321.00', 11, 0, '', 7, '2025-11-14 23:23:59', '2025-11-18 10:55:58');
 
 -- --------------------------------------------------------
 
 --
--- โครงสร้างตาราง `project_attachments`
+-- Table structure for table `project_attachments`
 --
 
 CREATE TABLE `project_attachments` (
@@ -1951,7 +1951,7 @@ CREATE TABLE `project_attachments` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
--- dump ตาราง `project_attachments`
+-- Dumping data for table `project_attachments`
 --
 
 INSERT INTO `project_attachments` (`file_id`, `project_id`, `original_name`, `stored_path`, `file_size`, `mime_type`, `file_hash`, `is_public`, `uploaded_by`, `uploaded_at`, `create_at`, `update_at`, `delete_at`, `display_order`) VALUES
@@ -1962,7 +1962,7 @@ INSERT INTO `project_attachments` (`file_id`, `project_id`, `original_name`, `st
 -- --------------------------------------------------------
 
 --
--- โครงสร้างตาราง `project_budget_plans`
+-- Table structure for table `project_budget_plans`
 --
 
 CREATE TABLE `project_budget_plans` (
@@ -1974,7 +1974,7 @@ CREATE TABLE `project_budget_plans` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
--- dump ตาราง `project_budget_plans`
+-- Dumping data for table `project_budget_plans`
 --
 
 INSERT INTO `project_budget_plans` (`plan_id`, `name_th`, `name_en`, `display_order`, `is_active`) VALUES
@@ -1987,7 +1987,7 @@ INSERT INTO `project_budget_plans` (`plan_id`, `name_th`, `name_en`, `display_or
 -- --------------------------------------------------------
 
 --
--- โครงสร้างตาราง `project_members`
+-- Table structure for table `project_members`
 --
 
 CREATE TABLE `project_members` (
@@ -2003,7 +2003,7 @@ CREATE TABLE `project_members` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
--- dump ตาราง `project_members`
+-- Dumping data for table `project_members`
 --
 
 INSERT INTO `project_members` (`member_id`, `project_id`, `user_id`, `duty`, `workload_hours`, `display_order`, `notes`, `created_at`, `updated_at`) VALUES
@@ -2015,7 +2015,7 @@ INSERT INTO `project_members` (`member_id`, `project_id`, `user_id`, `duty`, `wo
 -- --------------------------------------------------------
 
 --
--- โครงสร้างตาราง `project_types`
+-- Table structure for table `project_types`
 --
 
 CREATE TABLE `project_types` (
@@ -2027,7 +2027,7 @@ CREATE TABLE `project_types` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
--- dump ตาราง `project_types`
+-- Dumping data for table `project_types`
 --
 
 INSERT INTO `project_types` (`type_id`, `name_th`, `name_en`, `display_order`, `is_active`) VALUES
@@ -2040,7 +2040,7 @@ INSERT INTO `project_types` (`type_id`, `name_th`, `name_en`, `display_order`, `
 -- --------------------------------------------------------
 
 --
--- โครงสร้างตาราง `publications`
+-- Table structure for table `publications`
 --
 
 CREATE TABLE `publications` (
@@ -2067,7 +2067,7 @@ CREATE TABLE `publications` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
--- dump ตาราง `publications`
+-- Dumping data for table `publications`
 --
 
 INSERT INTO `publications` (`id`, `user_id`, `title`, `authors`, `journal`, `publication_type`, `publication_date`, `publication_year`, `doi`, `url`, `cited_by`, `cited_by_url`, `source`, `external_ids`, `fingerprint`, `is_verified`, `created_at`, `updated_at`, `deleted_at`, `citation_history`) VALUES
@@ -2093,7 +2093,7 @@ INSERT INTO `publications` (`id`, `user_id`, `title`, `authors`, `journal`, `pub
 -- --------------------------------------------------------
 
 --
--- โครงสร้างตาราง `publication_reward_details`
+-- Table structure for table `publication_reward_details`
 --
 
 CREATE TABLE `publication_reward_details` (
@@ -2145,7 +2145,7 @@ CREATE TABLE `publication_reward_details` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='ตารางเก็บรายละเอียดการขอรับเงินรางวัลผลงานวิชาการ พร้อมข้อมูลเพิ่มเติม';
 
 --
--- dump ตาราง `publication_reward_details`
+-- Dumping data for table `publication_reward_details`
 --
 
 INSERT INTO `publication_reward_details` (`detail_id`, `submission_id`, `paper_title`, `journal_name`, `publication_date`, `publication_type`, `quartile`, `impact_factor`, `doi`, `url`, `page_numbers`, `volume_issue`, `indexing`, `reward_amount`, `reward_approve_amount`, `revision_fee`, `revision_fee_approve_amount`, `publication_fee`, `publication_fee_approve_amount`, `external_funding_amount`, `total_amount`, `total_approve_amount`, `announce_reference_number`, `author_count`, `author_type`, `has_university_funding`, `funding_references`, `university_rankings`, `approved_amount`, `approval_comment`, `approved_by`, `approved_at`, `rejection_reason`, `rejected_by`, `rejected_at`, `revision_request`, `revision_requested_by`, `revision_requested_at`, `create_at`, `update_at`, `delete_at`, `main_annoucement`, `reward_announcement`, `author_name_list`, `signature`) VALUES
@@ -2200,7 +2200,7 @@ INSERT INTO `publication_reward_details` (`detail_id`, `submission_id`, `paper_t
 -- --------------------------------------------------------
 
 --
--- โครงสร้างตาราง `publication_reward_external_funds`
+-- Table structure for table `publication_reward_external_funds`
 --
 
 CREATE TABLE `publication_reward_external_funds` (
@@ -2217,7 +2217,7 @@ CREATE TABLE `publication_reward_external_funds` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='รายละเอียดทุนภายนอกและไฟล์ประกอบของคำร้องขอรางวัลตีพิมพ์';
 
 --
--- dump ตาราง `publication_reward_external_funds`
+-- Dumping data for table `publication_reward_external_funds`
 --
 
 INSERT INTO `publication_reward_external_funds` (`external_fund_id`, `detail_id`, `submission_id`, `fund_name`, `amount`, `document_id`, `file_id`, `created_at`, `updated_at`, `deleted_at`) VALUES
@@ -2245,7 +2245,7 @@ INSERT INTO `publication_reward_external_funds` (`external_fund_id`, `detail_id`
 -- --------------------------------------------------------
 
 --
--- โครงสร้างตาราง `publication_reward_rates`
+-- Table structure for table `publication_reward_rates`
 --
 
 CREATE TABLE `publication_reward_rates` (
@@ -2260,7 +2260,7 @@ CREATE TABLE `publication_reward_rates` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
--- dump ตาราง `publication_reward_rates`
+-- Dumping data for table `publication_reward_rates`
 --
 
 INSERT INTO `publication_reward_rates` (`rate_id`, `year`, `author_status`, `journal_quartile`, `reward_amount`, `is_active`, `create_at`, `update_at`) VALUES
@@ -2296,7 +2296,7 @@ INSERT INTO `publication_reward_rates` (`rate_id`, `year`, `author_status`, `jou
 -- --------------------------------------------------------
 
 --
--- โครงสร้างตาราง `research_fund_admin_events`
+-- Table structure for table `research_fund_admin_events`
 --
 
 CREATE TABLE `research_fund_admin_events` (
@@ -2312,7 +2312,7 @@ CREATE TABLE `research_fund_admin_events` (
 -- --------------------------------------------------------
 
 --
--- โครงสร้างตาราง `research_fund_event_files`
+-- Table structure for table `research_fund_event_files`
 --
 
 CREATE TABLE `research_fund_event_files` (
@@ -2325,7 +2325,7 @@ CREATE TABLE `research_fund_event_files` (
 -- --------------------------------------------------------
 
 --
--- โครงสร้างตาราง `reward_config`
+-- Table structure for table `reward_config`
 --
 
 CREATE TABLE `reward_config` (
@@ -2341,7 +2341,7 @@ CREATE TABLE `reward_config` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
--- dump ตาราง `reward_config`
+-- Dumping data for table `reward_config`
 --
 
 INSERT INTO `reward_config` (`config_id`, `year`, `journal_quartile`, `max_amount`, `condition_description`, `is_active`, `create_at`, `update_at`, `delete_at`) VALUES
@@ -2363,7 +2363,7 @@ INSERT INTO `reward_config` (`config_id`, `year`, `journal_quartile`, `max_amoun
 -- --------------------------------------------------------
 
 --
--- โครงสร้างตาราง `roles`
+-- Table structure for table `roles`
 --
 
 CREATE TABLE `roles` (
@@ -2375,7 +2375,7 @@ CREATE TABLE `roles` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
--- dump ตาราง `roles`
+-- Dumping data for table `roles`
 --
 
 INSERT INTO `roles` (`role_id`, `role`, `create_at`, `update_at`, `delete_at`) VALUES
@@ -2387,7 +2387,7 @@ INSERT INTO `roles` (`role_id`, `role`, `create_at`, `update_at`, `delete_at`) V
 -- --------------------------------------------------------
 
 --
--- โครงสร้างตาราง `scholar_import_runs`
+-- Table structure for table `scholar_import_runs`
 --
 
 CREATE TABLE `scholar_import_runs` (
@@ -2409,7 +2409,7 @@ CREATE TABLE `scholar_import_runs` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
--- dump ตาราง `scholar_import_runs`
+-- Dumping data for table `scholar_import_runs`
 --
 
 INSERT INTO `scholar_import_runs` (`id`, `trigger_source`, `status`, `error_message`, `started_at`, `finished_at`, `users_processed`, `users_with_errors`, `publications_fetched`, `publications_created`, `publications_updated`, `publications_failed`, `created_at`, `updated_at`, `deleted_at`) VALUES
@@ -2484,12 +2484,16 @@ INSERT INTO `scholar_import_runs` (`id`, `trigger_source`, `status`, `error_mess
 (69, 'timer', 'success', NULL, '2025-11-24 00:00:01', '2025-11-24 00:01:31', 2, 0, 0, 0, 0, 0, '2025-11-24 00:00:01', '2025-11-24 00:01:31', NULL),
 (70, 'timer', 'success', NULL, '2025-11-25 00:00:01', '2025-11-25 00:01:30', 2, 0, 0, 0, 0, 0, '2025-11-25 00:00:01', '2025-11-25 00:01:30', NULL),
 (71, 'timer', 'success', NULL, '2025-11-26 00:00:01', '2025-11-26 00:01:33', 2, 0, 0, 0, 0, 0, '2025-11-26 00:00:01', '2025-11-26 00:01:33', NULL),
-(72, 'timer', 'success', NULL, '2025-11-27 00:00:01', '2025-11-27 00:01:29', 2, 0, 0, 0, 0, 0, '2025-11-27 00:00:01', '2025-11-27 00:01:29', NULL);
+(72, 'timer', 'success', NULL, '2025-11-27 00:00:01', '2025-11-27 00:01:29', 2, 0, 0, 0, 0, 0, '2025-11-27 00:00:01', '2025-11-27 00:01:29', NULL),
+(73, 'timer', 'success', NULL, '2025-11-28 00:00:02', '2025-11-28 00:01:29', 2, 0, 0, 0, 0, 0, '2025-11-28 00:00:02', '2025-11-28 00:01:29', NULL),
+(74, 'timer', 'success', NULL, '2025-11-29 00:00:01', '2025-11-29 00:01:31', 2, 0, 0, 0, 0, 0, '2025-11-29 00:00:01', '2025-11-29 00:01:31', NULL),
+(75, 'timer', 'success', NULL, '2025-11-30 00:00:01', '2025-11-30 00:01:28', 2, 0, 0, 0, 0, 0, '2025-11-30 00:00:01', '2025-11-30 00:01:28', NULL),
+(76, 'timer', 'success', NULL, '2025-12-01 00:00:01', '2025-12-01 00:01:29', 2, 0, 0, 0, 0, 0, '2025-12-01 00:00:01', '2025-12-01 00:01:29', NULL);
 
 -- --------------------------------------------------------
 
 --
--- โครงสร้างตาราง `scopus_affiliations`
+-- Table structure for table `scopus_affiliations`
 --
 
 CREATE TABLE `scopus_affiliations` (
@@ -2504,7 +2508,7 @@ CREATE TABLE `scopus_affiliations` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
--- dump ตาราง `scopus_affiliations`
+-- Dumping data for table `scopus_affiliations`
 --
 
 INSERT INTO `scopus_affiliations` (`id`, `afid`, `name`, `city`, `country`, `affiliation_url`, `created_at`, `updated_at`) VALUES
@@ -2516,7 +2520,7 @@ INSERT INTO `scopus_affiliations` (`id`, `afid`, `name`, `city`, `country`, `aff
 -- --------------------------------------------------------
 
 --
--- โครงสร้างตาราง `scopus_api_import_jobs`
+-- Table structure for table `scopus_api_import_jobs`
 --
 
 CREATE TABLE `scopus_api_import_jobs` (
@@ -2537,7 +2541,7 @@ CREATE TABLE `scopus_api_import_jobs` (
 -- --------------------------------------------------------
 
 --
--- โครงสร้างตาราง `scopus_api_requests`
+-- Table structure for table `scopus_api_requests`
 --
 
 CREATE TABLE `scopus_api_requests` (
@@ -2558,7 +2562,7 @@ CREATE TABLE `scopus_api_requests` (
 -- --------------------------------------------------------
 
 --
--- โครงสร้างตาราง `scopus_authors`
+-- Table structure for table `scopus_authors`
 --
 
 CREATE TABLE `scopus_authors` (
@@ -2575,7 +2579,7 @@ CREATE TABLE `scopus_authors` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
--- dump ตาราง `scopus_authors`
+-- Dumping data for table `scopus_authors`
 --
 
 INSERT INTO `scopus_authors` (`id`, `scopus_author_id`, `full_name`, `given_name`, `surname`, `initials`, `orcid`, `author_url`, `created_at`, `updated_at`) VALUES
@@ -2598,7 +2602,7 @@ INSERT INTO `scopus_authors` (`id`, `scopus_author_id`, `full_name`, `given_name
 -- --------------------------------------------------------
 
 --
--- โครงสร้างตาราง `scopus_config`
+-- Table structure for table `scopus_config`
 --
 
 CREATE TABLE `scopus_config` (
@@ -2609,7 +2613,7 @@ CREATE TABLE `scopus_config` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
--- dump ตาราง `scopus_config`
+-- Dumping data for table `scopus_config`
 --
 
 INSERT INTO `scopus_config` (`id`, `key`, `value`, `updated_at`) VALUES
@@ -2618,7 +2622,7 @@ INSERT INTO `scopus_config` (`id`, `key`, `value`, `updated_at`) VALUES
 -- --------------------------------------------------------
 
 --
--- โครงสร้างตาราง `scopus_documents`
+-- Table structure for table `scopus_documents`
 --
 
 CREATE TABLE `scopus_documents` (
@@ -2656,7 +2660,7 @@ CREATE TABLE `scopus_documents` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
--- dump ตาราง `scopus_documents`
+-- Dumping data for table `scopus_documents`
 --
 
 INSERT INTO `scopus_documents` (`id`, `eid`, `scopus_id`, `scopus_link`, `title`, `abstract`, `aggregation_type`, `subtype`, `subtype_description`, `source_id`, `publication_name`, `issn`, `eissn`, `isbn`, `volume`, `issue`, `page_range`, `article_number`, `cover_date`, `cover_display_date`, `doi`, `pii`, `citedby_count`, `openaccess`, `openaccess_flag`, `authkeywords`, `fund_acr`, `fund_sponsor`, `raw_json`, `created_at`, `updated_at`) VALUES
@@ -2683,7 +2687,7 @@ INSERT INTO `scopus_documents` (`id`, `eid`, `scopus_id`, `scopus_link`, `title`
 -- --------------------------------------------------------
 
 --
--- โครงสร้างตาราง `scopus_document_authors`
+-- Table structure for table `scopus_document_authors`
 --
 
 CREATE TABLE `scopus_document_authors` (
@@ -2697,7 +2701,7 @@ CREATE TABLE `scopus_document_authors` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
--- dump ตาราง `scopus_document_authors`
+-- Dumping data for table `scopus_document_authors`
 --
 
 INSERT INTO `scopus_document_authors` (`id`, `document_id`, `author_id`, `author_seq`, `affiliation_id`, `created_at`, `updated_at`) VALUES
@@ -2758,7 +2762,43 @@ INSERT INTO `scopus_document_authors` (`id`, `document_id`, `author_id`, `author
 -- --------------------------------------------------------
 
 --
--- โครงสร้างตาราง `subcategory_budgets`
+-- Table structure for table `scopus_source_metrics`
+--
+
+CREATE TABLE `scopus_source_metrics` (
+  `source_metric_id` int(11) NOT NULL,
+  `source_id` varchar(32) NOT NULL COMMENT 'Scopus source-id (source-id)',
+  `issn` varchar(32) DEFAULT NULL COMMENT 'prism:issn',
+  `eissn` varchar(32) DEFAULT NULL COMMENT 'prism:eIssn',
+  `metric_year` int(4) NOT NULL COMMENT 'year attribute from citeScoreYearInfo / SNIP / SJR / yearly-data',
+  `doc_type` varchar(32) NOT NULL DEFAULT 'all' COMMENT 'citeScoreInfo.docType (usually all, article, review, etc.)',
+  `cite_score` decimal(8,3) DEFAULT NULL,
+  `cite_score_status` enum('Complete','In-Progress') DEFAULT NULL COMMENT 'status attribute on citeScoreYearInfo',
+  `cite_score_scholarly_output` int(11) DEFAULT NULL,
+  `cite_score_citation_count` int(11) DEFAULT NULL,
+  `cite_score_percent_cited` decimal(5,2) DEFAULT NULL,
+  `cite_score_rank` int(11) DEFAULT NULL,
+  `cite_score_percentile` decimal(5,2) DEFAULT NULL,
+  `cite_score_quartile` varchar(4) DEFAULT NULL COMMENT 'Q1, Q2, Q3, Q4 if present',
+  `cite_score_current_metric` decimal(8,3) DEFAULT NULL,
+  `cite_score_current_metric_year` int(4) DEFAULT NULL,
+  `cite_score_tracker` decimal(8,3) DEFAULT NULL,
+  `cite_score_tracker_year` int(4) DEFAULT NULL,
+  `sjr` decimal(8,3) DEFAULT NULL,
+  `snip` decimal(8,3) DEFAULT NULL,
+  `publication_count` int(11) DEFAULT NULL,
+  `cite_count_sce` int(11) DEFAULT NULL,
+  `zero_cites_sce` decimal(5,2) DEFAULT NULL,
+  `rev_percent` decimal(5,2) DEFAULT NULL,
+  `created_at` datetime DEFAULT current_timestamp(),
+  `updated_at` datetime DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `last_fetched_at` datetime DEFAULT NULL COMMENT 'Last time metrics were fetched from Scopus API'
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `subcategory_budgets`
 --
 
 CREATE TABLE `subcategory_budgets` (
@@ -2782,7 +2822,7 @@ CREATE TABLE `subcategory_budgets` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
--- dump ตาราง `subcategory_budgets`
+-- Dumping data for table `subcategory_budgets`
 --
 
 INSERT INTO `subcategory_budgets` (`subcategory_budget_id`, `subcategory_id`, `record_scope`, `allocated_amount`, `remaining_budget`, `used_amount`, `max_amount_per_grant`, `max_amount_per_year`, `max_grants`, `remaining_grant`, `level`, `status`, `fund_description`, `comment`, `create_at`, `update_at`, `delete_at`) VALUES
@@ -3031,7 +3071,7 @@ INSERT INTO `subcategory_budgets` (`subcategory_budget_id`, `subcategory_id`, `r
 (500, 286, 'rule', '0.00', '0.00', '0.00', '100.00', NULL, NULL, NULL, NULL, 'active', '123', NULL, '2025-10-18 11:15:43', '2025-10-18 11:15:47', '2025-10-18 11:15:47');
 
 --
--- ทริกเกอร์ `subcategory_budgets`
+-- Triggers `subcategory_budgets`
 --
 DELIMITER $$
 CREATE TRIGGER `bi_subcat_budget_overall` BEFORE INSERT ON `subcategory_budgets` FOR EACH ROW BEGIN
@@ -3081,7 +3121,7 @@ DELIMITER ;
 -- --------------------------------------------------------
 
 --
--- โครงสร้างตาราง `submissions`
+-- Table structure for table `submissions`
 --
 
 CREATE TABLE `submissions` (
@@ -3124,7 +3164,7 @@ CREATE TABLE `submissions` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
--- dump ตาราง `submissions`
+-- Dumping data for table `submissions`
 --
 
 INSERT INTO `submissions` (`submission_id`, `submission_type`, `submission_number`, `user_id`, `year_id`, `category_id`, `subcategory_id`, `subcategory_budget_id`, `status_id`, `submitted_at`, `reviewed_at`, `head_rejected_by`, `head_rejected_at`, `head_rejection_reason`, `head_approved_by`, `head_approved_at`, `head_comment`, `head_signature`, `admin_approved_by`, `admin_approved_at`, `admin_rejected_by`, `admin_rejected_at`, `admin_rejection_reason`, `admin_comment`, `rejected_by`, `rejected_at`, `rejection_reason`, `approved_at`, `approved_by`, `completed_at`, `closed_at`, `comment`, `created_at`, `updated_at`, `deleted_at`, `installment_number_at_submit`) VALUES
@@ -3226,7 +3266,7 @@ INSERT INTO `submissions` (`submission_id`, `submission_type`, `submission_numbe
 (278, 'fund_application', 'FA-2568-0049', 8, 3, 15, 97, 258, 6, '2025-11-27 16:18:19', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-11-27 16:18:19', '2025-11-27 16:18:19', NULL, 4);
 
 --
--- ทริกเกอร์ `submissions`
+-- Triggers `submissions`
 --
 DELIMITER $$
 CREATE TRIGGER `audit_submissions_delete` AFTER UPDATE ON `submissions` FOR EACH ROW BEGIN
@@ -3356,7 +3396,7 @@ DELIMITER ;
 -- --------------------------------------------------------
 
 --
--- โครงสร้างตาราง `submission_documents`
+-- Table structure for table `submission_documents`
 --
 
 CREATE TABLE `submission_documents` (
@@ -3375,7 +3415,7 @@ CREATE TABLE `submission_documents` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
--- dump ตาราง `submission_documents`
+-- Dumping data for table `submission_documents`
 --
 
 INSERT INTO `submission_documents` (`document_id`, `submission_id`, `file_id`, `original_name`, `document_type_id`, `description`, `display_order`, `is_required`, `is_verified`, `verified_by`, `verified_at`, `created_at`) VALUES
@@ -3710,7 +3750,7 @@ INSERT INTO `submission_documents` (`document_id`, `submission_id`, `file_id`, `
 -- --------------------------------------------------------
 
 --
--- โครงสร้างตาราง `submission_users`
+-- Table structure for table `submission_users`
 --
 
 CREATE TABLE `submission_users` (
@@ -3724,7 +3764,7 @@ CREATE TABLE `submission_users` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
--- dump ตาราง `submission_users`
+-- Dumping data for table `submission_users`
 --
 
 INSERT INTO `submission_users` (`id`, `submission_id`, `user_id`, `role`, `is_primary`, `display_order`, `created_at`) VALUES
@@ -3798,7 +3838,7 @@ INSERT INTO `submission_users` (`id`, `submission_id`, `user_id`, `role`, `is_pr
 -- --------------------------------------------------------
 
 --
--- โครงสร้างตาราง `system_config`
+-- Table structure for table `system_config`
 --
 
 CREATE TABLE `system_config` (
@@ -3820,7 +3860,7 @@ CREATE TABLE `system_config` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
--- dump ตาราง `system_config`
+-- Dumping data for table `system_config`
 --
 
 INSERT INTO `system_config` (`config_id`, `system_version`, `last_updated`, `updated_by`, `current_year`, `start_date`, `end_date`, `main_annoucement`, `reward_announcement`, `activity_support_announcement`, `conference_announcement`, `service_announcement`, `contact_info`, `kku_report_year`, `installment`) VALUES
@@ -3829,7 +3869,7 @@ INSERT INTO `system_config` (`config_id`, `system_version`, `last_updated`, `upd
 -- --------------------------------------------------------
 
 --
--- โครงสร้างตาราง `users`
+-- Table structure for table `users`
 --
 
 CREATE TABLE `users` (
@@ -3865,7 +3905,7 @@ CREATE TABLE `users` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
--- dump ตาราง `users`
+-- Dumping data for table `users`
 --
 
 INSERT INTO `users` (`user_id`, `user_fname`, `user_lname`, `gender`, `email`, `scholar_author_id`, `scopus_id`, `password`, `role_id`, `position_id`, `date_of_employment`, `create_at`, `update_at`, `delete_at`, `prefix`, `manage_position`, `position`, `position_en`, `prefix_position_en`, `Name_en`, `suffix_en`, `TEL`, `TELformat`, `TEL_ENG`, `manage_position_en`, `LAB_Name`, `Room`, `CP_WEB_ID`, `Is_active`) VALUES
@@ -3906,7 +3946,7 @@ INSERT INTO `users` (`user_id`, `user_fname`, `user_lname`, `gender`, `email`, `
 -- --------------------------------------------------------
 
 --
--- โครงสร้างตาราง `user_fund_eligibilities`
+-- Table structure for table `user_fund_eligibilities`
 --
 
 CREATE TABLE `user_fund_eligibilities` (
@@ -3926,7 +3966,7 @@ CREATE TABLE `user_fund_eligibilities` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
--- dump ตาราง `user_fund_eligibilities`
+-- Dumping data for table `user_fund_eligibilities`
 --
 
 INSERT INTO `user_fund_eligibilities` (`user_fund_eligibility_id`, `user_id`, `year_id`, `category_id`, `remaining_quota`, `max_allowed_amount`, `remaining_applications`, `is_eligible`, `restriction_reason`, `calculated_at`, `create_at`, `update_at`, `delete_at`) VALUES
@@ -3937,7 +3977,7 @@ INSERT INTO `user_fund_eligibilities` (`user_fund_eligibility_id`, `user_id`, `y
 -- --------------------------------------------------------
 
 --
--- โครงสร้างตาราง `user_scholar_metrics`
+-- Table structure for table `user_scholar_metrics`
 --
 
 CREATE TABLE `user_scholar_metrics` (
@@ -3953,17 +3993,17 @@ CREATE TABLE `user_scholar_metrics` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
--- dump ตาราง `user_scholar_metrics`
+-- Dumping data for table `user_scholar_metrics`
 --
 
 INSERT INTO `user_scholar_metrics` (`user_id`, `hindex`, `hindex5y`, `i10index`, `i10index5y`, `citedby_total`, `citedby_5y`, `cites_per_year`, `updated_at`) VALUES
-(8, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-11-27 00:00:47'),
-(9, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-11-27 00:01:29');
+(8, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-12-01 00:00:48'),
+(9, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-12-01 00:01:29');
 
 -- --------------------------------------------------------
 
 --
--- โครงสร้างตาราง `user_sessions`
+-- Table structure for table `user_sessions`
 --
 
 CREATE TABLE `user_sessions` (
@@ -3983,7 +4023,7 @@ CREATE TABLE `user_sessions` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
--- dump ตาราง `user_sessions`
+-- Dumping data for table `user_sessions`
 --
 
 INSERT INTO `user_sessions` (`session_id`, `user_id`, `access_token_jti`, `refresh_token`, `device_name`, `device_type`, `ip_address`, `user_agent`, `last_activity`, `expires_at`, `is_active`, `created_at`, `updated_at`) VALUES
@@ -4527,15 +4567,22 @@ INSERT INTO `user_sessions` (`session_id`, `user_id`, `access_token_jti`, `refre
 (890, 8, 'e17f5c06-85b8-4f17-a333-ae18b7b91dc4', 'ebBx_x3ESkZg3AGwiL3rr0aQxezLDtN16HDYeVYNbRY=', 'Chrome Browser', 'web', '110.168.235.75', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36', '2025-11-23 07:59:26', '2025-12-23 07:54:30', 1, '2025-11-23 07:54:30', '2025-11-23 07:59:26'),
 (891, 7, 'ef6bfee2-c6c6-4ab9-9e32-a085473f9607', '-TjzDrlzc2LMXLZBnvI-M_OzFXEYot-ITysPeQobwho=', 'Chrome Browser', 'web', '58.11.82.161', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36', '2025-11-23 09:01:50', '2025-12-23 08:07:16', 1, '2025-11-23 08:07:16', '2025-11-23 09:01:50'),
 (892, 7, '469da5e2-7131-4cc5-b94e-8c3fb0cf534d', 'fBRMXk3erz62l4MIC0e4Nu1cp_E04I2AkKfedBTSgLQ=', 'Chrome Browser', 'web', '110.168.235.75', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36', '2025-11-25 10:49:29', '2025-12-25 00:45:48', 1, '2025-11-25 00:45:48', '2025-11-25 10:49:29'),
-(893, 7, 'cda14c9c-3967-4341-a661-404a8e60a30d', 'kyUNd4fqo3llldR5RCB1LnmUy_W2mdYLLRK47xFMZTk=', 'Chrome Browser', 'web', '171.97.141.101', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36', '2025-11-27 16:22:12', '2025-12-27 10:52:11', 1, '2025-11-27 10:52:11', '2025-11-27 16:22:12'),
+(893, 7, 'a630442c-0336-426c-8aec-1695e05e3de8', 'kyUNd4fqo3llldR5RCB1LnmUy_W2mdYLLRK47xFMZTk=', 'Chrome Browser', 'web', '171.97.141.101', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36', '2025-11-27 19:07:12', '2025-12-27 10:52:11', 1, '2025-11-27 10:52:11', '2025-11-27 19:07:12'),
 (894, 8, 'f50b9c41-43a4-4e78-8d27-c686614cff81', 'ZZXHRrBko14McQ3EUjPbkQKHw8FCV5HJ-g4QFWJsur8=', 'Chrome Browser', 'web', '58.10.158.41', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36', '2025-11-27 15:56:07', '2025-12-27 15:05:44', 1, '2025-11-27 15:05:44', '2025-11-27 15:56:07'),
 (895, 8, '0c9446dd-82bd-4637-aa6f-37e3dabcb625', 'MFx8C22cQooRpNPk9XHbgvXc7QozqCAfF8RnK8X4djs=', 'Chrome Browser', 'web', '58.10.158.41', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36', '2025-11-27 16:29:50', '2025-12-27 16:16:08', 0, '2025-11-27 16:16:08', '2025-11-27 16:29:50'),
-(896, 13, '816b3e80-65f4-4b57-bf0f-4e30f11891ca', 'iiTP7cH3t2bBc22Ln3YODSVCyeEVqg82sKIjO86wZ3A=', 'Chrome Browser', 'web', '58.10.158.41', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36', '2025-11-27 16:30:03', '2025-12-27 16:29:56', 0, '2025-11-27 16:29:56', '2025-11-27 16:30:03');
+(896, 13, '816b3e80-65f4-4b57-bf0f-4e30f11891ca', 'iiTP7cH3t2bBc22Ln3YODSVCyeEVqg82sKIjO86wZ3A=', 'Chrome Browser', 'web', '58.10.158.41', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36', '2025-11-27 16:30:03', '2025-12-27 16:29:56', 0, '2025-11-27 16:29:56', '2025-11-27 16:30:03'),
+(897, 8, '431c83ad-4bbe-4ce9-9d85-1219adbf7932', 'Exj8spSMd3q8KOA79trpuKbpK9eg0_7qZ8-u8Ya3mM0=', 'Chrome Browser', 'web', '58.10.158.41', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36', '2025-11-27 18:32:59', '2025-12-27 16:41:51', 0, '2025-11-27 16:41:51', '2025-11-27 18:32:59'),
+(898, 7, 'f45ffb39-8dd6-44c4-909b-a3adf29e7568', 'TrlK6Pp9xftmSDElW8sA8v610WjL1fezYJzx-9mhsbA=', 'Chrome Browser', 'web', '58.10.158.41', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36', '2025-11-27 19:00:04', '2025-12-27 18:33:04', 0, '2025-11-27 18:33:04', '2025-11-27 19:00:04'),
+(899, 7, 'b15bf6f1-caf3-4b59-bc2b-fcaf44510030', 'VA6f5-AuuzVlDByjuhj54k1BDBfp2GcnOy_r7a_4Ea8=', 'Chrome Browser', 'web', '58.10.158.41', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36', '2025-11-27 19:00:15', '2025-12-27 19:00:13', 0, '2025-11-27 19:00:13', '2025-11-27 19:00:15'),
+(900, 7, '1a343a81-8599-4ced-b54e-7cf3228e7919', 'KboomjVx3P_a1g4YNn_WoCiiZSTMqLvcsrqHlJDal_k=', 'Chrome Browser', 'web', '58.10.128.69', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36', '2025-11-28 11:53:32', '2025-12-28 09:43:30', 1, '2025-11-28 09:43:30', '2025-11-28 11:53:32'),
+(901, 7, '129be130-8b34-49ea-b8b5-2c6011dad5b7', 'r6hSC4zqAWG8IYQuGfCB68PVG7bryo71uAaM6aEnR-I=', 'Chrome Browser', 'web', '58.10.158.12', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36', '2025-11-28 16:15:30', '2025-12-28 15:52:41', 1, '2025-11-28 15:52:41', '2025-11-28 16:15:30'),
+(902, 7, '587f7596-58f1-4303-844e-08010a45bec6', '6oLlC7AViv0IyckxiP9s2ZGNslolXHcSLYOp0cH6NTY=', 'Chrome Browser', 'web', '58.10.128.69', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36', '2025-11-28 16:24:03', '2025-12-28 16:23:37', 1, '2025-11-28 16:23:37', '2025-11-28 16:24:03'),
+(903, 7, '8764c2ef-aa69-4fd7-a96e-b3753bc9d637', 'vwprHq9zN4dDdZoKkW16n0VzD-awtHuhauYrHQKHpu8=', 'Chrome Browser', 'web', '58.10.158.12', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36', '2025-11-28 17:06:14', '2025-12-28 17:06:09', 1, '2025-11-28 17:06:09', '2025-11-28 17:06:14');
 
 -- --------------------------------------------------------
 
 --
--- โครงสร้างตาราง `user_tokens`
+-- Table structure for table `user_tokens`
 --
 
 CREATE TABLE `user_tokens` (
@@ -4553,7 +4600,7 @@ CREATE TABLE `user_tokens` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
--- dump ตาราง `user_tokens`
+-- Dumping data for table `user_tokens`
 --
 
 INSERT INTO `user_tokens` (`token_id`, `user_id`, `token_type`, `token`, `expires_at`, `is_revoked`, `device_info`, `ip_address`, `user_agent`, `created_at`, `updated_at`) VALUES
@@ -5107,7 +5154,14 @@ INSERT INTO `user_tokens` (`token_id`, `user_id`, `token_type`, `token`, `expire
 (899, 7, 'refresh', 'kyUNd4fqo3llldR5RCB1LnmUy_W2mdYLLRK47xFMZTk=', '2025-12-27 10:52:11', 0, 'Chrome Browser / web', '171.97.141.101', '', '2025-11-27 10:52:11', '2025-11-27 10:52:11'),
 (900, 8, 'refresh', 'ZZXHRrBko14McQ3EUjPbkQKHw8FCV5HJ-g4QFWJsur8=', '2025-12-27 15:05:44', 0, 'Chrome Browser / web', '58.10.158.41', '', '2025-11-27 15:05:44', '2025-11-27 15:05:44'),
 (901, 8, 'refresh', 'MFx8C22cQooRpNPk9XHbgvXc7QozqCAfF8RnK8X4djs=', '2025-12-27 16:16:08', 1, 'Chrome Browser / web', '58.10.158.41', '', '2025-11-27 16:16:08', '2025-11-27 16:29:50'),
-(902, 13, 'refresh', 'iiTP7cH3t2bBc22Ln3YODSVCyeEVqg82sKIjO86wZ3A=', '2025-12-27 16:29:56', 1, 'Chrome Browser / web', '58.10.158.41', '', '2025-11-27 16:29:56', '2025-11-27 16:30:03');
+(902, 13, 'refresh', 'iiTP7cH3t2bBc22Ln3YODSVCyeEVqg82sKIjO86wZ3A=', '2025-12-27 16:29:56', 1, 'Chrome Browser / web', '58.10.158.41', '', '2025-11-27 16:29:56', '2025-11-27 16:30:03'),
+(903, 8, 'refresh', 'Exj8spSMd3q8KOA79trpuKbpK9eg0_7qZ8-u8Ya3mM0=', '2025-12-27 16:41:51', 1, 'Chrome Browser / web', '58.10.158.41', '', '2025-11-27 16:41:51', '2025-11-27 18:32:59'),
+(904, 7, 'refresh', 'TrlK6Pp9xftmSDElW8sA8v610WjL1fezYJzx-9mhsbA=', '2025-12-27 18:33:04', 1, 'Chrome Browser / web', '58.10.158.41', '', '2025-11-27 18:33:04', '2025-11-27 19:00:04'),
+(905, 7, 'refresh', 'VA6f5-AuuzVlDByjuhj54k1BDBfp2GcnOy_r7a_4Ea8=', '2025-12-27 19:00:13', 1, 'Chrome Browser / web', '58.10.158.41', '', '2025-11-27 19:00:13', '2025-11-27 19:00:15'),
+(906, 7, 'refresh', 'KboomjVx3P_a1g4YNn_WoCiiZSTMqLvcsrqHlJDal_k=', '2025-12-28 09:43:30', 0, 'Chrome Browser / web', '58.10.128.69', '', '2025-11-28 09:43:30', '2025-11-28 09:43:30'),
+(907, 7, 'refresh', 'r6hSC4zqAWG8IYQuGfCB68PVG7bryo71uAaM6aEnR-I=', '2025-12-28 15:52:41', 0, 'Chrome Browser / web', '58.10.158.12', '', '2025-11-28 15:52:41', '2025-11-28 15:52:41'),
+(908, 7, 'refresh', '6oLlC7AViv0IyckxiP9s2ZGNslolXHcSLYOp0cH6NTY=', '2025-12-28 16:23:37', 0, 'Chrome Browser / web', '58.10.128.69', '', '2025-11-28 16:23:37', '2025-11-28 16:23:37'),
+(909, 7, 'refresh', 'vwprHq9zN4dDdZoKkW16n0VzD-awtHuhauYrHQKHpu8=', '2025-12-28 17:06:09', 0, 'Chrome Browser / web', '58.10.158.12', '', '2025-11-28 17:06:09', '2025-11-28 17:06:09');
 
 -- --------------------------------------------------------
 
@@ -5425,7 +5479,7 @@ CREATE TABLE `v_user_activity_summary` (
 -- --------------------------------------------------------
 
 --
--- โครงสร้างตาราง `years`
+-- Table structure for table `years`
 --
 
 CREATE TABLE `years` (
@@ -5439,7 +5493,7 @@ CREATE TABLE `years` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
--- dump ตาราง `years`
+-- Dumping data for table `years`
 --
 
 INSERT INTO `years` (`year_id`, `year`, `budget`, `status`, `create_at`, `update_at`, `delete_at`) VALUES
@@ -5982,6 +6036,15 @@ ALTER TABLE `scopus_document_authors`
   ADD KEY `idx_scopus_document_authors_document` (`document_id`,`author_seq`);
 
 --
+-- Indexes for table `scopus_source_metrics`
+--
+ALTER TABLE `scopus_source_metrics`
+  ADD PRIMARY KEY (`source_metric_id`),
+  ADD UNIQUE KEY `uq_scopus_source_year_type` (`source_id`,`metric_year`,`doc_type`),
+  ADD KEY `idx_issn_year` (`issn`,`metric_year`),
+  ADD KEY `idx_eissn_year` (`eissn`,`metric_year`);
+
+--
 -- Indexes for table `subcategory_budgets`
 --
 ALTER TABLE `subcategory_budgets`
@@ -6305,7 +6368,7 @@ ALTER TABLE `roles`
 -- AUTO_INCREMENT for table `scholar_import_runs`
 --
 ALTER TABLE `scholar_import_runs`
-  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=73;
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=77;
 
 --
 -- AUTO_INCREMENT for table `scopus_affiliations`
@@ -6348,6 +6411,12 @@ ALTER TABLE `scopus_documents`
 --
 ALTER TABLE `scopus_document_authors`
   MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=54;
+
+--
+-- AUTO_INCREMENT for table `scopus_source_metrics`
+--
+ALTER TABLE `scopus_source_metrics`
+  MODIFY `source_metric_id` int(11) NOT NULL AUTO_INCREMENT;
 
 --
 -- AUTO_INCREMENT for table `subcategory_budgets`
@@ -6395,13 +6464,13 @@ ALTER TABLE `user_fund_eligibilities`
 -- AUTO_INCREMENT for table `user_sessions`
 --
 ALTER TABLE `user_sessions`
-  MODIFY `session_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=897;
+  MODIFY `session_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=904;
 
 --
 -- AUTO_INCREMENT for table `user_tokens`
 --
 ALTER TABLE `user_tokens`
-  MODIFY `token_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=903;
+  MODIFY `token_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=910;
 
 --
 -- AUTO_INCREMENT for table `years`
