@@ -252,7 +252,13 @@ func (s *CiteScoreMetricsService) persistMetrics(ctx context.Context, entry *cit
 		if metricYear == 0 {
 			continue
 		}
-		for _, csInfo := range info.CiteScoreInformationList.Items {
+
+		csInfos, err := info.citeScoreInfos()
+		if err != nil {
+			return err
+		}
+
+		for _, csInfo := range csInfos {
 			docType := strings.TrimSpace(csInfo.DocType)
 			if docType == "" {
 				docType = "all"
@@ -357,13 +363,24 @@ type citeScoreYearInfoList struct {
 type citeScoreYearInfos []citeScoreYearInfo
 
 type citeScoreYearInfo struct {
-	Year                     string                     `json:"@year"`
-	Status                   string                     `json:"@status"`
-	CiteScoreInformationList citeScoreInformationHolder `json:"citeScoreInformationList"`
+	Year                    string          `json:"@year"`
+	Status                  string          `json:"@status"`
+	RawCiteScoreInformation json.RawMessage `json:"citeScoreInformationList"`
 }
 
 type citeScoreInformationHolder struct {
 	Items citeScoreInfos `json:"citeScoreInfo"`
+}
+
+func (i citeScoreYearInfo) citeScoreInfos() (citeScoreInfos, error) {
+	if len(i.RawCiteScoreInformation) == 0 {
+		return nil, nil
+	}
+	var holder citeScoreInformationHolder
+	if err := holder.UnmarshalJSON(i.RawCiteScoreInformation); err != nil {
+		return nil, err
+	}
+	return holder.Items, nil
 }
 
 func (h *citeScoreInformationHolder) UnmarshalJSON(data []byte) error {
