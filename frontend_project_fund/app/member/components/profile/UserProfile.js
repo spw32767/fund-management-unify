@@ -531,6 +531,28 @@ export default function ProfileContent() {
     return Number.isFinite(parsed) ? parsed : null;
   }, []);
 
+  const isYearWithinRange = useCallback(
+    (year) => {
+      const hasStart = startYear !== "";
+      const hasEnd = endYear !== "";
+
+      if (!hasStart && !hasEnd) return true;
+      if (year === null || year === undefined) return false;
+
+      const yearNum = Number(year);
+      if (!Number.isFinite(yearNum)) return false;
+
+      if (hasStart && yearNum < Number(startYear)) {
+        return false;
+      }
+      if (hasEnd && yearNum > Number(endYear)) {
+        return false;
+      }
+      return true;
+    },
+    [endYear, startYear],
+  );
+
   const filteredYears = useMemo(() => {
     const years = new Set();
     [...scopusPublications, ...scholarPublications].forEach((pub) => {
@@ -851,30 +873,20 @@ export default function ProfileContent() {
   const matchesYearRange = useCallback(
     (pub) => {
       const year = getPublicationYear(pub);
-      const hasStart = startYear !== "";
-      const hasEnd = endYear !== "";
-
-      if (!hasStart && !hasEnd) return true;
-      if (!year) return false;
-
-      const startYearNum = Number(startYear);
-      const endYearNum = Number(endYear);
-
-      if (hasStart && Number.isFinite(startYearNum) && year < startYearNum) {
-        return false;
-      }
-      if (hasEnd && Number.isFinite(endYearNum) && year > endYearNum) {
-        return false;
-      }
-      return true;
+      return isYearWithinRange(year);
     },
-    [endYear, getPublicationYear, startYear],
+    [getPublicationYear, isYearWithinRange],
+  );
+
+  const scholarPublicationsInRange = useMemo(
+    () => scholarPublications.filter((p) => matchesYearRange(p)),
+    [matchesYearRange, scholarPublications],
   );
 
   const filteredScholarPublications = useMemo(() => {
-    const filtered = scholarPublications
-      .filter((p) => p.title?.toLowerCase().includes(searchTerm.toLowerCase()))
-      .filter((p) => matchesYearRange(p));
+    const filtered = scholarPublicationsInRange.filter((p) =>
+      p.title?.toLowerCase().includes(searchTerm.toLowerCase()),
+    );
 
     const sorted = filtered.sort((a, b) => {
       const aVal = scholarFieldValue(a, sortField);
@@ -884,7 +896,7 @@ export default function ProfileContent() {
       return aVal < bVal ? 1 : -1;
     });
     return sorted;
-  }, [matchesYearRange, scholarPublications, searchTerm, sortDirection, sortField]);
+  }, [scholarPublicationsInRange, searchTerm, sortDirection, sortField]);
 
   const paginatedScholarPublications = useMemo(() => {
     const start = (currentPage - 1) * rowsPerPage;
@@ -892,7 +904,7 @@ export default function ProfileContent() {
   }, [filteredScholarPublications, currentPage, rowsPerPage]);
 
   const citationMetrics = useMemo(() => {
-    if (!scholarPublications || scholarPublications.length === 0) {
+    if (!scholarPublicationsInRange || scholarPublicationsInRange.length === 0) {
       return {
         totals: { all: null, recent: null },
         hIndex: { all: null, recent: null },
@@ -957,7 +969,7 @@ export default function ProfileContent() {
     const recentCitationCounts = [];
     let totalCitations = 0;
 
-    scholarPublications.forEach((pub) => {
+    scholarPublicationsInRange.forEach((pub) => {
       if (Object.prototype.hasOwnProperty.call(pub, "cited_by")) {
         const totalCited = toNumber(pub.cited_by);
         if (totalCited !== null) {
@@ -981,7 +993,12 @@ export default function ProfileContent() {
         entries.forEach(([yearKey, rawCount]) => {
           const yearNum = Number(yearKey);
           const countNum = toNumber(rawCount);
-          if (!Number.isFinite(yearNum) || countNum === null) return;
+          if (
+            !Number.isFinite(yearNum) ||
+            countNum === null ||
+            !isYearWithinRange(yearNum)
+          )
+            return;
           perYearMap.set(yearNum, (perYearMap.get(yearNum) || 0) + countNum);
           if (yearNum >= CITATION_RECENT_START_YEAR) {
             recentSumForPub += countNum;
@@ -1053,11 +1070,49 @@ export default function ProfileContent() {
         isCitations: isCitationsChart,
       },
     };
-  }, [scholarPublications]);
+  }, [isYearWithinRange, scholarPublicationsInRange]);
 
   const filteredScopusPublications = useMemo(
     () => scopusPublications.filter((p) => matchesYearRange(p)),
     [matchesYearRange, scopusPublications],
+  );
+
+  const scopusTrend = useMemo(
+    () => (Array.isArray(scopusStats?.trend) ? scopusStats.trend : []),
+    [scopusStats],
+  );
+
+  const scopusTrendForRange = useMemo(
+    () => scopusTrend.filter((point) => isYearWithinRange(point?.year)),
+    [isYearWithinRange, scopusTrend],
+  );
+
+  const scopusStatsMeta = scopusStats?.meta || {};
+  const scopusTotals = scopusStats?.totals || {};
+
+  const scopusTotalsForRange = useMemo(() => {
+    if (startYear === "" && endYear === "") {
+      return scopusTotals;
+    }
+    if (scopusTrendForRange.length === 0) {
+      return { documents: null, citations: null };
+    }
+    return scopusTrendForRange.reduce(
+      (acc, point) => ({
+        documents: acc.documents + (point.documents || 0),
+        citations: acc.citations + (point.citations || 0),
+      }),
+      { documents: 0, citations: 0 },
+    );
+  }, [endYear, scopusTotals, scopusTrendForRange, startYear]);
+
+  const scopusStatsForDisplay = useMemo(
+    () => ({
+      trend: scopusTrendForRange,
+      totals: scopusTotalsForRange,
+      meta: scopusStatsMeta,
+    }),
+    [scopusStatsMeta, scopusTotalsForRange, scopusTrendForRange],
   );
   const paginatedScopusPublications = useMemo(() => {
     const start = (currentPage - 1) * rowsPerPage;
@@ -1074,9 +1129,9 @@ export default function ProfileContent() {
   }, [
     activeSource,
     filteredScholarPublications.length,
-      filteredScopusPublications.length,
-      rowsPerPage,
-    ]);
+    filteredScopusPublications.length,
+    rowsPerPage,
+  ]);
 
   const isScopusActive = activeSource === "scopus";
   const tablePublications = isScopusActive
@@ -1631,7 +1686,7 @@ export default function ProfileContent() {
                   </div>
                   {isScopusActive ? (
                     <ScopusTrendCard
-                      scopusStats={scopusStats}
+                      scopusStats={scopusStatsForDisplay}
                       scopusLoading={scopusStatsLoading}
                       formatNumber={formatNumber}
                     />
