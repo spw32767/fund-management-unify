@@ -726,13 +726,13 @@ export const adminSubmissionAPI = {
   },
 
   // POST /api/v1/admin/submissions/:id/approve
-  // payload may include the 4 approve amounts + approval_comment
+  // payload may include the 4 approve amounts + admin_comment
   async approveSubmission(submissionId, payload) {
     return apiClient.post(`/admin/submissions/${submissionId}/approve`, payload);
   },
 
   // POST /api/v1/admin/submissions/:id/reject
-  // payload: { rejection_reason }
+  // payload: { admin_rejection_reason }
   async rejectSubmission(submissionId, payload) {
     return apiClient.post(`/admin/submissions/${submissionId}/reject`, payload);
   },

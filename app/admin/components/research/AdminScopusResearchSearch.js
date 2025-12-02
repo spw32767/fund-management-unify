@@ -255,14 +255,31 @@ export default function AdminScopusResearchSearch() {
                           const rowNumber = (pubMeta.offset || 0) + index + 1;
                           const citedByValue = pub.cited_by !== undefined && pub.cited_by !== null ? pub.cited_by : null;
                           const yearValue = pub.publication_year || "-";
+                          const scopusUrl = pub.scopus_url;
+                          const linkLabel = pub.title || pub.venue || pub.publication_name || "ไม่ระบุชื่อเรื่อง";
+
+                          const titleContent = scopusUrl ? (
+                            <a
+                              href={scopusUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="group inline-flex max-w-full items-center gap-1 truncate font-semibold text-indigo-700 hover:text-indigo-900"
+                              title={linkLabel}
+                            >
+                              <span className="truncate">{linkLabel}</span>
+                              <ExternalLink size={14} className="min-h-[14px] min-w-[14px] opacity-70 group-hover:opacity-100" />
+                            </a>
+                          ) : (
+                            <span className="block truncate font-semibold text-gray-900" title={pub.title}>
+                              {linkLabel}
+                            </span>
+                          );
                           return (
                             <tr key={`${pub.id || pub.scopus_id || pub.eid}-${index}`} className="hover:bg-gray-50">
                               <td className="px-4 py-2 text-center text-gray-700">{rowNumber}</td>
                               <td className="max-w-xs px-4 py-2 lg:max-w-md">
                                 <div className="space-y-1">
-                                  <span className="block truncate font-semibold text-gray-900" title={pub.title}>
-                                    {pub.title || "ไม่ระบุชื่อเรื่อง"}
-                                  </span>
+                                  {titleContent}
                                   {pub.venue || pub.publication_name ? (
                                     <span className="block truncate text-xs text-gray-500">{pub.venue || pub.publication_name}</span>
                                   ) : null}
@@ -284,16 +301,6 @@ export default function AdminScopusResearchSearch() {
                                       className="inline-flex items-center gap-1 rounded-full border border-slate-300 px-2 py-1 text-slate-700 transition hover:border-slate-900 hover:text-slate-900"
                                     >
                                       DOI/URL <ExternalLink size={14} />
-                                    </a>
-                                  )}
-                                  {pub.scopus_url && (
-                                    <a
-                                      href={pub.scopus_url}
-                                      target="_blank"
-                                      rel="noreferrer"
-                                      className="inline-flex items-center gap-1 rounded-full border border-indigo-200 bg-indigo-50 px-2 py-1 text-indigo-700 transition hover:border-indigo-400"
-                                    >
-                                      Scopus <ExternalLink size={14} />
                                     </a>
                                   )}
                                 </div>
