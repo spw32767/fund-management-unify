@@ -446,7 +446,6 @@ export default function ProfileContent() {
   const [scholarPublications, setScholarPublications] = useState([]);
   const [scholarLoading, setScholarLoading] = useState(true);
   const [scopusPublications, setScopusPublications] = useState([]);
-  const [scopusTotal, setScopusTotal] = useState(0);
   const [scopusLoading, setScopusLoading] = useState(true);
   const [scopusMeta, setScopusMeta] = useState({
     has_scopus_id: true,
@@ -455,6 +454,8 @@ export default function ProfileContent() {
   const [scopusStats, setScopusStats] = useState(() => createDefaultScopusStats());
   const [scopusStatsLoading, setScopusStatsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
+  const [startYear, setStartYear] = useState("");
+  const [endYear, setEndYear] = useState("");
   const [sortField, setSortField] = useState("year");
   const [sortDirection, setSortDirection] = useState("desc");
   const [currentPage, setCurrentPage] = useState(1);
@@ -511,6 +512,35 @@ export default function ProfileContent() {
       year: "numeric",
     });
   };
+
+  const getPublicationYear = useCallback((pub) => {
+    const yearCandidate =
+      pub.publication_year ||
+      pub.year ||
+      pub.cover_year ||
+      pub.coverYear ||
+      (() => {
+        const dateValue = pub.cover_date || pub.coverDate || pub.publication_date;
+        if (!dateValue) return null;
+        const date = new Date(dateValue);
+        return Number.isNaN(date.getTime()) ? null : date.getFullYear();
+      })();
+
+    if (!yearCandidate) return null;
+    const parsed = Number(yearCandidate);
+    return Number.isFinite(parsed) ? parsed : null;
+  }, []);
+
+  const filteredYears = useMemo(() => {
+    const years = new Set();
+    [...scopusPublications, ...scholarPublications].forEach((pub) => {
+      const year = getPublicationYear(pub);
+      if (year) {
+        years.add(year);
+      }
+    });
+    return Array.from(years).sort((a, b) => b - a);
+  }, [getPublicationYear, scopusPublications, scholarPublications]);
 
   const formatNumber = (value) => {
     if (value === null || value === undefined) return null;
@@ -743,8 +773,7 @@ export default function ProfileContent() {
     try {
       setScopusLoading(true);
       const params = {
-        limit: rowsPerPage,
-        offset: (currentPage - 1) * rowsPerPage,
+        limit: 1000,
         sort: sortField,
         direction: sortDirection,
       };
@@ -754,11 +783,6 @@ export default function ProfileContent() {
       const res = await memberAPI.getUserScopusPublications(params);
       const items = res.data || res.items || [];
       setScopusPublications(items);
-      const total =
-        res.paging?.total ??
-        res.total ??
-        (Array.isArray(items) ? items.length : 0);
-      setScopusTotal(total);
       const meta = res.meta || {};
       setScopusMeta({
         has_scopus_id: Boolean(meta.has_scopus_id),
@@ -767,17 +791,20 @@ export default function ProfileContent() {
     } catch (error) {
       console.error("Error loading Scopus publications:", error);
       setScopusPublications([]);
-      setScopusTotal(0);
     } finally {
       setScopusLoading(false);
     }
-  }, [activeSource, rowsPerPage, currentPage, sortField, sortDirection, searchTerm]);
+  }, [activeSource, sortField, sortDirection, searchTerm]);
 
   useEffect(() => {
     if (activeSource === "scopus") {
       loadScopusPublications();
     }
   }, [activeSource, loadScopusPublications]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [startYear, endYear]);
 
   const handleSourceChange = useCallback(
     (value) => {
@@ -821,10 +848,34 @@ export default function ProfileContent() {
     }
   };
 
-  const sortedScholarPublications = useMemo(() => {
-    const filtered = scholarPublications.filter((p) =>
-      p.title?.toLowerCase().includes(searchTerm.toLowerCase()),
-    );
+  const matchesYearRange = useCallback(
+    (pub) => {
+      const year = getPublicationYear(pub);
+      const hasStart = startYear !== "";
+      const hasEnd = endYear !== "";
+
+      if (!hasStart && !hasEnd) return true;
+      if (!year) return false;
+
+      const startYearNum = Number(startYear);
+      const endYearNum = Number(endYear);
+
+      if (hasStart && Number.isFinite(startYearNum) && year < startYearNum) {
+        return false;
+      }
+      if (hasEnd && Number.isFinite(endYearNum) && year > endYearNum) {
+        return false;
+      }
+      return true;
+    },
+    [endYear, getPublicationYear, startYear],
+  );
+
+  const filteredScholarPublications = useMemo(() => {
+    const filtered = scholarPublications
+      .filter((p) => p.title?.toLowerCase().includes(searchTerm.toLowerCase()))
+      .filter((p) => matchesYearRange(p));
+
     const sorted = filtered.sort((a, b) => {
       const aVal = scholarFieldValue(a, sortField);
       const bVal = scholarFieldValue(b, sortField);
@@ -833,12 +884,12 @@ export default function ProfileContent() {
       return aVal < bVal ? 1 : -1;
     });
     return sorted;
-  }, [scholarPublications, searchTerm, sortField, sortDirection]);
+  }, [matchesYearRange, scholarPublications, searchTerm, sortDirection, sortField]);
 
   const paginatedScholarPublications = useMemo(() => {
     const start = (currentPage - 1) * rowsPerPage;
-    return sortedScholarPublications.slice(start, start + rowsPerPage);
-  }, [sortedScholarPublications, currentPage, rowsPerPage]);
+    return filteredScholarPublications.slice(start, start + rowsPerPage);
+  }, [filteredScholarPublications, currentPage, rowsPerPage]);
 
   const citationMetrics = useMemo(() => {
     if (!scholarPublications || scholarPublications.length === 0) {
@@ -1004,23 +1055,37 @@ export default function ProfileContent() {
     };
   }, [scholarPublications]);
 
+  const filteredScopusPublications = useMemo(
+    () => scopusPublications.filter((p) => matchesYearRange(p)),
+    [matchesYearRange, scopusPublications],
+  );
+  const paginatedScopusPublications = useMemo(() => {
+    const start = (currentPage - 1) * rowsPerPage;
+    return filteredScopusPublications.slice(start, start + rowsPerPage);
+  }, [currentPage, filteredScopusPublications, rowsPerPage]);
+
   const totalPages = useMemo(() => {
     if (activeSource === "scopus") {
-      const pages = Math.ceil((scopusTotal || 0) / rowsPerPage);
+      const pages = Math.ceil((filteredScopusPublications.length || 0) / rowsPerPage);
       return pages > 0 ? pages : 1;
     }
-    const pages = Math.ceil(sortedScholarPublications.length / rowsPerPage);
+    const pages = Math.ceil(filteredScholarPublications.length / rowsPerPage);
     return pages > 0 ? pages : 1;
-  }, [activeSource, scopusTotal, rowsPerPage, sortedScholarPublications.length]);
+  }, [
+    activeSource,
+    filteredScholarPublications.length,
+      filteredScopusPublications.length,
+      rowsPerPage,
+    ]);
 
   const isScopusActive = activeSource === "scopus";
   const tablePublications = isScopusActive
-    ? scopusPublications
+    ? paginatedScopusPublications
     : paginatedScholarPublications;
   const tableLoading = isScopusActive ? scopusLoading : scholarLoading;
   const totalRecords = isScopusActive
-    ? scopusTotal
-    : sortedScholarPublications.length;
+    ? filteredScopusPublications.length
+    : filteredScholarPublications.length;
   const startRecord =
     totalRecords === 0 ? 0 : (currentPage - 1) * rowsPerPage + 1;
   const endRecord =
@@ -1255,11 +1320,11 @@ export default function ProfileContent() {
                     <h3 className="text-base font-semibold text-gray-900 lg:text-lg">
                       รายการผลงานตีพิมพ์
                     </h3>
-                    <div className="flex flex-col gap-3">
-                      <div className="flex flex-wrap items-center gap-2 text-sm text-gray-600">
-                        <span>แหล่งข้อมูล:</span>
-                        <div className="inline-flex rounded-full border border-gray-200 bg-gray-50 p-0.5">
-                          {[{ value: "scopus", label: "Scopus" }, { value: "scholar", label: "Google Scholar" }].map(
+                  <div className="flex flex-col gap-3">
+                    <div className="flex flex-wrap items-center gap-2 text-sm text-gray-600">
+                      <span>แหล่งข้อมูล:</span>
+                      <div className="inline-flex rounded-full border border-gray-200 bg-gray-50 p-0.5">
+                        {[{ value: "scopus", label: "Scopus" }, { value: "scholar", label: "Google Scholar" }].map(
                             (option) => {
                               const isActiveSource = activeSource === option.value;
                               return (
@@ -1277,42 +1342,77 @@ export default function ProfileContent() {
                                 </button>
                               );
                             },
-                          )}
-                        </div>
-                        {isScopusActive && scopusUnavailable ? (
-                          <span className="text-xs text-amber-600">
-                            ยังไม่มีข้อมูลจาก Scopus สำหรับผู้ใช้นี้
-                          </span>
-                        ) : null}
+                        )}
                       </div>
-                      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end sm:gap-4">
-                        <input
-                          type="text"
-                          value={searchTerm}
+                      {isScopusActive && scopusUnavailable ? (
+                        <span className="text-xs text-amber-600">
+                          ยังไม่มีข้อมูลจาก Scopus สำหรับผู้ใช้นี้
+                        </span>
+                      ) : null}
+                    </div>
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end sm:gap-4">
+                      <input
+                        type="text"
+                        value={searchTerm}
+                        onChange={(e) => {
+                          setSearchTerm(e.target.value);
+                          setCurrentPage(1);
+                        }}
+                        placeholder="ค้นหาชื่อเรื่อง..."
+                        className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 sm:w-64"
+                      />
+                      <div className="flex flex-wrap items-center gap-2 text-sm text-gray-600">
+                        <span>ช่วงปี:</span>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="number"
+                            inputMode="numeric"
+                            min="0"
+                            list="year-options"
+                            value={startYear}
+                            onChange={(e) => setStartYear(e.target.value)}
+                            placeholder="จากปี"
+                            className="w-24 rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          />
+                          <span className="text-gray-400">—</span>
+                          <input
+                            type="number"
+                            inputMode="numeric"
+                            min="0"
+                            list="year-options"
+                            value={endYear}
+                            onChange={(e) => setEndYear(e.target.value)}
+                            placeholder="ถึงปี"
+                            className="w-24 rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          />
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 text-sm text-gray-600">
+                        <span>แสดง</span>
+                        <select
+                          value={rowsPerPage}
                           onChange={(e) => {
-                            setSearchTerm(e.target.value);
+                            setRowsPerPage(Number(e.target.value));
                             setCurrentPage(1);
                           }}
-                          placeholder="ค้นหาชื่อเรื่อง..."
-                          className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 sm:w-64"
-                        />
-                        <div className="flex items-center gap-2 text-sm text-gray-600">
-                          <span>แสดง</span>
-                          <select
-                            value={rowsPerPage}
-                            onChange={(e) => {
-                              setRowsPerPage(parseInt(e.target.value, 10));
-                              setCurrentPage(1);
-                            }}
-                            className="rounded-md border border-gray-300 px-2 py-2"
-                          >
-                            <option value={10}>10</option>
-                            <option value={20}>20</option>
-                          </select>
-                          <span>รายการ</span>
-                        </div>
+                          className="rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        >
+                          {[10, 20, 50].map((size) => (
+                            <option key={size} value={size}>
+                              {size} รายการ
+                            </option>
+                          ))}
+                        </select>
                       </div>
                     </div>
+                    <datalist id="year-options">
+                      {filteredYears.map((year) => (
+                        <option key={year} value={year}>
+                          {year}
+                        </option>
+                      ))}
+                    </datalist>
+                  </div>
                   </div>
                   <div className="overflow-x-auto">
                     {tableLoading ? (
@@ -1426,8 +1526,7 @@ export default function ProfileContent() {
                                 pub.cited_by !== undefined && pub.cited_by !== null
                                   ? pub.cited_by
                                   : null;
-                              const yearValue =
-                                pub.publication_year || pub.year || "-";
+                              const yearValue = getPublicationYear(pub) || "-";
                               const key = `${pub.id || pub.eid || index}-${activeSource}`;
                               return (
                                 <tr key={key} className="hover:bg-gray-50">
