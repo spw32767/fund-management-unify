@@ -789,7 +789,6 @@ func RequestSubmissionRevision(c *gin.Context) {
 		"reviewed_at":            now,
 		"submitted_at":           gorm.Expr("NULL"),
 		"admin_comment":          message,
-		"comment":                message,
 		"admin_approved_by":      gorm.Expr("NULL"),
 		"admin_approved_at":      gorm.Expr("NULL"),
 		"admin_rejected_by":      gorm.Expr("NULL"),
