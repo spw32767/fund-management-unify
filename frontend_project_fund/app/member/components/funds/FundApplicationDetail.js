@@ -924,11 +924,11 @@ export default function FundApplicationDetail({
                     </span>
                   </div>
                 )}
-                {submission.approved_at && (
+                {(submission.admin_approved_at || submission.head_approved_at) && (
                   <div className="flex items-start gap-2">
                     <span className="text-gray-500 shrink-0">วันที่อนุมัติ:</span>
                     <span className="font-medium">
-                      {new Date(submission.approved_at).toLocaleDateString(
+                      {new Date(submission.admin_approved_at || submission.head_approved_at).toLocaleDateString(
                         "th-TH",
                         {
                           year: "numeric",

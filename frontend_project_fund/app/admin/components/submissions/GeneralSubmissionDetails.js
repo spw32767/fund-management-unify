@@ -624,7 +624,7 @@ function FundApprovalPanel({ submission, fundDetail, onApprove, onReject, onRequ
     '';
   const [announceRef, setAnnounceRef] = React.useState(announceReference || '');
   const [comment, setComment] = React.useState(
-    submission?.admin_comment ?? submission?.comment ?? ''
+    submission?.admin_comment ?? ''
   );
   const [errors, setErrors] = React.useState({});
   const approvedNumber = Number(approved);
@@ -655,9 +655,9 @@ function FundApprovalPanel({ submission, fundDetail, onApprove, onReject, onRequ
 
   React.useEffect(() => {
     if (statusId === 1) {
-      setComment(submission?.admin_comment ?? submission?.comment ?? '');
+      setComment(submission?.admin_comment ?? '');
     }
-  }, [statusId, submission?.admin_comment, submission?.comment]);
+  }, [statusId, submission?.admin_comment]);
 
   const validate = () => {
     const nextErrors = {};
@@ -719,7 +719,6 @@ function FundApprovalPanel({ submission, fundDetail, onApprove, onReject, onRequ
             approveAmount: numericApproved,
             total_approve_amount: numericApproved,
             announce_reference_number: announceRef?.trim() || null,
-            approval_comment: comment?.trim() || null,
             admin_comment: comment?.trim() || null,
           });
         } catch (e) {
@@ -869,11 +868,7 @@ function FundApprovalPanel({ submission, fundDetail, onApprove, onReject, onRequ
       submission?.announce_reference_number ||
       submission?.announce_reference ||
       '';
-    const adminComment =
-      submission?.admin_comment ??
-      submission?.approval_comment ??
-      submission?.comment ??
-      '';
+    const adminComment = submission?.admin_comment ?? '';
     const headComment =
       submission?.head_comment ??
       submission?.HeadComment ??
@@ -1992,7 +1987,7 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
   };
 
   const reject = async (reason) => {
-    await adminSubmissionAPI.rejectSubmission(submission.submission_id, { rejection_reason: reason });
+    await adminSubmissionAPI.rejectSubmission(submission.submission_id, { admin_rejection_reason: reason });
     // แจ้งเตือนผู้ยื่น: ไม่อนุมัติ
     try {
       await notificationsAPI.notifySubmissionRejected(

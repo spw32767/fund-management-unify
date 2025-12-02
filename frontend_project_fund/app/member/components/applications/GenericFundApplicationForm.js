@@ -1668,10 +1668,7 @@ export default function GenericFundApplicationForm({
 
       const adminComment = firstNonEmptyString(
         submission.admin_comment,
-        submission.approval_comment,
-        submission.comment,
         submission.AdminComment,
-        submission.ApprovalComment,
         submission.reviewer_comment
       );
       const headComment = firstNonEmptyString(

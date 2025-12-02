@@ -863,9 +863,9 @@ export default function PublicationRewardDetail({
     null;
 
   const approvedAt =
-    pubDetail.approved_at ??
+    submission.admin_approved_at ??
+    submission.head_approved_at ??
     pubDetail.approval_date ??
-    submission.approved_at ??
     submission.approval_date ??
     null;
 
@@ -1579,18 +1579,19 @@ export default function PublicationRewardDetail({
                             {getLabelById(submission.status_id) || submission.Status?.status_name || 'ไม่ทราบสถานะ'}
                           </p>
                           <p className="text-xs text-gray-500">
-                            {new Date(submission.approved_at || submission.updated_at).toLocaleString('th-TH')}
+                            {new Date(approvedAt || submission.updated_at).toLocaleString('th-TH')}
                           </p>
-                          {pubDetail.approval_comment && submission.status_id === 2 && (
+                          {submission.admin_comment && submission.status_id === 2 && (
                             <p className="text-sm text-gray-600 mt-1">
-                              หมายเหตุ: {pubDetail.approval_comment}
+                              หมายเหตุ: {submission.admin_comment}
                             </p>
                           )}
-                          {(pubDetail.reject_reason || pubDetail.rejection_reason) &&
+                          {(submission.admin_rejection_reason || submission.head_rejection_reason || pubDetail.reject_reason) &&
                             submission.status_id === 3 && (
                               <p className="text-sm text-gray-600 mt-1">
-                                เหตุผลที่ไม่อนุมัติ: {pubDetail.reject_reason ||
-                                  pubDetail.rejection_reason}
+                                เหตุผลที่ไม่อนุมัติ: {submission.admin_rejection_reason ||
+                                  submission.head_rejection_reason ||
+                                  pubDetail.reject_reason}
                               </p>
                             )}
                         </div>
