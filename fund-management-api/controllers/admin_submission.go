@@ -477,8 +477,7 @@ func ApproveSubmission(c *gin.Context) {
 		TotalApproveAmount          *float64 `json:"total_approve_amount"`
 		AnnounceReferenceNumber     string   `json:"announce_reference_number"`
 		// legacy fallback
-		ApprovedAmount  *float64 `json:"approved_amount"`
-		ApprovalComment string   `json:"approval_comment"` // จะเก็บที่ admin_comment ได้ถ้าต้องการ
+		ApprovedAmount *float64 `json:"approved_amount"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request data"})
@@ -527,10 +526,6 @@ func ApproveSubmission(c *gin.Context) {
 		"updated_at":        now,
 		"admin_approved_by": adminID,
 		"admin_approved_at": now,
-	}
-	// (ออปชัน) เก็บความเห็นของแอดมินตอนอนุมัติ
-	if strings.TrimSpace(req.ApprovalComment) != "" {
-		updates["admin_comment"] = strings.TrimSpace(req.ApprovalComment)
 	}
 
 	if err := tx.Model(&models.Submission{}).

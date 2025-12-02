@@ -1668,11 +1668,8 @@ export default function GenericFundApplicationForm({
 
       const adminComment = firstNonEmptyString(
         submission.admin_comment,
-        submission.approval_comment,
-        submission.comment,
         submission.AdminComment,
-        submission.ApprovalComment,
-        submission.reviewer_comment
+        submission.adminComment
       );
       const headComment = firstNonEmptyString(
         submission.head_comment,
@@ -3146,11 +3143,11 @@ export default function GenericFundApplicationForm({
                   </p>
                 </div>
                 <div>
-                  <p className="text-xs uppercase tracking-wide text-orange-600">เจ้าหน้าที่</p>
+                  <p className="text-xs uppercase tracking-wide text-orange-600">ผู้ดูแลระบบ</p>
                   <p className="whitespace-pre-wrap text-sm">{adminCommentDisplay}</p>
                 </div>
                 <div>
-                  <p className="text-xs uppercase tracking-wide text-orange-600">หัวหน้าภาค/ผู้บังคับบัญชา</p>
+                  <p className="text-xs uppercase tracking-wide text-orange-600">หัวหน้าสาขา</p>
                   <p className="whitespace-pre-wrap text-sm">{headCommentDisplay}</p>
                 </div>
               </div>

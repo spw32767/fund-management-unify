@@ -59,7 +59,6 @@ type Submission struct {
 	RejectedBy      *int       `gorm:"column:rejected_by"      json:"rejected_by,omitempty"`
 	RejectedAt      *time.Time `gorm:"column:rejected_at"      json:"rejected_at,omitempty"`
 	RejectionReason *string    `gorm:"column:rejection_reason" json:"rejection_reason,omitempty"`
-	Comment         *string    `gorm:"column:comment"          json:"comment,omitempty"`
 
 	// Relations
 	User     *User             `gorm:"foreignKey:UserID" json:"user,omitempty"`
@@ -86,7 +85,6 @@ type FundApplicationDetail struct {
 	RequestedAmount         float64    `gorm:"column:requested_amount" json:"requested_amount"`
 	ApprovedAmount          float64    `gorm:"column:approved_amount" json:"approved_amount"`
 	ClosedAt                *time.Time `gorm:"column:closed_at" json:"closed_at"`
-	Comment                 string     `gorm:"column:comment" json:"comment"`
 	AnnounceReferenceNumber string     `gorm:"column:announce_reference_number" json:"announce_reference_number,omitempty"`
 
 	// ========== เพิ่ม fields ใหม่สำหรับ tracking ==========
@@ -148,10 +146,9 @@ type PublicationRewardDetail struct {
 	RewardAnnouncement *int `json:"reward_announcement" gorm:"column:reward_announcement"`
 
 	// ========== เพิ่ม fields ใหม่สำหรับ Admin Management ==========
-	ApprovedAmount  *float64   `json:"approved_amount,omitempty" gorm:"column:approved_amount"`
-	ApprovalComment *string    `json:"approval_comment" gorm:"column:approval_comment"`
-	ApprovedBy      *int       `json:"approved_by" gorm:"column:approved_by"`
-	ApprovedAt      *time.Time `json:"approved_at" gorm:"column:approved_at"`
+	ApprovedAmount *float64   `json:"approved_amount,omitempty" gorm:"column:approved_amount"`
+	ApprovedBy     *int       `json:"approved_by" gorm:"column:approved_by"`
+	ApprovedAt     *time.Time `json:"approved_at" gorm:"column:approved_at"`
 
 	RejectionReason *string    `json:"rejection_reason" gorm:"column:rejection_reason"`
 	RejectedBy      *int       `json:"rejected_by" gorm:"column:rejected_by"`

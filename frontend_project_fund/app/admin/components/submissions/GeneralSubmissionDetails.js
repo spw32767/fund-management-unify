@@ -624,7 +624,7 @@ function FundApprovalPanel({ submission, fundDetail, onApprove, onReject, onRequ
     '';
   const [announceRef, setAnnounceRef] = React.useState(announceReference || '');
   const [comment, setComment] = React.useState(
-    submission?.admin_comment ?? submission?.comment ?? ''
+    submission?.admin_comment ?? ''
   );
   const [errors, setErrors] = React.useState({});
   const approvedNumber = Number(approved);
@@ -655,9 +655,9 @@ function FundApprovalPanel({ submission, fundDetail, onApprove, onReject, onRequ
 
   React.useEffect(() => {
     if (statusId === 1) {
-      setComment(submission?.admin_comment ?? submission?.comment ?? '');
+      setComment(submission?.admin_comment ?? '');
     }
-  }, [statusId, submission?.admin_comment, submission?.comment]);
+  }, [statusId, submission?.admin_comment]);
 
   const validate = () => {
     const nextErrors = {};
