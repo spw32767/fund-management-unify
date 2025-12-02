@@ -457,7 +457,6 @@ func DeptHeadRequestRevision(c *gin.Context) {
 		"reviewed_at":           now,
 		"submitted_at":          gorm.Expr("NULL"),
 		"head_comment":          message,
-		"comment":               message,
 		"head_approved_by":      gorm.Expr("NULL"),
 		"head_approved_at":      gorm.Expr("NULL"),
 		"head_rejected_by":      gorm.Expr("NULL"),
@@ -587,13 +586,7 @@ func buildSubmissionDetailPayload(submissionID int) (gin.H, error) {
 				"project_description":       fad.ProjectDescription,
 				"requested_amount":          fad.RequestedAmount,
 				"approved_amount":           fad.ApprovedAmount,
-				"closed_at":                 fad.ClosedAt,
-				"comment":                   fad.Comment,
 				"announce_reference_number": fad.AnnounceReferenceNumber,
-				"approved_by":               fad.ApprovedBy,
-				"approved_at":               fad.ApprovedAt,
-				"rejected_by":               fad.RejectedBy,
-				"rejected_at":               fad.RejectedAt,
 				"subcategory":               fad.Subcategory,
 
 				// >>> ประกาศที่ต้องการ <<<
@@ -668,7 +661,6 @@ func buildSubmissionDetailPayload(submissionID int) (gin.H, error) {
 		"rejected_by":      submission.RejectedBy,
 		"rejected_at":      submission.RejectedAt,
 		"rejection_reason": submission.RejectionReason,
-		"comment":          submission.Comment,
 
 		"category_id":           submission.CategoryID,
 		"subcategory_id":        submission.SubcategoryID,
