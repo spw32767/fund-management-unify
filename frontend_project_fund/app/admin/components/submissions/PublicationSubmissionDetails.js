@@ -737,7 +737,6 @@ function ApprovalPanel({ submission, pubDetail, requestedSummary, approvedSummar
     const adminCommentValue =
       submission?.admin_comment ??
       submission?.approval_comment ??
-      submission?.comment ??
       '';
 
     const rejectionReason =
@@ -856,7 +855,6 @@ function ApprovalPanel({ submission, pubDetail, requestedSummary, approvedSummar
   const [adminComment, setAdminComment] = useState(
     submission?.admin_comment ??
       submission?.approval_comment ??
-      submission?.comment ??
       ''
   );
   const [saving, setSaving] = useState(false);
@@ -878,10 +876,9 @@ function ApprovalPanel({ submission, pubDetail, requestedSummary, approvedSummar
     setAdminComment(
       submission?.admin_comment ??
         submission?.approval_comment ??
-        submission?.comment ??
         ''
     );
-  }, [submission?.admin_comment, submission?.approval_comment, submission?.comment, submission?.status_id]);
+  }, [submission?.admin_comment, submission?.approval_comment, submission?.status_id]);
 
   // โหลดเพดานจาก reward config
   useEffect(() => {

@@ -404,7 +404,7 @@ function DecisionDropdown({ value, onChange, disabled = false, className = '' })
  * ========================= */
 function DeptDecisionPanel({ submission, onApprove, onReject, onRequestRevision, onBack }) {
   const [comment, setComment] = useState(
-    submission?.head_comment ?? submission?.comment ?? ''
+    submission?.head_comment ?? ''
   );
   const [headSignature, setHeadSignature] = useState(
     submission?.head_signature ?? ''

@@ -126,10 +126,8 @@ func DeptHeadRecommendSubmission(c *gin.Context) {
 		return
 	}
 
-	// รองรับทั้ง head_comment (ใหม่) และ comment (เผื่อหน้าเก่าส่งมา)
 	var req struct {
 		HeadComment   *string `json:"head_comment"`
-		Comment       *string `json:"comment"`
 		HeadSignature string  `json:"head_signature"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil && !strings.Contains(err.Error(), "EOF") {
@@ -171,16 +169,7 @@ func DeptHeadRecommendSubmission(c *gin.Context) {
 		return
 	}
 
-	// รวมข้อความจาก head_comment หรือ comment (เลือกอันที่ไม่ว่าง)
-	pick := func(ptrs ...*string) string {
-		for _, p := range ptrs {
-			if p != nil && strings.TrimSpace(*p) != "" {
-				return strings.TrimSpace(*p)
-			}
-		}
-		return ""
-	}
-	headComment := pick(req.HeadComment, req.Comment)
+	headComment := normalizeComment(req.HeadComment)
 
 	now := time.Now()
 	updates := map[string]interface{}{
@@ -266,7 +255,6 @@ func DeptHeadRejectSubmission(c *gin.Context) {
 	var req struct {
 		RejectionReason string  `json:"rejection_reason" binding:"required"`
 		HeadComment     *string `json:"head_comment"`
-		Comment         *string `json:"comment"` // เผื่อของเก่าส่งมา
 		HeadSignature   string  `json:"head_signature"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil || strings.TrimSpace(req.RejectionReason) == "" {
@@ -304,15 +292,7 @@ func DeptHeadRejectSubmission(c *gin.Context) {
 		return
 	}
 
-	pick := func(ptrs ...*string) string {
-		for _, p := range ptrs {
-			if p != nil && strings.TrimSpace(*p) != "" {
-				return strings.TrimSpace(*p)
-			}
-		}
-		return ""
-	}
-	headComment := pick(req.HeadComment, req.Comment)
+	headComment := normalizeComment(req.HeadComment)
 
 	now := time.Now()
 	updates := map[string]interface{}{
@@ -386,7 +366,6 @@ func DeptHeadRequestRevision(c *gin.Context) {
 	}
 
 	var req struct {
-		Comment       *string `json:"comment"`
 		HeadComment   *string `json:"head_comment"`
 		HeadSignature string  `json:"head_signature"`
 	}
@@ -395,19 +374,7 @@ func DeptHeadRequestRevision(c *gin.Context) {
 		return
 	}
 
-	pick := func(values ...*string) string {
-		for _, value := range values {
-			if value == nil {
-				continue
-			}
-			if trimmed := strings.TrimSpace(*value); trimmed != "" {
-				return trimmed
-			}
-		}
-		return ""
-	}
-
-	message := pick(req.HeadComment, req.Comment)
+	message := normalizeComment(req.HeadComment)
 	if message == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Revision comment is required"})
 		return
@@ -457,7 +424,6 @@ func DeptHeadRequestRevision(c *gin.Context) {
 		"reviewed_at":           now,
 		"submitted_at":          gorm.Expr("NULL"),
 		"head_comment":          message,
-		"comment":               message,
 		"head_approved_by":      gorm.Expr("NULL"),
 		"head_approved_at":      gorm.Expr("NULL"),
 		"head_rejected_by":      gorm.Expr("NULL"),
@@ -588,7 +554,6 @@ func buildSubmissionDetailPayload(submissionID int) (gin.H, error) {
 				"requested_amount":          fad.RequestedAmount,
 				"approved_amount":           fad.ApprovedAmount,
 				"closed_at":                 fad.ClosedAt,
-				"comment":                   fad.Comment,
 				"announce_reference_number": fad.AnnounceReferenceNumber,
 				"approved_by":               fad.ApprovedBy,
 				"approved_at":               fad.ApprovedAt,
@@ -668,7 +633,6 @@ func buildSubmissionDetailPayload(submissionID int) (gin.H, error) {
 		"rejected_by":      submission.RejectedBy,
 		"rejected_at":      submission.RejectedAt,
 		"rejection_reason": submission.RejectionReason,
-		"comment":          submission.Comment,
 
 		"category_id":           submission.CategoryID,
 		"subcategory_id":        submission.SubcategoryID,
@@ -709,6 +673,19 @@ func buildSubmissionDetailPayload(submissionID int) (gin.H, error) {
 		"success":           true,
 	}
 	return resp, nil
+}
+
+// normalizeComment picks the first non-empty trimmed comment value.
+func normalizeComment(values ...*string) string {
+	for _, value := range values {
+		if value == nil {
+			continue
+		}
+		if trimmed := strings.TrimSpace(*value); trimmed != "" {
+			return trimmed
+		}
+	}
+	return ""
 }
 
 func extractApplicantUser(submission *models.Submission) *models.User {
