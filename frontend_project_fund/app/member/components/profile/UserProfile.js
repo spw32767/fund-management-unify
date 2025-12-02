@@ -593,7 +593,7 @@ export default function ProfileContent() {
         office: profile.office || "",
         employeeId: profile.employee_id || "",
         joinDate: profile.join_date || "",
-        profileImage: profile.profile_image || null,
+        profileImage: profile.photo_url || profile.profile_image || null,
         stats: {
           totalApplications: myApps.total || myApps.Total || 0,
           approvedApplications: myApps.approved || myApps.Approved || 0,
