@@ -404,7 +404,10 @@ function DecisionDropdown({ value, onChange, disabled = false, className = '' })
  * ========================= */
 function DeptDecisionPanel({ submission, onApprove, onReject, onRequestRevision, onBack }) {
   const [comment, setComment] = useState(
-    submission?.head_comment ?? submission?.comment ?? ''
+    submission?.head_comment ??
+      submission?.department_head_comment ??
+      submission?.dept_head_comment ??
+      ''
   );
   const [headSignature, setHeadSignature] = useState(
     submission?.head_signature ?? ''
@@ -1216,7 +1219,6 @@ export default function GeneralSubmissionDetailsDept({ submissionId, onBack }) {
     const body = {};
     if (headComment) {
       body.head_comment = headComment;
-      body.comment = headComment;
     }
     if (headSignature) {
       body.head_signature = headSignature;
@@ -1248,10 +1250,9 @@ export default function GeneralSubmissionDetailsDept({ submissionId, onBack }) {
 
   // ส่งเหตุผลปฏิเสธ + (ถ้ามี) คอมเมนต์ของหัวหน้าสาขา
   const reject = async (reason, headComment, headSignature, announceReference) => {
-    const payload = { rejection_reason: reason };
+    const payload = { head_rejection_reason: reason };
     if (headComment) {
       payload.head_comment = headComment;
-      payload.comment = headComment; // เผื่อระบบเดิมอ่านจาก comment
     }
     if (headSignature) {
       payload.head_signature = headSignature;
@@ -1296,7 +1297,6 @@ export default function GeneralSubmissionDetailsDept({ submissionId, onBack }) {
     }
     if (trimmedComment) {
       payload.head_comment = trimmedComment;
-      payload.comment = trimmedComment;
     }
     if (trimmedSignature) {
       payload.head_signature = trimmedSignature;
