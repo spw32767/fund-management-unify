@@ -518,6 +518,29 @@ export default function ProfileContent() {
     if (Number.isNaN(num)) return null;
     return new Intl.NumberFormat("th-TH").format(num);
   };
+
+  const quartileBadgeClass = (quartile) => {
+    const normalized = quartile?.toUpperCase();
+    switch (normalized) {
+      case "Q1":
+        return "bg-emerald-100 text-emerald-700";
+      case "Q2":
+        return "bg-sky-100 text-sky-700";
+      case "Q3":
+        return "bg-amber-100 text-amber-700";
+      case "Q4":
+        return "bg-rose-100 text-rose-700";
+      default:
+        return "bg-gray-100 text-gray-600";
+    }
+  };
+
+  const formatPercentile = (value) => {
+    if (value === null || value === undefined) return null;
+    const num = Number(value);
+    if (!Number.isFinite(num)) return null;
+    return formatNumber(num);
+  };
   const loadProfileData = async () => {
     try {
       setLoading(true);
@@ -1371,6 +1394,11 @@ export default function ProfileContent() {
                                   />
                                 )}
                               </th>
+                              {isScopusActive ? (
+                                <th className="w-32 px-4 py-2 text-center font-medium text-gray-700">
+                                  คุณภาพวารสาร
+                                </th>
+                              ) : null}
                               <th
                                 className="w-20 cursor-pointer px-4 py-2 text-center font-medium text-gray-700"
                                 onClick={() => handleSort("year")}
@@ -1446,10 +1474,34 @@ export default function ProfileContent() {
                                       <span>-</span>
                                     )}
                                   </td>
+                                  {isScopusActive ? (
+                                    <td className="px-4 py-2 text-center">
+                                      {pub.cite_score_quartile || pub.cite_score_percentile ? (
+                                        <div className="flex flex-col items-center gap-1">
+                                          {pub.cite_score_quartile ? (
+                                            <span
+                                              className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ${quartileBadgeClass(
+                                                pub.cite_score_quartile,
+                                              )}`}
+                                            >
+                                              Quartile {pub.cite_score_quartile.toUpperCase()}
+                                            </span>
+                                          ) : null}
+                                          {formatPercentile(pub.cite_score_percentile) ? (
+                                            <span className="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-1 text-[11px] font-medium text-gray-700">
+                                              Percentile {formatPercentile(pub.cite_score_percentile)}
+                                            </span>
+                                          ) : null}
+                                        </div>
+                                      ) : (
+                                        <span className="text-gray-400">-</span>
+                                      )}
+                                    </td>
+                                  ) : null}
                                   <td className="px-4 py-2 text-center">{yearValue || "-"}</td>
-                                </tr>
-                              );
-                            })}
+                            </tr>
+                          );
+                        })}
                           </tbody>
                         </table>
                         <div className="mt-4 flex items-center justify-between text-sm">
