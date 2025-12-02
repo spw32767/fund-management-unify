@@ -1382,127 +1382,129 @@ export default function ProfileContent() {
 
               {activeTab === "publications" ? (
                 <div className="space-y-6">
-                    <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                      <h3 className="text-base font-semibold text-gray-900 lg:text-lg">
-                        รายการผลงานตีพิมพ์
-                      </h3>
-                      <div className="flex flex-col gap-3">
-                        <div className="flex flex-wrap items-center gap-2 text-sm text-gray-600">
-                          <span>แหล่งข้อมูล:</span>
-                          <div className="inline-flex rounded-full border border-gray-200 bg-gray-50 p-0.5">
-                            {[{ value: "scopus", label: "Scopus" }, { value: "scholar", label: "Google Scholar" }].map(
-                                (option) => {
-                                  const isActiveSource = activeSource === option.value;
-                                  return (
-                                    <button
-                                      key={option.value}
-                                      type="button"
-                                      onClick={() => handleSourceChange(option.value)}
-                                      className={`rounded-full px-3 py-1 text-sm font-medium transition-colors ${
-                                        isActiveSource
-                                          ? "bg-blue-600 text-white shadow"
-                                          : "text-gray-600 hover:bg-white"
-                                      }`}
-                                    >
-                                      {option.label}
-                                    </button>
-                                  );
-                                },
-                            )}
-                          </div>
-                          {isScopusActive && scopusUnavailable ? (
-                            <span className="text-xs text-amber-600">
-                              ยังไม่มีข้อมูลจาก Scopus สำหรับผู้ใช้นี้
-                            </span>
-                          ) : null}
-                        </div>
-                        <div className="flex flex-col gap-2 lg:flex-row lg:flex-wrap lg:items-center lg:justify-end lg:gap-3">
-                          <input
-                            type="text"
-                            value={searchTerm}
-                            onChange={(e) => {
-                              setSearchTerm(e.target.value);
-                              setCurrentPage(1);
-                            }}
-                            placeholder="ค้นหาชื่อเรื่อง..."
-                            className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 sm:w-64"
-                          />
-                          <div className="flex w-full flex-wrap items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 shadow-sm sm:flex-nowrap sm:gap-3 lg:w-auto">
-                            <div className="flex items-center gap-2 text-sm font-medium text-gray-700">
-                              <Clock className="h-4 w-4 text-blue-500" />
-                              <span>ช่วงปีเผยแพร่</span>
-                            </div>
-                            <div className="flex flex-wrap items-center gap-2 text-sm text-gray-700">
-                              <label className="flex items-center gap-1">
-                                <span className="text-gray-500">จาก</span>
-                                <select
-                                  value={startYear}
-                                  onChange={(e) => setStartYear(e.target.value)}
-                                  className="min-w-[4.5rem] rounded-md border border-gray-300 bg-white px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                >
-                                  <option value="">ทั้งหมด</option>
-                                  {filteredYears.map((year) => (
-                                    <option key={`start-${year}`} value={year}>
-                                      {year}
-                                    </option>
-                                  ))}
-                                </select>
-                              </label>
-                              <span className="text-gray-400">—</span>
-                              <label className="flex items-center gap-1">
-                                <span className="text-gray-500">ถึง</span>
-                                <select
-                                  value={endYear}
-                                  onChange={(e) => setEndYear(e.target.value)}
-                                  className="min-w-[4.5rem] rounded-md border border-gray-300 bg-white px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                >
-                                  <option value="">ทั้งหมด</option>
-                                  {filteredYears.map((year) => (
-                                    <option key={`end-${year}`} value={year}>
-                                      {year}
-                                    </option>
-                                  ))}
-                                </select>
-                              </label>
-                              {(startYear || endYear) && (
+                  <div className="flex flex-col gap-3">
+                    <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                      <h3 className="text-base font-semibold text-gray-900 lg:text-lg">รายการผลงานตีพิมพ์</h3>
+                      <div className="flex flex-wrap items-center gap-2 text-sm text-gray-600">
+                        <span>แหล่งข้อมูล:</span>
+                        <div className="inline-flex rounded-full border border-gray-200 bg-gray-50 p-0.5">
+                          {[{ value: "scopus", label: "Scopus" }, { value: "scholar", label: "Google Scholar" }].map(
+                            (option) => {
+                              const isActiveSource = activeSource === option.value;
+                              return (
                                 <button
+                                  key={option.value}
                                   type="button"
-                                  onClick={clearYearRange}
-                                  className="inline-flex items-center rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-700 transition hover:bg-gray-200"
+                                  onClick={() => handleSourceChange(option.value)}
+                                  className={`rounded-full px-3 py-1 text-sm font-medium transition-colors ${
+                                    isActiveSource
+                                      ? "bg-blue-600 text-white shadow"
+                                      : "text-gray-600 hover:bg-white"
+                                  }`}
                                 >
-                                  ล้างช่วงปี
+                                  {option.label}
                                 </button>
-                              )}
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-2 text-sm text-gray-600">
-                            <span>แสดง</span>
-                            <select
-                              value={rowsPerPage}
-                              onChange={(e) => {
-                                setRowsPerPage(Number(e.target.value));
-                                setCurrentPage(1);
-                              }}
-                              className="rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                            >
-                              {[10, 20, 50].map((size) => (
-                                <option key={size} value={size}>
-                                  {size} รายการ
-                                </option>
-                              ))}
-                            </select>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={handleResetFilters}
-                            className="inline-flex items-center justify-center rounded-md border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 shadow-sm transition hover:border-blue-200 hover:text-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
-                            disabled={!searchTerm && !startYear && !endYear}
-                          >
-                            รีเซ็ตตัวกรอง
-                          </button>
+                              );
+                            },
+                          )}
                         </div>
+                        {isScopusActive && scopusUnavailable ? (
+                          <span className="text-xs text-amber-600">
+                            ยังไม่มีข้อมูลจาก Scopus สำหรับผู้ใช้นี้
+                          </span>
+                        ) : null}
                       </div>
                     </div>
+                    <div className="flex flex-col gap-2 lg:flex-row lg:flex-wrap lg:items-center lg:justify-between lg:gap-3">
+                      <div className="flex w-full flex-col gap-2 sm:flex-row sm:items-center sm:gap-3 lg:w-auto">
+                        <input
+                          type="text"
+                          value={searchTerm}
+                          onChange={(e) => {
+                            setSearchTerm(e.target.value);
+                            setCurrentPage(1);
+                          }}
+                          placeholder="ค้นหาชื่อเรื่อง..."
+                          className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 sm:w-64"
+                        />
+                        <div className="flex w-full flex-wrap items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 shadow-sm sm:flex-nowrap sm:gap-3 lg:w-auto">
+                          <div className="flex items-center gap-2 text-sm font-medium text-gray-700">
+                            <Clock className="h-4 w-4 text-blue-500" />
+                            <span>ช่วงปีเผยแพร่</span>
+                          </div>
+                          <div className="flex flex-wrap items-center gap-2 text-sm text-gray-700">
+                            <label className="flex items-center gap-1">
+                              <span className="text-gray-500">จาก</span>
+                              <select
+                                value={startYear}
+                                onChange={(e) => setStartYear(e.target.value)}
+                                className="min-w-[4.5rem] rounded-md border border-gray-300 bg-white px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                              >
+                                <option value="">ทั้งหมด</option>
+                                {filteredYears.map((year) => (
+                                  <option key={`start-${year}`} value={year}>
+                                    {year}
+                                  </option>
+                                ))}
+                              </select>
+                            </label>
+                            <span className="text-gray-400">—</span>
+                            <label className="flex items-center gap-1">
+                              <span className="text-gray-500">ถึง</span>
+                              <select
+                                value={endYear}
+                                onChange={(e) => setEndYear(e.target.value)}
+                                className="min-w-[4.5rem] rounded-md border border-gray-300 bg-white px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                              >
+                                <option value="">ทั้งหมด</option>
+                                {filteredYears.map((year) => (
+                                  <option key={`end-${year}`} value={year}>
+                                    {year}
+                                  </option>
+                                ))}
+                              </select>
+                            </label>
+                            {(startYear || endYear) && (
+                              <button
+                                type="button"
+                                onClick={clearYearRange}
+                                className="inline-flex items-center rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-700 transition hover:bg-gray-200"
+                              >
+                                ล้างช่วงปี
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3 lg:flex-row lg:items-center lg:gap-3">
+                        <div className="flex items-center gap-2 text-sm text-gray-600">
+                          <span>แสดง</span>
+                          <select
+                            value={rowsPerPage}
+                            onChange={(e) => {
+                              setRowsPerPage(Number(e.target.value));
+                              setCurrentPage(1);
+                            }}
+                            className="rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          >
+                            {[10, 20, 50].map((size) => (
+                              <option key={size} value={size}>
+                                {size} รายการ
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={handleResetFilters}
+                          className="inline-flex items-center justify-center rounded-md border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 shadow-sm transition hover:border-blue-200 hover:text-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+                          disabled={!searchTerm && !startYear && !endYear}
+                        >
+                          รีเซ็ตตัวกรอง
+                        </button>
+                      </div>
+                    </div>
+                  </div>
                   <div className="overflow-x-auto">
                     {tableLoading ? (
                       <div className="space-y-2 animate-pulse">
