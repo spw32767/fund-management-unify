@@ -734,16 +734,12 @@ function ApprovalPanel({ submission, pubDetail, requestedSummary, approvedSummar
       submission?.announce_reference ||
       '';
 
-    const adminCommentValue =
-      submission?.admin_comment ??
-      submission?.approval_comment ??
-      submission?.comment ??
-      '';
+    const adminCommentValue = submission?.admin_comment ?? '';
 
     const rejectionReason =
-      submission?.rejection_reason ??
+      submission?.admin_rejection_reason ??
+      submission?.head_rejection_reason ??
       submission?.admin_rejected ??
-      pubDetail?.rejection_reason ??
       '';
 
     return (
@@ -855,8 +851,6 @@ function ApprovalPanel({ submission, pubDetail, requestedSummary, approvedSummar
   const [manualEdit, setManualEdit] = useState(false);
   const [adminComment, setAdminComment] = useState(
     submission?.admin_comment ??
-      submission?.approval_comment ??
-      submission?.comment ??
       ''
   );
   const [saving, setSaving] = useState(false);
@@ -877,11 +871,9 @@ function ApprovalPanel({ submission, pubDetail, requestedSummary, approvedSummar
   useEffect(() => {
     setAdminComment(
       submission?.admin_comment ??
-        submission?.approval_comment ??
-        submission?.comment ??
         ''
     );
-  }, [submission?.admin_comment, submission?.approval_comment, submission?.comment, submission?.status_id]);
+  }, [submission?.admin_comment, submission?.status_id]);
 
   // โหลดเพดานจาก reward config
   useEffect(() => {
@@ -1138,7 +1130,6 @@ function ApprovalPanel({ submission, pubDetail, requestedSummary, approvedSummar
             publication_fee_approve_amount: hideSharedFeeFields ? 0 : Number(publicationApprove),
             total_approve_amount: Number(totalApprove),
             announce_reference_number: announceRef.trim() || null,
-            approval_comment: adminComment.trim() || null,
             admin_comment: adminComment.trim() || null,
           });
 
@@ -1803,9 +1794,9 @@ export default function PublicationSubmissionDetails({ submissionId, onBack }) {
     null;
 
   const approvedAt =
-    pubDetail?.approved_at ??
+    submission?.admin_approved_at ??
+    submission?.head_approved_at ??
     pubDetail?.approval_date ??
-    submission?.approved_at ??
     submission?.approval_date ??
     null;
 
@@ -2085,7 +2076,7 @@ export default function PublicationSubmissionDetails({ submissionId, onBack }) {
     // ส่งตัวเลขอนุมัติ + หมายเลขอ้างอิงประกาศ ไปในคำสั่งอนุมัติครั้งเดียว
     await adminSubmissionAPI.approveSubmission(submission.submission_id, payload);
 
-    // reload รายละเอียดเพื่อให้ได้ approved_at / approved_by / announce_reference_number ล่าสุด
+    // reload รายละเอียดเพื่อให้ได้ admin_approved_at / approve metadata / announce_reference_number ล่าสุด
     const res = await adminSubmissionAPI.getSubmissionDetails(submission.submission_id);
     let data = res?.submission || res;
     if (res?.submission_users) data.submission_users = res.submission_users;
@@ -2097,7 +2088,7 @@ export default function PublicationSubmissionDetails({ submissionId, onBack }) {
   };
 
   const reject = async (reason) => {
-    await adminSubmissionAPI.rejectSubmission(submission.submission_id, { rejection_reason: reason });
+    await adminSubmissionAPI.rejectSubmission(submission.submission_id, { admin_rejection_reason: reason });
     // reload
     const res = await adminSubmissionAPI.getSubmissionDetails(submission.submission_id);
     let data = res?.submission || res;

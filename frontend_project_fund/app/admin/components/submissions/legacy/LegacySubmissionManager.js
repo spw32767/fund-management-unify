@@ -47,8 +47,6 @@ const createEmptyForm = () => ({
   category_id: "",
   subcategory_id: "",
   subcategory_budget_id: "",
-  approved_by: "",
-  approved_at: "",
   submitted_at: "",
   installment_number_at_submit: "",
   admin_approved_by: "",
@@ -64,12 +62,7 @@ const createEmptyForm = () => ({
   admin_rejected_at: "",
   admin_rejection_reason: "",
   admin_comment: "",
-  rejected_by: "",
-  rejected_at: "",
-  rejection_reason: "",
-  comment: "",
   reviewed_at: "",
-  closed_at: "",
   created_at: "",
   updated_at: "",
   deleted_at: "",
@@ -223,8 +216,6 @@ const buildSubmissionPayload = (form, documents, participants) => {
   applyOptionalInt("category_id", form.category_id);
   applyOptionalInt("subcategory_id", form.subcategory_id);
   applyOptionalInt("subcategory_budget_id", form.subcategory_budget_id);
-  applyOptionalInt("approved_by", form.approved_by);
-  applyOptionalDate("approved_at", form.approved_at);
   applyOptionalDate("submitted_at", form.submitted_at);
   applyOptionalInt("installment_number_at_submit", form.installment_number_at_submit);
   applyOptionalInt("admin_approved_by", form.admin_approved_by);
@@ -235,18 +226,13 @@ const buildSubmissionPayload = (form, documents, participants) => {
   applyOptionalDate("head_rejected_at", form.head_rejected_at);
   applyOptionalInt("admin_rejected_by", form.admin_rejected_by);
   applyOptionalDate("admin_rejected_at", form.admin_rejected_at);
-  applyOptionalInt("rejected_by", form.rejected_by);
-  applyOptionalDate("rejected_at", form.rejected_at);
   applyOptionalDate("reviewed_at", form.reviewed_at);
-  applyOptionalDate("closed_at", form.closed_at);
   applyOptionalDate("deleted_at", form.deleted_at);
   applyOptionalString("head_rejection_reason", form.head_rejection_reason);
   applyOptionalString("head_comment", form.head_comment);
   applyOptionalString("head_signature", form.head_signature);
   applyOptionalString("admin_rejection_reason", form.admin_rejection_reason);
   applyOptionalString("admin_comment", form.admin_comment);
-  applyOptionalString("rejection_reason", form.rejection_reason);
-  applyOptionalString("comment", form.comment);
 
   if (form.created_at) {
     submission.created_at = form.created_at;
@@ -554,8 +540,6 @@ export default function LegacySubmissionManager() {
     category_id: submission.category_id != null ? String(submission.category_id) : "",
     subcategory_id: submission.subcategory_id != null ? String(submission.subcategory_id) : "",
     subcategory_budget_id: submission.subcategory_budget_id != null ? String(submission.subcategory_budget_id) : "",
-    approved_by: submission.approved_by != null ? String(submission.approved_by) : "",
-    approved_at: formatDateTimeInput(submission.approved_at),
     submitted_at: formatDateTimeInput(submission.submitted_at),
     installment_number_at_submit: submission.installment_number_at_submit != null ? String(submission.installment_number_at_submit) : "",
     admin_approved_by: submission.admin_approved_by != null ? String(submission.admin_approved_by) : "",
@@ -571,12 +555,7 @@ export default function LegacySubmissionManager() {
     admin_rejected_at: formatDateTimeInput(submission.admin_rejected_at),
     admin_rejection_reason: submission.admin_rejection_reason || "",
     admin_comment: submission.admin_comment || "",
-    rejected_by: submission.rejected_by != null ? String(submission.rejected_by) : "",
-    rejected_at: formatDateTimeInput(submission.rejected_at),
-    rejection_reason: submission.rejection_reason || "",
-    comment: submission.comment || "",
     reviewed_at: formatDateTimeInput(submission.reviewed_at),
-    closed_at: formatDateTimeInput(submission.closed_at),
     created_at: formatDateTimeInput(submission.created_at),
     updated_at: formatDateTimeInput(submission.updated_at),
     deleted_at: formatDateTimeInput(submission.deleted_at),
@@ -1552,24 +1531,6 @@ export default function LegacySubmissionManager() {
                   <h3 className="text-sm font-semibold text-gray-700">สถานะการอนุมัติ</h3>
                   <div className="mt-3 grid gap-4 md:grid-cols-2">
                     <div>
-                      <label className="text-xs font-medium text-gray-600">ผู้อนุมัติ (ระบบ)</label>
-                      <input
-                        type="number"
-                        value={form.approved_by}
-                        onChange={(e) => handleFormChange("approved_by", e.target.value)}
-                        className="mt-1 w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-xs font-medium text-gray-600">วันที่อนุมัติ</label>
-                      <input
-                        type="datetime-local"
-                        value={form.approved_at}
-                        onChange={(e) => handleFormChange("approved_at", e.target.value)}
-                        className="mt-1 w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm"
-                      />
-                    </div>
-                    <div>
                       <label className="text-xs font-medium text-gray-600">ผู้ยืนยันฝ่ายผู้ดูแล</label>
                       <input
                         type="number"
@@ -1645,8 +1606,8 @@ export default function LegacySubmissionManager() {
                       <label className="text-xs font-medium text-gray-600">ผู้ไม่เห็นควร (ระบบ)</label>
                       <input
                         type="number"
-                        value={form.rejected_by}
-                        onChange={(e) => handleFormChange("rejected_by", e.target.value)}
+                        value=""
+                        disabled
                         className="mt-1 w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm"
                       />
                     </div>
@@ -1654,8 +1615,8 @@ export default function LegacySubmissionManager() {
                       <label className="text-xs font-medium text-gray-600">วันที่ไม่เห็นควร (ระบบ)</label>
                       <input
                         type="datetime-local"
-                        value={form.rejected_at}
-                        onChange={(e) => handleFormChange("rejected_at", e.target.value)}
+                        value=""
+                        disabled
                         className="mt-1 w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm"
                       />
                     </div>
@@ -1683,15 +1644,6 @@ export default function LegacySubmissionManager() {
                         type="datetime-local"
                         value={form.reviewed_at}
                         onChange={(e) => handleFormChange("reviewed_at", e.target.value)}
-                        className="mt-1 w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-xs font-medium text-gray-600">วันที่ปิดคำร้อง</label>
-                      <input
-                        type="datetime-local"
-                        value={form.closed_at}
-                        onChange={(e) => handleFormChange("closed_at", e.target.value)}
                         className="mt-1 w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm"
                       />
                     </div>
@@ -1737,36 +1689,18 @@ export default function LegacySubmissionManager() {
                       />
                     </div>
                     <div className="grid gap-4 md:grid-cols-2">
-                      <div>
-                        <label className="text-xs font-medium text-gray-600">หมายเหตุฝ่ายผู้ดูแล</label>
-                        <textarea
-                          rows={2}
-                          value={form.admin_comment}
-                          onChange={(e) => handleFormChange("admin_comment", e.target.value)}
-                          className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-xs font-medium text-gray-600">เหตุผลอื่น ๆ</label>
-                        <textarea
-                          rows={2}
-                          value={form.rejection_reason}
-                          onChange={(e) => handleFormChange("rejection_reason", e.target.value)}
-                          className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
-                        />
-                      </div>
-                    </div>
                     <div>
-                      <label className="text-xs font-medium text-gray-600">หมายเหตุคำร้อง</label>
+                      <label className="text-xs font-medium text-gray-600">หมายเหตุฝ่ายผู้ดูแล</label>
                       <textarea
                         rows={2}
-                        value={form.comment}
-                        onChange={(e) => handleFormChange("comment", e.target.value)}
+                        value={form.admin_comment}
+                        onChange={(e) => handleFormChange("admin_comment", e.target.value)}
                         className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
                       />
                     </div>
                   </div>
-                </section>
+                </div>
+              </section>
 
                 <section>
                   <div className="flex items-center justify-between">

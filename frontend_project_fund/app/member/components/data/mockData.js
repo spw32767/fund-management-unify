@@ -24,7 +24,7 @@ export const mockApplications = [
     status: "รอพิจารณา",
     status_code: "pending",
     submitted_at: "2025-06-15T10:30:00",
-    approved_at: null,
+      admin_approved_at: null,
     year: "2568",
     documents: [
       { id: 1, name: "ใบสมัคร.pdf", type: "application", uploaded_at: "2025-06-15T10:25:00" },
@@ -44,10 +44,9 @@ export const mockApplications = [
     status: "อนุมัติ",
     status_code: "approved",
     submitted_at: "2025-05-20T14:20:00",
-    approved_at: "2025-06-01T09:15:00",
+    admin_approved_at: "2025-06-01T09:15:00",
     year: "2568",
-    approved_by: "ผศ.ดร.สมศักดิ์ ศรีสุข",
-    comment: "โครงการมีประโยชน์ต่อการเรียนการสอน อนุมัติงบประมาณ 180,000 บาท"
+    admin_comment: "โครงการมีประโยชน์ต่อการเรียนการสอน อนุมัติงบประมาณ 180,000 บาท"
   },
   {
     application_id: 3,
@@ -61,9 +60,9 @@ export const mockApplications = [
     status: "ไม่อนุมัติ",
     status_code: "rejected",
     submitted_at: "2025-04-10T11:45:00",
-    approved_at: "2025-04-25T16:30:00",
+    admin_approved_at: "2025-04-25T16:30:00",
     year: "2567",
-    comment: "งบประมาณหมวดนี้ได้จัดสรรครบแล้ว"
+    admin_rejection_reason: "งบประมาณหมวดนี้ได้จัดสรรครบแล้ว"
   }
 ];
 

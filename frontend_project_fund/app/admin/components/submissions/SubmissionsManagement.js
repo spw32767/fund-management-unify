@@ -526,7 +526,12 @@ export default function SubmissionsManagement() {
           const statusStr = norm(s.display_status || s.status?.status_name || statusText(s.status_id));
 
           const dateVal =
-            s?.display_date || s?.submitted_at || s?.created_at || s?.approved_at || '';
+            s?.display_date ||
+            s?.submitted_at ||
+            s?.created_at ||
+            s?.admin_approved_at ||
+            s?.head_approved_at ||
+            '';
           const dateStr = dateVal ? new Date(dateVal).toLocaleDateString('th-TH') : '';
 
           const fields = [
@@ -559,7 +564,7 @@ export default function SubmissionsManagement() {
           case 'submitted_at':
             return new Date(s.submitted_at || 0).getTime();
           case 'approved_at':
-            return new Date(s.approved_at || 0).getTime();
+            return new Date(s.admin_approved_at || s.head_approved_at || 0).getTime();
           case 'submission_number':
             return (s.submission_number || '').toString();
           case 'status_id':
@@ -907,10 +912,6 @@ export default function SubmissionsManagement() {
         'admin_approved_at',
         'adminApprovedAt',
       ]);
-      const approvedRaw = readTimestamp([
-        'approved_at',
-        'approvedAt',
-      ]);
       const approvalDateRaw = readTimestamp([
         'approval_date',
         'approvalDate',
@@ -927,7 +928,6 @@ export default function SubmissionsManagement() {
       const approvedAt = formatDateTime(
         pickFirst(
           adminApprovedRaw,
-          approvedRaw,
           approvalDateRaw,
           headApprovedRaw
         )
