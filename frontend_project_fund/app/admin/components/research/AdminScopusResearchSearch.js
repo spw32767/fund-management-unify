@@ -10,18 +10,33 @@ import { downloadXlsx } from "@/app/admin/utils/xlsxExporter";
 const PUB_PAGE_SIZE = 10;
 const EXPORT_COLUMNS = [
   { key: "rowNumber", header: "ลำดับ", width: 8 },
-  { key: "title", header: "ชื่อเรื่อง", width: 60 },
-  { key: "venue", header: "แหล่งเผยแพร่", width: 36 },
-  { key: "citedBy", header: "Cited by", width: 12 },
-  { key: "citeScorePercentile", header: "Percentile", width: 12 },
-  { key: "citeScoreQuartile", header: "Quartile", width: 12 },
-  { key: "year", header: "ปี", width: 10 },
-  { key: "scopusId", header: "Scopus ID", width: 16 },
-  { key: "eid", header: "EID", width: 22 },
-  { key: "doiUrl", header: "DOI/URL", width: 32 },
-  { key: "scopusUrl", header: "Scopus URL", width: 32 },
-  { key: "openAccess", header: "Open Access", width: 14 },
-  { key: "keywords", header: "Keywords", width: 40 },
+  { key: "scopusId", header: "scopus_id", width: 14 },
+  { key: "scopusLink", header: "scopus_link", width: 30 },
+  { key: "title", header: "title", width: 60 },
+  { key: "abstract", header: "abstract", width: 60 },
+  { key: "aggregationType", header: "aggregation_type", width: 18 },
+  { key: "sourceId", header: "source_id", width: 18 },
+  { key: "publicationName", header: "publication_name", width: 36 },
+  { key: "issn", header: "issn", width: 18 },
+  { key: "eissn", header: "eissn", width: 18 },
+  { key: "isbn", header: "isbn", width: 18 },
+  { key: "volume", header: "volume", width: 12 },
+  { key: "issue", header: "issue", width: 12 },
+  { key: "pageRange", header: "page_range", width: 16 },
+  { key: "articleNumber", header: "article_number", width: 18 },
+  { key: "coverDate", header: "cover_date", width: 18 },
+  { key: "doi", header: "doi", width: 22 },
+  { key: "citedBy", header: "citedby_count", width: 12 },
+  { key: "authkeywords", header: "authkeywords", width: 28 },
+  { key: "fundSponsor", header: "fund_sponsor", width: 28 },
+  { key: "citeScoreStatus", header: "cite_score_status", width: 18 },
+  { key: "citeScoreRank", header: "cite_score_rank", width: 14 },
+  { key: "citeScorePercentile", header: "cite_score_percentile", width: 16 },
+  { key: "citeScoreQuartile", header: "cite_score_quartile", width: 16 },
+  { key: "year", header: "publication_year", width: 12 },
+  { key: "eid", header: "eid", width: 22 },
+  { key: "scopusUrl", header: "scopus_url", width: 32 },
+  { key: "doiUrl", header: "doi_url", width: 32 },
 ];
 
 export default function AdminScopusResearchSearch() {
@@ -31,6 +46,7 @@ export default function AdminScopusResearchSearch() {
   const [pubLoading, setPubLoading] = useState(false);
   const [pubError, setPubError] = useState("");
   const [exporting, setExporting] = useState(false);
+  const [exportScope, setExportScope] = useState("filtered");
 
   const fetchPublications = useCallback(
     async (offset = 0) => {
@@ -110,56 +126,77 @@ export default function AdminScopusResearchSearch() {
 
   const buildExportRows = useCallback((items, startOffset = 0) => {
     if (!Array.isArray(items) || items.length === 0) return [];
+    const formatCoverDate = (value) => {
+      if (!value) return "";
+      const date = value instanceof Date ? value : new Date(value);
+      if (Number.isNaN(date.getTime())) return String(value);
+      return date.toISOString().split("T")[0];
+    };
     return items.map((pub, index) => {
       const rowNumber = startOffset + index + 1;
       const citedByValue =
         pub.cited_by !== undefined && pub.cited_by !== null ? pub.cited_by : "";
-      const openAccessFlag =
-        pub.open_access ?? pub.is_open_access ?? pub.openaccess ?? pub.openAccess;
       const keywords = Array.isArray(pub.keywords)
         ? pub.keywords.join("; ")
-        : pub.keywords || "";
+        : pub.keywords || pub.authkeywords || "";
+      const coverDate = pub.cover_date || pub.coverDate || null;
+      const coverYear = (() => {
+        if (!coverDate) return "";
+        const date = coverDate instanceof Date ? coverDate : new Date(coverDate);
+        return Number.isNaN(date.getTime()) ? "" : date.getFullYear();
+      })();
 
       return {
         rowNumber,
+        scopusId: pub.scopus_id || pub.scopusID || "",
+        scopusLink: pub.scopus_url || pub.scopus_link || "",
         title: pub.title || "",
-        venue: pub.venue || pub.publication_name || "",
+        abstract: pub.abstract || "",
+        aggregationType: pub.aggregation_type || "",
+        sourceId: pub.source_id || "",
+        publicationName: pub.publication_name || pub.venue || "",
+        issn: pub.issn || "",
+        eissn: pub.eissn || "",
+        isbn: pub.isbn || "",
+        volume: pub.volume || "",
+        issue: pub.issue || "",
+        pageRange: pub.page_range || "",
+        articleNumber: pub.article_number || "",
+        coverDate: formatCoverDate(coverDate),
+        doi: pub.doi || "",
         citedBy: citedByValue,
+        authkeywords: keywords,
+        fundSponsor: pub.fund_sponsor || "",
+        citeScoreStatus:
+          pub.cite_score_status ?? pub.scopus_source_metrics?.cite_score_status ?? "",
+        citeScoreRank: pub.cite_score_rank ?? pub.scopus_source_metrics?.cite_score_rank ?? "",
         citeScorePercentile:
           pub.cite_score_percentile ?? pub.scopus_source_metrics?.cite_score_percentile ?? "",
         citeScoreQuartile:
           (pub.cite_score_quartile || pub.scopus_source_metrics?.cite_score_quartile || "")?.toUpperCase(),
-        year: pub.publication_year || pub.coverDate || "",
-        scopusId: pub.scopus_id || pub.scopusID || "",
+        year: pub.publication_year || coverYear,
         eid: pub.eid || "",
-        doiUrl: pub.doi || pub.doi_url || pub.url || "",
         scopusUrl: pub.scopus_url || "",
-        openAccess:
-          openAccessFlag === undefined || openAccessFlag === null
-            ? ""
-            : openAccessFlag
-            ? "Yes"
-            : "No",
-        keywords,
+        doiUrl: pub.doi || pub.doi_url || pub.url || "",
       };
     });
   }, []);
 
   const hasExportableData = useMemo(() => (pubMeta?.total || 0) > 0, [pubMeta?.total]);
 
-  const handleExport = useCallback(async () => {
-    if (!hasExportableData) return;
+  const handleExport = useCallback(async (scope = exportScope) => {
+    if (scope !== "all" && !hasExportableData) return;
     setExporting(true);
     try {
-      const query = pubQuery.trim();
+      const query = scope === "all" ? "" : pubQuery.trim();
       const limit = pubMeta?.limit || PUB_PAGE_SIZE;
       let offset = 0;
-      let total = pubMeta?.total || 0;
+      let total = scope === "all" ? undefined : pubMeta?.total || 0;
       const allRows = [];
 
-      while (offset === 0 || offset < total) {
+      while (true) {
         const params = { limit, offset, sort: "year", direction: "desc" };
-        if (query) {
+        if (scope !== "all" && query) {
           params.q = query;
         }
 
@@ -175,6 +212,10 @@ export default function AdminScopusResearchSearch() {
           break;
         }
         offset += pageLimit;
+
+        if (total !== undefined && offset >= total) {
+          break;
+        }
       }
 
       if (allRows.length === 0) {
@@ -195,7 +236,7 @@ export default function AdminScopusResearchSearch() {
     } finally {
       setExporting(false);
     }
-  }, [buildExportRows, hasExportableData, pubMeta?.limit, pubMeta?.total, pubQuery]);
+  }, [buildExportRows, exportScope, hasExportableData, pubMeta?.limit, pubMeta?.total, pubQuery]);
 
   return (
     <PageLayout
@@ -225,6 +266,20 @@ export default function AdminScopusResearchSearch() {
                 }}
               />
             </div>
+            <div className="flex items-center gap-2">
+              <label className="text-xs font-semibold text-slate-600" htmlFor="export-scope">
+                ส่งออก:
+              </label>
+              <select
+                id="export-scope"
+                className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-slate-500 focus:outline-none focus:ring-2 focus:ring-slate-200"
+                value={exportScope}
+                onChange={(e) => setExportScope(e.target.value)}
+              >
+                <option value="filtered">ผลลัพธ์ตามตัวกรอง</option>
+                <option value="all">ข้อมูลทั้งหมด</option>
+              </select>
+            </div>
             <button
               type="button"
               onClick={() => fetchPublications(0)}
@@ -235,8 +290,8 @@ export default function AdminScopusResearchSearch() {
             </button>
             <button
               type="button"
-              onClick={handleExport}
-              disabled={exporting || !hasExportableData}
+              onClick={() => handleExport(exportScope)}
+              disabled={exporting || (exportScope !== "all" && !hasExportableData)}
               className="inline-flex items-center justify-center rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-800 shadow-sm transition hover:border-slate-400 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {exporting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}ส่งออก Excel
