@@ -7,3 +7,5 @@
   END IF;
   `head_revision_request` text DEFAULT NULL,
   `admin_revision_request` text DEFAULT NULL,
+DROP TRIGGER IF EXISTS `trg_submissions_sync_legacy`;
+CREATE TRIGGER `trg_submissions_sync_legacy` AFTER UPDATE ON `submissions` FOR EACH ROW BEGIN
