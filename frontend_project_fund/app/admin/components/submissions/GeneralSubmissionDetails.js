@@ -1987,7 +1987,9 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
   };
 
   const reject = async (reason) => {
-    await adminSubmissionAPI.rejectSubmission(submission.submission_id, { admin_rejection_reason: reason });
+    await adminSubmissionAPI.rejectSubmission(submission.submission_id, {
+      admin_rejection_reason: reason,
+    });
     // แจ้งเตือนผู้ยื่น: ไม่อนุมัติ
     try {
       await notificationsAPI.notifySubmissionRejected(
@@ -2008,6 +2010,7 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
       payload.revision_comment = trimmed;
       payload.reason = trimmed;
       payload.admin_comment = trimmed;
+      payload.admin_revision_request = trimmed;
     }
 
     await adminSubmissionAPI.requestRevision(submission.submission_id, payload);

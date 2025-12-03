@@ -634,10 +634,21 @@ func RejectSubmission(c *gin.Context) {
 	userID, _ := c.Get("userID")
 
 	var req struct {
-		RejectionReason string `json:"rejection_reason" binding:"required"`
-		Comment         string `json:"comment"` // ออปชัน
+		AdminRejectionReason string `json:"admin_rejection_reason"`
+		RejectionReason      string `json:"rejection_reason"` // fallback from legacy clients
+		Comment              string `json:"comment"`          // ออปชัน
 	}
-	if err := c.ShouldBindJSON(&req); err != nil || strings.TrimSpace(req.RejectionReason) == "" {
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Rejection reason is required"})
+		return
+	}
+
+	rejectionReason := strings.TrimSpace(req.AdminRejectionReason)
+	if rejectionReason == "" {
+		rejectionReason = strings.TrimSpace(req.RejectionReason)
+	}
+
+	if rejectionReason == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Rejection reason is required"})
 		return
 	}
@@ -676,7 +687,7 @@ func RejectSubmission(c *gin.Context) {
 		"updated_at":             now,
 		"admin_rejected_by":      adminID,
 		"admin_rejected_at":      now,
-		"admin_rejection_reason": strings.TrimSpace(req.RejectionReason),
+		"admin_rejection_reason": rejectionReason,
 	}
 	if strings.TrimSpace(req.Comment) != "" {
 		updates["admin_comment"] = strings.TrimSpace(req.Comment)
@@ -691,7 +702,7 @@ func RejectSubmission(c *gin.Context) {
 	}
 
 	// Audit
-	desc := req.RejectionReason
+	desc := rejectionReason
 	if err := tx.Create(&models.AuditLog{
 		UserID:       *adminID,
 		Action:       "reject",
@@ -730,18 +741,39 @@ func RequestSubmissionRevision(c *gin.Context) {
 	}
 
 	var req struct {
-		Comment string `json:"comment"`
-		Reason  string `json:"reason"`
+		Comment              string  `json:"comment"`
+		Reason               string  `json:"reason"`
+		RequestComment       *string `json:"request_comment"`
+		RevisionComment      *string `json:"revision_comment"`
+		AdminRevisionRequest *string `json:"admin_revision_request"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil && !strings.Contains(err.Error(), "EOF") {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request payload"})
 		return
 	}
 
-	message := strings.TrimSpace(req.Comment)
-	if message == "" {
-		message = strings.TrimSpace(req.Reason)
+	pick := func(values ...string) string {
+		for _, v := range values {
+			if strings.TrimSpace(v) != "" {
+				return strings.TrimSpace(v)
+			}
+		}
+		return ""
 	}
+
+	optionalStrings := func(values ...*string) string {
+		for _, v := range values {
+			if v == nil {
+				continue
+			}
+			if trimmed := strings.TrimSpace(*v); trimmed != "" {
+				return trimmed
+			}
+		}
+		return ""
+	}
+
+	message := pick(optionalStrings(req.AdminRevisionRequest, req.RevisionComment, req.RequestComment), req.Comment, req.Reason)
 	if message == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Revision comment is required"})
 		return
@@ -789,6 +821,7 @@ func RequestSubmissionRevision(c *gin.Context) {
 		"reviewed_at":            now,
 		"submitted_at":           gorm.Expr("NULL"),
 		"admin_comment":          message,
+		"admin_revision_request": message,
 		"admin_approved_by":      gorm.Expr("NULL"),
 		"admin_approved_at":      gorm.Expr("NULL"),
 		"admin_rejected_by":      gorm.Expr("NULL"),

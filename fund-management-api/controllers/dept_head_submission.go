@@ -264,12 +264,24 @@ func DeptHeadRejectSubmission(c *gin.Context) {
 	}
 
 	var req struct {
-		RejectionReason string  `json:"rejection_reason" binding:"required"`
-		HeadComment     *string `json:"head_comment"`
-		Comment         *string `json:"comment"` // เผื่อของเก่าส่งมา
-		HeadSignature   string  `json:"head_signature"`
+		HeadRejectionReason string  `json:"head_rejection_reason"`
+		RejectionReason     string  `json:"rejection_reason"` // fallback from legacy clients
+		HeadComment         *string `json:"head_comment"`
+		Comment             *string `json:"comment"` // เผื่อของเก่าส่งมา
+		HeadSignature       string  `json:"head_signature"`
 	}
-	if err := c.ShouldBindJSON(&req); err != nil || strings.TrimSpace(req.RejectionReason) == "" {
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Rejection reason is required"})
+		return
+	}
+
+	rejectionReason := strings.TrimSpace(req.HeadRejectionReason)
+	if rejectionReason == "" {
+		rejectionReason = strings.TrimSpace(req.RejectionReason)
+	}
+
+	if rejectionReason == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Rejection reason is required"})
 		return
 	}
@@ -325,7 +337,7 @@ func DeptHeadRejectSubmission(c *gin.Context) {
 
 		"head_rejected_by":      userID,
 		"head_rejected_at":      now,
-		"head_rejection_reason": strings.TrimSpace(req.RejectionReason),
+		"head_rejection_reason": rejectionReason,
 	}
 	if headComment != "" {
 		updates["head_comment"] = headComment
@@ -386,9 +398,13 @@ func DeptHeadRequestRevision(c *gin.Context) {
 	}
 
 	var req struct {
-		Comment       *string `json:"comment"`
-		HeadComment   *string `json:"head_comment"`
-		HeadSignature string  `json:"head_signature"`
+		Comment             *string `json:"comment"`
+		HeadComment         *string `json:"head_comment"`
+		HeadSignature       string  `json:"head_signature"`
+		RequestComment      *string `json:"request_comment"`
+		RevisionComment     *string `json:"revision_comment"`
+		HeadRevisionRequest *string `json:"head_revision_request"`
+		Reason              *string `json:"reason"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil && !strings.Contains(err.Error(), "EOF") {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request payload"})
@@ -407,7 +423,7 @@ func DeptHeadRequestRevision(c *gin.Context) {
 		return ""
 	}
 
-	message := pick(req.HeadComment, req.Comment)
+	message := pick(req.HeadRevisionRequest, req.RevisionComment, req.RequestComment, req.Reason, req.HeadComment, req.Comment)
 	if message == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Revision comment is required"})
 		return
@@ -457,6 +473,7 @@ func DeptHeadRequestRevision(c *gin.Context) {
 		"reviewed_at":           now,
 		"submitted_at":          gorm.Expr("NULL"),
 		"head_comment":          message,
+		"head_revision_request": message,
 		"head_approved_by":      gorm.Expr("NULL"),
 		"head_approved_at":      gorm.Expr("NULL"),
 		"head_rejected_by":      gorm.Expr("NULL"),
@@ -657,10 +674,6 @@ func buildSubmissionDetailPayload(submissionID int) (gin.H, error) {
 		"admin_rejected_at":      submission.AdminRejectedAt,
 		"admin_rejection_reason": submission.AdminRejectionReason,
 		"admin_comment":          submission.AdminComment,
-
-		"rejected_by":      submission.RejectedBy,
-		"rejected_at":      submission.RejectedAt,
-		"rejection_reason": submission.RejectionReason,
 
 		"category_id":           submission.CategoryID,
 		"subcategory_id":        submission.SubcategoryID,
