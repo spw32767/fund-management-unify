@@ -53,3 +53,5 @@ SELECT
 FROM `submissions` `s`
          JOIN `fund_application_details` `fad` ON `s`.`submission_id` = `fad`.`submission_id`
 WHERE `s`.`submission_type` = 'fund_application';
+  DROP COLUMN `closed_at`,
+  DROP COLUMN `comment`;
