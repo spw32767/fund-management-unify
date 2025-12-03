@@ -1568,6 +1568,22 @@ func normalizeCategoryName(value string) string {
 	return cleaned
 }
 
+func normalizeFundStatus(value string) string {
+	normalized := strings.ToLower(strings.TrimSpace(value))
+	if normalized == "" {
+		return ""
+	}
+
+	switch normalized {
+	case utils.StatusCodeAdminClosed, "closed", "admin_closed", "ปิดทุน":
+		return "closed"
+	case utils.StatusCodeApproved, "approved", "อนุมัติ":
+		return "approved"
+	default:
+		return normalized
+	}
+}
+
 func submissionMatchesResearchFundCategoryID(submission *models.Submission) bool {
 	if submission == nil {
 		return false
