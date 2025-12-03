@@ -888,8 +888,10 @@ export const adminSubmissionAPI = {
     );
 
     const body = response?.data || response;
-    const totals = normalizeResearchFundTotals(body?.totals || body);
-    const events = Array.isArray(body?.events)
+    const totals = normalizeResearchFundTotals(
+      body?.summary || body?.totals || body
+    );
+      const events = Array.isArray(body?.events)
       ? body.events.map((item) => normalizeResearchFundEvent(item))
       : undefined;
 

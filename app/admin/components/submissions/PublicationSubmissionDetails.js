@@ -2088,7 +2088,9 @@ export default function PublicationSubmissionDetails({ submissionId, onBack }) {
   };
 
   const reject = async (reason) => {
-    await adminSubmissionAPI.rejectSubmission(submission.submission_id, { admin_rejection_reason: reason });
+    await adminSubmissionAPI.rejectSubmission(submission.submission_id, {
+      admin_rejection_reason: reason,
+    });
     // reload
     const res = await adminSubmissionAPI.getSubmissionDetails(submission.submission_id);
     let data = res?.submission || res;
