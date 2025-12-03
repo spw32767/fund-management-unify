@@ -889,6 +889,7 @@ func CreateResearchFundEvent(c *gin.Context) {
 	}
 
 	comment := strings.TrimSpace(c.PostForm("comment"))
+	requestedStatus := normalizeFundStatus(c.PostForm("status"))
 
 	var amountPtr *float64
 	if eventType == models.ResearchFundEventTypePayment {
@@ -924,6 +925,12 @@ func CreateResearchFundEvent(c *gin.Context) {
 	var createdEvent models.ResearchFundAdminEvent
 	var savedPaths []string
 
+	shouldApplyStatusChange := false
+	var submissionStatusUpdates map[string]any
+	var detailStatusUpdates map[string]any
+	var statusAfterID *int
+	closureComment := comment
+
 	err = config.DB.Transaction(func(tx *gorm.DB) error {
 		var current models.Submission
 		if err := tx.Select("status_id").First(&current, "submission_id = ?", submission.SubmissionID).Error; err != nil {
@@ -947,16 +954,70 @@ func CreateResearchFundEvent(c *gin.Context) {
 			}
 		}
 
+		approvedStatusID, err := utils.GetStatusIDByCode(utils.StatusCodeApproved)
+		if err != nil {
+			return err
+		}
+		closedStatusID, err := utils.GetStatusIDByCode(utils.StatusCodeAdminClosed)
+		if err != nil {
+			return err
+		}
+
+		requestedClosure := requestedStatus == "closed"
+		requestingReopen := requestedStatus == "approved" && closed
+
+		if requestedClosure || requestingReopen {
+			closingAllowed := true
+			if !closed {
+				if err := utils.EnsureStatusIn(current.StatusID, utils.StatusCodeApproved); err != nil {
+					closingAllowed = false
+				}
+			}
+
+			submissionStatusUpdates, detailStatusUpdates, closureComment, statusAfterID, err = applyClosureTransition(
+				submission,
+				closed,
+				approvedStatusID,
+				closedStatusID,
+				now,
+				comment,
+				closingAllowed,
+			)
+			if err != nil {
+				return err
+			}
+
+			shouldApplyStatusChange = len(submissionStatusUpdates) > 0 || len(detailStatusUpdates) > 0 || statusAfterID != nil
+		}
+
 		if err := validateResearchFundEvent(submission, eventType, amountPtr, len(files), totalPaid, closed); err != nil {
 			return err
 		}
 
+		if shouldApplyStatusChange {
+			if len(submissionStatusUpdates) > 0 {
+				if err := tx.Model(&models.Submission{}).
+					Where("submission_id = ?", submission.SubmissionID).
+					Updates(submissionStatusUpdates).Error; err != nil {
+					return err
+				}
+			}
+			if len(detailStatusUpdates) > 0 {
+				if err := tx.Model(&models.FundApplicationDetail{}).
+					Where("submission_id = ?", submission.SubmissionID).
+					Updates(detailStatusUpdates).Error; err != nil {
+					return err
+				}
+			}
+		}
+
 		event := models.ResearchFundAdminEvent{
-			SubmissionID: submission.SubmissionID,
-			Comment:      comment,
-			Amount:       amountPtr,
-			CreatedBy:    userID,
-			CreatedAt:    now,
+			SubmissionID:  submission.SubmissionID,
+			Comment:       closureComment,
+			Amount:        amountPtr,
+			CreatedBy:     userID,
+			CreatedAt:     now,
+			StatusAfterID: statusAfterID,
 		}
 		if err := tx.Create(&event).Error; err != nil {
 			return err
@@ -1287,7 +1348,8 @@ func validateResearchFundEvent(submission *models.Submission, eventType string, 
 			return errSubmissionClosedForPayments
 		}
 		if existingPaid+*amount > submission.FundApplicationDetail.ApprovedAmount+1e-6 {
-			return errPaymentCapExceeded
+			remaining := math.Max(0, submission.FundApplicationDetail.ApprovedAmount-existingPaid)
+			return fmt.Errorf("%w: remaining allowance is %.2f", errPaymentCapExceeded, remaining)
 		}
 	default:
 		if !isValidResearchFundEventType(eventType) {
@@ -1505,6 +1567,22 @@ func normalizeCategoryName(value string) string {
 		return r
 	}, lowered)
 	return cleaned
+}
+
+func normalizeFundStatus(value string) string {
+	normalized := strings.ToLower(strings.TrimSpace(value))
+	if normalized == "" {
+		return ""
+	}
+
+	switch normalized {
+	case utils.StatusCodeAdminClosed, "closed", "admin_closed", "ปิดทุน":
+		return "closed"
+	case utils.StatusCodeApproved, "approved", "อนุมัติ":
+		return "approved"
+	default:
+		return normalized
+	}
 }
 
 func submissionMatchesResearchFundCategoryID(submission *models.Submission) bool {
