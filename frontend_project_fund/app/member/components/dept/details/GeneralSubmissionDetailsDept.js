@@ -404,7 +404,8 @@ function DecisionDropdown({ value, onChange, disabled = false, className = '' })
  * ========================= */
 function DeptDecisionPanel({ submission, onApprove, onReject, onRequestRevision, onBack }) {
   const [comment, setComment] = useState(
-    submission?.head_comment ??
+    submission?.head_revision_request ??
+      submission?.head_comment ??
       submission?.department_head_comment ??
       submission?.dept_head_comment ??
       ''
@@ -1294,6 +1295,7 @@ export default function GeneralSubmissionDetailsDept({ submissionId, onBack }) {
       payload.request_comment = trimmedMessage;
       payload.revision_comment = trimmedMessage;
       payload.reason = trimmedMessage;
+      payload.head_revision_request = trimmedMessage;
     }
     if (trimmedComment) {
       payload.head_comment = trimmedComment;

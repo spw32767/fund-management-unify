@@ -39,6 +39,7 @@ type Submission struct {
 	HeadRejectedAt      *time.Time `gorm:"column:head_rejected_at" json:"head_rejected_at,omitempty"`
 	HeadRejectionReason *string    `gorm:"column:head_rejection_reason" json:"head_rejection_reason,omitempty"`
 	HeadComment         *string    `gorm:"column:head_comment" json:"head_comment,omitempty"`
+	HeadRevisionRequest *string    `gorm:"column:head_revision_request" json:"head_revision_request,omitempty"`
 	HeadSignature       *string    `gorm:"column:head_signature" json:"head_signature,omitempty"`
 
 	// ===== ADD: Admin rejection (split) =====
@@ -46,6 +47,7 @@ type Submission struct {
 	AdminRejectedAt      *time.Time `gorm:"column:admin_rejected_at" json:"admin_rejected_at,omitempty"`
 	AdminRejectionReason *string    `gorm:"column:admin_rejection_reason" json:"admin_rejection_reason,omitempty"`
 	AdminComment         *string    `gorm:"column:admin_comment" json:"admin_comment,omitempty"`
+	AdminRevisionRequest *string    `gorm:"column:admin_revision_request" json:"admin_revision_request,omitempty"`
 
 	// --- อนุมัติของหัวหน้าสาขา ---
 	HeadApprovedBy *int       `gorm:"column:head_approved_by" json:"head_approved_by,omitempty"`

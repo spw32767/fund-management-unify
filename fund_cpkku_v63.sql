@@ -5,3 +5,5 @@
           approved_at = NEW.admin_approved_at
     WHERE submission_id = NEW.submission_id;
   END IF;
+  `head_revision_request` text DEFAULT NULL,
+  `admin_revision_request` text DEFAULT NULL,

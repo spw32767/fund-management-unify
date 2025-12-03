@@ -2110,6 +2110,7 @@ export default function PublicationSubmissionDetails({ submissionId, onBack }) {
       payload.revision_comment = trimmed;
       payload.reason = trimmed;
       payload.admin_comment = trimmed;
+      payload.admin_revision_request = trimmed;
     }
 
     await adminSubmissionAPI.requestRevision(submission.submission_id, payload);

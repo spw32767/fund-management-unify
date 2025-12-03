@@ -398,9 +398,13 @@ func DeptHeadRequestRevision(c *gin.Context) {
 	}
 
 	var req struct {
-		Comment       *string `json:"comment"`
-		HeadComment   *string `json:"head_comment"`
-		HeadSignature string  `json:"head_signature"`
+		Comment             *string `json:"comment"`
+		HeadComment         *string `json:"head_comment"`
+		HeadSignature       string  `json:"head_signature"`
+		RequestComment      *string `json:"request_comment"`
+		RevisionComment     *string `json:"revision_comment"`
+		HeadRevisionRequest *string `json:"head_revision_request"`
+		Reason              *string `json:"reason"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil && !strings.Contains(err.Error(), "EOF") {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request payload"})
@@ -419,7 +423,7 @@ func DeptHeadRequestRevision(c *gin.Context) {
 		return ""
 	}
 
-	message := pick(req.HeadComment, req.Comment)
+	message := pick(req.HeadRevisionRequest, req.RevisionComment, req.RequestComment, req.Reason, req.HeadComment, req.Comment)
 	if message == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Revision comment is required"})
 		return
@@ -469,6 +473,7 @@ func DeptHeadRequestRevision(c *gin.Context) {
 		"reviewed_at":           now,
 		"submitted_at":          gorm.Expr("NULL"),
 		"head_comment":          message,
+		"head_revision_request": message,
 		"head_approved_by":      gorm.Expr("NULL"),
 		"head_approved_at":      gorm.Expr("NULL"),
 		"head_rejected_by":      gorm.Expr("NULL"),
