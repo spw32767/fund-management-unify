@@ -13,6 +13,8 @@ const EXPORT_COLUMNS = [
   { key: "title", header: "ชื่อเรื่อง", width: 60 },
   { key: "venue", header: "แหล่งเผยแพร่", width: 36 },
   { key: "citedBy", header: "Cited by", width: 12 },
+  { key: "citeScorePercentile", header: "Percentile", width: 12 },
+  { key: "citeScoreQuartile", header: "Quartile", width: 12 },
   { key: "year", header: "ปี", width: 10 },
   { key: "scopusId", header: "Scopus ID", width: 16 },
   { key: "eid", header: "EID", width: 22 },
@@ -83,6 +85,29 @@ export default function AdminScopusResearchSearch() {
     return new Intl.NumberFormat("th-TH").format(num);
   };
 
+  const formatPercentile = (value) => {
+    if (value === null || value === undefined) return null;
+    const num = Number(value);
+    if (!Number.isFinite(num)) return null;
+    return formatNumber(num);
+  };
+
+  const quartileBadgeClass = (quartile) => {
+    const normalized = quartile?.toUpperCase();
+    switch (normalized) {
+      case "Q1":
+        return "bg-emerald-100 text-emerald-700";
+      case "Q2":
+        return "bg-sky-100 text-sky-700";
+      case "Q3":
+        return "bg-amber-100 text-amber-700";
+      case "Q4":
+        return "bg-rose-100 text-rose-700";
+      default:
+        return "bg-gray-100 text-gray-600";
+    }
+  };
+
   const buildExportRows = useCallback((items, startOffset = 0) => {
     if (!Array.isArray(items) || items.length === 0) return [];
     return items.map((pub, index) => {
@@ -100,6 +125,10 @@ export default function AdminScopusResearchSearch() {
         title: pub.title || "",
         venue: pub.venue || pub.publication_name || "",
         citedBy: citedByValue,
+        citeScorePercentile:
+          pub.cite_score_percentile ?? pub.scopus_source_metrics?.cite_score_percentile ?? "",
+        citeScoreQuartile:
+          (pub.cite_score_quartile || pub.scopus_source_metrics?.cite_score_quartile || "")?.toUpperCase(),
         year: pub.publication_year || pub.coverDate || "",
         scopusId: pub.scopus_id || pub.scopusID || "",
         eid: pub.eid || "",
@@ -246,6 +275,8 @@ export default function AdminScopusResearchSearch() {
                           <th className="w-14 px-4 py-2 text-center font-medium text-gray-700">ลำดับ</th>
                           <th className="px-4 py-2 text-left font-medium text-gray-700">ชื่อเรื่อง</th>
                           <th className="w-24 px-4 py-2 text-right font-medium text-gray-700">Cited by</th>
+                          <th className="w-28 px-4 py-2 text-center font-medium text-gray-700">Percentile</th>
+                          <th className="w-28 px-4 py-2 text-center font-medium text-gray-700">Quartile</th>
                           <th className="w-20 px-4 py-2 text-center font-medium text-gray-700">ปี</th>
                           <th className="w-32 px-4 py-2 text-left font-medium text-gray-700">ลิงก์</th>
                         </tr>
@@ -256,6 +287,10 @@ export default function AdminScopusResearchSearch() {
                           const citedByValue = pub.cited_by !== undefined && pub.cited_by !== null ? pub.cited_by : null;
                           const yearValue = pub.publication_year || "-";
                           const scopusUrl = pub.scopus_url;
+                          const citeScorePercentile =
+                            pub.cite_score_percentile ?? pub.scopus_source_metrics?.cite_score_percentile;
+                          const citeScoreQuartile =
+                            pub.cite_score_quartile ?? pub.scopus_source_metrics?.cite_score_quartile;
                           const linkLabel = pub.title || pub.venue || pub.publication_name || "ไม่ระบุชื่อเรื่อง";
 
                           const titleContent = scopusUrl ? (
@@ -290,6 +325,28 @@ export default function AdminScopusResearchSearch() {
                                 </div>
                               </td>
                               <td className="px-4 py-2 text-right text-gray-700">{citedByValue ?? "-"}</td>
+                              <td className="px-4 py-2 text-center text-gray-700">
+                                {formatPercentile(citeScorePercentile) ? (
+                                  <span className="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-1 text-[11px] font-medium text-gray-700">
+                                    Percentile {formatPercentile(citeScorePercentile)}
+                                  </span>
+                                ) : (
+                                  <span className="text-gray-400">-</span>
+                                )}
+                              </td>
+                              <td className="px-4 py-2 text-center text-gray-700">
+                                {citeScoreQuartile ? (
+                                  <span
+                                    className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ${quartileBadgeClass(
+                                      citeScoreQuartile,
+                                    )}`}
+                                  >
+                                    Quartile {citeScoreQuartile.toUpperCase()}
+                                  </span>
+                                ) : (
+                                  <span className="text-gray-400">-</span>
+                                )}
+                              </td>
                               <td className="px-4 py-2 text-center text-gray-700">{yearValue}</td>
                               <td className="px-4 py-2">
                                 <div className="flex flex-wrap gap-2 text-xs">
