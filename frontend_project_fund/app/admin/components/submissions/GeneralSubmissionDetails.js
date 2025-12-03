@@ -1738,6 +1738,13 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
     return Math.max(researchApprovedAmount - (researchPaidAmount + researchPendingAmount), 0);
   })();
 
+  const maxAmountByRemaining = useMemo(() => {
+    const remaining = Number(researchRemainingAmount);
+    if (!Number.isFinite(remaining)) return MAX_ALLOWED_AMOUNT;
+    const safeRemaining = Math.max(0, remaining);
+    return Math.min(MAX_ALLOWED_AMOUNT, safeRemaining);
+  }, [researchRemainingAmount]);
+
   const eventAmountNumber = useMemo(() => {
     const n = Number(eventForm?.amount);
     if (!Number.isFinite(n) || n < 0) return 0;
@@ -1809,6 +1816,8 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
         updated.amount = 'จำนวนเงินต้องไม่ติดลบ';
       } else if (numeric > MAX_ALLOWED_AMOUNT) {
         updated.amount = `จำนวนเงินต้องไม่เกิน ${baht(MAX_ALLOWED_AMOUNT)}`;
+      } else if (numeric - maxAmountByRemaining > 1e-6) {
+        updated.amount = `จำนวนเงินต้องไม่เกินยอดอนุมัติคงเหลือปัจจุบัน (${baht(Math.max(maxAmountByRemaining, 0))})`;
       } else {
         updated.amount = undefined;
       }
@@ -1856,6 +1865,8 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
       errors.amount = 'จำนวนเงินต้องไม่ติดลบ';
     } else if (amountValue > MAX_ALLOWED_AMOUNT) {
       errors.amount = `จำนวนเงินต้องไม่เกิน ${baht(MAX_ALLOWED_AMOUNT)}`;
+    } else if (amountValue - maxAmountByRemaining > 1e-6) {
+      errors.amount = `จำนวนเงินต้องไม่เกินยอดอนุมัติคงเหลือปัจจุบัน (${baht(Math.max(maxAmountByRemaining, 0))})`;
     }
 
     if (!normalizedStatus || !['approved', 'closed'].includes(normalizedStatus)) {
@@ -2729,7 +2740,7 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
                   <input
                     type="number"
                     min="0"
-                    max={MAX_ALLOWED_AMOUNT}
+                    max={maxAmountByRemaining}
                     step="0.01"
                     value={eventForm.amount}
                     onChange={handleEventAmountChange}
