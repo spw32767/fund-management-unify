@@ -1058,6 +1058,10 @@ export const scopusConfigAPI = {
     const res = await apiClient.post('/admin/scopus/metrics/backfill');
     return res.summary || res;
   },
+  async refreshMetrics() {
+    const res = await apiClient.post('/admin/scopus/metrics/refresh');
+    return res.summary || res;
+  },
 };
 
 export const usersAPI = {
