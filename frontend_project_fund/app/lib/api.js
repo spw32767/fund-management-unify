@@ -1003,6 +1003,9 @@ export const publicationsAPI = {
   async searchScholarAuthorsAdmin(q) {
     return apiClient.get('/admin/user-publications/scholar/search', { q });
   },
+  async getScholarImportRuns(params = {}) {
+    return apiClient.get('/admin/user-publications/import/scholar/runs', params);
+  },
   async searchScopusPublications(params = {}) {
     return apiClient.get('/admin/publications/scopus', params);
   },
