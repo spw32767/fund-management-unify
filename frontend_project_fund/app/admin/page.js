@@ -15,20 +15,26 @@ import ProjectsContent from "./components/projects/ProjectsContent";
 import UnderDevelopmentContent from "./components/common/UnderDevelopmentContent";
 import SubmissionsManagement from "./components/submissions/SubmissionsManagement";
 import LegacySubmissionManager from "./components/submissions/legacy/LegacySubmissionManager";
-import AdminPublicationsImport from "./components/settings/announcement_config/AdminPublicationsImport";
-import AdminKkuPeopleScraper from "./components/settings/announcement_config/AdminKkuPeopleScraper";
-import AdminScopusImport from "./components/settings/announcement_config/AdminScopusImport";
+import AdminAcademicImports from "./components/settings/announcement_config/AdminAcademicImports";
 import AdminScopusResearchSearch from "./components/research/AdminScopusResearchSearch";
 import ApprovalRecords from "./components/approves/ApprovalRecords";
 import AdminNotificationCenter from "./components/notifications/NotificationCenter";
+
+const IMPORT_TAB_MAP = {
+  'publications-import': 'scholar',
+  'scopus-import': 'scopus',
+  'kku-people-scraper': 'kku-profile',
+};
 
 function AdminPageContent({ initialPage = 'dashboard' }) {
   const [isOpen, setIsOpen] = useState(false);
   const [submenuOpen, setSubmenuOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState(initialPage);
+  const [importTab, setImportTab] = useState('scholar');
   const pathname = usePathname();
 
   const normalizePage = useCallback((page) => {
+    const canonicalPage = IMPORT_TAB_MAP[page] ? 'academic-imports' : page;
     const allowedPages = [
       'dashboard',
       'research-fund',
@@ -39,14 +45,11 @@ function AdminPageContent({ initialPage = 'dashboard' }) {
       'fund-settings',
       'projects',
       'approval-records',
-      'publications-import',
-      'scopus-import',
-      'scopus-research-search',
-      'kku-people-scraper',
+      'academic-imports',
       'notifications',
     ];
 
-    return allowedPages.includes(page) ? page : 'dashboard';
+    return allowedPages.includes(canonicalPage) ? canonicalPage : 'dashboard';
   }, []);
 
   const pageFromPath = useCallback(
@@ -78,30 +81,56 @@ function AdminPageContent({ initialPage = 'dashboard' }) {
 
   useEffect(() => {
     const normalized = normalizePage(initialPage);
+    const initialTab = IMPORT_TAB_MAP[initialPage];
+
+    if (normalized === 'academic-imports' && initialTab) {
+      setImportTab(initialTab);
+    }
+
     setCurrentPage(normalized);
     syncPathWithPage(normalized, { replace: true });
   }, [initialPage, normalizePage, syncPathWithPage]);
 
   useEffect(() => {
     const pageFromUrl = pageFromPath(pathname);
-    setCurrentPage(pageFromUrl);
-  }, [pageFromPath, pathname]);
+    const normalized = normalizePage(pageFromUrl);
+    const initialTab = IMPORT_TAB_MAP[pageFromUrl];
+
+    if (normalized === 'academic-imports' && initialTab) {
+      setImportTab(initialTab);
+    }
+
+    setCurrentPage(normalized);
+  }, [normalizePage, pageFromPath, pathname]);
 
   useEffect(() => {
     const handlePopState = () => {
       const pageFromUrl = pageFromPath(window.location.pathname);
-      setCurrentPage(pageFromUrl);
+      const normalized = normalizePage(pageFromUrl);
+      const initialTab = IMPORT_TAB_MAP[pageFromUrl];
+
+      if (normalized === 'academic-imports' && initialTab) {
+        setImportTab(initialTab);
+      }
+
+      setCurrentPage(normalized);
     };
 
     window.addEventListener('popstate', handlePopState);
     return () => {
       window.removeEventListener('popstate', handlePopState);
     };
-  }, [pageFromPath]);
+  }, [normalizePage, pageFromPath]);
 
   const handleNavigate = (page) => {
-    setCurrentPage(page);
-    syncPathWithPage(page);
+    const normalized = normalizePage(page);
+
+    if (normalized === 'academic-imports' && IMPORT_TAB_MAP[page]) {
+      setImportTab(IMPORT_TAB_MAP[page]);
+    }
+
+    setCurrentPage(normalized);
+    syncPathWithPage(normalized);
   };
 
   const renderPageContent = () => {
@@ -124,12 +153,8 @@ function AdminPageContent({ initialPage = 'dashboard' }) {
         return <ProjectsContent />;
       case 'approval-records':
         return <ApprovalRecords currentPage={handleNavigate} />;
-      case 'publications-import':
-        return <AdminPublicationsImport currentPage={handleNavigate} />;
-      case 'scopus-import':
-        return <AdminScopusImport />;
-      case 'kku-people-scraper':
-        return <AdminKkuPeopleScraper />;
+      case 'academic-imports':
+        return <AdminAcademicImports initialTab={importTab} />;
       case 'notifications':
         return <AdminNotificationCenter />;
       default:
@@ -148,10 +173,8 @@ function AdminPageContent({ initialPage = 'dashboard' }) {
         'fund-settings': 'ตั้งค่าทุน',
         'projects': 'จัดการโครงการ',
         'approval-records': 'บันทึกข้อมูลการอนุมัติทุน',
-        'publications-import': 'นำเข้าผลงานวิชาการ (Google Scholar)',
-        'scopus-import': 'นำเข้าผลงานวิชาการ (Scopus)',
+        'academic-imports': 'ข้อมูลผลงานวิชาการ / Academic Data Import',
         'scopus-research-search': 'ค้นหางานวิจัย',
-        'kku-people-scraper': 'KKU Profile Scraper',
         'notifications': 'การแจ้งเตือน'
     };
     return titles[currentPage] || currentPage;

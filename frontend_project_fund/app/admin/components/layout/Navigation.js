@@ -11,9 +11,7 @@ import {
   ClipboardCheck,
   FileCheck,
   BookOpen,
-  Users,
   Briefcase,
-  Globe,
   Bell,
   Search
 } from "lucide-react";
@@ -92,21 +90,9 @@ export default function Navigation({
     //   hasSubmenu: false
     // },
     {
-      id: 'publications-import',
-      label: 'นำเข้าผลงานวิชาการ (Google Scholar)',
+      id: 'academic-imports',
+      label: 'ข้อมูลผลงานวิชาการ / Academic Data Import',
       icon: BookOpen,
-      hasSubmenu: false
-    },
-    {
-      id: 'scopus-import',
-      label: 'นำเข้าผลงานวิชาการ (Scopus)',
-      icon: Globe,
-      hasSubmenu: false
-    },
-    {
-      id: 'kku-people-scraper',
-      label: 'KKU Profile Scraper',
-      icon: Users,
       hasSubmenu: false
     }
   ];
