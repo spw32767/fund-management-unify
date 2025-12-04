@@ -15,7 +15,8 @@ import {
   Briefcase,
   Globe,
   Bell,
-  Search
+  Search,
+  Upload
 } from "lucide-react";
 import { useAuth } from "../../../contexts/AuthContext";
 import { useRouter } from "next/navigation";
@@ -107,6 +108,12 @@ export default function Navigation({
       id: 'kku-people-scraper',
       label: 'KKU Profile Scraper',
       icon: Users,
+      hasSubmenu: false
+    },
+    {
+      id: 'import-export',
+      label: 'นำเข้า / ส่งออกข้อมูล',
+      icon: Upload,
       hasSubmenu: false
     }
   ];

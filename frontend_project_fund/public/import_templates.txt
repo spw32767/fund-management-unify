@@ -1,0 +1,23 @@
+# Import template headers (text version)
+
+Copy these headers into the first row of each sheet when creating the Excel file manually.
+Date/time columns use YYYY-MM-DD or YYYY-MM-DD HH:MM.
+Foreign keys (role_id, position_id, year_id, status_id, category_id, subcategory_id, etc.) must already exist.
+
+[Sheet users]
+user_fname | user_lname | gender | email | password | role_id | position_id | prefix | position_title | tel | scopus_id | scholar_author_id | date_of_employment | is_active
+
+[Sheet submissions]
+submission_type | submission_number | user_id | year_id | status_id | category_id | subcategory_id | subcategory_budget_id | submitted_at | reviewed_at | created_at | updated_at | approved_by | approved_at | head_approved_by | head_approved_at | admin_approved_by | admin_approved_at | head_rejected_by | head_rejected_at | head_rejection_reason | admin_rejected_by | admin_rejected_at | admin_rejection_reason | installment_number_at_submit
+
+[Sheet fund_application_details]
+submission_number | subcategory_id | project_title | project_description | requested_amount | approved_amount | announce_reference_number | closed_at | main_annoucement | activity_support_announcement
+
+[Sheet publication_reward_details]
+submission_number | paper_title | journal_name | publication_date | publication_type | quartile | impact_factor | indexing | doi | url | page_numbers | volume_issue | reward_amount | reward_approve_amount | revision_fee | revision_fee_approve_amount | publication_fee | publication_fee_approve_amount | external_funding_amount | total_amount | total_approve_amount | author_count | author_type | author_name_list | signature | announce_reference_number | has_university_funding | funding_references | university_rankings | main_annoucement | reward_announcement | approved_amount
+
+[Sheet submission_users]
+submission_number | user_id | role | is_primary | display_order
+
+[Sheet documents]
+submission_number | document_type_id | original_name | file_name | stored_path | description | display_order | is_required | is_verified | verified_by | verified_at

@@ -21,6 +21,7 @@ import AdminScopusImport from "./components/settings/announcement_config/AdminSc
 import AdminScopusResearchSearch from "./components/research/AdminScopusResearchSearch";
 import ApprovalRecords from "./components/approves/ApprovalRecords";
 import AdminNotificationCenter from "./components/notifications/NotificationCenter";
+import ImportExportContent from "./components/import_export/ImportExportContent";
 
 function AdminPageContent({ initialPage = 'dashboard' }) {
   const [isOpen, setIsOpen] = useState(false);
@@ -43,6 +44,7 @@ function AdminPageContent({ initialPage = 'dashboard' }) {
       'scopus-import',
       'scopus-research-search',
       'kku-people-scraper',
+      'import-export',
       'notifications',
     ];
 
@@ -130,6 +132,8 @@ function AdminPageContent({ initialPage = 'dashboard' }) {
         return <AdminScopusImport />;
       case 'kku-people-scraper':
         return <AdminKkuPeopleScraper />;
+      case 'import-export':
+        return <ImportExportContent />;
       case 'notifications':
         return <AdminNotificationCenter />;
       default:
@@ -152,6 +156,7 @@ function AdminPageContent({ initialPage = 'dashboard' }) {
         'scopus-import': 'นำเข้าผลงานวิชาการ (Scopus)',
         'scopus-research-search': 'ค้นหางานวิจัย',
         'kku-people-scraper': 'KKU Profile Scraper',
+        'import-export': 'นำเข้า / ส่งออกข้อมูล',
         'notifications': 'การแจ้งเตือน'
     };
     return titles[currentPage] || currentPage;
