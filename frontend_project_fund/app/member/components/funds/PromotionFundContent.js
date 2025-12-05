@@ -569,12 +569,16 @@ export default function PromotionFundContent({ onNavigate }) {
       try { sessionStorage.setItem('fund_form_readonly', '1'); } catch {}
 
       // จะใส่ query ย้ำด้วยก็ได้: `${formConfig.route}?readonly=1`
-      onNavigate(formConfig.route, {
-        category_id: categoryId,
-        year_id: yearId,
-        subcategory,
-        originPage: 'promotion-fund',
-      });
+      onNavigate(
+        formConfig.route,
+        {
+          category_id: categoryId,
+          year_id: yearId,
+          subcategory,
+          originPage: 'promotion-fund',
+        },
+        { mode: 'view-only' }
+      );
     } else {
       const docUrl = subcategory.form_url || '/documents/default-fund-form.docx';
       window.open(docUrl, '_blank');
@@ -612,12 +616,16 @@ export default function PromotionFundContent({ onNavigate }) {
 
     try { sessionStorage.removeItem('fund_form_readonly'); } catch {}
 
-    onNavigate(formConfig.route, {
-      category_id: categoryId,
-      year_id: yearId,
-      subcategory,
-      originPage: 'promotion-fund',
-    });
+    onNavigate(
+      formConfig.route,
+      {
+        category_id: categoryId,
+        year_id: yearId,
+        subcategory,
+        originPage: 'promotion-fund',
+      },
+      { mode: 'edit' }
+    );
   };
 
   const showCondition = (fundName, condition) => {
