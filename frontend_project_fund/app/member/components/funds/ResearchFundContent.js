@@ -579,14 +579,18 @@ export default function ResearchFundContent({ onNavigate }) {
       const resolvedSubcategoryName =
         subcategory?.subcategory_name || subcategory?.subcategorie_name || "";
 
-      onNavigate(formConfig.route || "generic-fund-application", {
-        category_id: findParentCategoryId(resolvedSubcategoryId),
-        year_id: yearIdFromSelectedYear(),
-        subcategory,
-        subcategory_id: resolvedSubcategoryId,
-        subcategory_name: resolvedSubcategoryName,
-        originPage: "research-fund",
-      });
+      onNavigate(
+        formConfig.route || "generic-fund-application",
+        {
+          category_id: findParentCategoryId(resolvedSubcategoryId),
+          year_id: yearIdFromSelectedYear(),
+          subcategory,
+          subcategory_id: resolvedSubcategoryId,
+          subcategory_name: resolvedSubcategoryName,
+          originPage: "research-fund",
+        },
+        { mode: "view-only" }
+      );
     }
   };
 
@@ -627,14 +631,18 @@ export default function ResearchFundContent({ onNavigate }) {
       const resolvedSubcategoryName =
         subcategory?.subcategory_name || subcategory?.subcategorie_name || "";
 
-      onNavigate(formConfig.route || "generic-fund-application", {
-        category_id: findParentCategoryId(resolvedSubcategoryId),
-        year_id: yearIdFromSelectedYear(),
-        subcategory,
-        subcategory_id: resolvedSubcategoryId,
-        subcategory_name: resolvedSubcategoryName,
-        originPage: "research-fund",
-      });
+      onNavigate(
+        formConfig.route || "generic-fund-application",
+        {
+          category_id: findParentCategoryId(resolvedSubcategoryId),
+          year_id: yearIdFromSelectedYear(),
+          subcategory,
+          subcategory_id: resolvedSubcategoryId,
+          subcategory_name: resolvedSubcategoryName,
+          originPage: "research-fund",
+        },
+        { mode: "edit" }
+      );
     }
   };
 

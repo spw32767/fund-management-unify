@@ -25,11 +25,12 @@ import { useAuth } from "../contexts/AuthContext";
 import ProjectsList from "./components/projects/ProjectsList";
 
 
-export function MemberPageContent({ initialPage = 'profile' }) {
+export function MemberPageContent({ initialPage = 'profile', initialMode = null }) {
   const [isOpen, setIsOpen] = useState(false);
   const [submenuOpen, setSubmenuOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState(initialPage);
   const [selectedFundData, setSelectedFundData] = useState(null);
+  const [currentMode, setCurrentMode] = useState(initialMode ?? null);
   const { user } = useAuth();
   const pathname = usePathname();
 
@@ -57,21 +58,26 @@ export function MemberPageContent({ initialPage = 'profile' }) {
 
   const pageFromPath = useCallback(
     (path) => {
-      if (typeof path !== 'string') return 'profile';
+      if (typeof path !== 'string') return { page: 'profile', mode: null };
       const segments = path.split('/').filter(Boolean);
 
-      if (segments[0] !== 'member') return 'profile';
-      return normalizePage(segments[1] || 'profile');
+      if (segments[0] !== 'member') return { page: 'profile', mode: null };
+
+      const page = normalizePage(segments[1] || 'profile');
+      const mode = segments[2] || null;
+
+      return { page, mode };
     },
     [normalizePage]
   );
 
   const syncPathWithPage = useCallback(
-    (page, { replace = false } = {}) => {
+    (page, { mode = null, replace = false } = {}) => {
       if (typeof window === 'undefined') return;
 
       const normalized = normalizePage(page);
-      const targetPath = `/member/${normalized}`;
+      const modeSegment = mode ? `/${mode}` : '';
+      const targetPath = `/member/${normalized}${modeSegment}`;
 
       if (window.location.pathname === targetPath) return;
 
@@ -93,27 +99,31 @@ export function MemberPageContent({ initialPage = 'profile' }) {
   useEffect(() => {
     const normalized = normalizePage(initialPage);
     setCurrentPage(normalized);
+    setCurrentMode(initialMode ?? null);
     setSelectedFundData(null);
-    syncPathWithPage(normalized, { replace: true });
-  }, [initialPage, normalizePage, syncPathWithPage]);
+    syncPathWithPage(normalized, { mode: initialMode ?? null, replace: true });
+  }, [initialMode, initialPage, normalizePage, syncPathWithPage]);
 
   useEffect(() => {
     if (isDeptHead && initialPage === 'profile') {
       setCurrentPage('dept-review');
+      setCurrentMode(null);
       syncPathWithPage('dept-review', { replace: true });
     }
   }, [isDeptHead, initialPage, syncPathWithPage]);
 
   useEffect(() => {
-    const pageFromUrl = pageFromPath(pathname);
-    setCurrentPage(pageFromUrl);
+    const { page, mode } = pageFromPath(pathname);
+    setCurrentPage(page);
+    setCurrentMode(mode ?? null);
   }, [pageFromPath, pathname]);
 
   useEffect(() => {
     const handlePopState = () => {
-      const pageFromUrl = pageFromPath(window.location.pathname);
+      const { page, mode } = pageFromPath(window.location.pathname);
       setSelectedFundData(null);
-      setCurrentPage(pageFromUrl);
+      setCurrentPage(page);
+      setCurrentMode(mode ?? null);
     };
 
     window.addEventListener('popstate', handlePopState);
@@ -122,15 +132,17 @@ export function MemberPageContent({ initialPage = 'profile' }) {
     };
   }, [pageFromPath]);
 
-  const handleNavigate = (page, data) => {
+  const handleNavigate = (page, data, options = {}) => {
     // ถ้าออกจากหน้าฟอร์มใดๆ ให้ล้างข้อมูลทุนที่เลือก
     if (['application-form', 'publication-reward-form', 'generic-fund-application'].includes(currentPage) &&
         !['application-form', 'publication-reward-form', 'generic-fund-application'].includes(page)) {
       setSelectedFundData(null);
     }
 
+    const nextMode = options.mode ?? null;
     setCurrentPage(page);
-    syncPathWithPage(page);
+    setCurrentMode(nextMode);
+    syncPathWithPage(page, { mode: nextMode });
 
     if (data) {
       setSelectedFundData(data);
@@ -155,15 +167,17 @@ export function MemberPageContent({ initialPage = 'profile' }) {
             yearId={selectedFundData?.year_id}
             submissionId={selectedFundData?.submissionId}
             originPage={selectedFundData?.originPage}
+            readOnly={currentMode === 'view-only'}
           />
         );
       case 'generic-fund-application':
         return (
-          <GenericFundApplicationForm 
-            onNavigate={handleNavigate} 
+          <GenericFundApplicationForm
+            onNavigate={handleNavigate}
             subcategoryData={selectedFundData}
+            readOnly={currentMode === 'view-only'}
           />
-        );      
+        );
       case 'applications':
         return <ApplicationList onNavigate={handleNavigate} />;
       case 'received-funds':

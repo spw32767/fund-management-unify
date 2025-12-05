@@ -677,7 +677,7 @@ export default function PublicationRewardDetail({
   const handleEdit = () => {
     // Navigate to edit form
     if (onNavigate) {
-      onNavigate('publication-reward-form', { submissionId });
+      onNavigate('publication-reward-form', { submissionId }, { mode: 'edit' });
     }
   };
 

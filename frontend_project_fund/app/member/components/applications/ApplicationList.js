@@ -520,17 +520,25 @@ export default function ApplicationList({ onNavigate }) {
     };
 
     if (payload.submission_type === 'publication_reward') {
-      onNavigate('publication-reward-form', {
-        submissionId: payload.submissionId,
-        categoryId: payload.category_id,
-        yearId: payload.year_id,
-        originPage: 'applications',
-      });
+      onNavigate(
+        'publication-reward-form',
+        {
+          submissionId: payload.submissionId,
+          categoryId: payload.category_id,
+          yearId: payload.year_id,
+          originPage: 'applications',
+        },
+        { mode: 'edit' }
+      );
     } else {
-      onNavigate('generic-fund-application', {
-        ...payload,
-        originPage: 'applications',
-      });
+      onNavigate(
+        'generic-fund-application',
+        {
+          ...payload,
+          originPage: 'applications',
+        },
+        { mode: 'edit' }
+      );
     }
   };
 
