@@ -34,6 +34,8 @@ export function MemberPageContent({ initialPage = 'profile', initialMode = null 
   const { user } = useAuth();
   const pathname = usePathname();
 
+  const FUND_STORAGE_KEY = "member_selected_fund";
+
   const normalizePage = useCallback((page) => {
     const allowedPages = [
       'dashboard',
@@ -119,6 +121,36 @@ export function MemberPageContent({ initialPage = 'profile', initialMode = null 
   }, [pageFromPath, pathname]);
 
   useEffect(() => {
+    const formPages = new Set([
+      'generic-fund-application',
+      'publication-reward-form',
+      'application-form',
+      'fund-application-detail',
+      'publication-reward-detail',
+    ]);
+
+    if (formPages.has(currentPage)) {
+      if (!selectedFundData && typeof window !== 'undefined') {
+        try {
+          const cached = window.sessionStorage.getItem(FUND_STORAGE_KEY);
+          if (cached) {
+            const parsed = JSON.parse(cached);
+            if (parsed && typeof parsed === 'object') {
+              setSelectedFundData(parsed);
+            }
+          }
+        } catch (err) {
+          console.warn('Unable to restore selected fund data:', err);
+        }
+      }
+    } else if (typeof window !== 'undefined') {
+      try {
+        window.sessionStorage.removeItem(FUND_STORAGE_KEY);
+      } catch {}
+    }
+  }, [currentPage, selectedFundData]);
+
+  useEffect(() => {
     const handlePopState = () => {
       const { page, mode } = pageFromPath(window.location.pathname);
       setSelectedFundData(null);
@@ -146,6 +178,11 @@ export function MemberPageContent({ initialPage = 'profile', initialMode = null 
 
     if (data) {
       setSelectedFundData(data);
+      try {
+        window.sessionStorage.setItem(FUND_STORAGE_KEY, JSON.stringify(data));
+      } catch (err) {
+        console.warn('Unable to persist selected fund data:', err);
+      }
     }
   };
 
