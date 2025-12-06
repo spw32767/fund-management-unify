@@ -558,7 +558,7 @@ func notifyNeedsMoreInfo(submissionID int, actor string, comment string) error {
 		return err
 	}
 
-	if _, err := createNotificationSafe(db, sub.UserID, msg.Title, msg.Body, "info", sub.SubmissionID); err != nil {
+	if _, err := createNotificationSafe(db, sub.UserID, msg.Title, msg.Body, "info", &sub.SubmissionID); err != nil {
 		return err
 	}
 
@@ -805,7 +805,7 @@ func NotifySubmissionSubmitted(c *gin.Context) {
 		log.Printf("notify submission submitted (dept_head template missing): %v", headTemplateErr)
 	}
 
-	if _, err := createNotificationSafe(db, sub.UserID, userMsg.Title, userMsg.Body, "success", sub.SubmissionID); err != nil {
+	if _, err := createNotificationSafe(db, sub.UserID, userMsg.Title, userMsg.Body, "success", &sub.SubmissionID); err != nil {
 		log.Printf("failed to create submission_submitted user notification: %v", err)
 	}
 
@@ -841,7 +841,7 @@ func NotifySubmissionSubmitted(c *gin.Context) {
 				Msg  templatedMessage
 			}{User: h, Msg: msg})
 
-			if _, err := createNotificationSafe(db, h.UserID, msg.Title, msg.Body, "info", sub.SubmissionID); err != nil {
+			if _, err := createNotificationSafe(db, h.UserID, msg.Title, msg.Body, "info", &sub.SubmissionID); err != nil {
 				log.Printf("failed to create submission_submitted dept head notification for user %d: %v", h.UserID, err)
 			}
 		}
@@ -913,7 +913,7 @@ func NotifyDeptHeadRecommended(c *gin.Context) {
 		return
 	}
 
-	if _, err := createNotificationSafe(db, sub.UserID, userMsg.Title, userMsg.Body, "success", sub.SubmissionID); err != nil {
+	if _, err := createNotificationSafe(db, sub.UserID, userMsg.Title, userMsg.Body, "success", &sub.SubmissionID); err != nil {
 		log.Printf("failed to create dept-head recommended user notification: %v", err)
 	}
 
@@ -938,7 +938,7 @@ func NotifyDeptHeadRecommended(c *gin.Context) {
 			Body:  applyTemplatePlaceholders(adminTemplate.BodyTemplate, adminData),
 		}
 
-		if _, err := createNotificationSafe(db, a.UserID, adminMsg.Title, adminMsg.Body, "info", sub.SubmissionID); err != nil {
+		if _, err := createNotificationSafe(db, a.UserID, adminMsg.Title, adminMsg.Body, "info", &sub.SubmissionID); err != nil {
 			log.Printf("failed to create dept-head recommended admin notification for user %d: %v", a.UserID, err)
 		}
 	}
@@ -1026,7 +1026,7 @@ func NotifyDeptHeadNotRecommended(c *gin.Context) {
 		return
 	}
 
-	if _, err := createNotificationSafe(db, sub.UserID, msg.Title, msg.Body, "warning", sub.SubmissionID); err != nil {
+	if _, err := createNotificationSafe(db, sub.UserID, msg.Title, msg.Body, "warning", &sub.SubmissionID); err != nil {
 		log.Printf("failed to create submission_rejected notification: %v", err)
 	}
 
@@ -1114,7 +1114,7 @@ func NotifyAdminApproved(c *gin.Context) {
 		return
 	}
 
-	if _, err := createNotificationSafe(db, sub.UserID, msg.Title, msg.Body, "success", sub.SubmissionID); err != nil {
+	if _, err := createNotificationSafe(db, sub.UserID, msg.Title, msg.Body, "success", &sub.SubmissionID); err != nil {
 		log.Printf("failed to create submission_approved notification: %v", err)
 	}
 
@@ -1201,7 +1201,7 @@ func NotifyAdminRejected(c *gin.Context) {
 		return
 	}
 
-	if _, err := createNotificationSafe(db, sub.UserID, msg.Title, msg.Body, "error", sub.SubmissionID); err != nil {
+	if _, err := createNotificationSafe(db, sub.UserID, msg.Title, msg.Body, "error", &sub.SubmissionID); err != nil {
 		log.Printf("failed to create admin_rejected notification: %v", err)
 	}
 
