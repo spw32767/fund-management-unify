@@ -207,9 +207,22 @@ func buildTemplatedMessage(db *gorm.DB, eventKey, sendTo string, data map[string
 		return templatedMessage{}, fmt.Errorf("notification template missing for event %s -> %s", eventKey, sendTo)
 	}
 
+	title := strings.TrimSpace(tmpl.TitleTemplate)
+	body := strings.TrimSpace(tmpl.BodyTemplate)
+	if title == "" {
+		title = strings.TrimSpace(tmpl.DefaultTitle)
+	}
+	if body == "" {
+		body = strings.TrimSpace(tmpl.DefaultBody)
+	}
+
+	if title == "" || body == "" {
+		return templatedMessage{}, fmt.Errorf("notification template for %s -> %s has no title/body", eventKey, sendTo)
+	}
+
 	msg := templatedMessage{
-		Title: applyTemplatePlaceholders(tmpl.TitleTemplate, data),
-		Body:  applyTemplatePlaceholders(tmpl.BodyTemplate, data),
+		Title: applyTemplatePlaceholders(title, data),
+		Body:  applyTemplatePlaceholders(body, data),
 	}
 	return msg, nil
 }
