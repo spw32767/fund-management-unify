@@ -4,7 +4,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { Bell } from "lucide-react";
 import NotificationList from "./NotificationList";
-import { notificationsAPI } from "../../lib/notifications_api";
+import { NOTIFICATIONS_UPDATED_EVENT, notificationsAPI } from "../../lib/notifications_api";
 
 export default function NotificationBell({ onViewAll }) {
   const [notifications, setNotifications] = useState([]);
@@ -43,6 +43,29 @@ export default function NotificationBell({ onViewAll }) {
 
   useEffect(() => {
     loadNotifications();
+  }, [loadNotifications]);
+
+  useEffect(() => {
+    const handleUpdate = (event) => {
+      const nextUnread = event?.detail?.unread;
+      if (typeof nextUnread === "number") {
+        setUnreadCount(nextUnread);
+      }
+
+      if (event?.detail?.refreshList) {
+        loadNotifications();
+      }
+    };
+
+    if (typeof window !== "undefined") {
+      window.addEventListener(NOTIFICATIONS_UPDATED_EVENT, handleUpdate);
+    }
+
+    return () => {
+      if (typeof window !== "undefined") {
+        window.removeEventListener(NOTIFICATIONS_UPDATED_EVENT, handleUpdate);
+      }
+    };
   }, [loadNotifications]);
 
   const markAsRead = async (id) => {
