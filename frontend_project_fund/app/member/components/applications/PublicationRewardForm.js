@@ -2987,7 +2987,7 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
     };
 
     updateFeeLimits();
-  }, [formData.journal_quartile, formData.year_id, years, lockedBudgetYearLabel, rewardConfigMap, rewardConfigYear]);
+  }, [formData.journal_quartile, formData.year_id, years, lockedBudgetYearLabel, rewardConfigMap, rewardConfigYear, initialDataReady]);
 
   // Calculate total amount when relevant values change
   useEffect(() => {
@@ -3148,6 +3148,10 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
   // Clear fees and external funding when quartile changes to ineligible ones
   useEffect(() => {
     const clearFeesIfNeeded = async () => {
+      if (!initialDataReady || hydratingRef.current) {
+        return;
+      }
+
       if (formData.journal_quartile) {
         const yearObj = years.find(y => y.year_id === formData.year_id);
         const targetYear =
