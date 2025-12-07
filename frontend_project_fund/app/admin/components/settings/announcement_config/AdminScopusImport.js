@@ -234,6 +234,16 @@ export default function AdminScopusImport() {
   const disableBackfillButton = metricsBackfillRunning;
   const disableRefreshButton = metricsRefreshRunning;
 
+  const refreshLatest = useMemo(
+    () => lastMetricsRefreshSummary || metricHistory.refresh.runs[0] || null,
+    [lastMetricsRefreshSummary, metricHistory.refresh.runs]
+  );
+
+  const backfillLatest = useMemo(
+    () => lastMetricsBackfillSummary || metricHistory.backfill.runs[0] || null,
+    [lastMetricsBackfillSummary, metricHistory.backfill.runs]
+  );
+
   const computedJobTotalPages =
     jobsPagination.total_pages ||
     (jobsPagination.total_count && jobsPagination.per_page
@@ -1035,90 +1045,91 @@ export default function AdminScopusImport() {
 
               <div className="space-y-4 rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-4">
                 <div className="text-sm font-semibold text-slate-900">สถานะการอัปเดต</div>
-                {lastMetricsRefreshSummary ? (
+                {refreshLatest ? (
                   <>
                     <div className="mt-2 flex items-center justify-between text-[11px] text-slate-600">
-                      <StatusBadge status={lastMetricsRefreshSummary.status} />
+                      <StatusBadge status={refreshLatest.status} />
                       <span>
-                        อัปเดตล่าสุด: {formatDateTime(lastMetricsRefreshSummary.finished_at || lastMetricsRefreshSummary.started_at)}
+                        อัปเดตล่าสุด: {formatDateTime(refreshLatest.finished_at || refreshLatest.started_at)}
                       </span>
                     </div>
-                    <SummaryGrid summary={lastMetricsRefreshSummary} items={metricsRefreshSummaryItems} />
-                    <div className="mt-4 space-y-3">
-                      <div className="flex items-center justify-between text-xs font-semibold text-slate-700">
-                        <span>ประวัติการอัปเดต CiteScore</span>
-                        {metricHistory.refresh.loading && <span className="text-slate-500">กำลังโหลด...</span>}
-                      </div>
-                      {metricHistory.refresh.error ? (
-                        <p className="text-sm text-rose-600">{metricHistory.refresh.error}</p>
-                      ) : metricHistory.refresh.runs.length === 0 && !metricHistory.refresh.loading ? (
-                        <p className="text-sm text-slate-500">ยังไม่มีประวัติการอัปเดต</p>
-                      ) : (
-                        <div className="space-y-3">
-                          <div className="overflow-x-auto">
-                            <table className="min-w-full divide-y divide-slate-200 text-sm">
-                              <thead>
-                                <tr className="text-left text-xs uppercase tracking-wide text-slate-500">
-                                  <th className="px-3 py-2">เริ่ม</th>
-                                  <th className="px-3 py-2">เสร็จสิ้น</th>
-                                  <th className="px-3 py-2">สถานะ</th>
-                                  <th className="px-3 py-2">สแกน</th>
-                                  <th className="px-3 py-2">อัปเดต</th>
-                                  <th className="px-3 py-2">ข้าม/ผิดพลาด</th>
-                                </tr>
-                              </thead>
-                              <tbody className="divide-y divide-slate-100">
-                                {metricHistory.refresh.runs.map((run) => (
-                                  <tr key={run.id} className="hover:bg-slate-50">
-                                    <td className="px-3 py-2 text-xs text-slate-700">{formatDateTime(run.started_at)}</td>
-                                    <td className="px-3 py-2 text-xs text-slate-700">{formatDateTime(run.finished_at)}</td>
-                                    <td className="px-3 py-2 text-xs">
-                                      <StatusBadge status={run.status} />
-                                    </td>
-                                    <td className="px-3 py-2 text-xs text-slate-700">{run.sources_scanned ?? 0}</td>
-                                    <td className="px-3 py-2 text-xs text-slate-700">{run.sources_refreshed ?? 0}</td>
-                                    <td className="px-3 py-2 text-xs text-slate-700">
-                                      <div>ข้าม: {run.skipped ?? 0}</div>
-                                      <div>ผิดพลาด: {run.errors ?? 0}</div>
-                                    </td>
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
-                          </div>
-                          <div className="flex items-center justify-between text-xs text-slate-600">
-                            <div>
-                              หน้า {metricHistory.refresh.page} / {refreshTotalPages}
-                            </div>
-                            <div className="flex gap-2">
-                              <button
-                                type="button"
-                                onClick={() => goToMetricRunsPage("refresh", metricHistory.refresh.page - 1)}
-                                disabled={!refreshHasPrev || metricHistory.refresh.loading}
-                                className="rounded-md border border-slate-300 px-3 py-1 font-semibold text-slate-700 shadow-sm disabled:cursor-not-allowed disabled:opacity-60"
-                              >
-                                ก่อนหน้า
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => goToMetricRunsPage("refresh", metricHistory.refresh.page + 1)}
-                                disabled={!refreshHasNext || metricHistory.refresh.loading}
-                                className="rounded-md border border-slate-300 px-3 py-1 font-semibold text-slate-700 shadow-sm disabled:cursor-not-allowed disabled:opacity-60"
-                              >
-                                ถัดไป
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                      )}
-                    </div>
+                    <SummaryGrid summary={refreshLatest} items={metricsRefreshSummaryItems} />
                   </>
                 ) : (
                   <p className="text-xs text-slate-600">
                     หากมีการเก็บประวัติรัน ระบบจะแสดงข้อมูลรอบล่าสุดในอนาคต ปัจจุบันสามารถดูผลลัพธ์ได้จากข้อความแจ้งเตือนเมื่อสั่งรัน
                   </p>
-              )}
-            </div>
+                )}
+
+                <div className="mt-4 space-y-3">
+                  <div className="flex items-center justify-between text-xs font-semibold text-slate-700">
+                    <span>ประวัติการอัปเดต CiteScore</span>
+                    {metricHistory.refresh.loading && <span className="text-slate-500">กำลังโหลด...</span>}
+                  </div>
+                  {metricHistory.refresh.error ? (
+                    <p className="text-sm text-rose-600">{metricHistory.refresh.error}</p>
+                  ) : metricHistory.refresh.runs.length === 0 && !metricHistory.refresh.loading ? (
+                    <p className="text-sm text-slate-500">ยังไม่มีประวัติการอัปเดต</p>
+                  ) : (
+                    <div className="space-y-3">
+                      <div className="overflow-x-auto">
+                        <table className="min-w-full divide-y divide-slate-200 text-sm">
+                          <thead>
+                            <tr className="text-left text-xs uppercase tracking-wide text-slate-500">
+                              <th className="px-3 py-2">เริ่ม</th>
+                              <th className="px-3 py-2">เสร็จสิ้น</th>
+                              <th className="px-3 py-2">สถานะ</th>
+                              <th className="px-3 py-2">สแกน</th>
+                              <th className="px-3 py-2">อัปเดต</th>
+                              <th className="px-3 py-2">ข้าม/ผิดพลาด</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100">
+                            {metricHistory.refresh.runs.map((run) => (
+                              <tr key={run.id} className="hover:bg-slate-50">
+                                <td className="px-3 py-2 text-xs text-slate-700">{formatDateTime(run.started_at)}</td>
+                                <td className="px-3 py-2 text-xs text-slate-700">{formatDateTime(run.finished_at)}</td>
+                                <td className="px-3 py-2 text-xs">
+                                  <StatusBadge status={run.status} />
+                                </td>
+                                <td className="px-3 py-2 text-xs text-slate-700">{run.sources_scanned ?? 0}</td>
+                                <td className="px-3 py-2 text-xs text-slate-700">{run.sources_refreshed ?? 0}</td>
+                                <td className="px-3 py-2 text-xs text-slate-700">
+                                  <div>ข้าม: {run.skipped ?? 0}</div>
+                                  <div>ผิดพลาด: {run.errors ?? 0}</div>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                      <div className="flex items-center justify-between text-xs text-slate-600">
+                        <div>
+                          หน้า {metricHistory.refresh.page} / {refreshTotalPages}
+                        </div>
+                        <div className="flex gap-2">
+                          <button
+                            type="button"
+                            onClick={() => goToMetricRunsPage("refresh", metricHistory.refresh.page - 1)}
+                            disabled={!refreshHasPrev || metricHistory.refresh.loading}
+                            className="rounded-md border border-slate-300 px-3 py-1 font-semibold text-slate-700 shadow-sm disabled:cursor-not-allowed disabled:opacity-60"
+                          >
+                            ก่อนหน้า
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => goToMetricRunsPage("refresh", metricHistory.refresh.page + 1)}
+                            disabled={!refreshHasNext || metricHistory.refresh.loading}
+                            className="rounded-md border border-slate-300 px-3 py-1 font-semibold text-slate-700 shadow-sm disabled:cursor-not-allowed disabled:opacity-60"
+                          >
+                            ถัดไป
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
           </div>
 
           <div className="mt-8 rounded-xl border border-slate-200 bg-white/70 p-5">
@@ -1147,87 +1158,88 @@ export default function AdminScopusImport() {
 
               <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-4">
                 <div className="text-sm font-semibold text-slate-900">สรุปการสแกนล่าสุด</div>
-                {lastMetricsBackfillSummary ? (
+                {backfillLatest ? (
                   <>
                     <div className="mt-2 flex items-center justify-between text-[11px] text-slate-600">
-                      <StatusBadge status={lastMetricsBackfillSummary.status} />
+                      <StatusBadge status={backfillLatest.status} />
                       <span>
-                        อัปเดตล่าสุด: {formatDateTime(lastMetricsBackfillSummary.finished_at || lastMetricsBackfillSummary.started_at)}
+                        อัปเดตล่าสุด: {formatDateTime(backfillLatest.finished_at || backfillLatest.started_at)}
                       </span>
                     </div>
-                    <SummaryGrid summary={lastMetricsBackfillSummary} items={metricsSummaryItems} />
-                    <div className="mt-4 space-y-3">
-                      <div className="flex items-center justify-between text-xs font-semibold text-slate-700">
-                        <span>ประวัติการสแกนวารสาร</span>
-                        {metricHistory.backfill.loading && <span className="text-slate-500">กำลังโหลด...</span>}
-                      </div>
-                      {metricHistory.backfill.error ? (
-                        <p className="text-sm text-rose-600">{metricHistory.backfill.error}</p>
-                      ) : metricHistory.backfill.runs.length === 0 && !metricHistory.backfill.loading ? (
-                        <p className="text-sm text-slate-500">ยังไม่มีประวัติการสแกน</p>
-                      ) : (
-                        <div className="space-y-3">
-                          <div className="overflow-x-auto">
-                            <table className="min-w-full divide-y divide-slate-200 text-sm">
-                              <thead>
-                                <tr className="text-left text-xs uppercase tracking-wide text-slate-500">
-                                  <th className="px-3 py-2">เริ่ม</th>
-                                  <th className="px-3 py-2">เสร็จสิ้น</th>
-                                  <th className="px-3 py-2">สถานะ</th>
-                                  <th className="px-3 py-2">สแกน</th>
-                                  <th className="px-3 py-2">ดึงข้อมูล</th>
-                                  <th className="px-3 py-2">ข้าม/ผิดพลาด</th>
-                                </tr>
-                              </thead>
-                              <tbody className="divide-y divide-slate-100">
-                                {metricHistory.backfill.runs.map((run) => (
-                                  <tr key={run.id} className="hover:bg-slate-50">
-                                    <td className="px-3 py-2 text-xs text-slate-700">{formatDateTime(run.started_at)}</td>
-                                    <td className="px-3 py-2 text-xs text-slate-700">{formatDateTime(run.finished_at)}</td>
-                                    <td className="px-3 py-2 text-xs">
-                                      <StatusBadge status={run.status} />
-                                    </td>
-                                    <td className="px-3 py-2 text-xs text-slate-700">{run.journals_scanned ?? 0}</td>
-                                    <td className="px-3 py-2 text-xs text-slate-700">{run.metrics_fetched ?? 0}</td>
-                                    <td className="px-3 py-2 text-xs text-slate-700">
-                                      <div>ข้าม: {run.skipped_existing ?? 0}</div>
-                                      <div>ผิดพลาด: {run.errors ?? 0}</div>
-                                    </td>
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
-                          </div>
-                          <div className="flex items-center justify-between text-xs text-slate-600">
-                            <div>
-                              หน้า {metricHistory.backfill.page} / {backfillTotalPages}
-                            </div>
-                            <div className="flex gap-2">
-                              <button
-                                type="button"
-                                onClick={() => goToMetricRunsPage("backfill", metricHistory.backfill.page - 1)}
-                                disabled={!backfillHasPrev || metricHistory.backfill.loading}
-                                className="rounded-md border border-slate-300 px-3 py-1 font-semibold text-slate-700 shadow-sm disabled:cursor-not-allowed disabled:opacity-60"
-                              >
-                                ก่อนหน้า
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => goToMetricRunsPage("backfill", metricHistory.backfill.page + 1)}
-                                disabled={!backfillHasNext || metricHistory.backfill.loading}
-                                className="rounded-md border border-slate-300 px-3 py-1 font-semibold text-slate-700 shadow-sm disabled:cursor-not-allowed disabled:opacity-60"
-                              >
-                                ถัดไป
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                      )}
-                    </div>
+                    <SummaryGrid summary={backfillLatest} items={metricsSummaryItems} />
                   </>
                 ) : (
                   <p className="mt-2 text-xs text-slate-500">ยังไม่เคยสแกน</p>
                 )}
+
+                <div className="mt-4 space-y-3">
+                  <div className="flex items-center justify-between text-xs font-semibold text-slate-700">
+                    <span>ประวัติการสแกนวารสาร</span>
+                    {metricHistory.backfill.loading && <span className="text-slate-500">กำลังโหลด...</span>}
+                  </div>
+                  {metricHistory.backfill.error ? (
+                    <p className="text-sm text-rose-600">{metricHistory.backfill.error}</p>
+                  ) : metricHistory.backfill.runs.length === 0 && !metricHistory.backfill.loading ? (
+                    <p className="text-sm text-slate-500">ยังไม่มีประวัติการสแกน</p>
+                  ) : (
+                    <div className="space-y-3">
+                      <div className="overflow-x-auto">
+                        <table className="min-w-full divide-y divide-slate-200 text-sm">
+                          <thead>
+                            <tr className="text-left text-xs uppercase tracking-wide text-slate-500">
+                              <th className="px-3 py-2">เริ่ม</th>
+                              <th className="px-3 py-2">เสร็จสิ้น</th>
+                              <th className="px-3 py-2">สถานะ</th>
+                              <th className="px-3 py-2">สแกน</th>
+                              <th className="px-3 py-2">ดึงข้อมูล</th>
+                              <th className="px-3 py-2">ข้าม/ผิดพลาด</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100">
+                            {metricHistory.backfill.runs.map((run) => (
+                              <tr key={run.id} className="hover:bg-slate-50">
+                                <td className="px-3 py-2 text-xs text-slate-700">{formatDateTime(run.started_at)}</td>
+                                <td className="px-3 py-2 text-xs text-slate-700">{formatDateTime(run.finished_at)}</td>
+                                <td className="px-3 py-2 text-xs">
+                                  <StatusBadge status={run.status} />
+                                </td>
+                                <td className="px-3 py-2 text-xs text-slate-700">{run.journals_scanned ?? 0}</td>
+                                <td className="px-3 py-2 text-xs text-slate-700">{run.metrics_fetched ?? 0}</td>
+                                <td className="px-3 py-2 text-xs text-slate-700">
+                                  <div>ข้าม: {run.skipped_existing ?? 0}</div>
+                                  <div>ผิดพลาด: {run.errors ?? 0}</div>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                      <div className="flex items-center justify-between text-xs text-slate-600">
+                        <div>
+                          หน้า {metricHistory.backfill.page} / {backfillTotalPages}
+                        </div>
+                        <div className="flex gap-2">
+                          <button
+                            type="button"
+                            onClick={() => goToMetricRunsPage("backfill", metricHistory.backfill.page - 1)}
+                            disabled={!backfillHasPrev || metricHistory.backfill.loading}
+                            className="rounded-md border border-slate-300 px-3 py-1 font-semibold text-slate-700 shadow-sm disabled:cursor-not-allowed disabled:opacity-60"
+                          >
+                            ก่อนหน้า
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => goToMetricRunsPage("backfill", metricHistory.backfill.page + 1)}
+                            disabled={!backfillHasNext || metricHistory.backfill.loading}
+                            className="rounded-md border border-slate-300 px-3 py-1 font-semibold text-slate-700 shadow-sm disabled:cursor-not-allowed disabled:opacity-60"
+                          >
+                            ถัดไป
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           </div>
