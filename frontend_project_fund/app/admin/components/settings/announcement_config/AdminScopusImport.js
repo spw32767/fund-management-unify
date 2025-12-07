@@ -551,7 +551,6 @@ export default function AdminScopusImport() {
     }));
     fetchMetricRuns(runType, page);
   }
-  }
 
   async function searchUsers() {
     if (!userQuery.trim()) return;
