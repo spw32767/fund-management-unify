@@ -2441,9 +2441,27 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
             total_amount: calculatedTotal,
             author_name_list: detail.author_name_list ?? prev.author_name_list ?? '',
             signature: detail.signature ?? prev.signature ?? '',
-            has_university_fund: detail.has_university_funding ?? prev.has_university_fund ?? 'no',
-            university_fund_ref: detail.funding_references ?? prev.university_fund_ref ?? '',
-            university_ranking: detail.university_rankings ?? prev.university_ranking ?? '',
+            has_university_fund:
+              detail.has_university_funding ??
+              detail.has_university_fund ??
+              payload.has_university_funding ??
+              payload.has_university_fund ??
+              prev.has_university_fund ??
+              'no',
+            university_fund_ref:
+              detail.funding_references ??
+              detail.university_fund_ref ??
+              payload.university_fund_ref ??
+              payload.funding_references ??
+              prev.university_fund_ref ??
+              '',
+            university_ranking:
+              detail.university_rankings ??
+              detail.university_ranking ??
+              payload.university_rankings ??
+              payload.university_ranking ??
+              prev.university_ranking ??
+              '',
             phone_number: payload.phone_number ?? prev.phone_number ?? '',
             bank_account: payload.bank_account ?? prev.bank_account ?? '',
             bank_name: payload.bank_name ?? prev.bank_name ?? '',
@@ -3222,9 +3240,13 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
   // Get file count summary
   const getFileCountByType = () => {
     const counts = {
-      main: Object.keys(uploadedFiles).length,
-      other: otherDocuments?.length || 0,
-      external: externalFundings?.filter(f => f.file).length || 0
+      main:
+        Object.keys(uploadedFiles).length +
+        (serverDocuments?.filter((doc) => doc && doc.document_type_id !== 12)?.length || 0),
+      other: (otherDocuments?.length || 0) + (serverDocuments?.filter((doc) => doc.document_type_id === null)?.length || 0),
+      external:
+        (externalFundings?.filter((f) => f.file)?.length || 0) +
+        (serverExternalFundingFiles?.length || 0),
     };
     
     const total = counts.main + counts.other + counts.external;
@@ -4691,6 +4713,7 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
         document_type_id: docTypeId,
         document_type_name: typeName,
         document_id: doc.document_id,
+        file_id: doc.file_id ?? null,
       });
     };
 
@@ -4731,6 +4754,7 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
         document_type_id: 12,
         document_type_name: typeName,
         document_id: doc.document_id,
+        file_id: doc.file_id ?? null,
         external_funding_id: doc.external_funding_id ?? null,
         external_funding_client_id: doc.funding_client_id ?? matchFunding?.clientId ?? null,
       });
@@ -4943,6 +4967,7 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
 
     const payload = {
       year_id: resolvedYearId,
+      submission_id: currentSubmissionId || null,
       formData: normalizedFormData,
       applicant: currentUser
         ? {
@@ -4969,20 +4994,34 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
             amount: stringify(funding.amount),
           }))
         : [],
-      attachments: attachments.map((item, index) => ({
-        filename: item.name,
-        document_type_id: item.document_type_id ?? null,
-        document_type_name: item.document_type_name || item.type || '',
-        display_order: index + 1,
-      })),
+      attachments: attachments.map((item, index) => {
+        const displayOrder = index + 1;
+        return {
+          filename: item.name,
+          document_type_id: item.document_type_id ?? null,
+          document_type_name: item.document_type_name || item.type || '',
+          display_order: displayOrder,
+          document_id: item.document_id ?? null,
+          file_id: item.file_id ?? null,
+          source: item.source || null,
+        };
+      }),
     };
 
     const formDataPayload = new FormData();
     formDataPayload.append('data', JSON.stringify(payload));
 
-    attachments.forEach((item) => {
+    attachments.forEach((item, index) => {
       if (item?.file) {
         formDataPayload.append('attachments', item.file, item.name || 'attachment.pdf');
+      }
+      if (item?.document_id || item?.file_id) {
+        formDataPayload.append('server_attachments', JSON.stringify({
+          document_id: item.document_id ?? null,
+          file_id: item.file_id ?? null,
+          document_type_id: item.document_type_id ?? null,
+          display_order: index + 1,
+        }));
       }
     });
 
