@@ -3058,6 +3058,10 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
   );
 
   useEffect(() => {
+    if (!initialDataReady || hydratingRef.current) {
+      return;
+    }
+
     if (!formData.journal_quartile || feeLimits.total > 0) {
       return;
     }
@@ -3105,6 +3109,7 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
     externalFundings,
     externalFundingFiles,
     markDocumentForRemoval,
+    initialDataReady,
   ]);
 
   // Auto-save draft periodically
