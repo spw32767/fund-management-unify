@@ -1061,6 +1061,13 @@ export const scopusConfigAPI = {
     const res = await apiClient.post('/admin/scopus/metrics/backfill');
     return res.summary || res;
   },
+  async refreshMetrics() {
+    const res = await apiClient.post('/admin/scopus/metrics/refresh');
+    return res.summary || res;
+  },
+  async listMetricRuns(params = {}) {
+    return apiClient.get('/admin/scopus/metrics/runs', params);
+  },
 };
 
 export const scopusImportAPI = {
@@ -1069,6 +1076,9 @@ export const scopusImportAPI = {
   },
   async listRequests(jobId, params = {}) {
     return apiClient.get(`/admin/scopus/import/jobs/${encodeURIComponent(jobId)}/requests`, params);
+  },
+  async listBatchRuns(params = {}) {
+    return apiClient.get('/admin/scopus/import/batch/runs', params);
   },
 };
 

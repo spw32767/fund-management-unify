@@ -44,6 +44,13 @@ const metricsSummaryItems = [
   { key: "errors", label: "ผิดพลาด" },
 ];
 
+const metricsRefreshSummaryItems = [
+  { key: "sources_scanned", label: "รายการที่ตรวจสอบ" },
+  { key: "sources_refreshed", label: "อัปเดตสำเร็จ" },
+  { key: "skipped", label: "ข้าม" },
+  { key: "errors", label: "ผิดพลาด" },
+];
+
 function looksLikeScopusId(value) {
   const normalized = (value || "").trim();
   return /^[0-9]{5,}$/.test(normalized);
@@ -74,6 +81,18 @@ function getJobStatusBadge(statusText) {
     return "border-amber-200 bg-amber-50 text-amber-700";
   }
   return "border-slate-200 bg-slate-50 text-slate-700";
+}
+
+function StatusBadge({ status }) {
+  const label = status || "-";
+  const classes = getJobStatusBadge(status);
+  return (
+    <span
+      className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-semibold capitalize ${classes}`}
+    >
+      {label}
+    </span>
+  );
 }
 
 function maskApiKey(value) {
@@ -116,7 +135,8 @@ export default function AdminScopusImport() {
   const [msgTone, setMsgTone] = useState("info");
   const [lastManualSummary, setLastManualSummary] = useState(null);
   const [lastBatchSummary, setLastBatchSummary] = useState(null);
-  const [lastMetricsSummary, setLastMetricsSummary] = useState(null);
+  const [lastMetricsRefreshSummary, setLastMetricsRefreshSummary] = useState(null);
+  const [lastMetricsBackfillSummary, setLastMetricsBackfillSummary] = useState(null);
   const [batchUserIds, setBatchUserIds] = useState("");
   const [batchLimit, setBatchLimit] = useState("");
 
@@ -194,6 +214,9 @@ export default function AdminScopusImport() {
   useEffect(() => {
     fetchApiKey();
     fetchJobs(1);
+    fetchBatchHistory();
+    fetchMetricsHistory("refresh");
+    fetchMetricsHistory("backfill");
   }, []);
 
   useEffect(() => {
@@ -231,6 +254,30 @@ export default function AdminScopusImport() {
       setJobsError(error?.message || "ไม่สามารถโหลดประวัติการเรียก Scopus API ได้");
     } finally {
       setJobsLoading(false);
+    }
+  }
+
+  async function fetchBatchHistory() {
+    try {
+      const res = await scopusImportAPI.listBatchRuns({ per_page: 1 });
+      const run = Array.isArray(res?.data) ? res.data[0] : null;
+      setLastBatchSummary(run || null);
+    } catch (error) {
+      console.error("failed to fetch batch runs", error);
+    }
+  }
+
+  async function fetchMetricsHistory(runType) {
+    try {
+      const res = await scopusConfigAPI.listMetricRuns({ per_page: 1, run_type: runType });
+      const run = Array.isArray(res?.data) ? res.data[0] : null;
+      if (runType === "refresh") {
+        setLastMetricsRefreshSummary(run || null);
+      } else if (runType === "backfill") {
+        setLastMetricsBackfillSummary(run || null);
+      }
+    } catch (error) {
+      console.error("failed to fetch metric runs", error);
     }
   }
 
@@ -445,6 +492,7 @@ export default function AdminScopusImport() {
       setLastBatchSummary(summary);
       setMsg("สั่งรัน Batch Import สำเร็จ");
       setMsgTone("success");
+      fetchBatchHistory();
     } catch (error) {
       setMsg(error?.message || "Batch Import ไม่สำเร็จ");
       setMsgTone("error");
@@ -458,9 +506,10 @@ export default function AdminScopusImport() {
     setMsg("");
     try {
       const summary = await scopusConfigAPI.backfillMetrics();
-      setLastMetricsSummary(summary);
+      setLastMetricsBackfillSummary(summary);
       setMsg("ดึง CiteScore metrics สำหรับวารสารที่มีอยู่แล้วสำเร็จ");
       setMsgTone("success");
+      fetchMetricsHistory("backfill");
     } catch (error) {
       setMsg(error?.message || "ดึง CiteScore metrics ไม่สำเร็จ");
       setMsgTone("error");
@@ -476,6 +525,7 @@ export default function AdminScopusImport() {
       await scopusConfigAPI.refreshMetrics();
       setMsg("CiteScore metrics updated successfully.");
       setMsgTone("success");
+      fetchMetricsHistory("refresh");
     } catch (error) {
       setMsg(error?.message || "ไม่สามารถอัปเดต CiteScore metrics ได้");
       setMsgTone("error");
@@ -697,7 +747,15 @@ export default function AdminScopusImport() {
                 <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-4">
                   <div className="text-sm font-semibold text-slate-900">สรุปการรันล่าสุด</div>
                   {lastBatchSummary ? (
-                    <SummaryGrid summary={lastBatchSummary} items={batchSummaryItems} />
+                    <>
+                      <div className="mt-2 flex items-center justify-between text-[11px] text-slate-600">
+                        <StatusBadge status={lastBatchSummary.status} />
+                        <span>
+                          อัปเดตล่าสุด: {formatDateTime(lastBatchSummary.finished_at || lastBatchSummary.started_at)}
+                        </span>
+                      </div>
+                      <SummaryGrid summary={lastBatchSummary} items={batchSummaryItems} />
+                    </>
                   ) : (
                     <p className="mt-2 text-xs text-slate-500">ยังไม่มีข้อมูลการรัน</p>
                   )}
@@ -746,9 +804,21 @@ export default function AdminScopusImport() {
 
             <div className="space-y-4 rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-4">
               <div className="text-sm font-semibold text-slate-900">สถานะการอัปเดต</div>
-              <p className="text-xs text-slate-600">
-                หากมีการเก็บประวัติรัน ระบบจะแสดงข้อมูลรอบล่าสุดในอนาคต ปัจจุบันสามารถดูผลลัพธ์ได้จากข้อความแจ้งเตือนเมื่อสั่งรัน
-              </p>
+              {lastMetricsRefreshSummary ? (
+                <>
+                  <div className="mt-2 flex items-center justify-between text-[11px] text-slate-600">
+                    <StatusBadge status={lastMetricsRefreshSummary.status} />
+                    <span>
+                      อัปเดตล่าสุด: {formatDateTime(lastMetricsRefreshSummary.finished_at || lastMetricsRefreshSummary.started_at)}
+                    </span>
+                  </div>
+                  <SummaryGrid summary={lastMetricsRefreshSummary} items={metricsRefreshSummaryItems} />
+                </>
+              ) : (
+                <p className="text-xs text-slate-600">
+                  หากมีการเก็บประวัติรัน ระบบจะแสดงข้อมูลรอบล่าสุดในอนาคต ปัจจุบันสามารถดูผลลัพธ์ได้จากข้อความแจ้งเตือนเมื่อสั่งรัน
+                </p>
+              )}
             </div>
           </div>
 
@@ -778,8 +848,16 @@ export default function AdminScopusImport() {
 
               <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-4">
                 <div className="text-sm font-semibold text-slate-900">สรุปการสแกนล่าสุด</div>
-                {lastMetricsSummary ? (
-                  <SummaryGrid summary={lastMetricsSummary} items={metricsSummaryItems} />
+                {lastMetricsBackfillSummary ? (
+                  <>
+                    <div className="mt-2 flex items-center justify-between text-[11px] text-slate-600">
+                      <StatusBadge status={lastMetricsBackfillSummary.status} />
+                      <span>
+                        อัปเดตล่าสุด: {formatDateTime(lastMetricsBackfillSummary.finished_at || lastMetricsBackfillSummary.started_at)}
+                      </span>
+                    </div>
+                    <SummaryGrid summary={lastMetricsBackfillSummary} items={metricsSummaryItems} />
+                  </>
                 ) : (
                   <p className="mt-2 text-xs text-slate-500">ยังไม่เคยสแกน</p>
                 )}
