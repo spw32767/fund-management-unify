@@ -1311,7 +1311,7 @@ const FileUpload = ({
 // MAIN COMPONENT START
 // =================================================================
 
-export default function PublicationRewardForm({ onNavigate, categoryId, yearId, submissionId: initialSubmissionId = null, readOnly = false, originPage = null }) {
+export default function PublicationRewardForm({ onNavigate, categoryId, yearId, submissionId: initialSubmissionId = null, readOnly = false, originPage = null, mode = null }) {
   // =================================================================
   // STATE DECLARATIONS
   // =================================================================
@@ -1514,6 +1514,7 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
   // External funding sources
   const [externalFundings, setExternalFundings] = useState([])
 
+  const [resolvedMode, setResolvedMode] = useState(null);
   const [baseReadOnly, setBaseReadOnly] = useState(false);
   const [isReadOnly, setIsReadOnly] = useState(false);
 
@@ -1674,15 +1675,26 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
 
   useEffect(() => {
     let ro = false;
+    let incomingMode = typeof mode === 'string' ? mode.trim().toLowerCase() : null;
 
     if (readOnly === true) ro = true;
 
     if (typeof window !== 'undefined') {
       const sp = new URLSearchParams(window.location.search);
       const roq = (sp.get('readonly') || '').toLowerCase();
-      const mode = (sp.get('mode') || '').toLowerCase();
+      const modeQuery = (sp.get('mode') || '').toLowerCase();
+      const segments = window.location.pathname.split('/').filter(Boolean);
+      const modeFromPath = (() => {
+        const formIndex = segments.indexOf('publication-reward-form');
+        if (formIndex !== -1 && segments[formIndex + 1]) {
+          return segments[formIndex + 1];
+        }
+        return null;
+      })();
+
       if (['1', 'true', 'yes'].includes(roq)) ro = true;
-      if (['view', 'detail', 'details', 'readonly'].includes(mode)) ro = true;
+      if (!incomingMode && modeFromPath) incomingMode = modeFromPath.toLowerCase();
+      if (!incomingMode && modeQuery) incomingMode = modeQuery;
 
       try {
         const s = window.sessionStorage.getItem('fund_form_readonly');
@@ -1691,9 +1703,14 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
       } catch {}
     }
 
+    if (incomingMode && ['view', 'detail', 'details', 'readonly', 'view-only'].includes(incomingMode)) {
+      ro = true;
+    }
+
+    setResolvedMode(incomingMode || null);
     setBaseReadOnly(ro);
     setIsReadOnly(ro);
-  }, [readOnly]);
+  }, [mode, readOnly]);
 
   // Helper: resolve subcategory and budget via backend resolver
   const resolveBudgetAndSubcategory = async ({
