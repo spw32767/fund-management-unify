@@ -137,6 +137,48 @@ export default function AdminScopusImport() {
   const [lastBatchSummary, setLastBatchSummary] = useState(null);
   const [lastMetricsRefreshSummary, setLastMetricsRefreshSummary] = useState(null);
   const [lastMetricsBackfillSummary, setLastMetricsBackfillSummary] = useState(null);
+  const [batchRuns, setBatchRuns] = useState([]);
+  const [batchRunsLoading, setBatchRunsLoading] = useState(false);
+  const [batchRunsError, setBatchRunsError] = useState("");
+  const [batchRunsPagination, setBatchRunsPagination] = useState({
+    current_page: 1,
+    per_page: 10,
+    total_pages: 0,
+    total_count: 0,
+    has_next: false,
+    has_prev: false,
+  });
+  const [batchRunsPage, setBatchRunsPage] = useState(1);
+  const [metricHistory, setMetricHistory] = useState({
+    refresh: {
+      runs: [],
+      loading: false,
+      error: "",
+      pagination: {
+        current_page: 1,
+        per_page: 10,
+        total_pages: 0,
+        total_count: 0,
+        has_next: false,
+        has_prev: false,
+      },
+      page: 1,
+    },
+    backfill: {
+      runs: [],
+      loading: false,
+      error: "",
+      pagination: {
+        current_page: 1,
+        per_page: 10,
+        total_pages: 0,
+        total_count: 0,
+        has_next: false,
+        has_prev: false,
+      },
+      page: 1,
+    },
+  });
   const [batchUserIds, setBatchUserIds] = useState("");
   const [batchLimit, setBatchLimit] = useState("");
 
@@ -211,12 +253,41 @@ export default function AdminScopusImport() {
   const requestsHasNext =
     requestsPagination.has_next ?? requestsPage < requestsTotalPages;
 
+  const computedBatchTotalPages =
+    batchRunsPagination.total_pages ||
+    (batchRunsPagination.total_count && batchRunsPagination.per_page
+      ? Math.ceil(batchRunsPagination.total_count / batchRunsPagination.per_page)
+      : 1);
+  const batchRunsTotalPages = computedBatchTotalPages > 0 ? computedBatchTotalPages : 1;
+  const batchHasPrev = batchRunsPagination.has_prev ?? batchRunsPage > 1;
+  const batchHasNext = batchRunsPagination.has_next ?? batchRunsPage < batchRunsTotalPages;
+
+  const refreshPagination = metricHistory.refresh.pagination;
+  const refreshComputedPages =
+    refreshPagination.total_pages ||
+    (refreshPagination.total_count && refreshPagination.per_page
+      ? Math.ceil(refreshPagination.total_count / refreshPagination.per_page)
+      : 1);
+  const refreshTotalPages = refreshComputedPages > 0 ? refreshComputedPages : 1;
+  const refreshHasPrev = refreshPagination.has_prev ?? metricHistory.refresh.page > 1;
+  const refreshHasNext = refreshPagination.has_next ?? metricHistory.refresh.page < refreshTotalPages;
+
+  const backfillPagination = metricHistory.backfill.pagination;
+  const backfillComputedPages =
+    backfillPagination.total_pages ||
+    (backfillPagination.total_count && backfillPagination.per_page
+      ? Math.ceil(backfillPagination.total_count / backfillPagination.per_page)
+      : 1);
+  const backfillTotalPages = backfillComputedPages > 0 ? backfillComputedPages : 1;
+  const backfillHasPrev = backfillPagination.has_prev ?? metricHistory.backfill.page > 1;
+  const backfillHasNext = backfillPagination.has_next ?? metricHistory.backfill.page < backfillTotalPages;
+
   useEffect(() => {
     fetchApiKey();
     fetchJobs(1);
-    fetchBatchHistory();
-    fetchMetricsHistory("refresh");
-    fetchMetricsHistory("backfill");
+    fetchBatchRuns(1);
+    fetchMetricRuns("refresh", 1);
+    fetchMetricRuns("backfill", 1);
   }, []);
 
   useEffect(() => {
@@ -257,27 +328,88 @@ export default function AdminScopusImport() {
     }
   }
 
-  async function fetchBatchHistory() {
+  async function fetchBatchRuns(page = 1) {
+    setBatchRunsLoading(true);
+    setBatchRunsError("");
     try {
-      const res = await scopusImportAPI.listBatchRuns({ per_page: 1 });
-      const run = Array.isArray(res?.data) ? res.data[0] : null;
-      setLastBatchSummary(run || null);
+      const res = await scopusImportAPI.listBatchRuns({ page });
+      const items = Array.isArray(res?.data) ? res.data : [];
+      setBatchRuns(items);
+      setLastBatchSummary(items[0] || null);
+
+      const paginationRaw = res?.pagination || {};
+      const normalized = {
+        current_page: paginationRaw.current_page ?? page,
+        per_page: paginationRaw.per_page ?? 10,
+        total_pages: paginationRaw.total_pages ?? paginationRaw.totalPages ?? 0,
+        total_count: paginationRaw.total_count ?? paginationRaw.totalCount ?? items.length,
+        has_next: paginationRaw.has_next ?? false,
+        has_prev: paginationRaw.has_prev ?? false,
+      };
+      setBatchRunsPagination(normalized);
+      setBatchRunsPage(normalized.current_page);
     } catch (error) {
-      console.error("failed to fetch batch runs", error);
+      setBatchRuns([]);
+      setLastBatchSummary(null);
+      setBatchRunsError(error?.message || "ไม่สามารถโหลดประวัติ Batch ได้");
+    } finally {
+      setBatchRunsLoading(false);
     }
   }
 
-  async function fetchMetricsHistory(runType) {
+  async function fetchMetricRuns(runType, page = 1) {
+    setMetricHistory((prev) => ({
+      ...prev,
+      [runType]: {
+        ...prev[runType],
+        loading: true,
+        error: "",
+      },
+    }));
+
     try {
-      const res = await scopusConfigAPI.listMetricRuns({ per_page: 1, run_type: runType });
-      const run = Array.isArray(res?.data) ? res.data[0] : null;
+      const res = await scopusConfigAPI.listMetricRuns({ run_type: runType, page });
+      const items = Array.isArray(res?.data) ? res.data : [];
+      setMetricHistory((prev) => ({
+        ...prev,
+        [runType]: {
+          ...prev[runType],
+          runs: items,
+          loading: false,
+          page,
+          pagination: {
+            current_page: res?.pagination?.current_page ?? page,
+            per_page: res?.pagination?.per_page ?? 10,
+            total_pages: res?.pagination?.total_pages ?? res?.pagination?.totalPages ?? 0,
+            total_count: res?.pagination?.total_count ?? res?.pagination?.totalCount ?? items.length,
+            has_next: res?.pagination?.has_next ?? false,
+            has_prev: res?.pagination?.has_prev ?? false,
+          },
+        },
+      }));
+
       if (runType === "refresh") {
-        setLastMetricsRefreshSummary(run || null);
+        setLastMetricsRefreshSummary(items[0] || null);
       } else if (runType === "backfill") {
-        setLastMetricsBackfillSummary(run || null);
+        setLastMetricsBackfillSummary(items[0] || null);
       }
     } catch (error) {
-      console.error("failed to fetch metric runs", error);
+      setMetricHistory((prev) => ({
+        ...prev,
+        [runType]: {
+          ...prev[runType],
+          runs: [],
+          loading: false,
+          page,
+          error: error?.message || "ไม่สามารถโหลดประวัติการรันได้",
+        },
+      }));
+
+      if (runType === "refresh") {
+        setLastMetricsRefreshSummary(null);
+      } else if (runType === "backfill") {
+        setLastMetricsBackfillSummary(null);
+      }
     }
   }
 
@@ -376,7 +508,8 @@ export default function AdminScopusImport() {
     } finally {
       setApiKeySaving(false);
       setApiKeyConfirming(false);
-    setApiKeyVisible(false);
+      setApiKeyVisible(false);
+    }
   }
 
   function goToJobsPage(page) {
@@ -389,6 +522,24 @@ export default function AdminScopusImport() {
     if (!selectedJobId || page < 1) return;
     setRequestsPage(page);
     fetchRequests(selectedJobId, page);
+  }
+
+  function goToBatchRunsPage(page) {
+    if (page < 1) return;
+    setBatchRunsPage(page);
+    fetchBatchRuns(page);
+  }
+
+  function goToMetricRunsPage(runType, page) {
+    if (page < 1) return;
+    setMetricHistory((prev) => ({
+      ...prev,
+      [runType]: {
+        ...prev[runType],
+        page,
+      },
+    }));
+    fetchMetricRuns(runType, page);
   }
   }
 
@@ -492,7 +643,7 @@ export default function AdminScopusImport() {
       setLastBatchSummary(summary);
       setMsg("สั่งรัน Batch Import สำเร็จ");
       setMsgTone("success");
-      fetchBatchHistory();
+      fetchBatchRuns(1);
     } catch (error) {
       setMsg(error?.message || "Batch Import ไม่สำเร็จ");
       setMsgTone("error");
@@ -509,7 +660,7 @@ export default function AdminScopusImport() {
       setLastMetricsBackfillSummary(summary);
       setMsg("ดึง CiteScore metrics สำหรับวารสารที่มีอยู่แล้วสำเร็จ");
       setMsgTone("success");
-      fetchMetricsHistory("backfill");
+      fetchMetricRuns("backfill", 1);
     } catch (error) {
       setMsg(error?.message || "ดึง CiteScore metrics ไม่สำเร็จ");
       setMsgTone("error");
@@ -525,7 +676,7 @@ export default function AdminScopusImport() {
       await scopusConfigAPI.refreshMetrics();
       setMsg("CiteScore metrics updated successfully.");
       setMsgTone("success");
-      fetchMetricsHistory("refresh");
+      fetchMetricRuns("refresh", 1);
     } catch (error) {
       setMsg(error?.message || "ไม่สามารถอัปเดต CiteScore metrics ได้");
       setMsgTone("error");
@@ -762,6 +913,86 @@ export default function AdminScopusImport() {
                 </div>
               </div>
 
+              <div className="mt-6 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <div className="text-sm font-semibold text-slate-900">ประวัติการรัน Batch Import</div>
+                    <p className="text-xs text-slate-600">ดูผลย้อนหลังตามรอบการรัน</p>
+                  </div>
+                  {batchRunsLoading && <span className="text-xs text-slate-500">กำลังโหลด...</span>}
+                </div>
+
+                {batchRunsError ? (
+                  <p className="mt-3 text-sm text-rose-600">{batchRunsError}</p>
+                ) : batchRuns.length === 0 && !batchRunsLoading ? (
+                  <p className="mt-3 text-sm text-slate-500">ยังไม่มีประวัติการรันแบบกลุ่ม</p>
+                ) : (
+                  <div className="mt-4 space-y-3">
+                    <div className="overflow-x-auto">
+                      <table className="min-w-full divide-y divide-slate-200 text-sm">
+                        <thead>
+                          <tr className="text-left text-xs uppercase tracking-wide text-slate-500">
+                            <th className="px-3 py-2">เริ่ม</th>
+                            <th className="px-3 py-2">เสร็จสิ้น</th>
+                            <th className="px-3 py-2">สถานะ</th>
+                            <th className="px-3 py-2">ผู้ใช้</th>
+                            <th className="px-3 py-2">เอกสาร</th>
+                            <th className="px-3 py-2">เวลา (s)</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {batchRuns.map((run) => (
+                            <tr key={run.id} className="align-top hover:bg-slate-50">
+                              <td className="px-3 py-2 text-xs text-slate-700">{formatDateTime(run.started_at)}</td>
+                              <td className="px-3 py-2 text-xs text-slate-700">{formatDateTime(run.finished_at)}</td>
+                              <td className="px-3 py-2 text-xs">
+                                <StatusBadge status={run.status} />
+                                {run.limit !== undefined && run.limit !== null && (
+                                  <div className="mt-1 text-[11px] text-slate-500">Limit: {run.limit}</div>
+                                )}
+                              </td>
+                              <td className="px-3 py-2 text-xs text-slate-700">
+                                <div className="font-semibold text-slate-900">{run.users_processed ?? 0}</div>
+                                <div className="text-[11px] text-slate-500">ผิดพลาด: {run.users_with_errors ?? 0}</div>
+                              </td>
+                              <td className="px-3 py-2 text-xs text-slate-700">
+                                <div>ดึง: {run.documents_fetched ?? 0}</div>
+                                <div>เพิ่ม: {run.documents_created ?? 0} / อัปเดต: {run.documents_updated ?? 0}</div>
+                                <div>ผิดพลาด: {run.documents_failed ?? 0}</div>
+                              </td>
+                              <td className="px-3 py-2 text-xs text-slate-700">{run.duration_seconds ?? "-"}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                    <div className="flex items-center justify-between text-xs text-slate-600">
+                      <div>
+                        หน้า {batchRunsPage} / {batchRunsTotalPages}
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() => goToBatchRunsPage(batchRunsPage - 1)}
+                          disabled={!batchHasPrev || batchRunsLoading}
+                          className="rounded-md border border-slate-300 px-3 py-1 font-semibold text-slate-700 shadow-sm disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          ก่อนหน้า
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => goToBatchRunsPage(batchRunsPage + 1)}
+                          disabled={!batchHasNext || batchRunsLoading}
+                          className="rounded-md border border-slate-300 px-3 py-1 font-semibold text-slate-700 shadow-sm disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          ถัดไป
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
               <div className="mt-4 flex flex-wrap gap-3">
                 <button
                   type="button"
@@ -802,22 +1033,90 @@ export default function AdminScopusImport() {
               <p className="text-[11px] text-slate-500">ป้องกันการคลิกซ้ำขณะกำลังทำงาน และตรวจสอบ API Key ก่อนเริ่ม</p>
             </div>
 
-            <div className="space-y-4 rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-4">
-              <div className="text-sm font-semibold text-slate-900">สถานะการอัปเดต</div>
-              {lastMetricsRefreshSummary ? (
-                <>
-                  <div className="mt-2 flex items-center justify-between text-[11px] text-slate-600">
-                    <StatusBadge status={lastMetricsRefreshSummary.status} />
-                    <span>
-                      อัปเดตล่าสุด: {formatDateTime(lastMetricsRefreshSummary.finished_at || lastMetricsRefreshSummary.started_at)}
-                    </span>
-                  </div>
-                  <SummaryGrid summary={lastMetricsRefreshSummary} items={metricsRefreshSummaryItems} />
-                </>
-              ) : (
-                <p className="text-xs text-slate-600">
-                  หากมีการเก็บประวัติรัน ระบบจะแสดงข้อมูลรอบล่าสุดในอนาคต ปัจจุบันสามารถดูผลลัพธ์ได้จากข้อความแจ้งเตือนเมื่อสั่งรัน
-                </p>
+              <div className="space-y-4 rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-4">
+                <div className="text-sm font-semibold text-slate-900">สถานะการอัปเดต</div>
+                {lastMetricsRefreshSummary ? (
+                  <>
+                    <div className="mt-2 flex items-center justify-between text-[11px] text-slate-600">
+                      <StatusBadge status={lastMetricsRefreshSummary.status} />
+                      <span>
+                        อัปเดตล่าสุด: {formatDateTime(lastMetricsRefreshSummary.finished_at || lastMetricsRefreshSummary.started_at)}
+                      </span>
+                    </div>
+                    <SummaryGrid summary={lastMetricsRefreshSummary} items={metricsRefreshSummaryItems} />
+                    <div className="mt-4 space-y-3">
+                      <div className="flex items-center justify-between text-xs font-semibold text-slate-700">
+                        <span>ประวัติการอัปเดต CiteScore</span>
+                        {metricHistory.refresh.loading && <span className="text-slate-500">กำลังโหลด...</span>}
+                      </div>
+                      {metricHistory.refresh.error ? (
+                        <p className="text-sm text-rose-600">{metricHistory.refresh.error}</p>
+                      ) : metricHistory.refresh.runs.length === 0 && !metricHistory.refresh.loading ? (
+                        <p className="text-sm text-slate-500">ยังไม่มีประวัติการอัปเดต</p>
+                      ) : (
+                        <div className="space-y-3">
+                          <div className="overflow-x-auto">
+                            <table className="min-w-full divide-y divide-slate-200 text-sm">
+                              <thead>
+                                <tr className="text-left text-xs uppercase tracking-wide text-slate-500">
+                                  <th className="px-3 py-2">เริ่ม</th>
+                                  <th className="px-3 py-2">เสร็จสิ้น</th>
+                                  <th className="px-3 py-2">สถานะ</th>
+                                  <th className="px-3 py-2">สแกน</th>
+                                  <th className="px-3 py-2">อัปเดต</th>
+                                  <th className="px-3 py-2">ข้าม/ผิดพลาด</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-slate-100">
+                                {metricHistory.refresh.runs.map((run) => (
+                                  <tr key={run.id} className="hover:bg-slate-50">
+                                    <td className="px-3 py-2 text-xs text-slate-700">{formatDateTime(run.started_at)}</td>
+                                    <td className="px-3 py-2 text-xs text-slate-700">{formatDateTime(run.finished_at)}</td>
+                                    <td className="px-3 py-2 text-xs">
+                                      <StatusBadge status={run.status} />
+                                    </td>
+                                    <td className="px-3 py-2 text-xs text-slate-700">{run.sources_scanned ?? 0}</td>
+                                    <td className="px-3 py-2 text-xs text-slate-700">{run.sources_refreshed ?? 0}</td>
+                                    <td className="px-3 py-2 text-xs text-slate-700">
+                                      <div>ข้าม: {run.skipped ?? 0}</div>
+                                      <div>ผิดพลาด: {run.errors ?? 0}</div>
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                          <div className="flex items-center justify-between text-xs text-slate-600">
+                            <div>
+                              หน้า {metricHistory.refresh.page} / {refreshTotalPages}
+                            </div>
+                            <div className="flex gap-2">
+                              <button
+                                type="button"
+                                onClick={() => goToMetricRunsPage("refresh", metricHistory.refresh.page - 1)}
+                                disabled={!refreshHasPrev || metricHistory.refresh.loading}
+                                className="rounded-md border border-slate-300 px-3 py-1 font-semibold text-slate-700 shadow-sm disabled:cursor-not-allowed disabled:opacity-60"
+                              >
+                                ก่อนหน้า
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => goToMetricRunsPage("refresh", metricHistory.refresh.page + 1)}
+                                disabled={!refreshHasNext || metricHistory.refresh.loading}
+                                className="rounded-md border border-slate-300 px-3 py-1 font-semibold text-slate-700 shadow-sm disabled:cursor-not-allowed disabled:opacity-60"
+                              >
+                                ถัดไป
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </>
+                ) : (
+                  <p className="text-xs text-slate-600">
+                    หากมีการเก็บประวัติรัน ระบบจะแสดงข้อมูลรอบล่าสุดในอนาคต ปัจจุบันสามารถดูผลลัพธ์ได้จากข้อความแจ้งเตือนเมื่อสั่งรัน
+                  </p>
               )}
             </div>
           </div>
@@ -857,6 +1156,74 @@ export default function AdminScopusImport() {
                       </span>
                     </div>
                     <SummaryGrid summary={lastMetricsBackfillSummary} items={metricsSummaryItems} />
+                    <div className="mt-4 space-y-3">
+                      <div className="flex items-center justify-between text-xs font-semibold text-slate-700">
+                        <span>ประวัติการสแกนวารสาร</span>
+                        {metricHistory.backfill.loading && <span className="text-slate-500">กำลังโหลด...</span>}
+                      </div>
+                      {metricHistory.backfill.error ? (
+                        <p className="text-sm text-rose-600">{metricHistory.backfill.error}</p>
+                      ) : metricHistory.backfill.runs.length === 0 && !metricHistory.backfill.loading ? (
+                        <p className="text-sm text-slate-500">ยังไม่มีประวัติการสแกน</p>
+                      ) : (
+                        <div className="space-y-3">
+                          <div className="overflow-x-auto">
+                            <table className="min-w-full divide-y divide-slate-200 text-sm">
+                              <thead>
+                                <tr className="text-left text-xs uppercase tracking-wide text-slate-500">
+                                  <th className="px-3 py-2">เริ่ม</th>
+                                  <th className="px-3 py-2">เสร็จสิ้น</th>
+                                  <th className="px-3 py-2">สถานะ</th>
+                                  <th className="px-3 py-2">สแกน</th>
+                                  <th className="px-3 py-2">ดึงข้อมูล</th>
+                                  <th className="px-3 py-2">ข้าม/ผิดพลาด</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-slate-100">
+                                {metricHistory.backfill.runs.map((run) => (
+                                  <tr key={run.id} className="hover:bg-slate-50">
+                                    <td className="px-3 py-2 text-xs text-slate-700">{formatDateTime(run.started_at)}</td>
+                                    <td className="px-3 py-2 text-xs text-slate-700">{formatDateTime(run.finished_at)}</td>
+                                    <td className="px-3 py-2 text-xs">
+                                      <StatusBadge status={run.status} />
+                                    </td>
+                                    <td className="px-3 py-2 text-xs text-slate-700">{run.journals_scanned ?? 0}</td>
+                                    <td className="px-3 py-2 text-xs text-slate-700">{run.metrics_fetched ?? 0}</td>
+                                    <td className="px-3 py-2 text-xs text-slate-700">
+                                      <div>ข้าม: {run.skipped_existing ?? 0}</div>
+                                      <div>ผิดพลาด: {run.errors ?? 0}</div>
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                          <div className="flex items-center justify-between text-xs text-slate-600">
+                            <div>
+                              หน้า {metricHistory.backfill.page} / {backfillTotalPages}
+                            </div>
+                            <div className="flex gap-2">
+                              <button
+                                type="button"
+                                onClick={() => goToMetricRunsPage("backfill", metricHistory.backfill.page - 1)}
+                                disabled={!backfillHasPrev || metricHistory.backfill.loading}
+                                className="rounded-md border border-slate-300 px-3 py-1 font-semibold text-slate-700 shadow-sm disabled:cursor-not-allowed disabled:opacity-60"
+                              >
+                                ก่อนหน้า
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => goToMetricRunsPage("backfill", metricHistory.backfill.page + 1)}
+                                disabled={!backfillHasNext || metricHistory.backfill.loading}
+                                className="rounded-md border border-slate-300 px-3 py-1 font-semibold text-slate-700 shadow-sm disabled:cursor-not-allowed disabled:opacity-60"
+                              >
+                                ถัดไป
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   </>
                 ) : (
                   <p className="mt-2 text-xs text-slate-500">ยังไม่เคยสแกน</p>
