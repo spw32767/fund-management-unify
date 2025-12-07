@@ -1063,6 +1063,15 @@ export const scopusConfigAPI = {
   },
 };
 
+export const scopusImportAPI = {
+  async listJobs(params = {}) {
+    return apiClient.get('/admin/scopus/import/jobs', params);
+  },
+  async listRequests(jobId, params = {}) {
+    return apiClient.get(`/admin/scopus/import/jobs/${encodeURIComponent(jobId)}/requests`, params);
+  },
+};
+
 export const usersAPI = {
   async search(q) {
     return apiClient.get('/admin/users/search', { q });
