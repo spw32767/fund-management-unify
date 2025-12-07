@@ -1,7 +1,11 @@
 // app/lib/api.js - Updated API Client Service for Backend Communication
 class APIClient {
   constructor() {
-    this.baseURL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080/api/v1';
+    this.baseURL =
+      process.env.NEXT_PUBLIC_API_URL ||
+      (typeof window !== 'undefined'
+        ? `${window.location.protocol}//${window.location.hostname}:8080/api/v1`
+        : 'http://10.198.110.27:8080/api/v1');
     this.accessTokenKey = 'access_token';
     this.refreshTokenKey = 'refresh_token';
     this.userKey = 'user_data';
@@ -1060,6 +1064,25 @@ export const scopusConfigAPI = {
   async backfillMetrics() {
     const res = await apiClient.post('/admin/scopus/metrics/backfill');
     return res.summary || res;
+  },
+  async refreshMetrics() {
+    const res = await apiClient.post('/admin/scopus/metrics/refresh');
+    return res.summary || res;
+  },
+  async listMetricRuns(params = {}) {
+    return apiClient.get('/admin/scopus/metrics/runs', params);
+  },  
+};
+
+export const scopusImportAPI = {
+  async listJobs(params = {}) {
+    return apiClient.get('/admin/scopus/import/jobs', params);
+  },
+  async listRequests(jobId, params = {}) {
+    return apiClient.get(`/admin/scopus/import/jobs/${encodeURIComponent(jobId)}/requests`, params);
+  },
+  async listBatchRuns(params = {}) {
+    return apiClient.get('/admin/scopus/import/batch/runs', params);
   },
 };
 
