@@ -1491,9 +1491,9 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
     signature: '',
     
     // Other info
-    university_ranking: '',
-    has_university_fund: '',
-    university_fund_ref: ''
+    university_rankings: '',
+    has_university_funding: 'no',
+    funding_references: ''
   });
 
   // Co-authors and files
@@ -1580,9 +1580,9 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
       bank_name: '',
       phone_number: '',
       signature: '',
-      university_ranking: '',
-      has_university_fund: '',
-      university_fund_ref: '',
+      university_rankings: '',
+      has_university_funding: 'no',
+      funding_references: '',
     });
 
     setCoauthors([]);
@@ -2424,9 +2424,18 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
             total_amount: calculatedTotal,
             author_name_list: detail.author_name_list ?? prev.author_name_list ?? '',
             signature: detail.signature ?? prev.signature ?? '',
-            has_university_fund: detail.has_university_funding ?? prev.has_university_fund ?? 'no',
-            university_fund_ref: detail.funding_references ?? prev.university_fund_ref ?? '',
-            university_ranking: detail.university_rankings ?? prev.university_ranking ?? '',
+            has_university_funding: (() => {
+              if (typeof detail.has_university_funding === 'boolean') {
+                return detail.has_university_funding ? 'yes' : 'no';
+              }
+              if (typeof detail.has_university_funding === 'string') {
+                const trimmed = detail.has_university_funding.trim().toLowerCase();
+                return trimmed === 'yes' || trimmed === 'true' ? 'yes' : 'no';
+              }
+              return prev.has_university_funding ?? 'no';
+            })(),
+            funding_references: detail.funding_references ?? prev.funding_references ?? '',
+            university_rankings: detail.university_rankings ?? prev.university_rankings ?? '',
             phone_number: payload.phone_number ?? prev.phone_number ?? '',
             bank_account: payload.bank_account ?? prev.bank_account ?? '',
             bank_name: payload.bank_name ?? prev.bank_name ?? '',
@@ -4665,6 +4674,7 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
         document_type_id: docTypeId,
         document_type_name: typeName,
         document_id: doc.document_id,
+        file_id: doc.file_id ?? null,
       });
     };
 
@@ -4707,6 +4717,7 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
         document_id: doc.document_id,
         external_funding_id: doc.external_funding_id ?? null,
         external_funding_client_id: doc.funding_client_id ?? matchFunding?.clientId ?? null,
+        file_id: doc.file_id ?? null,
       });
     };
 
@@ -4899,6 +4910,9 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
       journal_url: stringify(formData.journal_url),
       article_online_db: stringify(formData.article_online_db),
       article_online_date: stringify(formData.article_online_date),
+      has_university_funding: stringify(formData.has_university_funding),
+      funding_references: stringify(formData.funding_references),
+      university_rankings: stringify(formData.university_rankings),
     };
 
     const resolvedYearId = (() => {
@@ -4917,6 +4931,7 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
 
     const payload = {
       year_id: resolvedYearId,
+      submission_id: currentSubmissionId ?? null,
       formData: normalizedFormData,
       applicant: currentUser
         ? {
@@ -4948,6 +4963,10 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
         document_type_id: item.document_type_id ?? null,
         document_type_name: item.document_type_name || item.type || '',
         display_order: index + 1,
+        document_id: item.document_id ?? null,
+        file_id: item.file_id ?? null,
+        source: item.source || null,
+        external_funding_id: item.external_funding_id ?? null,
       })),
     };
 
@@ -5540,8 +5559,8 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
         bank_account: formData.bank_account || '',
         bank_name: formData.bank_name || '',
         phone_number: formData.phone_number || '',
-        has_university_funding: formData.has_university_fund || '',
-        university_fund_ref: formData.university_fund_ref || '',
+        has_university_funding: formData.has_university_funding || 'no',
+        funding_references: formData.funding_references || '',
         main_annoucement: announcementLock.main_annoucement ?? null,
         reward_announcement: announcementLock.reward_announcement ?? null,
       };
@@ -6312,9 +6331,9 @@ const showSubmissionConfirmation = async () => {
         phone_number: formData.phone_number || '',
         
         // Additional info
-        has_university_funding: formData.has_university_fund || 'no',
-        funding_references: formData.university_fund_ref || '',
-        university_rankings: formData.university_ranking || '',
+        has_university_funding: formData.has_university_funding || 'no',
+        funding_references: formData.funding_references || '',
+        university_rankings: formData.university_rankings || '',
         
         // Announcement info
         announce_reference_number: '',
@@ -8262,29 +8281,29 @@ const showSubmissionConfirmation = async () => {
                 <input
                   type="checkbox"
                   className="h-5 w-5 accent-blue-600"
-                  checked={formData.has_university_fund === 'yes'}
+                  checked={formData.has_university_funding === 'yes'}
                   onChange={(e) =>
                     setFormData(prev => ({
                       ...prev,
-                      has_university_fund: e.target.checked ? 'yes' : 'no',
+                      has_university_funding: e.target.checked ? 'yes' : 'no',
                       // ถ้ายกเลิกติ๊กให้ล้างค่า:
-                      university_fund_ref: e.target.checked ? (prev.university_fund_ref || '') : ''
+                      funding_references: e.target.checked ? (prev.funding_references || '') : ''
                     }))
                   }
                 />
                 <span className="text-sm text-gray-700">
-                  {formData.has_university_fund === 'yes' ? 'ได้รับ (Yes)' : 'ไม่ได้รับ (No)'}
+                  {formData.has_university_funding === 'yes' ? 'ได้รับ (Yes)' : 'ไม่ได้รับ (No)'}
                 </span>
               </label>
 
               {/* Inline field (same row; จะห่อบรรทัดเมื่อจอแคบ) */}
-              {formData.has_university_fund === 'yes' && (
+              {formData.has_university_funding === 'yes' && (
                 <div className="flex items-center gap-2 flex-1 min-w-[260px]">
                   <input
-                    id="university_fund_ref"
+                    id="funding_references"
                     type="text"
-                    name="university_fund_ref"
-                    value={formData.university_fund_ref}
+                    name="funding_references"
+                    value={formData.funding_references}
                     onChange={handleInputChange}
                     placeholder="กรอกหมายเลขอ้างอิงทุน (Enter fund reference number)"
                     className="w-full min-w-0 px-4 py-2 rounded-lg border border-gray-300
@@ -8302,8 +8321,8 @@ const showSubmissionConfirmation = async () => {
               </label>
               <input
                 type="text"
-                name="university_ranking"
-                value={formData.university_ranking}
+                name="university_rankings"
+                value={formData.university_rankings}
                 onChange={handleInputChange}
                 placeholder="เช่น (e.g.) QS World University Rankings #500"
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
