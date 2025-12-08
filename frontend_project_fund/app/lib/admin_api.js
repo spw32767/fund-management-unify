@@ -1393,6 +1393,17 @@ export const adminAPI = {
     }
   },
 
+  // ===== Import / Export Templates =====
+  async getImportTemplates(params = {}) {
+    try {
+      const response = await apiClient.get('/admin/import-templates', params);
+      return response.data || response.templates || [];
+    } catch (error) {
+      console.error('Error fetching import templates:', error);
+      throw error;
+    }
+  },
+
   // ===== Approval Records (Admin) =====
   async getApprovalTotals(params = {}) {
     return apiClient.get('/admin/approval-records/totals', params);
