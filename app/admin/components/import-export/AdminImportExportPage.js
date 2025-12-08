@@ -1,27 +1,62 @@
 "use client";
 
-import { useCallback } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { ArrowDownUp, Download, UploadCloud, FileSpreadsheet } from "lucide-react";
+import { apiClient } from "../../../lib/api";
 import PageLayout from "../common/PageLayout";
 
-const templates = [
-  {
-    name: "เทมเพลตนำเข้าผู้ใช้ (User Import Template)",
-    description: "ใช้สำหรับเพิ่มผู้ใช้ใหม่จำนวนมากจากไฟล์ Excel",
-    fileType: ".xlsx",
-    href: "/templates/user_import_template.xlsx",
-  },
-  {
-    name: "เทมเพลตนำเข้าประวัติทุนย้อนหลัง",
-    description: "ใช้สำหรับบันทึกประวัติทุนของอาจารย์ที่มีทุนมาก่อนใช้ระบบนี้",
-    fileType: ".xlsx",
-    href: "/templates/submission_unified_template.xlsx",
-  },
-];
-
 export default function AdminImportExportPage() {
+  const [templates, setTemplates] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState("");
+
   const handleComingSoon = useCallback(() => {
     alert("ฟังก์ชันนำเข้ากำลังจะมาภายหลัง");
+  }, []);
+
+  const getFileURL = useCallback((filePath) => {
+    if (!filePath) return "#";
+    if (/^https?:\/\//i.test(filePath)) return filePath;
+    const base = apiClient.baseURL.replace(/\/?api\/v1$/, "");
+    try {
+      return new URL(filePath, base).href;
+    } catch (err) {
+      console.warn("Invalid file path", err);
+      return filePath;
+    }
+  }, []);
+
+  const getFileType = useCallback((fileName, mimeType) => {
+    if (fileName?.includes(".")) {
+      return `.${fileName.split(".").pop()}`;
+    }
+    return mimeType || "-";
+  }, []);
+
+  useEffect(() => {
+    let isSubscribed = true;
+    setIsLoading(true);
+    setError("");
+
+    apiClient
+      .get("/admin/import-templates")
+      .then((res) => {
+        if (!isSubscribed) return;
+        setTemplates(res?.data || []);
+      })
+      .catch((err) => {
+        if (!isSubscribed) return;
+        console.error("Failed to load templates", err);
+        setError("ไม่สามารถดึงรายการเทมเพลตได้");
+      })
+      .finally(() => {
+        if (!isSubscribed) return;
+        setIsLoading(false);
+      });
+
+    return () => {
+      isSubscribed = false;
+    };
   }, []);
 
   return (
@@ -71,28 +106,48 @@ export default function AdminImportExportPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200 bg-white">
-                {templates.map((template) => (
-                  <tr key={template.name}>
-                    <td className="px-6 py-4 text-sm font-medium text-slate-900">
-                      {template.name}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-slate-600">
-                      {template.description}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-slate-600">
-                      {template.fileType}
-                    </td>
-                    <td className="px-6 py-4 text-right">
-                      <a
-                        href={template.href}
-                        className="inline-flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-medium text-blue-700 transition hover:bg-blue-100 hover:text-blue-800"
-                      >
-                        <Download size={16} />
-                        ดาวน์โหลด
-                      </a>
+                {isLoading ? (
+                  <tr>
+                    <td className="px-6 py-4 text-center text-sm text-slate-600" colSpan={4}>
+                      กำลังโหลดรายการเทมเพลต...
                     </td>
                   </tr>
-                ))}
+                ) : error ? (
+                  <tr>
+                    <td className="px-6 py-4 text-center text-sm text-red-600" colSpan={4}>
+                      {error}
+                    </td>
+                  </tr>
+                ) : templates.length === 0 ? (
+                  <tr>
+                    <td className="px-6 py-4 text-center text-sm text-slate-600" colSpan={4}>
+                      ยังไม่มีเทมเพลตสำหรับดาวน์โหลด
+                    </td>
+                  </tr>
+                ) : (
+                  templates.map((template) => (
+                    <tr key={template.template_id || template.title}>
+                      <td className="px-6 py-4 text-sm font-medium text-slate-900">
+                        {template.title}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-slate-600">
+                        {template.description || "-"}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-slate-600">
+                        {getFileType(template.file_name, template.mime_type)}
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        <a
+                          href={getFileURL(template.file_path)}
+                          className="inline-flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-medium text-blue-700 transition hover:bg-blue-100 hover:text-blue-800"
+                        >
+                          <Download size={16} />
+                          ดาวน์โหลด
+                        </a>
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>
