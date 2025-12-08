@@ -2364,6 +2364,12 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
 
         const indexingFlags = parseIndexingFlags(detail.indexing ?? detail.Indexing ?? '');
 
+        console.debug('[PublicationRewardForm] Hydrating draft Additional Information fields', {
+          rawHasUniversityFund: detail.has_university_funding ?? detail.has_university_fund,
+          rawUniversityFundRef: detail.funding_references ?? detail.university_fund_ref,
+          rawUniversityRanking: detail.university_rankings ?? detail.university_ranking,
+        });
+
         setFormData((prev) => {
           const { year: resolvedYear, month: resolvedMonth } = parsePublicationDateParts(
             detail.publication_date ?? detail.PublicationDate,
@@ -4865,6 +4871,18 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
 
   const generatePreview = async ({ openWindow = false } = {}) => {
     const attachments = attachedFiles;
+
+    console.debug('[PublicationRewardForm] Generating preview with attachments snapshot', {
+      attachmentCount: attachments?.length || 0,
+      attachments: (attachments || []).map((item) => ({
+        id: item.id,
+        name: item.name,
+        source: item.source,
+        document_type_id: item.document_type_id,
+        document_id: item.document_id,
+        file_id: item.file_id,
+      })),
+    });
 
     if (!attachments || attachments.length === 0) {
       const message = 'กรุณาแนบไฟล์อย่างน้อย 1 ไฟล์ก่อนดูตัวอย่าง';
