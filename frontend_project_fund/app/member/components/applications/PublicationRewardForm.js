@@ -460,8 +460,48 @@ const toNumberOrEmpty = (value) => {
   if (typeof value === 'number' && Number.isFinite(value)) {
     return value;
   }
+  if (typeof value === 'string') {
+    const cleaned = value.replace(/,/g, '').trim();
+    const num = Number(cleaned);
+    return Number.isNaN(num) ? '' : num;
+  }
+
   const num = Number(value);
   return Number.isNaN(num) ? '' : num;
+};
+
+const normalizeYesNoValue = (value, defaultValue = 'no') => {
+  if (value === null || value === undefined) {
+    return defaultValue;
+  }
+
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase();
+    if (!normalized) {
+      return defaultValue;
+    }
+
+    if (['yes', 'y', 'true', '1', 'ได้รับ', 'ได้'].includes(normalized)) {
+      return 'yes';
+    }
+
+    if (['no', 'n', 'false', '0', 'ไม่ได้รับ', 'ไม่'].includes(normalized)) {
+      return 'no';
+    }
+
+    return defaultValue;
+  }
+
+  if (typeof value === 'boolean') {
+    return value ? 'yes' : 'no';
+  }
+
+  if (typeof value === 'number') {
+    if (value === 1) return 'yes';
+    if (value === 0) return 'no';
+  }
+
+  return defaultValue;
 };
 
 const toSubmissionKey = (value) => {
@@ -2426,7 +2466,10 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
             total_amount: calculatedTotal,
             author_name_list: detail.author_name_list ?? prev.author_name_list ?? '',
             signature: detail.signature ?? prev.signature ?? '',
-            has_university_fund: detail.has_university_funding ?? prev.has_university_fund ?? 'no',
+            has_university_fund: normalizeYesNoValue(
+              detail.has_university_funding ?? detail.has_university_fund ?? prev.has_university_fund,
+              'no'
+            ),
             university_fund_ref: detail.funding_references ?? prev.university_fund_ref ?? '',
             university_ranking: detail.university_rankings ?? prev.university_ranking ?? '',
             phone_number: payload.phone_number ?? prev.phone_number ?? '',
