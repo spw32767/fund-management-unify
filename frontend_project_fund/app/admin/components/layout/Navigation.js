@@ -13,7 +13,8 @@ import {
   BookOpen,
   Briefcase,
   Bell,
-  Search
+  Search,
+  ArrowDownUp
 } from "lucide-react";
 import { useAuth } from "../../../contexts/AuthContext";
 import { useRouter } from "next/navigation";
@@ -81,6 +82,12 @@ export default function Navigation({
       id: 'approval-records',
       label: 'บันทึกข้อมูลการอนุมัติทุน',
       icon: FileCheck,
+      hasSubmenu: false
+    },
+    {
+      id: 'import-export',
+      label: 'นำเข้า/ส่งออก',
+      icon: ArrowDownUp,
       hasSubmenu: false
     },
     // {
