@@ -77,10 +77,16 @@ export default function Navigation({
       icon: Briefcase,
       hasSubmenu: false
     },
-    {
+    { 
       id: 'approval-records',
       label: 'บันทึกข้อมูลการอนุมัติทุน',
       icon: FileCheck,
+      hasSubmenu: false
+    },
+    {
+      id: 'import-export',
+      label: 'นำเข้า/ส่งออกข้อมูล',
+      icon: FileText,
       hasSubmenu: false
     },
     // {

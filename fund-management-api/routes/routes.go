@@ -403,6 +403,7 @@ func SetupRoutes(router *gin.Engine) {
 				admin.POST("/scopus/metrics/backfill", controllers.AdminBackfillCiteScoreMetrics)
 				admin.POST("/scopus/metrics/refresh", controllers.AdminRefreshCiteScoreMetrics)
 				admin.GET("/scopus/metrics/runs", controllers.AdminListCiteScoreMetricRuns)
+				admin.GET("/import-templates", controllers.AdminListImportTemplates)
 				admin.GET("/scopus/config", controllers.AdminGetScopusAPIKey)
 				admin.PUT("/scopus/config", controllers.AdminUpdateScopusAPIKey)
 				admin.GET("/scopus/import/jobs", controllers.AdminListScopusAPIImportJobs)

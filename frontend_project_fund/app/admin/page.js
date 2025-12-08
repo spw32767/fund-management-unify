@@ -19,6 +19,7 @@ import AdminAcademicImports from "./components/settings/announcement_config/Admi
 import AdminScopusResearchSearch from "./components/research/AdminScopusResearchSearch";
 import ApprovalRecords from "./components/approves/ApprovalRecords";
 import AdminNotificationCenter from "./components/notifications/NotificationCenter";
+import AdminImportExportPage from "./components/AdminImportExportPage";
 
 const IMPORT_TAB_MAP = {
   'publications-import': 'scholar',
@@ -45,6 +46,7 @@ function AdminPageContent({ initialPage = 'dashboard' }) {
       'fund-settings',
       'projects',
       'approval-records',
+      'import-export',
       'academic-imports',
       'notifications',
     ];
@@ -153,6 +155,8 @@ function AdminPageContent({ initialPage = 'dashboard' }) {
         return <ProjectsContent />;
       case 'approval-records':
         return <ApprovalRecords currentPage={handleNavigate} />;
+      case 'import-export':
+        return <AdminImportExportPage />;
       case 'academic-imports':
         return <AdminAcademicImports initialTab={importTab} />;
       case 'notifications':
@@ -173,6 +177,7 @@ function AdminPageContent({ initialPage = 'dashboard' }) {
         'fund-settings': 'ตั้งค่าทุน',
         'projects': 'จัดการโครงการ',
         'approval-records': 'บันทึกข้อมูลการอนุมัติทุน',
+        'import-export': 'นำเข้า/ส่งออกข้อมูล',
         'academic-imports': 'ข้อมูลผลงานวิชาการ / Academic Data Import',
         'scopus-research-search': 'ค้นหางานวิจัย',
         'notifications': 'การแจ้งเตือน'
