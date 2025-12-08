@@ -3103,7 +3103,7 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
   );
 
   useEffect(() => {
-    if (!formData.journal_quartile || feeLimits.total > 0) {
+    if (hydratingRef.current || !formData.journal_quartile || feeLimits.total > 0) {
       return;
     }
 
