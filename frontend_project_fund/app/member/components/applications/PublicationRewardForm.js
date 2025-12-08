@@ -2467,11 +2467,26 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
             author_name_list: detail.author_name_list ?? prev.author_name_list ?? '',
             signature: detail.signature ?? prev.signature ?? '',
             has_university_fund: normalizeYesNoValue(
-              detail.has_university_funding ?? detail.has_university_fund ?? prev.has_university_fund,
+              detail.has_university_funding ??
+                detail.has_university_fund ??
+                payload.has_university_funding ??
+                payload.has_university_fund ??
+                prev.has_university_fund,
               'no'
             ),
-            university_fund_ref: detail.funding_references ?? prev.university_fund_ref ?? '',
-            university_ranking: detail.university_rankings ?? prev.university_ranking ?? '',
+            university_fund_ref:
+              detail.funding_references ??
+              payload.funding_references ??
+              payload.university_fund_ref ??
+              prev.university_fund_ref ??
+              '',
+            university_ranking:
+              detail.university_rankings ??
+              detail.university_ranking ??
+              payload.university_ranking ??
+              payload.university_rankings ??
+              prev.university_ranking ??
+              '',
             phone_number: payload.phone_number ?? prev.phone_number ?? '',
             bank_account: payload.bank_account ?? prev.bank_account ?? '',
             bank_name: payload.bank_name ?? prev.bank_name ?? '',
