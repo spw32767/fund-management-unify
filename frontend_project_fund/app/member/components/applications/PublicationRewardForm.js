@@ -201,6 +201,31 @@ const normalizeStatusCode = (value) => {
 
 const EDITABLE_STATUS_CODES = new Set(['draft', 'needs_more_info']);
 
+const normalizeYesNo = (value, fallback = 'no') => {
+  if (value === null || value === undefined) {
+    return fallback;
+  }
+
+  if (typeof value === 'boolean') {
+    return value ? 'yes' : 'no';
+  }
+
+  const normalized = String(value).trim().toLowerCase();
+  if (!normalized) {
+    return fallback;
+  }
+
+  if (['y', 'yes', 'true', '1', 'ได้รับ', 'ใช่'].includes(normalized)) {
+    return 'yes';
+  }
+
+  if (['n', 'no', 'false', '0', 'ไม่ได้รับ', 'ไม่ใช่'].includes(normalized)) {
+    return 'no';
+  }
+
+  return normalized;
+};
+
 const parsePublicationDateParts = (value, fallback = {}) => {
   if (!value) {
     return {
@@ -2441,14 +2466,24 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
             total_amount: calculatedTotal,
             author_name_list: detail.author_name_list ?? prev.author_name_list ?? '',
             signature: detail.signature ?? prev.signature ?? '',
-            has_university_fund:
-              detail.has_university_funding ??
-              detail.has_university_fund ??
-              payload.has_university_funding ??
-              payload.has_university_fund ??
-              prev.has_university_fund ??
-              'no',
+            has_university_fund: normalizeYesNo(
+              detail.additional_information?.has_university_funding ??
+                detail.additional_information?.has_university_fund ??
+                payload.additional_information?.has_university_funding ??
+                payload.additional_information?.has_university_fund ??
+                detail.has_university_funding ??
+                detail.has_university_fund ??
+                payload.has_university_funding ??
+                payload.has_university_fund ??
+                prev.has_university_fund ??
+                'no',
+              'no'
+            ),
             university_fund_ref:
+              detail.additional_information?.university_fund_ref ??
+              detail.additional_information?.funding_references ??
+              payload.additional_information?.university_fund_ref ??
+              payload.additional_information?.funding_references ??
               detail.funding_references ??
               detail.university_fund_ref ??
               payload.university_fund_ref ??
@@ -2456,6 +2491,8 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
               prev.university_fund_ref ??
               '',
             university_ranking:
+              detail.additional_information?.university_ranking ??
+              payload.additional_information?.university_ranking ??
               detail.university_rankings ??
               detail.university_ranking ??
               payload.university_rankings ??
@@ -4885,7 +4922,12 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
   };
 
   const generatePreview = async ({ openWindow = false } = {}) => {
-    const attachments = attachedFiles;
+    let attachments = attachedFiles;
+
+    if ((!attachments || attachments.length === 0) && currentSubmissionId) {
+      await refreshSubmissionDocuments(currentSubmissionId);
+      attachments = getAllAttachedFiles();
+    }
 
     if (!attachments || attachments.length === 0) {
       const message = 'กรุณาแนบไฟล์อย่างน้อย 1 ไฟล์ก่อนดูตัวอย่าง';
