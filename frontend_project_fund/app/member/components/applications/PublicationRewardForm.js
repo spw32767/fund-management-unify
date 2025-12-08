@@ -1340,6 +1340,7 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
     timestamp: null,
   });
   const [previewAcknowledged, setPreviewAcknowledged] = useState(false);
+  const serverFileCacheRef = useRef(new Map());
   const previewUrlRef = useRef(null);
   const previewSignatureRef = useRef('');
   const previewSectionRef = useRef(null);
@@ -2234,6 +2235,7 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
       hydratingRef.current = true;
       try {
         setLoading(true);
+        serverFileCacheRef.current.clear();
 
         const response = await submissionAPI.getById(targetSubmissionId);
         const payload = response?.submission || response;
@@ -4660,6 +4662,7 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
         type: typeName,
         size: Number.isFinite(sizeValue) ? sizeValue : 0,
         file: null,
+        file_id: doc.file_id ?? null,
         source: 'server',
         canDelete: false,
         document_type_id: docTypeId,
@@ -4700,6 +4703,7 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
         type: `${typeName}${fundLabel ? ` - ${fundLabel}` : ''}`,
         size: Number.isFinite(sizeValue) ? sizeValue : 0,
         file: null,
+        file_id: doc.file_id ?? null,
         source: 'server',
         canDelete: false,
         document_type_id: 12,
@@ -4814,6 +4818,38 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
   );
   const previewUrl = previewState.blobUrl || previewState.signedUrl;
 
+  const downloadServerFileAsFile = useCallback(async ({ fileId, name }) => {
+    if (!fileId) {
+      throw new Error('ไม่พบไฟล์บนเซิร์ฟเวอร์สำหรับเอกสารนี้');
+    }
+
+    const headers = {};
+    const token = apiClient.getToken();
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
+    }
+
+    const response = await fetch(`${apiClient.baseURL}/files/managed/${fileId}/download`, {
+      method: 'GET',
+      headers,
+    });
+
+    if (!response.ok) {
+      throw new Error('ไม่สามารถดาวน์โหลดไฟล์จากเซิร์ฟเวอร์ได้');
+    }
+
+    const blob = await response.blob();
+    if (!blob || blob.size === 0) {
+      throw new Error('ไม่พบข้อมูลไฟล์บนเซิร์ฟเวอร์');
+    }
+
+    const fileName = name || `document-${fileId}.pdf`;
+    const file = new File([blob], fileName, { type: blob.type || 'application/pdf' });
+
+    serverFileCacheRef.current.set(String(fileId), file);
+    return file;
+  }, []);
+
   const buildPublicationDate = () => {
     if (formData.publication_date) {
       return formData.publication_date;
@@ -4855,6 +4891,39 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
       loading: true,
       error: null,
     }));
+
+    const resolvedAttachments = [];
+
+    try {
+      for (const item of attachments) {
+        let file = item.file;
+
+        if (!file && item.file_id) {
+          const cacheKey = String(item.file_id);
+          file = serverFileCacheRef.current.get(cacheKey);
+          if (!file) {
+            file = await downloadServerFileAsFile({ fileId: item.file_id, name: item.name });
+          }
+        }
+
+        if (!file) {
+          throw new Error('ไม่พบข้อมูลไฟล์แนบสำหรับเอกสารที่เลือก');
+        }
+
+        resolvedAttachments.push({ ...item, file });
+      }
+    } catch (error) {
+      const message = error?.message || 'ไม่สามารถเตรียมไฟล์จากเซิร์ฟเวอร์ได้';
+      setPreviewState((prev) => ({
+        ...prev,
+        loading: false,
+        error: message,
+        hasPreviewed: false,
+      }));
+      setPreviewAcknowledged(false);
+      Toast.fire({ icon: 'error', title: 'ไม่สามารถสร้างตัวอย่างได้', text: message });
+      throw error;
+    }
 
     const stringify = (value, { allowBoolean = false } = {}) => {
       if (value === null || value === undefined) {
@@ -4943,18 +5012,18 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
             amount: stringify(funding.amount),
           }))
         : [],
-      attachments: attachments.map((item, index) => ({
-        filename: item.name,
-        document_type_id: item.document_type_id ?? null,
-        document_type_name: item.document_type_name || item.type || '',
-        display_order: index + 1,
-      })),
-    };
+    attachments: resolvedAttachments.map((item, index) => ({
+      filename: item.name,
+      document_type_id: item.document_type_id ?? null,
+      document_type_name: item.document_type_name || item.type || '',
+      display_order: index + 1,
+    })),
+  };
 
     const formDataPayload = new FormData();
     formDataPayload.append('data', JSON.stringify(payload));
 
-    attachments.forEach((item) => {
+    resolvedAttachments.forEach((item) => {
       if (item?.file) {
         formDataPayload.append('attachments', item.file, item.name || 'attachment.pdf');
       }
