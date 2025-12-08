@@ -204,6 +204,7 @@ export function MemberPageContent({ initialPage = 'profile', initialMode = null 
             yearId={selectedFundData?.year_id}
             submissionId={selectedFundData?.submissionId}
             originPage={selectedFundData?.originPage}
+            mode={currentMode}
             readOnly={currentMode === 'view-only'}
           />
         );

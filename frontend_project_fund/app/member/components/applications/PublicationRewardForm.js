@@ -201,6 +201,31 @@ const normalizeStatusCode = (value) => {
 
 const EDITABLE_STATUS_CODES = new Set(['draft', 'needs_more_info']);
 
+const normalizeYesNo = (value, fallback = 'no') => {
+  if (value === null || value === undefined) {
+    return fallback;
+  }
+
+  if (typeof value === 'boolean') {
+    return value ? 'yes' : 'no';
+  }
+
+  const normalized = String(value).trim().toLowerCase();
+  if (!normalized) {
+    return fallback;
+  }
+
+  if (['y', 'yes', 'true', '1', 'ได้รับ', 'ใช่'].includes(normalized)) {
+    return 'yes';
+  }
+
+  if (['n', 'no', 'false', '0', 'ไม่ได้รับ', 'ไม่ใช่'].includes(normalized)) {
+    return 'no';
+  }
+
+  return normalized;
+};
+
 const parsePublicationDateParts = (value, fallback = {}) => {
   if (!value) {
     return {
@@ -1311,7 +1336,7 @@ const FileUpload = ({
 // MAIN COMPONENT START
 // =================================================================
 
-export default function PublicationRewardForm({ onNavigate, categoryId, yearId, submissionId: initialSubmissionId = null, readOnly = false, originPage = null }) {
+export default function PublicationRewardForm({ onNavigate, categoryId, yearId, submissionId: initialSubmissionId = null, readOnly = false, originPage = null, mode = null }) {
   // =================================================================
   // STATE DECLARATIONS
   // =================================================================
@@ -1514,6 +1539,7 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
   // External funding sources
   const [externalFundings, setExternalFundings] = useState([])
 
+  const [resolvedMode, setResolvedMode] = useState(null);
   const [baseReadOnly, setBaseReadOnly] = useState(false);
   const [isReadOnly, setIsReadOnly] = useState(false);
 
@@ -1674,15 +1700,26 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
 
   useEffect(() => {
     let ro = false;
+    let incomingMode = typeof mode === 'string' ? mode.trim().toLowerCase() : null;
 
     if (readOnly === true) ro = true;
 
     if (typeof window !== 'undefined') {
       const sp = new URLSearchParams(window.location.search);
       const roq = (sp.get('readonly') || '').toLowerCase();
-      const mode = (sp.get('mode') || '').toLowerCase();
+      const modeQuery = (sp.get('mode') || '').toLowerCase();
+      const segments = window.location.pathname.split('/').filter(Boolean);
+      const modeFromPath = (() => {
+        const formIndex = segments.indexOf('publication-reward-form');
+        if (formIndex !== -1 && segments[formIndex + 1]) {
+          return segments[formIndex + 1];
+        }
+        return null;
+      })();
+
       if (['1', 'true', 'yes'].includes(roq)) ro = true;
-      if (['view', 'detail', 'details', 'readonly'].includes(mode)) ro = true;
+      if (!incomingMode && modeFromPath) incomingMode = modeFromPath.toLowerCase();
+      if (!incomingMode && modeQuery) incomingMode = modeQuery;
 
       try {
         const s = window.sessionStorage.getItem('fund_form_readonly');
@@ -1691,9 +1728,14 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
       } catch {}
     }
 
+    if (incomingMode && ['view', 'detail', 'details', 'readonly', 'view-only'].includes(incomingMode)) {
+      ro = true;
+    }
+
+    setResolvedMode(incomingMode || null);
     setBaseReadOnly(ro);
     setIsReadOnly(ro);
-  }, [readOnly]);
+  }, [mode, readOnly]);
 
   // Helper: resolve subcategory and budget via backend resolver
   const resolveBudgetAndSubcategory = async ({
@@ -2424,9 +2466,39 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
             total_amount: calculatedTotal,
             author_name_list: detail.author_name_list ?? prev.author_name_list ?? '',
             signature: detail.signature ?? prev.signature ?? '',
-            has_university_fund: detail.has_university_funding ?? prev.has_university_fund ?? 'no',
-            university_fund_ref: detail.funding_references ?? prev.university_fund_ref ?? '',
-            university_ranking: detail.university_rankings ?? prev.university_ranking ?? '',
+            has_university_fund: normalizeYesNo(
+              detail.additional_information?.has_university_funding ??
+                detail.additional_information?.has_university_fund ??
+                payload.additional_information?.has_university_funding ??
+                payload.additional_information?.has_university_fund ??
+                detail.has_university_funding ??
+                detail.has_university_fund ??
+                payload.has_university_funding ??
+                payload.has_university_fund ??
+                prev.has_university_fund ??
+                'no',
+              'no'
+            ),
+            university_fund_ref:
+              detail.additional_information?.university_fund_ref ??
+              detail.additional_information?.funding_references ??
+              payload.additional_information?.university_fund_ref ??
+              payload.additional_information?.funding_references ??
+              detail.funding_references ??
+              detail.university_fund_ref ??
+              payload.university_fund_ref ??
+              payload.funding_references ??
+              prev.university_fund_ref ??
+              '',
+            university_ranking:
+              detail.additional_information?.university_ranking ??
+              payload.additional_information?.university_ranking ??
+              detail.university_rankings ??
+              detail.university_ranking ??
+              payload.university_rankings ??
+              payload.university_ranking ??
+              prev.university_ranking ??
+              '',
             phone_number: payload.phone_number ?? prev.phone_number ?? '',
             bank_account: payload.bank_account ?? prev.bank_account ?? '',
             bank_name: payload.bank_name ?? prev.bank_name ?? '',
@@ -2987,7 +3059,7 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
     };
 
     updateFeeLimits();
-  }, [formData.journal_quartile, formData.year_id, years, lockedBudgetYearLabel, rewardConfigMap, rewardConfigYear]);
+  }, [formData.journal_quartile, formData.year_id, years, lockedBudgetYearLabel, rewardConfigMap, rewardConfigYear, initialDataReady]);
 
   // Calculate total amount when relevant values change
   useEffect(() => {
@@ -3058,6 +3130,10 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
   );
 
   useEffect(() => {
+    if (!initialDataReady || hydratingRef.current) {
+      return;
+    }
+
     if (!formData.journal_quartile || feeLimits.total > 0) {
       return;
     }
@@ -3105,6 +3181,7 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
     externalFundings,
     externalFundingFiles,
     markDocumentForRemoval,
+    initialDataReady,
   ]);
 
   // Auto-save draft periodically
@@ -3148,6 +3225,10 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
   // Clear fees and external funding when quartile changes to ineligible ones
   useEffect(() => {
     const clearFeesIfNeeded = async () => {
+      if (!initialDataReady || hydratingRef.current) {
+        return;
+      }
+
       if (formData.journal_quartile) {
         const yearObj = years.find(y => y.year_id === formData.year_id);
         const targetYear =
@@ -3196,9 +3277,13 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
   // Get file count summary
   const getFileCountByType = () => {
     const counts = {
-      main: Object.keys(uploadedFiles).length,
-      other: otherDocuments?.length || 0,
-      external: externalFundings?.filter(f => f.file).length || 0
+      main:
+        Object.keys(uploadedFiles).length +
+        (serverDocuments?.filter((doc) => doc && doc.document_type_id !== 12)?.length || 0),
+      other: (otherDocuments?.length || 0) + (serverDocuments?.filter((doc) => doc.document_type_id === null)?.length || 0),
+      external:
+        (externalFundings?.filter((f) => f.file)?.length || 0) +
+        (serverExternalFundingFiles?.length || 0),
     };
     
     const total = counts.main + counts.other + counts.external;
@@ -4665,6 +4750,7 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
         document_type_id: docTypeId,
         document_type_name: typeName,
         document_id: doc.document_id,
+        file_id: doc.file_id ?? null,
       });
     };
 
@@ -4705,6 +4791,7 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
         document_type_id: 12,
         document_type_name: typeName,
         document_id: doc.document_id,
+        file_id: doc.file_id ?? null,
         external_funding_id: doc.external_funding_id ?? null,
         external_funding_client_id: doc.funding_client_id ?? matchFunding?.clientId ?? null,
       });
@@ -4835,7 +4922,12 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
   };
 
   const generatePreview = async ({ openWindow = false } = {}) => {
-    const attachments = attachedFiles;
+    let attachments = attachedFiles;
+
+    if ((!attachments || attachments.length === 0) && currentSubmissionId) {
+      await refreshSubmissionDocuments(currentSubmissionId);
+      attachments = getAllAttachedFiles();
+    }
 
     if (!attachments || attachments.length === 0) {
       const message = 'กรุณาแนบไฟล์อย่างน้อย 1 ไฟล์ก่อนดูตัวอย่าง';
@@ -4917,6 +5009,7 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
 
     const payload = {
       year_id: resolvedYearId,
+      submission_id: currentSubmissionId || null,
       formData: normalizedFormData,
       applicant: currentUser
         ? {
@@ -4943,20 +5036,34 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
             amount: stringify(funding.amount),
           }))
         : [],
-      attachments: attachments.map((item, index) => ({
-        filename: item.name,
-        document_type_id: item.document_type_id ?? null,
-        document_type_name: item.document_type_name || item.type || '',
-        display_order: index + 1,
-      })),
+      attachments: attachments.map((item, index) => {
+        const displayOrder = index + 1;
+        return {
+          filename: item.name,
+          document_type_id: item.document_type_id ?? null,
+          document_type_name: item.document_type_name || item.type || '',
+          display_order: displayOrder,
+          document_id: item.document_id ?? null,
+          file_id: item.file_id ?? null,
+          source: item.source || null,
+        };
+      }),
     };
 
     const formDataPayload = new FormData();
     formDataPayload.append('data', JSON.stringify(payload));
 
-    attachments.forEach((item) => {
+    attachments.forEach((item, index) => {
       if (item?.file) {
         formDataPayload.append('attachments', item.file, item.name || 'attachment.pdf');
+      }
+      if (item?.document_id || item?.file_id) {
+        formDataPayload.append('server_attachments', JSON.stringify({
+          document_id: item.document_id ?? null,
+          file_id: item.file_id ?? null,
+          document_type_id: item.document_type_id ?? null,
+          display_order: index + 1,
+        }));
       }
     });
 
