@@ -4653,18 +4653,20 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
       const docTypeId = doc.document_type_id != null ? Number(doc.document_type_id) : null;
       const typeName = doc.document_type_name || resolveDocumentTypeName(docTypeId) || 'เอกสาร';
       const sizeValue = doc.file_size != null ? Number(doc.file_size) : 0;
+      const documentFileId = doc.file_id ?? doc.fileId ?? null;
 
       allFiles.push({
         id: `server-${doc.document_id}`,
         name: doc.original_name || typeName || 'ไฟล์จากระบบ',
         type: typeName,
         size: Number.isFinite(sizeValue) ? sizeValue : 0,
+        file_id: documentFileId,
+        document_id: doc.document_id,
         file: null,
         source: 'server',
         canDelete: false,
         document_type_id: docTypeId,
         document_type_name: typeName,
-        document_id: doc.document_id,
       });
     };
 
@@ -4699,12 +4701,13 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
         name: doc.original_name || doc.document_type_name || fundLabel || 'ไฟล์จากระบบ',
         type: `${typeName}${fundLabel ? ` - ${fundLabel}` : ''}`,
         size: Number.isFinite(sizeValue) ? sizeValue : 0,
+        file_id: doc.file_id ?? doc.fileId ?? null,
+        document_id: doc.document_id,
         file: null,
         source: 'server',
         canDelete: false,
         document_type_id: 12,
         document_type_name: typeName,
-        document_id: doc.document_id,
         external_funding_id: doc.external_funding_id ?? null,
         external_funding_client_id: doc.funding_client_id ?? matchFunding?.clientId ?? null,
       });
@@ -4947,6 +4950,9 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
         filename: item.name,
         document_type_id: item.document_type_id ?? null,
         document_type_name: item.document_type_name || item.type || '',
+        document_id: item.document_id ?? null,
+        file_id: item.file_id ?? null,
+        source: item.source || null,
         display_order: index + 1,
       })),
     };
