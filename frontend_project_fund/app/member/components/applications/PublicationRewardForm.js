@@ -2225,6 +2225,24 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
     }
   }, [categoryId]);
 
+  const normalizeYesNo = (value, defaultValue = 'no') => {
+    if (value === null || value === undefined) {
+      return defaultValue;
+    }
+
+    const normalized = String(value).trim().toLowerCase();
+
+    if (['yes', 'y', 'true', '1'].includes(normalized)) {
+      return 'yes';
+    }
+
+    if (['no', 'n', 'false', '0'].includes(normalized)) {
+      return 'no';
+    }
+
+    return defaultValue;
+  };
+
   const loadExistingSubmission = useCallback(
     async (targetSubmissionId) => {
       if (!targetSubmissionId) {
@@ -2346,6 +2364,12 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
 
         const indexingFlags = parseIndexingFlags(detail.indexing ?? detail.Indexing ?? '');
 
+        console.debug('[PublicationRewardForm] Hydrating draft Additional Information fields', {
+          rawHasUniversityFund: detail.has_university_funding ?? detail.has_university_fund,
+          rawUniversityFundRef: detail.funding_references ?? detail.university_fund_ref,
+          rawUniversityRanking: detail.university_rankings ?? detail.university_ranking,
+        });
+
         setFormData((prev) => {
           const { year: resolvedYear, month: resolvedMonth } = parsePublicationDateParts(
             detail.publication_date ?? detail.PublicationDate,
@@ -2364,6 +2388,11 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
             prev.journal_quartile,
           ]);
           const normalizedQuartile = quartileValue ? quartileValue.toUpperCase() : (prev.journal_quartile || '');
+
+          const hasUniversityFunding = normalizeYesNo(
+            detail.has_university_funding ?? detail.has_university_fund ?? prev.has_university_fund,
+            prev.has_university_fund || 'no'
+          );
 
           const nextYearId = parseIntegerOrNull(
             payload.year_id ?? detail.year_id ?? prev.year_id ?? yearId ?? null
@@ -2424,9 +2453,13 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
             total_amount: calculatedTotal,
             author_name_list: detail.author_name_list ?? prev.author_name_list ?? '',
             signature: detail.signature ?? prev.signature ?? '',
-            has_university_fund: detail.has_university_funding ?? prev.has_university_fund ?? 'no',
-            university_fund_ref: detail.funding_references ?? prev.university_fund_ref ?? '',
-            university_ranking: detail.university_rankings ?? prev.university_ranking ?? '',
+            has_university_fund: hasUniversityFunding,
+            university_fund_ref: detail.funding_references ?? detail.university_fund_ref ?? prev.university_fund_ref ?? '',
+            university_ranking:
+              detail.university_rankings ??
+              detail.university_ranking ??
+              prev.university_ranking ??
+              '',
             phone_number: payload.phone_number ?? prev.phone_number ?? '',
             bank_account: payload.bank_account ?? prev.bank_account ?? '',
             bank_name: payload.bank_name ?? prev.bank_name ?? '',
@@ -4665,6 +4698,7 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
         document_type_id: docTypeId,
         document_type_name: typeName,
         document_id: doc.document_id,
+        file_id: doc.file_id ?? null,
       });
     };
 
@@ -4705,6 +4739,7 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
         document_type_id: 12,
         document_type_name: typeName,
         document_id: doc.document_id,
+        file_id: doc.file_id ?? null,
         external_funding_id: doc.external_funding_id ?? null,
         external_funding_client_id: doc.funding_client_id ?? matchFunding?.clientId ?? null,
       });
@@ -4837,6 +4872,18 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
   const generatePreview = async ({ openWindow = false } = {}) => {
     const attachments = attachedFiles;
 
+    console.debug('[PublicationRewardForm] Generating preview with attachments snapshot', {
+      attachmentCount: attachments?.length || 0,
+      attachments: (attachments || []).map((item) => ({
+        id: item.id,
+        name: item.name,
+        source: item.source,
+        document_type_id: item.document_type_id,
+        document_id: item.document_id,
+        file_id: item.file_id,
+      })),
+    });
+
     if (!attachments || attachments.length === 0) {
       const message = 'กรุณาแนบไฟล์อย่างน้อย 1 ไฟล์ก่อนดูตัวอย่าง';
       setPreviewState((prev) => ({
@@ -4948,6 +4995,8 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
         document_type_id: item.document_type_id ?? null,
         document_type_name: item.document_type_name || item.type || '',
         display_order: index + 1,
+        document_id: item.document_id ?? null,
+        file_id: item.file_id ?? null,
       })),
     };
 
@@ -5540,7 +5589,8 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
         bank_account: formData.bank_account || '',
         bank_name: formData.bank_name || '',
         phone_number: formData.phone_number || '',
-        has_university_funding: formData.has_university_fund || '',
+        has_university_funding: formData.has_university_fund || 'no',
+        funding_references: formData.university_fund_ref || '',
         university_fund_ref: formData.university_fund_ref || '',
         main_annoucement: announcementLock.main_annoucement ?? null,
         reward_announcement: announcementLock.reward_announcement ?? null,
