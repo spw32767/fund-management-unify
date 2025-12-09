@@ -37,7 +37,7 @@
 
 ## Publication reward template columns
 
-Include external funding lines only when the reward has associated outside support; link each line back to the main `publication_reward_details` record via `submission_id` and `detail_id`.
+Include external funding lines only when the reward has associated outside support; link each line back to the main `publication_reward_details` record via `submission_id` and `detail_id`, and add one row per funding source (two funders = two rows with the same IDs).
 | Column | Required? |
 | --- | --- |
 | submission_type | Yes (use `publication_reward`) |

@@ -22,7 +22,7 @@ Main submission and detail row:
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | publication_reward | 234 | 2024 | 1 | 12 | 58 | 2024-05-10 14:00:00 | Sustainable battery materials from agricultural waste | Journal of Green Energy | 2024-03-15 | Article | Q1 | 5.2 | 10.1000/jge.2024.015 | https://doi.org/10.1000/jge.2024.015 | 50000 | 45000 | 10000 | 8000 | 60000 | 53000 | PR-2024-044 | 4 | First author | FALSE | | Main call | Reward 2024 wave 1 | Dr. C; Dr. D; Dr. E; Dr. F | signed-by-dr-c.pdf |
 
-External funds for the same publication (one row per funding source):
+External funds for the same publication (one row per funding source; add as many rows as you have external funders, repeating the same `submission_id` and `detail_id`):
 
 | submission_id | detail_id | fund_name                 | amount | document_id | file_id |
 | --- | --- | --- | --- | --- | --- |
