@@ -1,7 +1,7 @@
 // app/teacher/components/applications/GenericFundApplicationForm.js
 "use client";
 
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { FileText, Upload, Save, Send, X, Eye, ArrowLeft, AlertCircle, DollarSign, Download, Info, Loader2 } from "lucide-react";
 import Swal from "sweetalert2";
 import PageLayout from "../common/PageLayout";
@@ -1353,6 +1353,7 @@ export default function GenericFundApplicationForm({
     hasPreviewed: false
   });
   const attachmentsPreviewUrlRef = useRef(null);
+  const serverFileCacheRef = useRef(new Map());
   const [budgetHints, setBudgetHints] = useState([]);
   const [budgetHintsLoading, setBudgetHintsLoading] = useState(false);
   const [budgetHintsError, setBudgetHintsError] = useState(null);
@@ -1582,6 +1583,7 @@ export default function GenericFundApplicationForm({
       setIsEditable(true);
       setIsNeedsMoreInfo(false);
       setReviewerComments({ admin: '', head: '' });
+      serverFileCacheRef.current.clear();
 
       // Load user data and document requirements in parallel
       const [userData, docRequirements, statusInfo] = await Promise.all([
@@ -2124,6 +2126,38 @@ export default function GenericFundApplicationForm({
     });
   };
 
+  const downloadServerDocumentFile = useCallback(async (documentEntry) => {
+    if (!documentEntry?.file_id) {
+      throw new Error('ไม่พบไฟล์บนเซิร์ฟเวอร์สำหรับเอกสารนี้');
+    }
+
+    const headers = {};
+    const token = apiClient.getToken();
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
+    }
+
+    const response = await fetch(`${apiClient.baseURL}/files/managed/${documentEntry.file_id}/download`, {
+      method: 'GET',
+      headers,
+    });
+
+    if (!response.ok) {
+      throw new Error('ไม่สามารถดาวน์โหลดไฟล์จากเซิร์ฟเวอร์ได้');
+    }
+
+    const blob = await response.blob();
+    if (!blob || blob.size === 0) {
+      throw new Error('ไม่พบข้อมูลไฟล์บนเซิร์ฟเวอร์');
+    }
+
+    const fileName = documentEntry.original_name || documentEntry.file_name || `document-${documentEntry.file_id}.pdf`;
+    const file = new File([blob], fileName, { type: blob.type || 'application/pdf' });
+
+    serverFileCacheRef.current.set(String(documentEntry.file_id), file);
+    return file;
+  }, []);
+
   const markServerDocumentForDetach = (documentTypeId) => {
     if (documentTypeId == null) {
       return;
@@ -2310,18 +2344,41 @@ export default function GenericFundApplicationForm({
 
   const buildCurrentAttachments = () => (
     documentRequirements
-      .filter(docType => uploadedFiles[docType.document_type_id])
-      .map(docType => {
-        const file = uploadedFiles[docType.document_type_id];
-        return {
-          id: docType.document_type_id,
-          name: file.name,
-          size: file.size,
-          typeLabel: docType.document_type_name,
-          required: docType.required,
-          file
-        };
+      .map((docType) => {
+        const key = String(docType.document_type_id);
+        const uploadedFile = uploadedFiles[docType.document_type_id];
+
+        if (uploadedFile) {
+          return {
+            id: docType.document_type_id,
+            name: uploadedFile.name,
+            size: uploadedFile.size,
+            typeLabel: docType.document_type_name,
+            required: docType.required,
+            file: uploadedFile,
+            source: 'uploaded',
+          };
+        }
+
+        const serverDoc = serverDocuments?.[key];
+        if (serverDoc) {
+          const serverSize = Number.isFinite(serverDoc.file_size) ? serverDoc.file_size : 0;
+          return {
+            id: docType.document_type_id,
+            name: serverDoc.original_name || docType.document_type_name,
+            size: serverSize,
+            typeLabel: docType.document_type_name,
+            required: docType.required,
+            file: serverDoc.file || null,
+            file_id: serverDoc.file_id ?? null,
+            document_id: serverDoc.document_id ?? null,
+            source: 'server',
+          };
+        }
+
+        return null;
       })
+      .filter(Boolean)
   );
 
   const generateAttachmentsPreview = async ({ openWindow = false, attachments: attachmentsOverride } = {}) => {
@@ -2336,9 +2393,40 @@ export default function GenericFundApplicationForm({
     setAttachmentsPreviewState({ loading: true, error: null, hasPreviewed: false });
 
     try {
+      const resolvedAttachments = [];
+      for (const attachment of attachments) {
+        let file = attachment.file;
+
+        if (!file && attachment.file_id) {
+          const cacheKey = String(attachment.file_id);
+          file = serverFileCacheRef.current.get(cacheKey);
+          if (!file) {
+            file = await downloadServerDocumentFile(attachment);
+          }
+
+          if (file && attachment.source === 'server' && attachment.id != null) {
+            const docKey = String(attachment.id);
+            setServerDocuments((prev) => {
+              const existing = prev?.[docKey];
+              if (!existing) return prev;
+              return {
+                ...prev,
+                [docKey]: { ...existing, file },
+              };
+            });
+          }
+        }
+
+        if (!file) {
+          throw new Error('ไม่พบข้อมูลไฟล์แนบ');
+        }
+
+        resolvedAttachments.push({ ...attachment, file });
+      }
+
       const mergedPdf = await PDFDocument.create();
 
-      for (const attachment of attachments) {
+      for (const attachment of resolvedAttachments) {
         const file = attachment.file;
 
         if (!file) {
