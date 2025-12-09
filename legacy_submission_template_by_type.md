@@ -36,6 +36,8 @@
 | additional_user_display_order | Optional |
 
 ## Publication reward template columns
+
+Include external funding lines only when the reward has associated outside support; link each line back to the main `publication_reward_details` record via `submission_id` and `detail_id`.
 | Column | Required? |
 | --- | --- |
 | submission_type | Yes (use `publication_reward`) |
@@ -76,6 +78,12 @@
 | reward_announcement | Optional |
 | author_name_list | Optional |
 | signature | Optional |
+| submission_id (for each external fund row) | Required when importing external funds |
+| detail_id (for each external fund row) | Required when importing external funds |
+| fund_name (for each external fund row) | Optional |
+| amount (for each external fund row) | Optional |
+| document_id (for each external fund row) | Optional |
+| file_id (for each external fund row) | Optional |
 | file_id | Required if attaching documents |
 | original_name | Optional |
 | document_type_id | Required if attaching documents |
