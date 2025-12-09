@@ -66,7 +66,7 @@
 - external_fund_id
 - detail_id
 - submission_id
-- fund_name
+- fund_name (external fund name)
 - amount
 - document_id
 - file_id

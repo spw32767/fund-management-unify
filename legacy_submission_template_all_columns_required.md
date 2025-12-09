@@ -66,7 +66,7 @@
 - external_fund_id (primary key; only if auto-increment is disabled)
 - detail_id **(required)**
 - submission_id **(required)**
-- fund_name (optional)
+- fund_name (external fund name; optional)
 - amount (optional)
 - document_id (optional)
 - file_id (optional)

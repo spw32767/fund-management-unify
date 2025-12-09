@@ -80,7 +80,7 @@ Include external funding lines only when the reward has associated outside suppo
 | signature | Optional |
 | submission_id (for each external fund row) | Required when importing external funds |
 | detail_id (for each external fund row) | Required when importing external funds |
-| fund_name (for each external fund row) | Optional |
+| fund_name (external fund name for each external fund row) | Optional |
 | amount (for each external fund row) | Optional |
 | document_id (for each external fund row) | Optional |
 | file_id (for each external fund row) | Optional |
