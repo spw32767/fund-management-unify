@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import * as XLSX from "xlsx";
 import {
   ArrowDownUp,
   Download,
@@ -195,10 +196,209 @@ export default function AdminImportExportPage() {
   const [modalError, setModalError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
+  const [importing, setImporting] = useState(false);
+  const [importError, setImportError] = useState("");
+  const [importSummary, setImportSummary] = useState(null);
+  const [userImportFile, setUserImportFile] = useState(null);
+  const [legacyImportFile, setLegacyImportFile] = useState(null);
 
-  const handleComingSoon = useCallback(() => {
-    alert("ฟังก์ชันนำเข้ากำลังจะมาภายหลัง");
+  const parseWorkbookRows = useCallback(async (file) => {
+    const buffer = await file.arrayBuffer();
+    const workbook = XLSX.read(buffer, { type: "array" });
+    const sheet = workbook.Sheets[workbook.SheetNames[0]];
+    const rows = XLSX.utils.sheet_to_json(sheet, { defval: "" });
+    return rows.filter((row) => Object.values(row || {}).some((v) => String(v ?? "").trim() !== ""));
   }, []);
+
+  const validateHeaders = useCallback((row, requiredFields) => {
+    const missing = requiredFields.filter((field) => !(field in row));
+    if (missing.length) {
+      throw new Error(`ไฟล์ไม่มีคอลัมน์ที่จำเป็น: ${missing.join(", ")}`);
+    }
+  }, []);
+
+  const importUsers = useCallback(
+    async (file) => {
+      setImportError("");
+      setImportSummary(null);
+      if (!file) {
+        setImportError("กรุณาเลือกไฟล์นำเข้าผู้ใช้");
+        return;
+      }
+
+      setImporting(true);
+      try {
+        const rows = await parseWorkbookRows(file);
+        if (rows.length === 0) {
+          throw new Error("ไม่พบข้อมูลในไฟล์");
+        }
+
+        validateHeaders(rows[0], [
+          "user_fname",
+          "user_lname",
+          "gender",
+          "email",
+          "scholar_author_id",
+          "role_id",
+          "position_id",
+          "date_of_employment",
+          "prefix",
+          "manage_position",
+          "position_title",
+          "position_en",
+          "prefix_position_en",
+          "name_en",
+          "suffix_en",
+          "tel",
+          "tel_format",
+          "tel_eng",
+          "manage_position_en",
+          "lab_name",
+          "room",
+          "cp_web_id",
+          "scopus_id",
+          "account_status",
+        ]);
+
+        const users = rows.map((row) => ({
+          user_fname: String(row.user_fname || "").trim(),
+          user_lname: String(row.user_lname || "").trim(),
+          gender: row.gender ?? "",
+          email: String(row.email || "").trim(),
+          scholar_author_id: row.scholar_author_id ?? "",
+          role_id: row.role_id ?? "",
+          position_id: row.position_id ?? "",
+          date_of_employment: row.date_of_employment ?? "",
+          prefix: row.prefix ?? "",
+          manage_position: row.manage_position ?? "",
+          position_title: row.position_title ?? "",
+          position_en: row.position_en ?? "",
+          prefix_position_en: row.prefix_position_en ?? "",
+          name_en: row.name_en ?? "",
+          suffix_en: row.suffix_en ?? "",
+          tel: row.tel ?? "",
+          tel_format: row.tel_format ?? "",
+          tel_eng: row.tel_eng ?? "",
+          manage_position_en: row.manage_position_en ?? "",
+          lab_name: row.lab_name ?? "",
+          room: row.room ?? "",
+          cp_web_id: row.cp_web_id ?? "",
+          scopus_id: row.scopus_id ?? "",
+          account_status: row.account_status ?? "active",
+        }));
+
+        await apiClient.post("/admin/users/import", { users });
+        setImportSummary({
+          type: "users",
+          total: users.length,
+          message: "นำเข้าผู้ใช้สำเร็จ",
+        });
+      } catch (err) {
+        console.error("User import failed", err);
+        setImportError(err?.message || "ไม่สามารถนำเข้าผู้ใช้ได้");
+      } finally {
+        setImporting(false);
+      }
+    },
+    [parseWorkbookRows, validateHeaders]
+  );
+
+  const importLegacySubmissions = useCallback(
+    async (file) => {
+      setImportError("");
+      setImportSummary(null);
+      if (!file) {
+        setImportError("กรุณาเลือกไฟล์นำเข้าประวัติทุนย้อนหลัง");
+        return;
+      }
+
+      setImporting(true);
+      try {
+        const rows = await parseWorkbookRows(file);
+        if (rows.length === 0) {
+          throw new Error("ไม่พบข้อมูลในไฟล์");
+        }
+
+        const submissionFields = [
+          "submission_type",
+          "user_id",
+          "year",
+          "category_name",
+          "subcategory_name",
+          "subcategory_budget",
+          "status_id",
+          "submitted_at",
+          "installment_number_at_submit",
+          "project_title",
+          "project_description",
+          "requested_amount",
+          "announce_reference_number",
+          "main_announcement",
+          "activity_support_announcement",
+          "paper_title",
+          "journal_name",
+          "publication_date",
+          "publication_type",
+          "quartile",
+          "impact_factor",
+          "doi",
+          "url",
+          "author_count",
+          "author_type",
+          "author_name_list",
+          "reward_amount",
+          "reward_approve_amount",
+          "revision_fee",
+          "revision_fee_approve_amount",
+          "publication_fee",
+          "publication_fee_approve_amount",
+          "external_funding_amount",
+          "total_amount",
+          "total_approve_amount",
+          "external_fund_name",
+          "external_fund_amount",
+          "external_fund_document_id",
+          "external_fund_file_id",
+          "additional_user_id",
+          "additional_user_role",
+          "additional_user_is_primary",
+          "additional_user_display_order",
+          "document_file_id",
+          "document_original_name",
+          "document_type_id",
+          "document_description",
+          "document_display_order",
+          "document_is_required",
+          "document_is_verified",
+          "document_verified_by",
+          "document_verified_at",
+        ];
+
+        validateHeaders(rows[0], submissionFields);
+
+        const submissions = rows.map((row) => {
+          const payload = {};
+          submissionFields.forEach((field) => {
+            payload[field] = row[field] ?? "";
+          });
+          return payload;
+        });
+
+        await apiClient.post("/admin/legacy-submissions/import", { submissions });
+        setImportSummary({
+          type: "legacy",
+          total: submissions.length,
+          message: "นำเข้าประวัติทุนย้อนหลังสำเร็จ",
+        });
+      } catch (err) {
+        console.error("Legacy submission import failed", err);
+        setImportError(err?.message || "ไม่สามารถนำเข้าประวัติทุนย้อนหลังได้");
+      } finally {
+        setImporting(false);
+      }
+    },
+    [parseWorkbookRows, validateHeaders]
+  );
 
   const getFileURL = useCallback((filePath) => {
     if (!filePath) return "#";
@@ -501,7 +701,7 @@ export default function AdminImportExportPage() {
             <div>
               <h2 className="text-lg font-semibold text-slate-900">นำเข้าข้อมูลจากเทมเพลต</h2>
               <p className="text-sm text-slate-600">
-                อัปโหลดไฟล์ที่กรอกข้อมูลแล้ว ระบบจะตรวจสอบและเพิ่มข้อมูล (ฟังก์ชันกำลังพัฒนา)
+                อัปโหลดไฟล์ที่กรอกข้อมูลแล้ว ระบบจะตรวจสอบและเพิ่มข้อมูลเข้าฐานข้อมูล
               </p>
             </div>
             <div className="hidden sm:flex items-center gap-2 text-slate-500">
@@ -524,18 +724,20 @@ export default function AdminImportExportPage() {
                   type="file"
                   accept=".xlsx,.xls"
                   className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                  disabled
+                  onChange={(e) => setUserImportFile(e.target.files?.[0] || null)}
+                  disabled={importing}
                 />
                 <button
                   type="button"
-                  onClick={handleComingSoon}
+                  onClick={() => importUsers(userImportFile)}
                   className="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+                  disabled={importing}
                 >
-                  <UploadCloud size={16} />
-                  อัปโหลด / นำเข้า
+                  {importing ? <Loader2 size={16} className="animate-spin" /> : <UploadCloud size={16} />}
+                  {importing ? "กำลังนำเข้า" : "อัปโหลด / นำเข้า"}
                 </button>
                 <p className="text-xs text-slate-500">
-                  ระบบจะตรวจสอบและเพิ่มผู้ใช้ใหม่จากไฟล์นี้ (ฟังก์ชันกำลังพัฒนา)
+                  ระบบจะตรวจสอบและเพิ่มผู้ใช้ใหม่จากไฟล์นี้
                 </p>
               </div>
             </div>
@@ -553,22 +755,34 @@ export default function AdminImportExportPage() {
                   type="file"
                   accept=".xlsx,.xls"
                   className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                  disabled
+                  onChange={(e) => setLegacyImportFile(e.target.files?.[0] || null)}
+                  disabled={importing}
                 />
                 <button
                   type="button"
-                  onClick={handleComingSoon}
+                  onClick={() => importLegacySubmissions(legacyImportFile)}
                   className="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+                  disabled={importing}
                 >
-                  <UploadCloud size={16} />
-                  อัปโหลด / นำเข้าประวัติทุน
+                  {importing ? <Loader2 size={16} className="animate-spin" /> : <UploadCloud size={16} />}
+                  {importing ? "กำลังนำเข้า" : "อัปโหลด / นำเข้าประวัติทุน"}
                 </button>
                 <p className="text-xs text-slate-500">
-                  ระบบจะตรวจสอบข้อมูลและเพิ่มประวัติทุน (ฟังก์ชันกำลังพัฒนา)
+                  ระบบจะตรวจสอบข้อมูลและเพิ่มประวัติทุน
                 </p>
               </div>
             </div>
           </div>
+          {importError ? (
+            <div className="border-t border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700 sm:px-6">
+              {importError}
+            </div>
+          ) : null}
+          {importSummary ? (
+            <div className="border-t border-emerald-100 bg-emerald-50 px-4 py-3 text-sm text-emerald-700 sm:px-6">
+              {importSummary.message} • จำนวน {importSummary.total} รายการ
+            </div>
+          ) : null}
         </div>
       </div>
 
