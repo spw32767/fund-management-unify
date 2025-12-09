@@ -1,6 +1,6 @@
 # Legacy Submission Template – Mandatory Columns
 
-Use the following fields when preparing legacy submission imports so that database `NOT NULL` and foreign-key rules are satisfied. Columns are listed alphabetically within each section.
+Use these fields when preparing legacy submission imports so database `NOT NULL` and foreign-key rules are satisfied. Columns are listed alphabetically within each section.
 
 ## Base submission (all submission types)
 - `status_id` — required status reference for every submission.
@@ -11,16 +11,14 @@ Use the following fields when preparing legacy submission imports so that databa
 
 ## Fund application details (when `submission_type = fund_application`)
 - `subcategory_id` — required fund subcategory reference.
-- `subcategory_budget_id` — required subcategory budget reference.
 
 ## Publication reward details (when `submission_type = publication_reward`)
 - `journal_name` — journal or venue of the publication.
 - `paper_title` — title of the publication.
 - `publication_date` — date the work was published.
-- `submission_id` — links the detail row to its submission (if auto-increment is disabled).
 
 ## Submission documents (attachments)
-- `document_file_id` — uploaded file reference.
+- `file_id` — uploaded file reference.
 - `document_type_id` — required document-type reference.
 - `submission_id` — links the document to its submission (if auto-increment is disabled).
 

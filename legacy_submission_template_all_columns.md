@@ -1,28 +1,35 @@
 # Legacy Submission Template – Full Column List
 
-## Submission core
+## Submission core (all types)
 - submission_id
 - submission_type
+- submission_number
 - user_id
-- year
 - year_id
-- category_name
 - category_id
-- subcategory_name
 - subcategory_id
-- subcategory_budget
 - subcategory_budget_id
 - status_id
 - submitted_at
 - installment_number_at_submit
+
+## Fund application details (`fund_application_details`)
+- detail_id
+- submission_id
+- subcategory_id
 - project_title
 - project_description
 - requested_amount
+- approved_amount
+- closed_at
 - announce_reference_number
-- main_announcement
+- main_annoucement
 - activity_support_announcement
+- author_name_list
 
-## Publication reward details
+## Publication reward details (`publication_reward_details`)
+- detail_id
+- submission_id
 - paper_title
 - journal_name
 - publication_date
@@ -31,39 +38,57 @@
 - impact_factor
 - doi
 - url
-- author_count
-- author_type
-- author_name_list
+- page_numbers
+- volume_issue
+- indexing
 - reward_amount
 - reward_approve_amount
 - revision_fee
 - revision_fee_approve_amount
 - publication_fee
 - publication_fee_approve_amount
-
-## Fund and external support details
 - external_funding_amount
 - total_amount
 - total_approve_amount
-- external_fund_name
-- external_fund_amount
-- external_fund_document_id
-- external_fund_file_id
+- announce_reference_number
+- author_count
+- author_type
+- has_university_funding
+- funding_references
+- university_rankings
+- approved_amount
+- main_annoucement
+- reward_announcement
+- author_name_list
+- signature
 
-## Additional participants (submission_users)
-- additional_user_id
-- additional_user_role
-- additional_user_is_primary
-- additional_user_display_order
-
-## Documents
+## Publication reward external funds (`publication_reward_external_funds`)
+- external_fund_id
+- detail_id
+- submission_id
+- fund_name
+- amount
 - document_id
-- document_file_id
-- document_original_name
+- file_id
+
+## Additional participants (`submission_users`)
+- id
+- submission_id
+- user_id
+- role
+- is_primary
+- display_order
+
+## Documents (`submission_documents`)
+- document_id
+- submission_id
+- file_id
+- original_name
 - document_type_id
-- document_description
-- document_display_order
-- document_is_required
-- document_is_verified
-- document_verified_by
-- document_verified_at
+- description
+- display_order
+- is_required
+- is_verified
+- verified_by
+- verified_at
+- created_at

@@ -3,52 +3,47 @@
 ## Fund application template columns
 | Column | Required? |
 | --- | --- |
-| submission_type | Yes |
+| submission_type | Yes (use `fund_application`) |
 | user_id | Yes |
 | year_id | Yes |
-| category_id | Yes |
-| category_name | Optional (label) |
-| subcategory_id | Yes |
-| subcategory_name | Optional (label) |
-| subcategory_budget_id | Yes |
-| subcategory_budget | Optional (label) |
 | status_id | Yes |
+| category_id | Optional |
+| subcategory_id | Yes (maps to the fund) |
+| subcategory_budget_id | Optional |
 | submitted_at | Optional |
 | installment_number_at_submit | Optional |
-| project_title | Yes |
-| project_description | Yes |
-| requested_amount | Yes |
+| project_title | Optional |
+| project_description | Optional |
+| requested_amount | Optional |
+| approved_amount | Optional |
+| closed_at | Optional |
 | announce_reference_number | Optional |
-| main_announcement | Optional |
+| main_annoucement | Optional |
 | activity_support_announcement | Optional |
-| external_funding_amount | Optional |
-| total_amount | Optional |
-| total_approve_amount | Optional |
-| external_fund_name | Optional |
-| external_fund_amount | Optional |
-| external_fund_document_id | Optional |
-| external_fund_file_id | Optional |
-| additional_user_id | Optional |
+| author_name_list | Optional |
+| file_id | Required if attaching documents |
+| original_name | Optional |
+| document_type_id | Required if attaching documents |
+| description | Optional |
+| display_order | Optional |
+| is_required | Optional |
+| is_verified | Optional |
+| verified_by | Optional |
+| verified_at | Optional |
+| additional_user_id | Optional (if adding extra participants) |
 | additional_user_role | Optional |
 | additional_user_is_primary | Optional |
 | additional_user_display_order | Optional |
-| document_file_id | Required if attaching documents |
-| document_original_name | Optional |
-| document_type_id | Required if attaching documents |
-| document_description | Optional |
-| document_display_order | Optional |
-| document_is_required | Optional |
-| document_is_verified | Optional |
-| document_verified_by | Optional |
-| document_verified_at | Optional |
 
 ## Publication reward template columns
 | Column | Required? |
 | --- | --- |
-| submission_type | Yes |
+| submission_type | Yes (use `publication_reward`) |
 | user_id | Yes |
 | year_id | Yes |
 | status_id | Yes |
+| category_id | Optional |
+| subcategory_id | Optional |
 | submitted_at | Optional |
 | paper_title | Yes |
 | journal_name | Yes |
@@ -58,9 +53,9 @@
 | impact_factor | Optional |
 | doi | Optional |
 | url | Optional |
-| author_count | Optional |
-| author_type | Optional |
-| author_name_list | Optional |
+| page_numbers | Optional |
+| volume_issue | Optional |
+| indexing | Optional |
 | reward_amount | Optional |
 | reward_approve_amount | Optional |
 | revision_fee | Optional |
@@ -71,18 +66,26 @@
 | total_amount | Optional |
 | total_approve_amount | Optional |
 | announce_reference_number | Optional |
-| main_announcement | Optional |
-| activity_support_announcement | Optional |
-| additional_user_id | Optional |
+| author_count | Optional |
+| author_type | Optional |
+| has_university_funding | Optional |
+| funding_references | Optional |
+| university_rankings | Optional |
+| approved_amount | Optional |
+| main_annoucement | Optional |
+| reward_announcement | Optional |
+| author_name_list | Optional |
+| signature | Optional |
+| file_id | Required if attaching documents |
+| original_name | Optional |
+| document_type_id | Required if attaching documents |
+| description | Optional |
+| display_order | Optional |
+| is_required | Optional |
+| is_verified | Optional |
+| verified_by | Optional |
+| verified_at | Optional |
+| additional_user_id | Optional (if adding extra participants) |
 | additional_user_role | Optional |
 | additional_user_is_primary | Optional |
 | additional_user_display_order | Optional |
-| document_file_id | Required if attaching documents |
-| document_original_name | Optional |
-| document_type_id | Required if attaching documents |
-| document_description | Optional |
-| document_display_order | Optional |
-| document_is_required | Optional |
-| document_is_verified | Optional |
-| document_verified_by | Optional |
-| document_verified_at | Optional |
