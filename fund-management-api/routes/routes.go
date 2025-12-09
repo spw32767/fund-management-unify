@@ -381,10 +381,12 @@ func SetupRoutes(router *gin.Engine) {
 			admin := protected.Group("/admin")
 			admin.Use(middleware.RequireRole(3)) // Require admin role
 			{
-				admin.GET("/import-templates", controllers.GetImportTemplatesAdmin)
-				admin.POST("/import-templates", controllers.CreateImportTemplateAdmin)
-				admin.PUT("/import-templates/:id", controllers.UpdateImportTemplateAdmin)
-				admin.DELETE("/import-templates/:id", controllers.DeleteImportTemplateAdmin)
+                                admin.GET("/import-templates", controllers.GetImportTemplatesAdmin)
+                                admin.POST("/import-templates", controllers.CreateImportTemplateAdmin)
+                                admin.PUT("/import-templates/:id", controllers.UpdateImportTemplateAdmin)
+                                admin.DELETE("/import-templates/:id", controllers.DeleteImportTemplateAdmin)
+                                admin.POST("/import/users", controllers.AdminImportUsers)
+                                admin.POST("/import/legacy-submissions", controllers.AdminImportLegacySubmissions)
 
 				notificationMessages := admin.Group("/notification-messages")
 				{
