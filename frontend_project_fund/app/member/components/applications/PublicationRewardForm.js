@@ -5669,6 +5669,8 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
         phone_number: formData.phone_number || '',
         has_university_funding: formData.has_university_fund || '',
         university_fund_ref: formData.university_fund_ref || '',
+        funding_references: formData.university_fund_ref || '',
+        university_rankings: formData.university_ranking || '',
         main_annoucement: announcementLock.main_annoucement ?? null,
         reward_announcement: announcementLock.reward_announcement ?? null,
       };
