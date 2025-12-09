@@ -44,7 +44,7 @@ func (s *InnovationService) ListByUser(userID uint, limit, offset int) ([]UserIn
 		Joins("LEFT JOIN fund_application_details fad ON fad.submission_id = submissions.submission_id").
 		Joins("LEFT JOIN fund_subcategories fs ON fs.subcategory_id = submissions.subcategory_id").
 		Joins("LEFT JOIN years y ON y.year_id = submissions.year_id").
-		Joins("LEFT JOIN application_status st ON st.status_id = submissions.status_id").
+                Joins("LEFT JOIN application_status st ON st.application_status_id = submissions.status_id").
                 Select(`
 submissions.submission_id,
 submissions.submission_number,
