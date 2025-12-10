@@ -494,6 +494,15 @@ export default function DashboardContent({ onNavigate }) {
       setStats(payload);
 
       if (typeof window !== "undefined") {
+        // eslint-disable-next-line no-console
+        console.groupCollapsed("%c[AdminDashboard]%c stats payload", "color: #2563eb; font-weight: 600;", "color: inherit;");
+        // eslint-disable-next-line no-console
+        console.log("filters", query);
+        // eslint-disable-next-line no-console
+        console.dir(payload, { depth: null });
+        // eslint-disable-next-line no-console
+        console.groupEnd();
+
         const quotaSummary = Array.isArray(payload?.quota_summary) ? payload.quota_summary : [];
         const quotaViewRows = Array.isArray(payload?.quota_usage_view_rows)
           ? payload.quota_usage_view_rows
