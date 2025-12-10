@@ -44,8 +44,8 @@ func (s *InnovationService) ListByUser(userID uint, limit, offset int) ([]UserIn
 		Joins("LEFT JOIN fund_application_details fad ON fad.submission_id = submissions.submission_id").
 		Joins("LEFT JOIN fund_subcategories fs ON fs.subcategory_id = submissions.subcategory_id").
 		Joins("LEFT JOIN years y ON y.year_id = submissions.year_id").
-                Joins("LEFT JOIN application_status st ON st.application_status_id = submissions.status_id").
-                Select(`
+		Joins("LEFT JOIN application_status st ON st.application_status_id = submissions.status_id").
+		Select(`
 submissions.submission_id,
 submissions.submission_number,
 COALESCE(NULLIF(fad.project_title, ''), fs.subcategory_name, submissions.submission_type) AS title,
@@ -57,8 +57,8 @@ y.year AS year_name
 		Where("submissions.user_id = ? AND submissions.deleted_at IS NULL", userID).
 		Where(keywordFilter, keywords[0], keywords[1])
 
-	// Default sort by submission (most recent first)
-	query = query.Order("submissions.submitted_at DESC NULLS LAST").Order("submissions.created_at DESC")
+	// Default sort by submission (most recent first) with NULL registered dates last (MariaDB compatible)
+	query = query.Order("submissions.submitted_at IS NULL, submissions.submitted_at DESC").Order("submissions.created_at DESC")
 
 	var total int64
 	if err := query.Count(&total).Error; err != nil {
