@@ -15,4 +15,5 @@ LEFT JOIN fund_subcategories fs ON fs.subcategory_id = s.subcategory_id
 LEFT JOIN years y ON y.year_id = s.year_id
 LEFT JOIN application_status st ON st.application_status_id = s.status_id
 WHERE s.deleted_at IS NULL
+  AND s.status_id = 2
   AND (fs.subcategory_name LIKE '%สิทธิบัตร%' OR fs.subcategory_name LIKE '%อนุสิทธิบัตร%');
