@@ -1627,6 +1627,11 @@ export default function ProfileContent() {
                                   : null;
                               const yearValue = getPublicationYear(pub) || "-";
                               const key = `${pub.id || pub.eid || index}-${activeSource}`;
+                              const subtypeDescription =
+                                pub.scopus_documents?.subtype_description ||
+                                pub.subtype_description ||
+                                pub.subtypeDescription;
+                              const shouldShowCiteScore = subtypeDescription === "Article";
                               return (
                                 <tr key={key} className="hover:bg-gray-50">
                                   <td className="px-4 py-2 text-center text-gray-700">
@@ -1674,7 +1679,7 @@ export default function ProfileContent() {
                                   </td>
                                   {isScopusActive ? (
                                     <td className="px-4 py-2 text-center">
-                                      {pub.cite_score_quartile || pub.cite_score_percentile ? (
+                                      {shouldShowCiteScore && (pub.cite_score_quartile || pub.cite_score_percentile) ? (
                                         <div className="flex flex-col items-center gap-1">
                                           {pub.cite_score_quartile ? (
                                             <span
