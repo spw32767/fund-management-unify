@@ -346,6 +346,11 @@ export default function AdminScopusResearchSearch() {
                             pub.cite_score_percentile ?? pub.scopus_source_metrics?.cite_score_percentile;
                           const citeScoreQuartile =
                             pub.cite_score_quartile ?? pub.scopus_source_metrics?.cite_score_quartile;
+                          const subtypeDescription =
+                            pub.scopus_documents?.subtype_description ||
+                            pub.subtype_description ||
+                            pub.subtypeDescription;
+                          const shouldShowCiteScore = subtypeDescription === "Article";
                           const linkLabel = pub.title || pub.venue || pub.publication_name || "ไม่ระบุชื่อเรื่อง";
 
                           const titleContent = scopusUrl ? (
@@ -381,7 +386,7 @@ export default function AdminScopusResearchSearch() {
                               </td>
                               <td className="px-4 py-2 text-right text-gray-700">{citedByValue ?? "-"}</td>
                               <td className="px-4 py-2 text-center text-gray-700">
-                                {formatPercentile(citeScorePercentile) ? (
+                                {shouldShowCiteScore && formatPercentile(citeScorePercentile) ? (
                                   <span className="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-1 text-[11px] font-medium text-gray-700">
                                     Percentile {formatPercentile(citeScorePercentile)}
                                   </span>
@@ -390,7 +395,7 @@ export default function AdminScopusResearchSearch() {
                                 )}
                               </td>
                               <td className="px-4 py-2 text-center text-gray-700">
-                                {citeScoreQuartile ? (
+                                {shouldShowCiteScore && citeScoreQuartile ? (
                                   <span
                                     className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ${quartileBadgeClass(
                                       citeScoreQuartile,
