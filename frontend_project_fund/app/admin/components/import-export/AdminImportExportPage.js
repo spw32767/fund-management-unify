@@ -200,6 +200,7 @@ export default function AdminImportExportPage() {
   const [importingType, setImportingType] = useState("");
   const [importError, setImportError] = useState("");
   const [importSuccess, setImportSuccess] = useState("");
+  const showImportSection = false;
 
   const userImportColumns = useMemo(
     () => [
@@ -640,88 +641,90 @@ export default function AdminImportExportPage() {
           </div>
         </div>
 
-        {/* Import section */}
-        <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
-          <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-4 py-3 sm:px-6">
-            <div>
-              <h2 className="text-lg font-semibold text-slate-900">นำเข้าข้อมูลจากเทมเพลต</h2>
-              <p className="text-sm text-slate-600">
-                อัปโหลดไฟล์ที่กรอกข้อมูลแล้ว ระบบจะตรวจสอบและเพิ่มข้อมูลตามเทมเพลตเพื่อป้องกันข้อผิดพลาดในฐานข้อมูล
-              </p>
+        {/* Import section temporarily hidden */}
+        {showImportSection ? (
+          <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
+            <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-4 py-3 sm:px-6">
+              <div>
+                <h2 className="text-lg font-semibold text-slate-900">นำเข้าข้อมูลจากเทมเพลต</h2>
+                <p className="text-sm text-slate-600">
+                  อัปโหลดไฟล์ที่กรอกข้อมูลแล้ว ระบบจะตรวจสอบและเพิ่มข้อมูลตามเทมเพลตเพื่อป้องกันข้อผิดพลาดในฐานข้อมูล
+                </p>
+              </div>
+              <div className="hidden sm:flex items-center gap-2 text-slate-500">
+                <UploadCloud size={18} />
+                <span className="text-sm">Import</span>
+              </div>
             </div>
-            <div className="hidden sm:flex items-center gap-2 text-slate-500">
-              <UploadCloud size={18} />
-              <span className="text-sm">Import</span>
+
+            {importError ? (
+              <div className="border-b border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700 sm:px-6">{importError}</div>
+            ) : null}
+            {importSuccess ? (
+              <div className="border-b border-green-100 bg-green-50 px-4 py-3 text-sm text-green-700 sm:px-6">{importSuccess}</div>
+            ) : null}
+
+            <div className="grid grid-cols-1 gap-6 p-4 sm:grid-cols-2 sm:p-6">
+              <div className="flex flex-col gap-3 rounded-lg border border-slate-200 bg-slate-50/70 p-4">
+                <div className="flex items-center gap-2 text-slate-800">
+                  <FileSpreadsheet size={18} className="text-blue-600" />
+                  <h3 className="text-base font-semibold">นำเข้าผู้ใช้จากไฟล์</h3>
+                </div>
+                <p className="text-sm text-slate-600">
+                  ใช้ไฟล์ "User Import Template" กรอกข้อมูลผู้ใช้ใหม่ให้ครบ จากนั้นัปโหลดที่นี่
+                </p>
+                <div className="flex flex-col gap-3">
+                  <input
+                    type="file"
+                    accept=".xlsx,.xls"
+                    className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    onChange={(e) => setUserImportFile(e.target.files?.[0] || null)}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => handleImport("user")}
+                    disabled={importingType === "user"}
+                    className="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {importingType === "user" ? <Loader2 size={16} className="animate-spin" /> : <UploadCloud size={16} />}
+                    {importingType === "user" ? "กำลังนำเข้า..." : "อัปโหลด / นำเข้า"}
+                  </button>
+                  <p className="text-xs text-slate-500">ระบบจะตรวจสอบคอลัมน์ตามเทมเพลตก่อนเพิ่มผู้ใช้</p>
+                  {renderColumnList(userImportColumns)}
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-3 rounded-lg border border-slate-200 bg-slate-50/70 p-4">
+                <div className="flex items-center gap-2 text-slate-800">
+                  <FileSpreadsheet size={18} className="text-green-600" />
+                  <h3 className="text-base font-semibold">นำเข้าประวัติทุนย้อนหลัง</h3>
+                </div>
+                <p className="text-sm text-slate-600">
+                  สำหรับบันทึกประวัติทุนของอาจารย์ที่มีทุนมาก่อนใช้ระบบนี้ ใช้เทมเพลตประวัติทุนย้อนหลัง
+                </p>
+                <div className="flex flex-col gap-3">
+                  <input
+                    type="file"
+                    accept=".xlsx,.xls"
+                    className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    onChange={(e) => setLegacyImportFile(e.target.files?.[0] || null)}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => handleImport("legacy")}
+                    disabled={importingType === "legacy"}
+                    className="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {importingType === "legacy" ? <Loader2 size={16} className="animate-spin" /> : <UploadCloud size={16} />}
+                    {importingType === "legacy" ? "กำลังนำเข้า..." : "อัปโหลด / นำเข้าประวัติทุน"}
+                  </button>
+                  <p className="text-xs text-slate-500">ระบบจะตรวจสอบโครงสร้างไฟล์ตามเทมเพลตก่อนเพิ่มข้อมูล</p>
+                  {renderColumnList(submissionImportColumns)}
+                </div>
+              </div>
             </div>
           </div>
-
-          {importError ? (
-            <div className="border-b border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700 sm:px-6">{importError}</div>
-          ) : null}
-          {importSuccess ? (
-            <div className="border-b border-green-100 bg-green-50 px-4 py-3 text-sm text-green-700 sm:px-6">{importSuccess}</div>
-          ) : null}
-
-          <div className="grid grid-cols-1 gap-6 p-4 sm:grid-cols-2 sm:p-6">
-            <div className="flex flex-col gap-3 rounded-lg border border-slate-200 bg-slate-50/70 p-4">
-              <div className="flex items-center gap-2 text-slate-800">
-                <FileSpreadsheet size={18} className="text-blue-600" />
-                <h3 className="text-base font-semibold">นำเข้าผู้ใช้จากไฟล์</h3>
-              </div>
-              <p className="text-sm text-slate-600">
-                ใช้ไฟล์ "User Import Template" กรอกข้อมูลผู้ใช้ใหม่ให้ครบ จากนั้นัปโหลดที่นี่
-              </p>
-              <div className="flex flex-col gap-3">
-                <input
-                  type="file"
-                  accept=".xlsx,.xls"
-                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                  onChange={(e) => setUserImportFile(e.target.files?.[0] || null)}
-                />
-                <button
-                  type="button"
-                  onClick={() => handleImport("user")}
-                  disabled={importingType === "user"}
-                  className="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  {importingType === "user" ? <Loader2 size={16} className="animate-spin" /> : <UploadCloud size={16} />}
-                  {importingType === "user" ? "กำลังนำเข้า..." : "อัปโหลด / นำเข้า"}
-                </button>
-                <p className="text-xs text-slate-500">ระบบจะตรวจสอบคอลัมน์ตามเทมเพลตก่อนเพิ่มผู้ใช้</p>
-                {renderColumnList(userImportColumns)}
-              </div>
-            </div>
-
-            <div className="flex flex-col gap-3 rounded-lg border border-slate-200 bg-slate-50/70 p-4">
-              <div className="flex items-center gap-2 text-slate-800">
-                <FileSpreadsheet size={18} className="text-green-600" />
-                <h3 className="text-base font-semibold">นำเข้าประวัติทุนย้อนหลัง</h3>
-              </div>
-              <p className="text-sm text-slate-600">
-                สำหรับบันทึกประวัติทุนของอาจารย์ที่มีทุนมาก่อนใช้ระบบนี้ ใช้เทมเพลตประวัติทุนย้อนหลัง
-              </p>
-              <div className="flex flex-col gap-3">
-                <input
-                  type="file"
-                  accept=".xlsx,.xls"
-                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                  onChange={(e) => setLegacyImportFile(e.target.files?.[0] || null)}
-                />
-                <button
-                  type="button"
-                  onClick={() => handleImport("legacy")}
-                  disabled={importingType === "legacy"}
-                  className="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  {importingType === "legacy" ? <Loader2 size={16} className="animate-spin" /> : <UploadCloud size={16} />}
-                  {importingType === "legacy" ? "กำลังนำเข้า..." : "อัปโหลด / นำเข้าประวัติทุน"}
-                </button>
-                <p className="text-xs text-slate-500">ระบบจะตรวจสอบโครงสร้างไฟล์ตามเทมเพลตก่อนเพิ่มข้อมูล</p>
-                {renderColumnList(submissionImportColumns)}
-              </div>
-            </div>
-          </div>
-        </div>
+        ) : null}
       </div>
 
       <TemplateModal
