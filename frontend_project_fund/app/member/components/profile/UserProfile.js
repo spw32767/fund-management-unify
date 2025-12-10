@@ -12,6 +12,7 @@ import {
   ArrowDown,
   ArrowUpDown,
   UserCircle,
+  Download,
 } from "lucide-react";
 
 import profileAPI from "@/app/lib/profile_api";
@@ -19,6 +20,8 @@ import memberAPI from "@/app/lib/member_api";
 import BudgetSummary from "@/app/member/components/dashboard/BudgetSummary";
 import { useStatusMap } from "@/app/hooks/useStatusMap";
 import PageLayout from "../common/PageLayout";
+import { toast } from "react-hot-toast";
+import { downloadXlsx } from "@/app/admin/utils/xlsxExporter";
 
 const ReactApexChart = dynamic(() => import("react-apexcharts"), {
   ssr: false,
@@ -63,6 +66,37 @@ const createDefaultScopusStats = () => ({
   totals: { documents: null, citations: null },
   meta: { has_scopus_id: true, has_author_record: true },
 });
+
+const EXPORT_COLUMNS = [
+  { key: "rowNumber", header: "ลำดับ", width: 8 },
+  { key: "scopusId", header: "scopus_id", width: 14 },
+  { key: "scopusLink", header: "scopus_link", width: 30 },
+  { key: "title", header: "title", width: 60 },
+  { key: "abstract", header: "abstract", width: 60 },
+  { key: "aggregationType", header: "aggregation_type", width: 18 },
+  { key: "sourceId", header: "source_id", width: 18 },
+  { key: "publicationName", header: "publication_name", width: 36 },
+  { key: "issn", header: "issn", width: 18 },
+  { key: "eissn", header: "eissn", width: 18 },
+  { key: "isbn", header: "isbn", width: 18 },
+  { key: "volume", header: "volume", width: 12 },
+  { key: "issue", header: "issue", width: 12 },
+  { key: "pageRange", header: "page_range", width: 16 },
+  { key: "articleNumber", header: "article_number", width: 18 },
+  { key: "coverDate", header: "cover_date", width: 18 },
+  { key: "doi", header: "doi", width: 22 },
+  { key: "citedBy", header: "citedby_count", width: 12 },
+  { key: "authkeywords", header: "authkeywords", width: 28 },
+  { key: "fundSponsor", header: "fund_sponsor", width: 28 },
+  { key: "citeScoreStatus", header: "cite_score_status", width: 18 },
+  { key: "citeScoreRank", header: "cite_score_rank", width: 14 },
+  { key: "citeScorePercentile", header: "cite_score_percentile", width: 16 },
+  { key: "citeScoreQuartile", header: "cite_score_quartile", width: 16 },
+  { key: "year", header: "publication_year", width: 12 },
+  { key: "eid", header: "eid", width: 22 },
+  { key: "scopusUrl", header: "scopus_url", width: 32 },
+  { key: "doiUrl", header: "doi_url", width: 32 },
+];
 
 const CITATION_RECENT_START_YEAR = 2020;
 
@@ -460,6 +494,7 @@ export default function ProfileContent() {
   const [sortDirection, setSortDirection] = useState("desc");
   const [currentPage, setCurrentPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(10);
+  const [exporting, setExporting] = useState(false);
 
   const [innovations, setInnovations] = useState([]);
   const [innovLoading, setInnovLoading] = useState(true);
@@ -604,6 +639,64 @@ export default function ProfileContent() {
     if (!Number.isFinite(num)) return null;
     return formatNumber(num);
   };
+
+  const buildExportRows = useCallback((items, startOffset = 0) => {
+    if (!Array.isArray(items) || items.length === 0) return [];
+    const formatCoverDate = (value) => {
+      if (!value) return "";
+      const date = value instanceof Date ? value : new Date(value);
+      if (Number.isNaN(date.getTime())) return String(value);
+      return date.toISOString().split("T")[0];
+    };
+    return items.map((pub, index) => {
+      const rowNumber = startOffset + index + 1;
+      const citedByValue =
+        pub.cited_by !== undefined && pub.cited_by !== null ? pub.cited_by : "";
+      const keywords = Array.isArray(pub.keywords)
+        ? pub.keywords.join("; ")
+        : pub.keywords || pub.authkeywords || "";
+      const coverDate = pub.cover_date || pub.coverDate || null;
+      const coverYear = (() => {
+        if (!coverDate) return "";
+        const date = coverDate instanceof Date ? coverDate : new Date(coverDate);
+        return Number.isNaN(date.getTime()) ? "" : date.getFullYear();
+      })();
+
+      return {
+        rowNumber,
+        scopusId: pub.scopus_id || pub.scopusID || "",
+        scopusLink: pub.scopus_url || pub.scopus_link || "",
+        title: pub.title || "",
+        abstract: pub.abstract || "",
+        aggregationType: pub.aggregation_type || "",
+        sourceId: pub.source_id || "",
+        publicationName: pub.publication_name || pub.venue || "",
+        issn: pub.issn || "",
+        eissn: pub.eissn || "",
+        isbn: pub.isbn || "",
+        volume: pub.volume || "",
+        issue: pub.issue || "",
+        pageRange: pub.page_range || "",
+        articleNumber: pub.article_number || "",
+        coverDate: formatCoverDate(coverDate),
+        doi: pub.doi || "",
+        citedBy: citedByValue,
+        authkeywords: keywords,
+        fundSponsor: pub.fund_sponsor || "",
+        citeScoreStatus:
+          pub.cite_score_status ?? pub.scopus_source_metrics?.cite_score_status ?? "",
+        citeScoreRank: pub.cite_score_rank ?? pub.scopus_source_metrics?.cite_score_rank ?? "",
+        citeScorePercentile:
+          pub.cite_score_percentile ?? pub.scopus_source_metrics?.cite_score_percentile ?? "",
+        citeScoreQuartile:
+          (pub.cite_score_quartile || pub.scopus_source_metrics?.cite_score_quartile || "")?.toUpperCase(),
+        year: pub.publication_year || coverYear,
+        eid: pub.eid || "",
+        scopusUrl: pub.scopus_url || "",
+        doiUrl: pub.doi || pub.doi_url || pub.url || "",
+      };
+    });
+  }, []);
   const loadProfileData = async () => {
     try {
       setLoading(true);
@@ -1088,6 +1181,67 @@ export default function ProfileContent() {
     [matchesYearRange, scopusPublications],
   );
 
+  const handleExportScopus = useCallback(async () => {
+    if (activeSource !== "scopus") return;
+    setExporting(true);
+    try {
+      const limit = 200;
+      let offset = 0;
+      let total;
+      const allRows = [];
+
+      while (true) {
+        const params = { limit, offset, sort: sortField, direction: sortDirection };
+        if (searchTerm.trim()) {
+          params.q = searchTerm.trim();
+        }
+
+        const res = await memberAPI.getUserScopusPublications(params);
+        const items = Array.isArray(res?.data || res?.items) ? res.data || res.items : [];
+        const paging = res?.meta || res?.paging || {};
+        total = paging.total ?? total;
+        const pageLimit = paging.limit || limit;
+
+        const filteredItems = items.filter((pub) => matchesYearRange(pub));
+        allRows.push(...buildExportRows(filteredItems, allRows.length));
+
+        if (items.length < pageLimit) {
+          break;
+        }
+        offset += pageLimit;
+
+        if (total !== undefined && offset >= total) {
+          break;
+        }
+      }
+
+      if (allRows.length === 0) {
+        toast.error("ไม่พบข้อมูลงานวิจัยสำหรับส่งออก");
+        return;
+      }
+
+      const timestamp = new Date().toISOString().replace(/[:T]/g, "-").split(".")[0];
+      const filename = `my_scopus_publications_${timestamp}.xlsx`;
+      downloadXlsx(EXPORT_COLUMNS, allRows, {
+        sheetName: "Scopus Publications",
+        filename,
+      });
+      toast.success(`ส่งออก ${allRows.length} รายการเรียบร้อยแล้ว`);
+    } catch (error) {
+      console.error("Export Scopus publications error", error);
+      toast.error("ไม่สามารถส่งออกไฟล์ได้");
+    } finally {
+      setExporting(false);
+    }
+  }, [
+    activeSource,
+    buildExportRows,
+    matchesYearRange,
+    searchTerm,
+    sortDirection,
+    sortField,
+  ]);
+
   const scopusTrend = useMemo(
     () => (Array.isArray(scopusStats?.trend) ? scopusStats.trend : []),
     [scopusStats],
@@ -1156,6 +1310,11 @@ export default function ProfileContent() {
     totalRecords === 0 ? 0 : (currentPage - 1) * rowsPerPage + 1;
   const endRecord =
     totalRecords === 0 ? 0 : Math.min(currentPage * rowsPerPage, totalRecords);
+  const canExportScopus =
+    isScopusActive &&
+    !scopusLoading &&
+    !scopusUnavailable &&
+    filteredScopusPublications.length > 0;
 
   const handleInnovSort = (field) => {
     if (innovSortField === field) {
@@ -1510,6 +1669,17 @@ export default function ProfileContent() {
                         >
                           รีเซ็ตตัวกรอง
                         </button>
+                        {isScopusActive ? (
+                          <button
+                            type="button"
+                            onClick={handleExportScopus}
+                            className="inline-flex items-center justify-center rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-70"
+                            disabled={!canExportScopus || exporting}
+                          >
+                            <Download className="mr-2 h-4 w-4" />
+                            {exporting ? "กำลังส่งออก..." : "ส่งออกข้อมูล (Scopus)"}
+                          </button>
+                        ) : null}
                       </div>
                     </div>
                   </div>
