@@ -1559,6 +1559,17 @@ export default function ProfileContent() {
                     </div>
                     <div className="flex flex-col items-start gap-2 text-sm lg:items-end">
                       <div className="flex flex-wrap items-center justify-end gap-2 text-gray-600">
+                        {isScopusActive ? (
+                          <button
+                            type="button"
+                            onClick={handleExportScopus}
+                            className="inline-flex items-center gap-1 rounded-md border border-blue-200 bg-blue-50 px-2.5 py-1.5 text-xs font-semibold text-blue-700 shadow-sm transition hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-70"
+                            disabled={!canExportScopus || exporting}
+                          >
+                            <Download className="h-3.5 w-3.5" />
+                            <span>{exporting ? "กำลังส่งออก..." : "ส่งออก Scopus"}</span>
+                          </button>
+                        ) : null}
                         <span>แหล่งข้อมูล:</span>
                         <div className="inline-flex rounded-full border border-gray-200 bg-gray-50 p-0.5">
                           {[{ value: "scopus", label: "Scopus" }, { value: "scholar", label: "Google Scholar" }].map(
@@ -1587,22 +1598,6 @@ export default function ProfileContent() {
                           </span>
                         ) : null}
                       </div>
-                      {isScopusActive ? (
-                        <div className="flex flex-wrap items-center justify-end gap-2 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-xs shadow-sm lg:flex-nowrap lg:text-sm">
-                          <div className="flex items-center gap-2 text-blue-800">
-                            <Download className="h-4 w-4" />
-                            <span className="font-medium">ส่งออก Scopus</span>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={handleExportScopus}
-                            className="inline-flex items-center justify-center rounded-md bg-blue-600 px-2.5 py-1.5 text-sm font-medium text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-70"
-                            disabled={!canExportScopus || exporting}
-                          >
-                            {exporting ? "กำลังส่งออก..." : "ดาวน์โหลด"}
-                          </button>
-                        </div>
-                      ) : null}
                     </div>
                   </div>
                   <div className="flex flex-col gap-2 lg:flex-row lg:flex-wrap lg:items-center lg:justify-between lg:gap-3">
