@@ -451,6 +451,16 @@ export default function AdminScopusResearchSearch() {
                         </button>
                       </div>
                     </div>
+                    <div className="mt-4 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                      <AlertCircle className="mt-0.5 h-4 w-4" />
+                      <div>
+                        <p className="font-semibold">หมายเหตุเกี่ยวกับ Percentile และ Quartile</p>
+                        <p className="text-[13px] leading-relaxed text-amber-800/90">
+                          ค่า Percentile และ Quartile จะอ้างอิงตามปีที่บทความตีพิมพ์ และอาจไม่ถูกต้อง 100% แนะนำให้ตรวจสอบข้อมูล
+                          เพิ่มเติมหากใช้ประกอบการตัดสินใจสำคัญ
+                        </p>
+                      </div>
+                    </div>
                   </>
                 )}
               </div>
