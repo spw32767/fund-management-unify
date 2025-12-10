@@ -1550,7 +1550,8 @@ export default function ProfileContent() {
               {activeTab === "publications" ? (
                 <div className="space-y-6">
                   <div className="flex flex-col gap-3">
-                    <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                  <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                    <div className="flex flex-col gap-2">
                       <h3 className="text-base font-semibold text-gray-900 lg:text-lg">รายการผลงานตีพิมพ์</h3>
                       <div className="flex flex-wrap items-center gap-2 text-sm text-gray-600">
                         <span>แหล่งข้อมูล:</span>
@@ -1582,11 +1583,28 @@ export default function ProfileContent() {
                         ) : null}
                       </div>
                     </div>
-                    <div className="flex flex-col gap-2 lg:flex-row lg:flex-wrap lg:items-center lg:justify-between lg:gap-3">
-                      <div className="flex w-full flex-col gap-2 sm:flex-row sm:items-center sm:gap-3 lg:w-auto">
-                        <input
-                          type="text"
-                          value={searchTerm}
+                    {isScopusActive ? (
+                      <div className="flex flex-wrap items-center gap-2 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-sm shadow-sm lg:flex-nowrap">
+                        <div className="flex items-center gap-2 text-blue-800">
+                          <Download className="h-4 w-4" />
+                          <span className="font-medium">ส่งออกผลงาน Scopus</span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={handleExportScopus}
+                          className="inline-flex items-center justify-center rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-70"
+                          disabled={!canExportScopus || exporting}
+                        >
+                          {exporting ? "กำลังส่งออก..." : "ดาวน์โหลดทั้งหมด"}
+                        </button>
+                      </div>
+                    ) : null}
+                  </div>
+                  <div className="flex flex-col gap-2 lg:flex-row lg:flex-wrap lg:items-center lg:justify-between lg:gap-3">
+                    <div className="flex w-full flex-col gap-2 sm:flex-row sm:items-center sm:gap-3 lg:w-auto">
+                      <input
+                        type="text"
+                        value={searchTerm}
                           onChange={(e) => {
                             setSearchTerm(e.target.value);
                             setCurrentPage(1);
@@ -1669,17 +1687,6 @@ export default function ProfileContent() {
                         >
                           รีเซ็ตตัวกรอง
                         </button>
-                        {isScopusActive ? (
-                          <button
-                            type="button"
-                            onClick={handleExportScopus}
-                            className="inline-flex items-center justify-center rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-70"
-                            disabled={!canExportScopus || exporting}
-                          >
-                            <Download className="mr-2 h-4 w-4" />
-                            {exporting ? "กำลังส่งออก..." : "ส่งออกข้อมูล (Scopus)"}
-                          </button>
-                        ) : null}
                       </div>
                     </div>
                   </div>
