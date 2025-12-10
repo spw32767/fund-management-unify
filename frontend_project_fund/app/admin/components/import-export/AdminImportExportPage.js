@@ -195,10 +195,155 @@ export default function AdminImportExportPage() {
   const [modalError, setModalError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
+  const [userImportFile, setUserImportFile] = useState(null);
+  const [legacyImportFile, setLegacyImportFile] = useState(null);
+  const [importingType, setImportingType] = useState("");
+  const [importError, setImportError] = useState("");
+  const [importSuccess, setImportSuccess] = useState("");
 
-  const handleComingSoon = useCallback(() => {
-    alert("ฟังก์ชันนำเข้ากำลังจะมาภายหลัง");
-  }, []);
+  const userImportColumns = useMemo(
+    () => [
+      "user_fname",
+      "user_lname",
+      "gender",
+      "email",
+      "scholar_author_id",
+      "role_id",
+      "position_id",
+      "date_of_employment",
+      "prefix",
+      "manage_position",
+      "position_title",
+      "position_en",
+      "prefix_position_en",
+      "name_en",
+      "suffix_en",
+      "tel",
+      "tel_format",
+      "tel_eng",
+      "manage_position_en",
+      "lab_name",
+      "room",
+      "cp_web_id",
+      "scopus_id",
+      "account_status",
+    ],
+    []
+  );
+
+  const submissionImportColumns = useMemo(
+    () => [
+      "submission_type",
+      "user_id",
+      "year",
+      "category_name",
+      "subcategory_name",
+      "subcategory_budget",
+      "status_id",
+      "submitted_at",
+      "installment_number_at_submit",
+      "project_title",
+      "project_description",
+      "requested_amount",
+      "announce_reference_number",
+      "main_announcement",
+      "activity_support_announcement",
+      "paper_title",
+      "journal_name",
+      "publication_date",
+      "publication_type",
+      "quartile",
+      "impact_factor",
+      "doi",
+      "url",
+      "author_count",
+      "author_type",
+      "author_name_list",
+      "reward_amount",
+      "reward_approve_amount",
+      "revision_fee",
+      "revision_fee_approve_amount",
+      "publication_fee",
+      "publication_fee_approve_amount",
+      "external_funding_amount",
+      "total_amount",
+      "total_approve_amount",
+      "external_fund_name",
+      "external_fund_amount",
+      "external_fund_document_id",
+      "external_fund_file_id",
+      "additional_user_id",
+      "additional_user_role",
+      "additional_user_is_primary",
+      "additional_user_display_order",
+      "document_file_id",
+      "document_original_name",
+      "document_type_id",
+      "document_description",
+      "document_display_order",
+      "document_is_required",
+      "document_is_verified",
+      "document_verified_by",
+      "document_verified_at",
+    ],
+    []
+  );
+
+  const renderColumnList = useCallback((columns) => (
+    <div className="rounded-lg border border-slate-200 bg-white/50 p-3 text-xs text-slate-700">
+      <p className="mb-2 font-semibold">คอลัมน์ที่ต้องมีตามเทมเพลต:</p>
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+        {columns.map((col) => (
+          <span key={col} className="inline-flex items-center gap-2 rounded-md bg-slate-50 px-2 py-1 font-mono text-[11px] text-slate-700">
+            <span className="h-1.5 w-1.5 rounded-full bg-green-500" />
+            {col}
+          </span>
+        ))}
+      </div>
+    </div>
+  ), []);
+
+  const handleImport = useCallback(
+    async (type) => {
+      setImportError("");
+      setImportSuccess("");
+
+      const file = type === "user" ? userImportFile : legacyImportFile;
+      if (!file) {
+        setImportError("กรุณาเลือกไฟล์สำหรับนำเข้าก่อน");
+        return;
+      }
+
+      setImportingType(type);
+      try {
+        const payload = new FormData();
+        payload.append("file", file);
+        payload.append("template_type", type === "user" ? "user_import" : "legacy_submission");
+
+        await apiClient.post(
+          type === "user" ? "/admin/import/users" : "/admin/import/legacy-submissions",
+          payload
+        );
+
+        setImportSuccess(
+          type === "user"
+            ? "นำเข้าผู้ใช้จากเทมเพลตสำเร็จ ข้อมูลถูกบันทึกในฐานข้อมูล"
+            : "นำเข้าประวัติทุนย้อนหลังสำเร็จ ข้อมูลถูกบันทึกในฐานข้อมูล"
+        );
+        if (type === "user") {
+          setUserImportFile(null);
+        } else {
+          setLegacyImportFile(null);
+        }
+      } catch (err) {
+        console.error("Import failed", err);
+        setImportError(err?.message || "นำเข้าข้อมูลไม่สำเร็จ กรุณาตรวจสอบไฟล์และลองใหม่");
+      } finally {
+        setImportingType("");
+      }
+    },
+    [legacyImportFile, userImportFile]
+  );
 
   const getFileURL = useCallback((filePath) => {
     if (!filePath) return "#";
@@ -501,7 +646,7 @@ export default function AdminImportExportPage() {
             <div>
               <h2 className="text-lg font-semibold text-slate-900">นำเข้าข้อมูลจากเทมเพลต</h2>
               <p className="text-sm text-slate-600">
-                อัปโหลดไฟล์ที่กรอกข้อมูลแล้ว ระบบจะตรวจสอบและเพิ่มข้อมูล (ฟังก์ชันกำลังพัฒนา)
+                อัปโหลดไฟล์ที่กรอกข้อมูลแล้ว ระบบจะตรวจสอบและเพิ่มข้อมูลตามเทมเพลตเพื่อป้องกันข้อผิดพลาดในฐานข้อมูล
               </p>
             </div>
             <div className="hidden sm:flex items-center gap-2 text-slate-500">
@@ -509,6 +654,13 @@ export default function AdminImportExportPage() {
               <span className="text-sm">Import</span>
             </div>
           </div>
+
+          {importError ? (
+            <div className="border-b border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700 sm:px-6">{importError}</div>
+          ) : null}
+          {importSuccess ? (
+            <div className="border-b border-green-100 bg-green-50 px-4 py-3 text-sm text-green-700 sm:px-6">{importSuccess}</div>
+          ) : null}
 
           <div className="grid grid-cols-1 gap-6 p-4 sm:grid-cols-2 sm:p-6">
             <div className="flex flex-col gap-3 rounded-lg border border-slate-200 bg-slate-50/70 p-4">
@@ -524,19 +676,19 @@ export default function AdminImportExportPage() {
                   type="file"
                   accept=".xlsx,.xls"
                   className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                  disabled
+                  onChange={(e) => setUserImportFile(e.target.files?.[0] || null)}
                 />
                 <button
                   type="button"
-                  onClick={handleComingSoon}
+                  onClick={() => handleImport("user")}
+                  disabled={importingType === "user"}
                   className="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  <UploadCloud size={16} />
-                  อัปโหลด / นำเข้า
+                  {importingType === "user" ? <Loader2 size={16} className="animate-spin" /> : <UploadCloud size={16} />}
+                  {importingType === "user" ? "กำลังนำเข้า..." : "อัปโหลด / นำเข้า"}
                 </button>
-                <p className="text-xs text-slate-500">
-                  ระบบจะตรวจสอบและเพิ่มผู้ใช้ใหม่จากไฟล์นี้ (ฟังก์ชันกำลังพัฒนา)
-                </p>
+                <p className="text-xs text-slate-500">ระบบจะตรวจสอบคอลัมน์ตามเทมเพลตก่อนเพิ่มผู้ใช้</p>
+                {renderColumnList(userImportColumns)}
               </div>
             </div>
 
@@ -553,19 +705,19 @@ export default function AdminImportExportPage() {
                   type="file"
                   accept=".xlsx,.xls"
                   className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                  disabled
+                  onChange={(e) => setLegacyImportFile(e.target.files?.[0] || null)}
                 />
                 <button
                   type="button"
-                  onClick={handleComingSoon}
+                  onClick={() => handleImport("legacy")}
+                  disabled={importingType === "legacy"}
                   className="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  <UploadCloud size={16} />
-                  อัปโหลด / นำเข้าประวัติทุน
+                  {importingType === "legacy" ? <Loader2 size={16} className="animate-spin" /> : <UploadCloud size={16} />}
+                  {importingType === "legacy" ? "กำลังนำเข้า..." : "อัปโหลด / นำเข้าประวัติทุน"}
                 </button>
-                <p className="text-xs text-slate-500">
-                  ระบบจะตรวจสอบข้อมูลและเพิ่มประวัติทุน (ฟังก์ชันกำลังพัฒนา)
-                </p>
+                <p className="text-xs text-slate-500">ระบบจะตรวจสอบโครงสร้างไฟล์ตามเทมเพลตก่อนเพิ่มข้อมูล</p>
+                {renderColumnList(submissionImportColumns)}
               </div>
             </div>
           </div>

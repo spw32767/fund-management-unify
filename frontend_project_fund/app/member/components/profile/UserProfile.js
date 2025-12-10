@@ -1170,8 +1170,12 @@ export default function ProfileContent() {
     switch (field) {
       case "title":
         return item.title?.toLowerCase() || "";
+      case "submission_number":
+        return item.submission_number?.toLowerCase() || "";
       case "innovation_type":
         return item.innovation_type?.toLowerCase() || "";
+      case "status_name":
+        return item.status_name?.toLowerCase() || "";
       case "registered_date":
       default: {
         const d = parseDate(item.registered_date);
@@ -1182,7 +1186,11 @@ export default function ProfileContent() {
 
   const sortedInnovations = useMemo(() => {
     const filtered = innovations.filter((i) =>
-      i.title?.toLowerCase().includes(innovSearchTerm.toLowerCase()),
+      [i.title, i.innovation_type, i.submission_number, i.status_name]
+        .filter(Boolean)
+        .some((val) =>
+          val.toLowerCase().includes(innovSearchTerm.toLowerCase()),
+        ),
     );
     const sorted = filtered.sort((a, b) => {
       const aVal = innovFieldValue(a, innovSortField);
@@ -1786,6 +1794,24 @@ export default function ProfileContent() {
                                 ลำดับ
                               </th>
                               <th
+                                className="w-40 cursor-pointer px-4 py-2 text-left font-medium text-gray-700"
+                                onClick={() => handleInnovSort("submission_number")}
+                              >
+                                หมายเลขคำขอ
+                                {innovSortField === "submission_number" ? (
+                                  innovSortDirection === "asc" ? (
+                                    <ArrowUp className="ml-1 inline" size={14} />
+                                  ) : (
+                                    <ArrowDown className="ml-1 inline" size={14} />
+                                  )
+                                ) : (
+                                  <ArrowUpDown
+                                    className="ml-1 inline text-gray-400"
+                                    size={14}
+                                  />
+                                )}
+                              </th>
+                              <th
                                 className="cursor-pointer px-4 py-2 text-left font-medium text-gray-700"
                                 onClick={() => handleInnovSort("title")}
                               >
@@ -1822,6 +1848,24 @@ export default function ProfileContent() {
                                 )}
                               </th>
                               <th
+                                className="w-36 cursor-pointer px-4 py-2 text-left font-medium text-gray-700"
+                                onClick={() => handleInnovSort("status_name")}
+                              >
+                                สถานะคำขอ
+                                {innovSortField === "status_name" ? (
+                                  innovSortDirection === "asc" ? (
+                                    <ArrowUp className="ml-1 inline" size={14} />
+                                  ) : (
+                                    <ArrowDown className="ml-1 inline" size={14} />
+                                  )
+                                ) : (
+                                  <ArrowUpDown
+                                    className="ml-1 inline text-gray-400"
+                                    size={14}
+                                  />
+                                )}
+                              </th>
+                              <th
                                 className="w-32 cursor-pointer px-4 py-2 text-center font-medium text-gray-700"
                                 onClick={() => handleInnovSort("registered_date")}
                               >
@@ -1843,9 +1887,17 @@ export default function ProfileContent() {
                           </thead>
                           <tbody className="divide-y divide-gray-200">
                             {paginatedInnovations.map((inv, index) => (
-                              <tr key={inv.id} className="hover:bg-gray-50">
+                              <tr
+                                key={inv.submission_id || inv.id || index}
+                                className="hover:bg-gray-50"
+                              >
                                 <td className="px-4 py-2 text-center text-gray-700">
                                   {(innovPage - 1) * innovRowsPerPage + index + 1}
+                                </td>
+                                <td className="px-4 py-2">
+                                  <span className="block truncate" title={inv.submission_number}>
+                                    {inv.submission_number || "-"}
+                                  </span>
                                 </td>
                                 <td className="max-w-xs px-4 py-2 lg:max-w-md">
                                   <span className="block truncate" title={inv.title}>
@@ -1855,6 +1907,11 @@ export default function ProfileContent() {
                                 <td className="px-4 py-2">
                                   <span className="block truncate" title={inv.innovation_type}>
                                     {inv.innovation_type || "-"}
+                                  </span>
+                                </td>
+                                <td className="px-4 py-2">
+                                  <span className="block truncate" title={inv.status_name}>
+                                    {inv.status_name || "-"}
                                   </span>
                                 </td>
                                 <td className="px-4 py-2 text-center">
