@@ -460,8 +460,48 @@ const toNumberOrEmpty = (value) => {
   if (typeof value === 'number' && Number.isFinite(value)) {
     return value;
   }
+  if (typeof value === 'string') {
+    const cleaned = value.replace(/,/g, '').trim();
+    const num = Number(cleaned);
+    return Number.isNaN(num) ? '' : num;
+  }
+
   const num = Number(value);
   return Number.isNaN(num) ? '' : num;
+};
+
+const normalizeYesNoValue = (value, defaultValue = 'no') => {
+  if (value === null || value === undefined) {
+    return defaultValue;
+  }
+
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase();
+    if (!normalized) {
+      return defaultValue;
+    }
+
+    if (['yes', 'y', 'true', '1', 'ได้รับ', 'ได้'].includes(normalized)) {
+      return 'yes';
+    }
+
+    if (['no', 'n', 'false', '0', 'ไม่ได้รับ', 'ไม่'].includes(normalized)) {
+      return 'no';
+    }
+
+    return defaultValue;
+  }
+
+  if (typeof value === 'boolean') {
+    return value ? 'yes' : 'no';
+  }
+
+  if (typeof value === 'number') {
+    if (value === 1) return 'yes';
+    if (value === 0) return 'no';
+  }
+
+  return defaultValue;
 };
 
 const toSubmissionKey = (value) => {
@@ -1340,6 +1380,7 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
     timestamp: null,
   });
   const [previewAcknowledged, setPreviewAcknowledged] = useState(false);
+  const serverFileCacheRef = useRef(new Map());
   const previewUrlRef = useRef(null);
   const previewSignatureRef = useRef('');
   const previewSectionRef = useRef(null);
@@ -2234,6 +2275,7 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
       hydratingRef.current = true;
       try {
         setLoading(true);
+        serverFileCacheRef.current.clear();
 
         const response = await submissionAPI.getById(targetSubmissionId);
         const payload = response?.submission || response;
@@ -2424,9 +2466,27 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
             total_amount: calculatedTotal,
             author_name_list: detail.author_name_list ?? prev.author_name_list ?? '',
             signature: detail.signature ?? prev.signature ?? '',
-            has_university_fund: detail.has_university_funding ?? prev.has_university_fund ?? 'no',
-            university_fund_ref: detail.funding_references ?? prev.university_fund_ref ?? '',
-            university_ranking: detail.university_rankings ?? prev.university_ranking ?? '',
+            has_university_fund: normalizeYesNoValue(
+              detail.has_university_funding ??
+                detail.has_university_fund ??
+                payload.has_university_funding ??
+                payload.has_university_fund ??
+                prev.has_university_fund,
+              'no'
+            ),
+            university_fund_ref:
+              detail.funding_references ??
+              payload.funding_references ??
+              payload.university_fund_ref ??
+              prev.university_fund_ref ??
+              '',
+            university_ranking:
+              detail.university_rankings ??
+              detail.university_ranking ??
+              payload.university_ranking ??
+              payload.university_rankings ??
+              prev.university_ranking ??
+              '',
             phone_number: payload.phone_number ?? prev.phone_number ?? '',
             bank_account: payload.bank_account ?? prev.bank_account ?? '',
             bank_name: payload.bank_name ?? prev.bank_name ?? '',
@@ -3058,7 +3118,7 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
   );
 
   useEffect(() => {
-    if (!formData.journal_quartile || feeLimits.total > 0) {
+    if (hydratingRef.current || !formData.journal_quartile || feeLimits.total > 0) {
       return;
     }
 
@@ -4660,6 +4720,7 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
         type: typeName,
         size: Number.isFinite(sizeValue) ? sizeValue : 0,
         file: null,
+        file_id: doc.file_id ?? null,
         source: 'server',
         canDelete: false,
         document_type_id: docTypeId,
@@ -4700,6 +4761,7 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
         type: `${typeName}${fundLabel ? ` - ${fundLabel}` : ''}`,
         size: Number.isFinite(sizeValue) ? sizeValue : 0,
         file: null,
+        file_id: doc.file_id ?? null,
         source: 'server',
         canDelete: false,
         document_type_id: 12,
@@ -4814,6 +4876,38 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
   );
   const previewUrl = previewState.blobUrl || previewState.signedUrl;
 
+  const downloadServerFileAsFile = useCallback(async ({ fileId, name }) => {
+    if (!fileId) {
+      throw new Error('ไม่พบไฟล์บนเซิร์ฟเวอร์สำหรับเอกสารนี้');
+    }
+
+    const headers = {};
+    const token = apiClient.getToken();
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
+    }
+
+    const response = await fetch(`${apiClient.baseURL}/files/managed/${fileId}/download`, {
+      method: 'GET',
+      headers,
+    });
+
+    if (!response.ok) {
+      throw new Error('ไม่สามารถดาวน์โหลดไฟล์จากเซิร์ฟเวอร์ได้');
+    }
+
+    const blob = await response.blob();
+    if (!blob || blob.size === 0) {
+      throw new Error('ไม่พบข้อมูลไฟล์บนเซิร์ฟเวอร์');
+    }
+
+    const fileName = name || `document-${fileId}.pdf`;
+    const file = new File([blob], fileName, { type: blob.type || 'application/pdf' });
+
+    serverFileCacheRef.current.set(String(fileId), file);
+    return file;
+  }, []);
+
   const buildPublicationDate = () => {
     if (formData.publication_date) {
       return formData.publication_date;
@@ -4855,6 +4949,39 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
       loading: true,
       error: null,
     }));
+
+    const resolvedAttachments = [];
+
+    try {
+      for (const item of attachments) {
+        let file = item.file;
+
+        if (!file && item.file_id) {
+          const cacheKey = String(item.file_id);
+          file = serverFileCacheRef.current.get(cacheKey);
+          if (!file) {
+            file = await downloadServerFileAsFile({ fileId: item.file_id, name: item.name });
+          }
+        }
+
+        if (!file) {
+          throw new Error('ไม่พบข้อมูลไฟล์แนบสำหรับเอกสารที่เลือก');
+        }
+
+        resolvedAttachments.push({ ...item, file });
+      }
+    } catch (error) {
+      const message = error?.message || 'ไม่สามารถเตรียมไฟล์จากเซิร์ฟเวอร์ได้';
+      setPreviewState((prev) => ({
+        ...prev,
+        loading: false,
+        error: message,
+        hasPreviewed: false,
+      }));
+      setPreviewAcknowledged(false);
+      Toast.fire({ icon: 'error', title: 'ไม่สามารถสร้างตัวอย่างได้', text: message });
+      throw error;
+    }
 
     const stringify = (value, { allowBoolean = false } = {}) => {
       if (value === null || value === undefined) {
@@ -4943,18 +5070,18 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
             amount: stringify(funding.amount),
           }))
         : [],
-      attachments: attachments.map((item, index) => ({
-        filename: item.name,
-        document_type_id: item.document_type_id ?? null,
-        document_type_name: item.document_type_name || item.type || '',
-        display_order: index + 1,
-      })),
-    };
+    attachments: resolvedAttachments.map((item, index) => ({
+      filename: item.name,
+      document_type_id: item.document_type_id ?? null,
+      document_type_name: item.document_type_name || item.type || '',
+      display_order: index + 1,
+    })),
+  };
 
     const formDataPayload = new FormData();
     formDataPayload.append('data', JSON.stringify(payload));
 
-    attachments.forEach((item) => {
+    resolvedAttachments.forEach((item) => {
       if (item?.file) {
         formDataPayload.append('attachments', item.file, item.name || 'attachment.pdf');
       }
@@ -5542,6 +5669,8 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
         phone_number: formData.phone_number || '',
         has_university_funding: formData.has_university_fund || '',
         university_fund_ref: formData.university_fund_ref || '',
+        funding_references: formData.university_fund_ref || '',
+        university_rankings: formData.university_ranking || '',
         main_annoucement: announcementLock.main_annoucement ?? null,
         reward_announcement: announcementLock.reward_announcement ?? null,
       };
