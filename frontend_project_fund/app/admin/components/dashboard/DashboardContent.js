@@ -95,8 +95,8 @@ function normalizeServerFilter(selected, fallback = {}) {
   return normalized;
 }
 
-function sanitizeOklchColors(root) {
-  if (!root) return;
+function sanitizeOklchColors(root, trackMutations = false) {
+  if (!root) return trackMutations ? () => {} : undefined;
 
   const doc = root.ownerDocument || document;
   const defaultView = doc.defaultView;
@@ -130,6 +130,7 @@ function sanitizeOklchColors(root) {
   };
 
   const elements = [root, ...Array.from(root.querySelectorAll("*"))];
+  const mutations = [];
 
   elements.forEach((el) => {
     const computed = defaultView?.getComputedStyle?.(el);
@@ -138,10 +139,25 @@ function sanitizeOklchColors(root) {
       const value = computed?.getPropertyValue(prop) || el.style?.[prop];
       const replacement = convertColor(value, prop);
       if (replacement) {
+        if (trackMutations) {
+          mutations.push({ el, prop, prev: el.style[prop] });
+        }
         el.style[prop] = replacement;
       }
     });
   });
+
+  if (trackMutations) {
+    return () => {
+      mutations.forEach(({ el, prop, prev }) => {
+        if (el?.style) {
+          el.style[prop] = prev || "";
+        }
+      });
+    };
+  }
+
+  return undefined;
 }
 
 function normalizeFilterForScope(filters, options) {
@@ -648,6 +664,8 @@ export default function DashboardContent({ onNavigate }) {
       return;
     }
 
+    const restoreColors = sanitizeOklchColors(exportArea, true);
+
     const yearLabel =
       filtersRef.current?.year ||
       (stats?.filter_options?.current_year ? String(stats.filter_options.current_year) : "all-years");
@@ -696,6 +714,7 @@ export default function DashboardContent({ onNavigate }) {
       console.error("Failed to capture dashboard summary", exportError);
       setError("ไม่สามารถส่งออกสรุปข้อมูลได้");
     } finally {
+      restoreColors?.();
       setIsExporting(false);
     }
   }, [exportFormat, stats]);
