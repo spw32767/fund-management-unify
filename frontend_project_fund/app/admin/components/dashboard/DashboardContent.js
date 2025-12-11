@@ -95,6 +95,55 @@ function normalizeServerFilter(selected, fallback = {}) {
   return normalized;
 }
 
+function sanitizeOklchColors(root) {
+  if (!root) return;
+
+  const doc = root.ownerDocument || document;
+  const defaultView = doc.defaultView;
+  const canvas = doc.createElement("canvas");
+  const ctx = canvas.getContext("2d");
+
+  const properties = [
+    "color",
+    "backgroundColor",
+    "borderColor",
+    "borderTopColor",
+    "borderRightColor",
+    "borderBottomColor",
+    "borderLeftColor",
+  ];
+
+  const fallbackFor = (prop) => (prop.includes("background") || prop.includes("border") ? "#ffffff" : "#000000");
+
+  const convertColor = (value, prop) => {
+    if (!value || typeof value !== "string" || !value.includes("oklch")) return null;
+
+    if (ctx) {
+      ctx.fillStyle = "#000";
+      ctx.fillStyle = value;
+      if (ctx.fillStyle && !ctx.fillStyle.includes("oklch")) {
+        return ctx.fillStyle;
+      }
+    }
+
+    return fallbackFor(prop);
+  };
+
+  const elements = [root, ...Array.from(root.querySelectorAll("*"))];
+
+  elements.forEach((el) => {
+    const computed = defaultView?.getComputedStyle?.(el);
+
+    properties.forEach((prop) => {
+      const value = computed?.getPropertyValue(prop) || el.style?.[prop];
+      const replacement = convertColor(value, prop);
+      if (replacement) {
+        el.style[prop] = replacement;
+      }
+    });
+  });
+}
+
 function normalizeFilterForScope(filters, options) {
   const normalized = { scope: filters.scope || "current_year" };
   if (normalized.scope === "year" || normalized.scope === "installment") {
@@ -612,6 +661,10 @@ export default function DashboardContent({ onNavigate }) {
         scale: 2,
         useCORS: true,
         scrollY: -window.scrollY,
+        onclone: (clonedDoc) => {
+          const clonedArea = clonedDoc.querySelector('[data-dashboard-export-area="1"]');
+          sanitizeOklchColors(clonedArea || clonedDoc.body);
+        },
       });
 
       if (exportFormat === "pdf") {
@@ -823,7 +876,7 @@ export default function DashboardContent({ onNavigate }) {
       {error ? (
         <ErrorState message={error} onRetry={handleRefresh} />
       ) : (
-        <div ref={dashboardRef} className="space-y-8">
+        <div ref={dashboardRef} data-dashboard-export-area="1" className="space-y-8">
           <OverviewCards
             overview={overview}
             currentDate={currentDate}
