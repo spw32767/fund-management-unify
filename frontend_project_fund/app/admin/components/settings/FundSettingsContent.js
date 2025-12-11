@@ -60,6 +60,7 @@ export default function FundSettingsContent({ onNavigate }) {
   const [activeTab, setActiveTab] = useState("funds");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [currentYearValue, setCurrentYearValue] = useState(null);
   
   // Years Management
   const [years, setYears] = useState([]);
@@ -67,6 +68,7 @@ export default function FundSettingsContent({ onNavigate }) {
   
   // Categories Management
   const [categories, setCategories] = useState([]);
+  const [categoriesLoaded, setCategoriesLoaded] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [expandedCategories, setExpandedCategories] = useState({});
   const [expandedSubcategories, setExpandedSubcategories] = useState({});
@@ -212,6 +214,12 @@ export default function FundSettingsContent({ onNavigate }) {
       const systemYearValue =
         currentYearRes?.current_year ?? currentYearRes?.data?.current_year ?? null;
 
+      if (systemYearValue !== undefined) {
+        setCurrentYearValue(systemYearValue ?? null);
+      } else {
+        setCurrentYearValue(new Date().getFullYear() + 543);
+      }
+
       if (!nextSelected && systemYearValue !== null) {
         nextSelected = findMatchingYear(systemYearValue);
       }
@@ -267,6 +275,7 @@ export default function FundSettingsContent({ onNavigate }) {
     if (!silent) {
       setLoading(true);
     }
+    setCategoriesLoaded(false);
     setError(null);
     try {
       const data = await adminAPI.getCategoriesWithDetails(selectedYear.year_id);
@@ -466,6 +475,7 @@ export default function FundSettingsContent({ onNavigate }) {
       setError("ไม่สามารถโหลดข้อมูลหมวดหมู่ได้");
       showError("ไม่สามารถโหลดข้อมูลหมวดหมู่ได้");
     } finally {
+      setCategoriesLoaded(true);
       if (!silent) {
         setLoading(false);
       }
@@ -1373,9 +1383,34 @@ export default function FundSettingsContent({ onNavigate }) {
   };
 
   const renderActiveContent = () => {
+    const selectedYearValue = selectedYear?.year ?? selectedYear?.year_id ?? null;
+    const isCurrentFiscalYear =
+      currentYearValue !== null &&
+      selectedYearValue !== null &&
+      String(selectedYearValue) === String(currentYearValue);
+
+    const shouldShowFundWarning =
+      activeTab === "funds" &&
+      isCurrentFiscalYear &&
+      categoriesLoaded &&
+      !loading &&
+      categories.length === 0;
+
     switch (activeTab) {
       case "funds":
-        return <FundManagementTab {...fundManagementTabProps} />;
+        return (
+          <>
+            {shouldShowFundWarning && (
+              <div className="mb-4 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                <span className="text-lg">⚠️</span>
+                <span>
+                  ตอนนี้ยังไม่มีข้อมูลทุนในปีงบประมาณ {selectedYearValue}
+                </span>
+              </div>
+            )}
+            <FundManagementTab {...fundManagementTabProps} />
+          </>
+        );
       case "project-types":
         return <ProjectTypesManager />;
       case "project-plans":
