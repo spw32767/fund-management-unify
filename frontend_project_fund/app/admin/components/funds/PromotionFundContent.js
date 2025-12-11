@@ -685,26 +685,28 @@ export default function PromotionFundContent({ onNavigate }) {
             </div>
           </div>
         </td>
-        <td className="px-6 py-4 text-center">
-          {isOnlineForm ? (
-            <button
-              onClick={() => handleViewDetails(fund)}
-              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-blue-600 hover:text-blue-700"
-              title="เปิดดูรายละเอียด (อ่านอย่างเดียว)"
-            >
-              <Search size={16} />
-              ดูรายละเอียด
-            </button>
-          ) : (
-            <button
-              onClick={handleDownload}
-              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-blue-600 hover:text-blue-700"
-              title="ดาวน์โหลดแบบฟอร์ม"
-            >
-              <Search size={16} />
-              ดูรายละเอียด
-            </button>
-          )}
+        <td className="px-6 py-4">
+          <div className="flex justify-center">
+            {isOnlineForm ? (
+              <button
+                onClick={() => handleViewDetails(fund)}
+                className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-blue-600 hover:text-blue-700"
+                title="เปิดดูรายละเอียด (อ่านอย่างเดียว)"
+              >
+                <Search size={16} />
+                ดูรายละเอียด
+              </button>
+            ) : (
+              <button
+                onClick={handleDownload}
+                className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-blue-600 hover:text-blue-700"
+                title="ดาวน์โหลดแบบฟอร์ม"
+              >
+                <Search size={16} />
+                ดูรายละเอียด
+              </button>
+            )}
+          </div>
         </td>
       </tr>
     );
