@@ -1,6 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import html2canvas from "html2canvas";
+import jsPDF from "jspdf";
 import {
   LayoutDashboard,
   TrendingUp,
@@ -463,9 +465,10 @@ export default function DashboardContent({ onNavigate }) {
   const [error, setError] = useState(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
-  const [exportFormat, setExportFormat] = useState("excel");
+  const [exportFormat, setExportFormat] = useState("pdf");
   const [filters, setFilters] = useState({ scope: "current_year", year: "", installment: "" });
   const filtersRef = useRef(filters);
+  const dashboardRef = useRef(null);
 
   useEffect(() => {
     filtersRef.current = filters;
@@ -580,24 +583,67 @@ export default function DashboardContent({ onNavigate }) {
     }
   }, [buildQueryParams]);
 
-  const handleExport = useCallback(async () => {
-    const params = buildQueryParams(filtersRef.current);
+  const handleExportSummary = useCallback(async () => {
+    if (typeof window === "undefined") return;
+
+    const exportArea = dashboardRef.current;
+    if (!exportArea) {
+      setError("ไม่พบพื้นที่สำหรับส่งออกสรุปข้อมูล");
+      return;
+    }
+
     const yearLabel =
       filtersRef.current?.year ||
       (stats?.filter_options?.current_year ? String(stats.filter_options.current_year) : "all-years");
     const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
-    const ext = exportFormat === "excel" ? "xlsx" : exportFormat === "pdf" ? "pdf" : "json";
+    const ext = exportFormat === "jpeg" ? "jpg" : exportFormat;
     const filename = `admin-dashboard-summary-${yearLabel}-${timestamp}.${ext}`;
+
     setIsExporting(true);
     try {
-      await adminAPI.exportDashboardStats(params, exportFormat, filename);
+      const canvas = await html2canvas(exportArea, {
+        scale: 2,
+        useCORS: true,
+        scrollY: -window.scrollY,
+      });
+
+      if (exportFormat === "pdf") {
+        const imgData = canvas.toDataURL("image/png");
+        const orientation = canvas.width >= canvas.height ? "l" : "p";
+        const pdf = new jsPDF({
+          orientation,
+          unit: "px",
+          format: [canvas.width, canvas.height],
+        });
+        pdf.addImage(imgData, "PNG", 0, 0, canvas.width, canvas.height);
+        pdf.save(filename);
+      } else {
+        const mime = exportFormat === "jpeg" ? "image/jpeg" : "image/png";
+        const dataUrl = canvas.toDataURL(mime, 0.95);
+        const link = document.createElement("a");
+        link.href = dataUrl;
+        link.download = filename;
+        link.click();
+      }
     } catch (exportError) {
-      console.error("Failed to export dashboard data", exportError);
-      setError("ไม่สามารถส่งออกข้อมูลได้");
+      console.error("Failed to capture dashboard summary", exportError);
+      setError("ไม่สามารถส่งออกสรุปข้อมูลได้");
     } finally {
       setIsExporting(false);
     }
-  }, [buildQueryParams, exportFormat]);
+  }, [exportFormat, stats]);
+
+  const handleExportAllData = useCallback(() => {
+    if (typeof window !== "undefined") {
+      localStorage.setItem("adminAutoExport", "1");
+    }
+
+    if (onNavigate) {
+      onNavigate("applications-list");
+    } else if (typeof window !== "undefined") {
+      window.location.href = "/admin/applications-list";
+    }
+  }, [onNavigate]);
 
   useEffect(() => {
     loadDashboard();
@@ -725,19 +771,27 @@ export default function DashboardContent({ onNavigate }) {
                 onChange={(event) => setExportFormat(event.target.value)}
                 disabled={isExporting}
               >
-                <option value="excel">Excel (.xlsx)</option>
                 <option value="pdf">PDF (.pdf)</option>
-                <option value="json">JSON (.json)</option>
+                <option value="png">PNG (.png)</option>
+                <option value="jpeg">JPG (.jpg)</option>
               </select>
             </div>
             <button
               type="button"
-              onClick={handleExport}
+              onClick={handleExportSummary}
               disabled={isExporting}
               className="inline-flex items-center gap-2 rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 transition disabled:opacity-60"
             >
               <Download className={`w-4 h-4 ${isExporting ? "animate-spin" : ""}`} />
-              {isExporting ? "กำลังส่งออก..." : "ส่งออกสรุป"}
+              {isExporting ? "กำลังส่งออก..." : "ส่งออกสรุปข้อมูล"}
+            </button>
+            <button
+              type="button"
+              onClick={handleExportAllData}
+              className="inline-flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-medium text-blue-700 hover:bg-blue-100 transition"
+            >
+              <Download className="w-4 h-4" />
+              ส่งออกข้อมูลทั้งหมด
             </button>
             <button
               type="button"
@@ -755,7 +809,7 @@ export default function DashboardContent({ onNavigate }) {
       {error ? (
         <ErrorState message={error} onRetry={handleRefresh} />
       ) : (
-        <div className="space-y-8">
+        <div ref={dashboardRef} className="space-y-8">
           <OverviewCards
             overview={overview}
             currentDate={currentDate}

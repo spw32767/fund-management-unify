@@ -213,6 +213,7 @@ export default function SubmissionsManagement() {
     sort_order: 'desc',
   });
   const [exporting, setExporting] = useState(false);
+  const [autoExportRequested, setAutoExportRequested] = useState(false);
 
   // UI state
   const [loading, setLoading] = useState(true);
@@ -278,6 +279,15 @@ export default function SubmissionsManagement() {
   };
 
   useEffect(() => { fetchYears(); }, []); // initial only
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const shouldExport = localStorage.getItem('adminAutoExport');
+    if (shouldExport) {
+      localStorage.removeItem('adminAutoExport');
+      setAutoExportRequested(true);
+    }
+  }, []);
 
   // ---------- FETCH-ALL for selected year (no backend pagination in UI) ----------
   const fetchAllForYear = async (yearId) => {
@@ -1393,6 +1403,18 @@ export default function SubmissionsManagement() {
       getSelectedYearInfo,
     ]
   );
+
+  useEffect(() => {
+    if (!autoExportRequested || loading) return;
+
+    if (!allSubmissions.length) {
+      setAutoExportRequested(false);
+      return;
+    }
+
+    handleExportConfirm({});
+    setAutoExportRequested(false);
+  }, [autoExportRequested, loading, allSubmissions.length, handleExportConfirm]);
 
   // สร้างรายการปุ่มหน้า: [1, '...', 4, 5, 6, '...', total]
   const getPageItems = (current, total) => {
