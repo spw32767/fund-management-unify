@@ -1,8 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { toCanvas } from "html-to-image";
-import jsPDF from "jspdf";
 import {
   LayoutDashboard,
   TrendingUp,
@@ -471,11 +469,8 @@ export default function DashboardContent({ onNavigate }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [isExporting, setIsExporting] = useState(false);
-  const [exportFormat, setExportFormat] = useState("pdf");
   const [filters, setFilters] = useState({ scope: "current_year", year: "", installment: "" });
   const filtersRef = useRef(filters);
-  const dashboardRef = useRef(null);
 
   useEffect(() => {
     filtersRef.current = filters;
@@ -521,62 +516,6 @@ export default function DashboardContent({ onNavigate }) {
       }
     }
   }, [buildQueryParams]);
-
-  const handleExportSummary = useCallback(async () => {
-    if (typeof window === "undefined") return;
-
-    const exportArea = dashboardRef.current;
-    if (!exportArea) {
-      setError("ไม่พบพื้นที่สำหรับส่งออกสรุปข้อมูล");
-      return;
-    }
-
-    const yearLabel =
-      filtersRef.current?.year ||
-      (stats?.filter_options?.current_year ? String(stats.filter_options.current_year) : "all-years");
-    const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
-    const ext = exportFormat === "jpeg" ? "jpg" : exportFormat;
-    const filename = `admin-dashboard-summary-${yearLabel}-${timestamp}.${ext}`;
-
-    setIsExporting(true);
-    try {
-      const canvas = await toCanvas(exportArea, {
-        pixelRatio: 2,
-        backgroundColor: "#ffffff",
-      });
-
-      if (exportFormat === "pdf") {
-        const imgData = canvas.toDataURL("image/png");
-        const pdf = new jsPDF({
-          orientation: "l",
-          unit: "px",
-          format: [Math.max(canvas.width, canvas.height), Math.min(canvas.width, canvas.height)],
-        });
-
-        const pageWidth = pdf.internal.pageSize.getWidth();
-        const pageHeight = pdf.internal.pageSize.getHeight();
-        const ratio = Math.min(pageWidth / canvas.width, pageHeight / canvas.height);
-
-        const renderWidth = canvas.width * ratio;
-        const renderHeight = canvas.height * ratio;
-
-        pdf.addImage(imgData, "PNG", 0, 0, renderWidth, renderHeight);
-        pdf.save(filename);
-      } else {
-        const mime = exportFormat === "jpeg" ? "image/jpeg" : "image/png";
-        const dataUrl = canvas.toDataURL(mime, 0.95);
-        const link = document.createElement("a");
-        link.href = dataUrl;
-        link.download = filename;
-        link.click();
-      }
-    } catch (exportError) {
-      console.error("Failed to capture dashboard summary", exportError);
-      setError("ไม่สามารถส่งออกสรุปข้อมูลได้");
-    } finally {
-      setIsExporting(false);
-    }
-  }, [exportFormat, stats]);
 
   const handleExportAllData = useCallback(() => {
     if (typeof window !== "undefined") {
@@ -705,31 +644,6 @@ export default function DashboardContent({ onNavigate }) {
             >
               จัดการคำร้อง
             </button>
-            <div className="flex items-center gap-2">
-              <label className="text-sm text-gray-600" htmlFor="export-format">
-                รูปแบบไฟล์:
-              </label>
-              <select
-                id="export-format"
-                className="rounded-lg border border-gray-300 px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                value={exportFormat}
-                onChange={(event) => setExportFormat(event.target.value)}
-                disabled={isExporting}
-              >
-                <option value="pdf">PDF (.pdf)</option>
-                <option value="png">PNG (.png)</option>
-                <option value="jpeg">JPG (.jpg)</option>
-              </select>
-            </div>
-            <button
-              type="button"
-              onClick={handleExportSummary}
-              disabled={isExporting}
-              className="inline-flex items-center gap-2 rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 transition disabled:opacity-60"
-            >
-              <Download className={`w-4 h-4 ${isExporting ? "animate-spin" : ""}`} />
-              {isExporting ? "กำลังส่งออก..." : "ส่งออกสรุปข้อมูล"}
-            </button>
             <button
               type="button"
               onClick={handleExportAllData}
@@ -752,9 +666,9 @@ export default function DashboardContent({ onNavigate }) {
       )}
     >
       {error ? (
-        <ErrorState message={error} onRetry={handleRefresh} />
+          <ErrorState message={error} onRetry={handleRefresh} />
       ) : (
-        <div ref={dashboardRef} data-dashboard-export-area="1" className="space-y-8">
+        <div className="space-y-8">
           <OverviewCards
             overview={overview}
             currentDate={currentDate}

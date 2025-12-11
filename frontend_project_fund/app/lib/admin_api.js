@@ -654,22 +654,6 @@ export const adminAPI = {
     }
   },
 
-  // Export dashboard statistics as a downloadable file
-  async exportDashboardStats(params = {}, format = 'json', filename = 'admin-dashboard-export.json') {
-    try {
-      const mergedParams = { ...params, format };
-      const searchParams = new URLSearchParams(
-        Object.entries(mergedParams).filter(([, value]) => value !== undefined && value !== null && value !== '')
-      );
-      const queryString = searchParams.toString();
-      const endpoint = queryString ? `/admin/dashboard/export?${queryString}` : '/admin/dashboard/export';
-      return await apiClient.downloadFile(endpoint, filename);
-    } catch (error) {
-      console.error('Error exporting dashboard stats:', error);
-      throw error;
-    }
-  },
-
   // Get budget overview
   async getBudgetOverview(yearId) {
     try {
