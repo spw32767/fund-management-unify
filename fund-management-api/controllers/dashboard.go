@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"bytes"
+	"encoding/csv"
 	"encoding/json"
 	"fmt"
 	"math"
@@ -16,8 +17,6 @@ import (
 	"fund-management-api/utils"
 
 	"github.com/gin-gonic/gin"
-	"github.com/jung-kurt/gofpdf"
-	"github.com/xuri/excelize/v2"
 	"gorm.io/gorm"
 )
 
@@ -212,142 +211,30 @@ func cloneMap(raw interface{}) map[string]interface{} {
 
 func buildDashboardExcel(payload map[string]interface{}, filePrefix string) ([]byte, error) {
 	summary, _ := payload["summary"].(map[string]interface{})
+	buf := &bytes.Buffer{}
+	writer := csv.NewWriter(buf)
+	writer.Write([]string{"ส่วน", "หัวข้อ", "ค่า"})
 
-	f := excelize.NewFile()
-	defer f.Close()
+	writeCSVSection(writer, "ภาพรวม", asMap(summary["overview"]))
+	writeCSVSection(writer, "สถานะคำร้อง", asMap(summary["application_statuses"]))
+	writeCSVTrends(writer, "แนวโน้มการยื่นคำร้อง", summary["submission_trends"])
+	writeCSVSection(writer, "การเงินและการอนุมัติ", asMap(summary["financial_and_approvals"]))
+	writeCSVTopCategories(writer, "หมวดหมู่การใช้งบสูงสุด", asSliceMap(summary["top_spending_categories"]))
 
-	f.SetSheetName("Sheet1", "Overview")
+	writer.Flush()
 
-	writeKeyValueSheet(f, "Overview", asMap(summary["overview"]))
-	writeKeyValueSheet(f, "Statuses", asMap(summary["application_statuses"]))
-	writeTrendSheet(f, "Trends", summary["submission_trends"])
-	writeKeyValueSheet(f, "Financial", asMap(summary["financial_and_approvals"]))
-	writeTopCategoriesSheet(f, "TopCategories", asSliceMap(summary["top_spending_categories"]))
-
-	f.SetActiveSheet(0)
-	buf, err := f.WriteToBuffer()
-	if err != nil {
+	if err := writer.Error(); err != nil {
 		return nil, err
 	}
 
 	return buf.Bytes(), nil
 }
 
-func writeKeyValueSheet(f *excelize.File, sheet string, data map[string]interface{}) {
-	if sheet == "" {
-		sheet = "Sheet1"
-	}
-
-	if _, err := f.GetSheetIndex(sheet); err != nil {
-		f.NewSheet(sheet)
-	}
-
-	f.SetCellValue(sheet, "A1", "หัวข้อ")
-	f.SetCellValue(sheet, "B1", "ค่า")
-
-	keys := make([]string, 0, len(data))
-	for key := range data {
-		keys = append(keys, key)
-	}
-	sort.Strings(keys)
-
-	for i, key := range keys {
-		row := i + 2
-		f.SetCellValue(sheet, fmt.Sprintf("A%d", row), key)
-		f.SetCellValue(sheet, fmt.Sprintf("B%d", row), formatAny(data[key]))
-	}
-}
-
-func writeTrendSheet(f *excelize.File, sheet string, raw interface{}) {
-	if sheet == "" {
-		sheet = "Trends"
-	}
-
-	if sheet != "Sheet1" {
-		f.NewSheet(sheet)
-	}
-
-	f.SetCellValue(sheet, "A1", "ช่วง")
-	f.SetCellValue(sheet, "B1", "คำร้องทั้งหมด")
-	f.SetCellValue(sheet, "C1", "อนุมัติ")
-	f.SetCellValue(sheet, "D1", "ไม่อนุมัติ")
-
-	trendMap := asMap(raw)
-	monthly := asSliceMap(trendMap["monthly"])
-	if len(monthly) == 0 {
-		monthly = asSliceMap(raw)
-	}
-
-	for i, entry := range monthly {
-		row := i + 2
-		f.SetCellValue(sheet, fmt.Sprintf("A%d", row), entry["period"])
-		f.SetCellValue(sheet, fmt.Sprintf("B%d", row), formatAny(entry["total"]))
-		f.SetCellValue(sheet, fmt.Sprintf("C%d", row), formatAny(entry["approved"]))
-		f.SetCellValue(sheet, fmt.Sprintf("D%d", row), formatAny(entry["rejected"]))
-	}
-}
-
-func writeTopCategoriesSheet(f *excelize.File, sheet string, rows []map[string]interface{}) {
-	if sheet == "" {
-		sheet = "TopCategories"
-	}
-
-	if sheet != "Sheet1" {
-		f.NewSheet(sheet)
-	}
-
-	headers := []string{"หมวดหมู่", "ปี", "ขอใช้งบ", "อนุมัติ", "ใช้ไป", "คงเหลือ"}
-	for idx, header := range headers {
-		col := string(rune('A' + idx))
-		f.SetCellValue(sheet, fmt.Sprintf("%s1", col), header)
-	}
-
-	for i, row := range rows {
-		excelRow := i + 2
-		f.SetCellValue(sheet, fmt.Sprintf("A%d", excelRow), row["category_name"])
-		f.SetCellValue(sheet, fmt.Sprintf("B%d", excelRow), row["year"])
-		f.SetCellValue(sheet, fmt.Sprintf("C%d", excelRow), formatAny(row["requested_amount"]))
-		f.SetCellValue(sheet, fmt.Sprintf("D%d", excelRow), formatAny(row["approved_amount"]))
-		f.SetCellValue(sheet, fmt.Sprintf("E%d", excelRow), formatAny(row["used_amount"]))
-		f.SetCellValue(sheet, fmt.Sprintf("F%d", excelRow), formatAny(row["remaining_budget"]))
-	}
-}
-
-func buildDashboardPDF(payload map[string]interface{}, filePrefix string) ([]byte, error) {
-	summary, _ := payload["summary"].(map[string]interface{})
-
-	pdf := gofpdf.New("P", "mm", "A4", "")
-	pdf.SetTitle("Admin Dashboard Summary", false)
-	pdf.AddPage()
-	pdf.SetFont("Arial", "B", 14)
-	pdf.Cell(0, 10, "สรุปแดชบอร์ดผู้ดูแลระบบ")
-	pdf.Ln(12)
-
-	pdf.SetFont("Arial", "", 11)
-	writePDFMapSection(pdf, "ภาพรวม", asMap(summary["overview"]))
-	writePDFMapSection(pdf, "สถานะคำร้อง", asMap(summary["application_statuses"]))
-	writePDFTrendSection(pdf, "แนวโน้มการยื่นคำร้อง", summary["submission_trends"])
-	writePDFMapSection(pdf, "การเงินและการอนุมัติ", asMap(summary["financial_and_approvals"]))
-	writePDFTopCategories(pdf, "หมวดหมู่การใช้งบสูงสุด", asSliceMap(summary["top_spending_categories"]))
-
-	var buf bytes.Buffer
-	if err := pdf.Output(&buf); err != nil {
-		return nil, err
-	}
-
-	return buf.Bytes(), nil
-}
-
-func writePDFMapSection(pdf *gofpdf.Fpdf, title string, data map[string]interface{}) {
+func writeCSVSection(writer *csv.Writer, section string, data map[string]interface{}) {
 	if len(data) == 0 {
 		return
 	}
 
-	pdf.SetFont("Arial", "B", 12)
-	pdf.Cell(0, 8, title)
-	pdf.Ln(8)
-
-	pdf.SetFont("Arial", "", 11)
 	keys := make([]string, 0, len(data))
 	for key := range data {
 		keys = append(keys, key)
@@ -355,61 +242,142 @@ func writePDFMapSection(pdf *gofpdf.Fpdf, title string, data map[string]interfac
 	sort.Strings(keys)
 
 	for _, key := range keys {
-		pdf.CellFormat(60, 7, key, "", 0, "L", false, 0, "")
-		pdf.CellFormat(0, 7, formatAny(data[key]), "", 1, "L", false, 0, "")
+		writer.Write([]string{section, key, formatAny(data[key])})
 	}
-	pdf.Ln(3)
 }
 
-func writePDFTrendSection(pdf *gofpdf.Fpdf, title string, raw interface{}) {
-	entries := asSliceMap(asMap(raw)["monthly"])
-	if len(entries) == 0 {
-		entries = asSliceMap(raw)
+func writeCSVTrends(writer *csv.Writer, section string, raw interface{}) {
+	trendMap := asMap(raw)
+	monthly := asSliceMap(trendMap["monthly"])
+	if len(monthly) == 0 {
+		monthly = asSliceMap(raw)
 	}
-	if len(entries) == 0 {
+
+	for _, entry := range monthly {
+		writer.Write([]string{section, fmt.Sprintf("%v", entry["period"]), fmt.Sprintf("ทั้งหมด %v | อนุมัติ %v | ไม่อนุมัติ %v", formatAny(entry["total"]), formatAny(entry["approved"]), formatAny(entry["rejected"]))})
+	}
+}
+
+func writeCSVTopCategories(writer *csv.Writer, section string, rows []map[string]interface{}) {
+	for _, row := range rows {
+		desc := fmt.Sprintf("%v (%v)", row["category_name"], row["year"])
+		value := fmt.Sprintf("ขอ %v | อนุมัติ %v | ใช้ %v | คงเหลือ %v", formatAny(row["requested_amount"]), formatAny(row["approved_amount"]), formatAny(row["used_amount"]), formatAny(row["remaining_budget"]))
+		writer.Write([]string{section, desc, value})
+	}
+}
+
+func buildDashboardPDF(payload map[string]interface{}, filePrefix string) ([]byte, error) {
+	summary, _ := payload["summary"].(map[string]interface{})
+	lines := []string{"สรุปแดชบอร์ดผู้ดูแลระบบ"}
+
+	appendMapLines(&lines, "ภาพรวม", asMap(summary["overview"]))
+	appendMapLines(&lines, "สถานะคำร้อง", asMap(summary["application_statuses"]))
+	appendTrendLines(&lines, "แนวโน้มการยื่นคำร้อง", summary["submission_trends"])
+	appendMapLines(&lines, "การเงินและการอนุมัติ", asMap(summary["financial_and_approvals"]))
+	appendTopCategoryLines(&lines, "หมวดหมู่การใช้งบสูงสุด", asSliceMap(summary["top_spending_categories"]))
+
+	return buildSinglePagePDF(lines)
+}
+
+func appendMapLines(lines *[]string, title string, data map[string]interface{}) {
+	if len(data) == 0 {
 		return
 	}
 
-	pdf.SetFont("Arial", "B", 12)
-	pdf.Cell(0, 8, title)
-	pdf.Ln(8)
+	*lines = append(*lines, title)
 
-	pdf.SetFont("Arial", "", 11)
-	for _, entry := range entries {
-		line := fmt.Sprintf("%v: ทั้งหมด %s | อนุมัติ %s | ไม่อนุมัติ %s",
-			entry["period"],
-			formatAny(entry["total"]),
-			formatAny(entry["approved"]),
-			formatAny(entry["rejected"]))
-		pdf.Cell(0, 7, line)
-		pdf.Ln(7)
+	keys := make([]string, 0, len(data))
+	for key := range data {
+		keys = append(keys, key)
 	}
-	pdf.Ln(3)
+	sort.Strings(keys)
+
+	for _, key := range keys {
+		*lines = append(*lines, fmt.Sprintf("- %s: %s", key, formatAny(data[key])))
+	}
 }
 
-func writePDFTopCategories(pdf *gofpdf.Fpdf, title string, rows []map[string]interface{}) {
+func appendTrendLines(lines *[]string, title string, raw interface{}) {
+	trendMap := asMap(raw)
+	monthly := asSliceMap(trendMap["monthly"])
+	if len(monthly) == 0 {
+		monthly = asSliceMap(raw)
+	}
+
+	if len(monthly) == 0 {
+		return
+	}
+
+	*lines = append(*lines, title)
+	for _, entry := range monthly {
+		*lines = append(*lines, fmt.Sprintf("- %v: ทั้งหมด %v อนุมัติ %v ไม่อนุมัติ %v", entry["period"], formatAny(entry["total"]), formatAny(entry["approved"]), formatAny(entry["rejected"])))
+	}
+}
+
+func appendTopCategoryLines(lines *[]string, title string, rows []map[string]interface{}) {
 	if len(rows) == 0 {
 		return
 	}
 
-	pdf.SetFont("Arial", "B", 12)
-	pdf.Cell(0, 8, title)
-	pdf.Ln(8)
-
-	pdf.SetFont("Arial", "", 11)
+	*lines = append(*lines, title)
 	for _, row := range rows {
-		line := fmt.Sprintf("%v (%v) | ขอใช้ %s | อนุมัติ %s | ใช้ไป %s",
-			row["category_name"],
-			row["year"],
-			formatAny(row["requested_amount"]),
-			formatAny(row["approved_amount"]),
-			formatAny(row["used_amount"]))
-		pdf.Cell(0, 7, line)
-		pdf.Ln(7)
+		*lines = append(*lines, fmt.Sprintf("- %v (%v): ขอ %v | อนุมัติ %v | ใช้ %v | คงเหลือ %v", row["category_name"], row["year"], formatAny(row["requested_amount"]), formatAny(row["approved_amount"]), formatAny(row["used_amount"]), formatAny(row["remaining_budget"])))
 	}
-	pdf.Ln(3)
 }
 
+func buildSinglePagePDF(lines []string) ([]byte, error) {
+	if len(lines) == 0 {
+		return nil, fmt.Errorf("no content to export")
+	}
+
+	content := buildPDFTextStream(lines)
+	var buf bytes.Buffer
+
+	// Basic single-page PDF structure
+	objects := []string{
+		"1 0 obj<< /Type /Catalog /Pages 2 0 R >>endobj\n",
+		"2 0 obj<< /Type /Pages /Count 1 /Kids [3 0 R] >>endobj\n",
+		"3 0 obj<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources<< /Font<< /F1 5 0 R>> >> /Contents 4 0 R>>endobj\n",
+		fmt.Sprintf("4 0 obj<< /Length %d >>stream\n%s\nendstream endobj\n", len(content), content),
+		"5 0 obj<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>endobj\n",
+	}
+
+	buf.WriteString("%PDF-1.4\n")
+	positions := []int{}
+	for _, obj := range objects {
+		positions = append(positions, buf.Len())
+		buf.WriteString(obj)
+	}
+
+	xrefPos := buf.Len()
+	buf.WriteString("xref\n0 6\n0000000000 65535 f \n")
+	for _, pos := range positions {
+		buf.WriteString(fmt.Sprintf("%010d 00000 n \n", pos))
+	}
+
+	buf.WriteString("trailer<< /Size 6 /Root 1 0 R >>\nstartxref\n")
+	buf.WriteString(fmt.Sprintf("%d\n%%EOF", xrefPos))
+
+	return buf.Bytes(), nil
+}
+
+func buildPDFTextStream(lines []string) string {
+	var b strings.Builder
+	b.WriteString("BT /F1 12 Tf 50 780 Td\n")
+	for i, line := range lines {
+		if i > 0 {
+			b.WriteString("0 -16 Td\n")
+		}
+		b.WriteString(fmt.Sprintf("(%s) Tj\n", escapePDFString(line)))
+	}
+	b.WriteString("ET")
+	return b.String()
+}
+
+func escapePDFString(s string) string {
+	replacer := strings.NewReplacer("\\", "\\\\", "(", "\\(", ")", "\\)")
+	return replacer.Replace(s)
+}
 func asMap(raw interface{}) map[string]interface{} {
 	if raw == nil {
 		return map[string]interface{}{}
