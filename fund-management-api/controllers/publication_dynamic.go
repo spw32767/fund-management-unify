@@ -144,7 +144,7 @@ func GetPublicationOptions(c *gin.Context) {
 		FundDescription string
 	}
 	var budgets []budgetRow
-	err := config.DB.Table("fund_subcategories fs").
+	err = config.DB.Table("fund_subcategories fs").
 		Select("fs.subcategory_id, sb.subcategory_budget_id AS budget_id, sb.fund_description").
 		Joins(`
 			JOIN subcategory_budgets sb
