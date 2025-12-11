@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import html2canvas from "html2canvas";
+import { toCanvas } from "html-to-image";
 import jsPDF from "jspdf";
 import {
   LayoutDashboard,
@@ -93,119 +93,6 @@ function normalizeServerFilter(selected, fallback = {}) {
     normalized.installment = fallback.installment;
   }
   return normalized;
-}
-
-const OKLCH_REGEX = /oklch\([^)]*\)/gi;
-
-function sanitizeOklchColors(root, trackMutations = false) {
-  if (!root) return trackMutations ? () => {} : undefined;
-
-  const doc = root.ownerDocument || document;
-  const defaultView = doc.defaultView;
-  const canvas = doc.createElement("canvas");
-  const ctx = canvas.getContext("2d");
-
-  const properties = [
-    "color",
-    "backgroundColor",
-    "borderColor",
-    "borderTopColor",
-    "borderRightColor",
-    "borderBottomColor",
-    "borderLeftColor",
-  ];
-
-  const fallbackFor = (prop) => (prop.includes("background") || prop.includes("border") ? "#ffffff" : "#000000");
-
-  const convertColor = (value, prop) => {
-    if (!value || typeof value !== "string" || !value.includes("oklch")) return null;
-
-    if (ctx) {
-      ctx.fillStyle = "#000";
-      try {
-        ctx.fillStyle = value;
-        if (ctx.fillStyle && !ctx.fillStyle.includes("oklch")) {
-          return ctx.fillStyle;
-        }
-      } catch (err) {
-        // fall back below
-      }
-    }
-
-    return fallbackFor(prop);
-  };
-
-  const elements = [root, ...Array.from(root.querySelectorAll("*"))];
-  const mutations = [];
-
-  elements.forEach((el) => {
-    const computed = defaultView?.getComputedStyle?.(el);
-
-    properties.forEach((prop) => {
-      const value = computed?.getPropertyValue(prop) || el.style?.[prop];
-      const replacement = convertColor(value, prop);
-      if (replacement) {
-        if (trackMutations) {
-          mutations.push({ el, prop, prev: el.style[prop] });
-        }
-        el.style[prop] = replacement;
-      }
-    });
-
-    if (computed) {
-      Array.from(computed).forEach((propName) => {
-        const value = computed.getPropertyValue(propName);
-        if (value && value.includes("oklch")) {
-          const replacement = convertColor(value, propName) || fallbackFor(propName);
-          if (replacement) {
-            if (trackMutations) {
-              mutations.push({
-                el,
-                prop: propName,
-                prev: el.style.getPropertyValue(propName),
-                custom: true,
-              });
-            }
-            el.style.setProperty(propName, replacement);
-          }
-        }
-      });
-    }
-
-    const inlineStyle = el.getAttribute("style");
-    if (inlineStyle) {
-      OKLCH_REGEX.lastIndex = 0;
-      const hasOklch = OKLCH_REGEX.test(inlineStyle);
-      if (hasOklch) {
-        OKLCH_REGEX.lastIndex = 0;
-        const sanitized = inlineStyle.replace(OKLCH_REGEX, fallbackFor("background"));
-        if (trackMutations) {
-          mutations.push({ el, attr: "style", prev: inlineStyle });
-        }
-        el.setAttribute("style", sanitized);
-      }
-    }
-  });
-
-  if (trackMutations) {
-    return () => {
-      mutations.forEach(({ el, prop, prev, attr, custom }) => {
-        if (attr === "style" && el?.setAttribute) {
-          el.setAttribute("style", prev || "");
-          return;
-        }
-        if (el?.style && prop) {
-          if (custom) {
-            el.style.setProperty(prop, prev || "");
-          } else {
-            el.style[prop] = prev || "";
-          }
-        }
-      });
-    };
-  }
-
-  return undefined;
 }
 
 function normalizeFilterForScope(filters, options) {
@@ -644,8 +531,6 @@ export default function DashboardContent({ onNavigate }) {
       return;
     }
 
-    const restoreColors = sanitizeOklchColors(exportArea, true);
-
     const yearLabel =
       filtersRef.current?.year ||
       (stats?.filter_options?.current_year ? String(stats.filter_options.current_year) : "all-years");
@@ -655,14 +540,9 @@ export default function DashboardContent({ onNavigate }) {
 
     setIsExporting(true);
     try {
-      const canvas = await html2canvas(exportArea, {
-        scale: 2,
-        useCORS: true,
-        scrollY: -window.scrollY,
-        onclone: (clonedDoc) => {
-          const clonedArea = clonedDoc.querySelector('[data-dashboard-export-area="1"]');
-          sanitizeOklchColors(clonedArea || clonedDoc.body);
-        },
+      const canvas = await toCanvas(exportArea, {
+        pixelRatio: 2,
+        backgroundColor: "#ffffff",
       });
 
       if (exportFormat === "pdf") {
@@ -694,7 +574,6 @@ export default function DashboardContent({ onNavigate }) {
       console.error("Failed to capture dashboard summary", exportError);
       setError("ไม่สามารถส่งออกสรุปข้อมูลได้");
     } finally {
-      restoreColors?.();
       setIsExporting(false);
     }
   }, [exportFormat, stats]);
