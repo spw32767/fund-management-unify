@@ -20,6 +20,8 @@ import AdminScopusResearchSearch from "./components/research/AdminScopusResearch
 import ApprovalRecords from "./components/approves/ApprovalRecords";
 import AdminNotificationCenter from "./components/notifications/NotificationCenter";
 import AdminImportExportPage from "./components/import-export/AdminImportExportPage";
+import GenericFundApplicationForm from "../member/components/applications/GenericFundApplicationForm";
+import PublicationRewardForm from "../member/components/applications/PublicationRewardForm";
 
 const IMPORT_TAB_MAP = {
   'publications-import': 'scholar',
@@ -32,6 +34,8 @@ function AdminPageContent({ initialPage = 'dashboard' }) {
   const [submenuOpen, setSubmenuOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState(initialPage);
   const [importTab, setImportTab] = useState('scholar');
+  const [selectedFundData, setSelectedFundData] = useState(null);
+  const [currentMode, setCurrentMode] = useState(null);
   const pathname = usePathname();
 
   const normalizePage = useCallback((page) => {
@@ -49,6 +53,8 @@ function AdminPageContent({ initialPage = 'dashboard' }) {
       'academic-imports',
       'import-export',
       'notifications',
+      'generic-fund-application',
+      'publication-reward-form',
     ];
 
     return allowedPages.includes(canonicalPage) ? canonicalPage : 'dashboard';
@@ -124,15 +130,31 @@ function AdminPageContent({ initialPage = 'dashboard' }) {
     };
   }, [normalizePage, pageFromPath]);
 
-  const handleNavigate = (page) => {
+  const handleNavigate = (page, data = null, options = {}) => {
     const normalized = normalizePage(page);
 
     if (normalized === 'academic-imports' && IMPORT_TAB_MAP[page]) {
       setImportTab(IMPORT_TAB_MAP[page]);
     }
 
+    const nextMode = options.mode ?? null;
+    setCurrentMode(nextMode);
     setCurrentPage(normalized);
     syncPathWithPage(normalized);
+
+    if (data) {
+      setSelectedFundData(data);
+      try {
+        window.sessionStorage.setItem('admin_selected_fund', JSON.stringify(data));
+      } catch (err) {
+        console.warn('Unable to persist selected fund data:', err);
+      }
+    } else if (!['generic-fund-application', 'publication-reward-form'].includes(normalized)) {
+      setSelectedFundData(null);
+      try {
+        window.sessionStorage.removeItem('admin_selected_fund');
+      } catch {}
+    }
   };
 
   const renderPageContent = () => {
@@ -143,6 +165,26 @@ function AdminPageContent({ initialPage = 'dashboard' }) {
         return <ResearchFundContent onNavigate={handleNavigate} />;
       case 'promotion-fund':
         return <PromotionFundContent onNavigate={handleNavigate} />;
+      case 'generic-fund-application':
+        return (
+          <GenericFundApplicationForm
+            onNavigate={handleNavigate}
+            subcategoryData={selectedFundData}
+            readOnly
+          />
+        );
+      case 'publication-reward-form':
+        return (
+          <PublicationRewardForm
+            onNavigate={handleNavigate}
+            categoryId={selectedFundData?.category_id}
+            yearId={selectedFundData?.year_id}
+            submissionId={selectedFundData?.submissionId}
+            originPage={selectedFundData?.originPage}
+            mode={currentMode}
+            readOnly
+          />
+        );
       case 'applications-list':
         return <SubmissionsManagement currentPage={handleNavigate} />;
       case 'scopus-research-search':
