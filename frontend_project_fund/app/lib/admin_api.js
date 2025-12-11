@@ -655,10 +655,11 @@ export const adminAPI = {
   },
 
   // Export dashboard statistics as a downloadable file
-  async exportDashboardStats(params = {}, filename = 'admin-dashboard-export.json') {
+  async exportDashboardStats(params = {}, format = 'json', filename = 'admin-dashboard-export.json') {
     try {
+      const mergedParams = { ...params, format };
       const searchParams = new URLSearchParams(
-        Object.entries(params).filter(([, value]) => value !== undefined && value !== null && value !== '')
+        Object.entries(mergedParams).filter(([, value]) => value !== undefined && value !== null && value !== '')
       );
       const queryString = searchParams.toString();
       const endpoint = queryString ? `/admin/dashboard/export?${queryString}` : '/admin/dashboard/export';

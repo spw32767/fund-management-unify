@@ -463,6 +463,7 @@ export default function DashboardContent({ onNavigate }) {
   const [error, setError] = useState(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
+  const [exportFormat, setExportFormat] = useState("excel");
   const [filters, setFilters] = useState({ scope: "current_year", year: "", installment: "" });
   const filtersRef = useRef(filters);
 
@@ -585,17 +586,18 @@ export default function DashboardContent({ onNavigate }) {
       filtersRef.current?.year ||
       (stats?.filter_options?.current_year ? String(stats.filter_options.current_year) : "all-years");
     const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
-    const filename = `admin-dashboard-summary-${yearLabel}-${timestamp}.json`;
+    const ext = exportFormat === "excel" ? "xlsx" : exportFormat === "pdf" ? "pdf" : "json";
+    const filename = `admin-dashboard-summary-${yearLabel}-${timestamp}.${ext}`;
     setIsExporting(true);
     try {
-      await adminAPI.exportDashboardStats(params, filename);
+      await adminAPI.exportDashboardStats(params, exportFormat, filename);
     } catch (exportError) {
       console.error("Failed to export dashboard data", exportError);
       setError("ไม่สามารถส่งออกข้อมูลได้");
     } finally {
       setIsExporting(false);
     }
-  }, [buildQueryParams]);
+  }, [buildQueryParams, exportFormat]);
 
   useEffect(() => {
     loadDashboard();
@@ -712,6 +714,22 @@ export default function DashboardContent({ onNavigate }) {
             >
               จัดการคำร้อง
             </button>
+            <div className="flex items-center gap-2">
+              <label className="text-sm text-gray-600" htmlFor="export-format">
+                รูปแบบไฟล์:
+              </label>
+              <select
+                id="export-format"
+                className="rounded-lg border border-gray-300 px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                value={exportFormat}
+                onChange={(event) => setExportFormat(event.target.value)}
+                disabled={isExporting}
+              >
+                <option value="excel">Excel (.xlsx)</option>
+                <option value="pdf">PDF (.pdf)</option>
+                <option value="json">JSON (.json)</option>
+              </select>
+            </div>
             <button
               type="button"
               onClick={handleExport}
