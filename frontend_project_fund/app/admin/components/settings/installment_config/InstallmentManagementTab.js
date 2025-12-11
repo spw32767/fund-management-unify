@@ -366,16 +366,11 @@ const InstallmentManagementTab = ({ years = [] }) => {
     return Array.from(new Set(base)).sort((a, b) => a - b);
   }, [editingPeriod?.installment_number, formData.installment_number]);
 
-  const selectedYearValue = useMemo(() => {
-    if (!selectedYearOption) return null;
-    return extractYearNumeric(selectedYearOption.raw);
-  }, [selectedYearOption]);
-
-  const selectedYearNumber = useMemo(() => {
-    if (selectedYearValue === null || selectedYearValue === undefined) return null;
-    const numeric = Number(selectedYearValue);
-    return Number.isFinite(numeric) ? numeric : null;
-  }, [selectedYearValue]);
+    const selectedYearNumber = useMemo(() => {
+      if (selectedYearValue === null || selectedYearValue === undefined) return null;
+      const numeric = Number(selectedYearValue);
+      return Number.isFinite(numeric) ? numeric : null;
+    }, [selectedYearValue]);
 
   const nextYear = useMemo(() => {
     if (!selectedYearNumber) return null;
