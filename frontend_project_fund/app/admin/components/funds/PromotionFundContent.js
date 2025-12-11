@@ -2,7 +2,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { TrendingUp, Search, X, Info, Clock, AlertTriangle } from "lucide-react";
+import { TrendingUp, Search, X, Info, Clock, AlertTriangle, Download } from "lucide-react";
 import PageLayout from "../common/PageLayout";
 import { teacherAPI } from "../../../lib/member_api";
 import { targetRolesUtils, filterFundsByRole } from "../../../lib/target_roles_utils";
@@ -685,28 +685,30 @@ export default function PromotionFundContent({ onNavigate }) {
             </div>
           </div>
         </td>
-        <td className="px-6 py-4">
-          <div className="flex justify-center">
-            {isOnlineForm ? (
-              <button
-                onClick={() => handleViewDetails(fund)}
-                className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-blue-600 hover:text-blue-700"
-                title="เปิดดูรายละเอียด (อ่านอย่างเดียว)"
-              >
-                <Search size={16} />
-                ดูรายละเอียด
-              </button>
-            ) : (
-              <button
-                onClick={handleDownload}
-                className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-blue-600 hover:text-blue-700"
-                title="ดาวน์โหลดแบบฟอร์ม"
-              >
-                <Search size={16} />
-                ดูรายละเอียด
-              </button>
-            )}
-          </div>
+        <td className="px-6 py-4 text-center">
+          {isOnlineForm ? (
+            <div className="flex flex-col items-center gap-1">
+              <div className="inline-flex items-center justify-center gap-3">
+                <button
+                  onClick={() => handleViewDetails(fund)}
+                  className="inline-flex items-center gap-2 px-1 py-2 text-sm font-medium text-blue-600 hover:text-blue-700"
+                  title="เปิดดูรายละเอียด (อ่านอย่างเดียว)"
+                >
+                  <Search size={16} />
+                  ดูรายละเอียด
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button
+              onClick={handleDownload}
+              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-blue-600 hover:text-blue-700"
+              title="ดาวน์โหลดแบบฟอร์ม"
+            >
+              <Download size={16} />
+              ดาวน์โหลด
+            </button>
+          )}
         </td>
       </tr>
     );
