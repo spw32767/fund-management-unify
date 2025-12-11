@@ -1426,14 +1426,10 @@ export default function SubmissionsManagement() {
   useEffect(() => {
     if (!autoExportRequested || loading) return;
 
-    if (!allSubmissions.length) {
-      setAutoExportRequested(false);
-      return;
-    }
-
-    handleExportConfirm({});
+    // แสดงหน้าต่างเลือกตัวกรองให้ผู้ใช้ก่อน ไม่ trigger download อัตโนมัติ
+    setIsExportModalOpen(true);
     setAutoExportRequested(false);
-  }, [autoExportRequested, loading, allSubmissions.length, handleExportConfirm]);
+  }, [autoExportRequested, loading]);
 
   // สร้างรายการปุ่มหน้า: [1, '...', 4, 5, 6, '...', total]
   const getPageItems = (current, total) => {
