@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { DollarSign, Search, X, Info, Clock, AlertTriangle } from "lucide-react";
+import { DollarSign, Search, X, Info, Clock, AlertTriangle, Download } from "lucide-react";
 import PageLayout from "../common/PageLayout";
 import { teacherAPI } from "../../../lib/teacher_api";
 import {
@@ -9,6 +9,7 @@ import {
   filterFundsByRole,
 } from "../../../lib/target_roles_utils";
 import systemConfigAPI from "../../../lib/system_config_api";
+import { FORM_TYPE_CONFIG } from "../../../lib/form_type_config";
 
 const RESEARCH_CATEGORY_KEYWORDS = [
   "ทุนส่งเสริมการวิจัย",
@@ -99,7 +100,7 @@ const selectCategoriesByKeywords = (categories = [], keywords = []) => {
   return categories.slice(0, 1);
 };
 
-export default function ResearchFundContent() {
+export default function ResearchFundContent({ onNavigate }) {
   const [selectedYear, setSelectedYear] = useState("");
   const [fundCategories, setFundCategories] = useState([]);
   const [filteredFunds, setFilteredFunds] = useState([]);
@@ -141,6 +142,29 @@ export default function ResearchFundContent() {
   useEffect(() => {
     applyFilters();
   }, [searchTerm, fundCategories]);
+
+  const yearIdFromSelectedYear = () => {
+    if (!selectedYear || !Array.isArray(years)) {
+      return null;
+    }
+
+    const yearItem = years.find((item) => String(item.year) === String(selectedYear));
+    return yearItem?.year_id ?? null;
+  };
+
+  const findParentCategoryId = (subcategoryId) => {
+    if (!subcategoryId) return null;
+
+    const normalizedId = Number(subcategoryId);
+    const parent = fundCategories.find((category) =>
+      category?.subcategories?.some((sub) => {
+        const currentId = sub?.subcategory_id ?? sub?.subcategorie_id;
+        return Number(currentId) === normalizedId;
+      })
+    );
+
+    return parent?.category_id ?? parent?.categoryId ?? null;
+  };
 
   // remaining_budget / used_amount / remaining_grant are provided by the new
   // database table views, so this component no longer parses those fields.
@@ -530,8 +554,55 @@ export default function ResearchFundContent() {
     );
   }
 
+  const handleViewDetails = (subcategory) => {
+    const formType = subcategory?.form_type || "download";
+    const formConfig = FORM_TYPE_CONFIG[formType] || {};
+
+    if (!formConfig.isOnlineForm) {
+      const docUrl = subcategory?.form_url || "/documents/default-fund-form.docx";
+      if (typeof window !== "undefined") {
+        window.open(docUrl, "_blank");
+      }
+      return;
+    }
+
+    try {
+      sessionStorage.setItem("fund_form_readonly", "1");
+    } catch {}
+
+    if (onNavigate) {
+      const resolvedSubcategoryId =
+        subcategory?.subcategory_id || subcategory?.subcategorie_id || null;
+      const resolvedSubcategoryName =
+        subcategory?.subcategory_name || subcategory?.subcategorie_name || "";
+
+      onNavigate(
+        formConfig.route || "generic-fund-application",
+        {
+          category_id: findParentCategoryId(resolvedSubcategoryId),
+          year_id: yearIdFromSelectedYear(),
+          subcategory,
+          subcategory_id: resolvedSubcategoryId,
+          subcategory_name: resolvedSubcategoryName,
+          originPage: "research-fund",
+        },
+        { mode: "view-only" }
+      );
+    }
+  };
+
   const renderFundRow = (fund) => {
     const fundName = fund.subcategorie_name || fund.subcategory_name || "ไม่ระบุ";
+    const formType = fund.form_type || "download";
+    const formConfig = FORM_TYPE_CONFIG[formType] || {};
+    const isOnlineForm = !!formConfig.isOnlineForm;
+
+    const handleDownload = () => {
+      const docUrl = fund.form_url || "/documents/default-fund-form.docx";
+      if (typeof window !== "undefined") {
+        window.open(docUrl, "_blank");
+      }
+    };
 
     return (
       <tr key={fund.subcategory_id || fund.subcategorie_id} className={!isWithinApplicationPeriod ? "bg-gray-50" : ""}>
@@ -560,6 +631,32 @@ export default function ResearchFundContent() {
               )}
             </div>
           </div>
+        </td>
+
+        <td className="px-6 py-4 text-center">
+          {isOnlineForm ? (
+            <div className="flex flex-col items-center gap-1">
+              <div className="inline-flex items-center justify-center gap-3">
+                <button
+                  onClick={() => handleViewDetails(fund)}
+                  className="inline-flex items-center gap-2 px-1 py-2 text-sm font-medium text-blue-600 hover:text-blue-700"
+                  title="เปิดดูรายละเอียด (อ่านอย่างเดียว)"
+                >
+                  <Search size={16} />
+                  ดูรายละเอียด
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button
+              onClick={handleDownload}
+              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-blue-600 hover:text-blue-700"
+              title="ดาวน์โหลดแบบฟอร์ม"
+            >
+              <Download size={16} />
+              ดาวน์โหลด
+            </button>
+          )}
         </td>
       </tr>
     );
@@ -638,6 +735,9 @@ export default function ResearchFundContent() {
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     รายละเอียด
+                  </th>
+                  <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    แบบฟอร์มขอทุน
                   </th>
                 </tr>
               </thead>
