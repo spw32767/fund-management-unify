@@ -144,26 +144,25 @@ func GetPublicationOptions(c *gin.Context) {
 		FundDescription string
 	}
 	var budgets []budgetRow
-	err = config.DB.Table("fund_subcategories fs").
-		Select("fs.subcategory_id, sb.subcategory_budget_id AS budget_id, sb.fund_description").
-		Joins(`
-			JOIN subcategory_budgets sb
-			  ON sb.subcategory_id = fs.subcategory_id
-			 AND sb.status = 'active'
-			 AND sb.delete_at IS NULL
-		`).
-		Where(`
-			fs.delete_at IS NULL
-			AND fs.status = 'active'
-			AND fs.category_id = ?
-			AND fs.year_id = ?
-			AND (fs.form_type = 'publication_reward' OR fs.form_type IS NULL)
-		`, categoryID, yearID).
-		Find(&budgets).Error
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch budgets"})
-		return
-	}
+        if err := config.DB.Table("fund_subcategories fs").
+                Select("fs.subcategory_id, sb.subcategory_budget_id AS budget_id, sb.fund_description").
+                Joins(`
+                        JOIN subcategory_budgets sb
+                          ON sb.subcategory_id = fs.subcategory_id
+                         AND sb.status = 'active'
+                         AND sb.delete_at IS NULL
+                `).
+                Where(`
+                        fs.delete_at IS NULL
+                        AND fs.status = 'active'
+                        AND fs.category_id = ?
+                        AND fs.year_id = ?
+                        AND (fs.form_type = 'publication_reward' OR fs.form_type IS NULL)
+                `, categoryID, yearID).
+                Find(&budgets).Error; err != nil {
+                c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch budgets"})
+                return
+        }
 
 	// Match budgets to rate rows by fund_description bucket
 	options := []gin.H{}
@@ -252,8 +251,8 @@ func ResolvePublicationBudget(c *gin.Context) {
 		MaxGrants         sql.NullInt64
 	}
 	var budgets []budgetRow
-	err := config.DB.Table("fund_subcategories fs").
-		Select(`
+        if err := config.DB.Table("fund_subcategories fs").
+                Select(`
                         fs.subcategory_id,
                         sb.subcategory_budget_id AS budget_id,
                         sb.fund_description,
@@ -263,24 +262,23 @@ func ResolvePublicationBudget(c *gin.Context) {
                         sb.max_amount_per_year,
                         sb.max_grants
                 `).
-		Joins(`
+                Joins(`
                         JOIN subcategory_budgets sb
                           ON sb.subcategory_id = fs.subcategory_id
                          AND sb.status = 'active'
                          AND sb.delete_at IS NULL
                 `).
-		Where(`
+                Where(`
                         fs.delete_at IS NULL
                         AND fs.status = 'active'
                         AND fs.category_id = ?
                         AND fs.year_id = ?
                         AND (fs.form_type = 'publication_reward' OR fs.form_type IS NULL)
                 `, categoryID, yearID).
-		Find(&budgets).Error
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch budgets"})
-		return
-	}
+                Find(&budgets).Error; err != nil {
+                c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch budgets"})
+                return
+        }
 
 	var overallRow *budgetRow
 	var ruleRow *budgetRow
