@@ -1,6 +1,6 @@
 // FundSettingsContent.js - Updated Main Component with SweetAlert2
 import React, { useState, useEffect } from "react";
-import { Settings, Calendar, CalendarRange, DollarSign, PencilLine, FileText, FileStack, ListChecks, BellRing, Layers, Wallet } from "lucide-react";
+import { Settings, CalendarRange, DollarSign, PencilLine, FileText, FileStack, ListChecks, BellRing, Layers, Wallet } from "lucide-react";
 import Swal from 'sweetalert2';
 
 // Import separated components
@@ -32,7 +32,6 @@ const TAB_ITEMS = [
   { id: "funds", label: "จัดการทุน", icon: DollarSign },
   { id: "project-types", label: "ประเภทโครงการ", icon: Layers },
   { id: "project-plans", label: "แผนงบประมาณ", icon: Wallet },
-  { id: "years", label: "จัดการปีงบประมาณ", icon: Calendar },
   { id: "installments", label: "ตั้งค่าวันตัดรอบการพิจารณา", icon: CalendarRange },
   { id: "reward-config", label: "จัดการเงินรางวัล", icon: Settings },
   { id: "reward-terms", label: "ข้อตกลงเงินรางวัล", icon: ListChecks },
@@ -1375,19 +1374,23 @@ export default function FundSettingsContent({ onNavigate }) {
   const renderActiveContent = () => {
     switch (activeTab) {
       case "funds":
-        return <FundManagementTab {...fundManagementTabProps} />;
+        return (
+          <div className="space-y-6">
+            <YearManagementTab
+              years={years}
+              selectedYear={selectedYear}
+              onSelectYear={(year) =>
+                handleYearChange(year?.year_id ?? year?.year ?? null)
+              }
+              onSaveYear={handleSaveYear}
+            />
+            <FundManagementTab {...fundManagementTabProps} />
+          </div>
+        );
       case "project-types":
         return <ProjectTypesManager />;
       case "project-plans":
         return <BudgetPlansManager />;
-      case "years":
-        return (
-          <YearManagementTab
-            years={years}
-            onSaveYear={handleSaveYear}
-            // onDeleteYear={handleDeleteYear}
-          />
-        );
       case "installments":
         return <InstallmentManagementTab years={years} />;
       case "reward-config":
