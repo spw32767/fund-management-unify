@@ -95,6 +95,8 @@ function normalizeServerFilter(selected, fallback = {}) {
   return normalized;
 }
 
+const OKLCH_REGEX = /oklch\([^)]*\)/gi;
+
 function sanitizeOklchColors(root, trackMutations = false) {
   if (!root) return trackMutations ? () => {} : undefined;
 
@@ -120,9 +122,13 @@ function sanitizeOklchColors(root, trackMutations = false) {
 
     if (ctx) {
       ctx.fillStyle = "#000";
-      ctx.fillStyle = value;
-      if (ctx.fillStyle && !ctx.fillStyle.includes("oklch")) {
-        return ctx.fillStyle;
+      try {
+        ctx.fillStyle = value;
+        if (ctx.fillStyle && !ctx.fillStyle.includes("oklch")) {
+          return ctx.fillStyle;
+        }
+      } catch (err) {
+        // fall back below
       }
     }
 
@@ -145,13 +151,55 @@ function sanitizeOklchColors(root, trackMutations = false) {
         el.style[prop] = replacement;
       }
     });
+
+    if (computed) {
+      Array.from(computed).forEach((propName) => {
+        const value = computed.getPropertyValue(propName);
+        if (value && value.includes("oklch")) {
+          const replacement = convertColor(value, propName) || fallbackFor(propName);
+          if (replacement) {
+            if (trackMutations) {
+              mutations.push({
+                el,
+                prop: propName,
+                prev: el.style.getPropertyValue(propName),
+                custom: true,
+              });
+            }
+            el.style.setProperty(propName, replacement);
+          }
+        }
+      });
+    }
+
+    const inlineStyle = el.getAttribute("style");
+    if (inlineStyle) {
+      OKLCH_REGEX.lastIndex = 0;
+      const hasOklch = OKLCH_REGEX.test(inlineStyle);
+      if (hasOklch) {
+        OKLCH_REGEX.lastIndex = 0;
+        const sanitized = inlineStyle.replace(OKLCH_REGEX, fallbackFor("background"));
+        if (trackMutations) {
+          mutations.push({ el, attr: "style", prev: inlineStyle });
+        }
+        el.setAttribute("style", sanitized);
+      }
+    }
   });
 
   if (trackMutations) {
     return () => {
-      mutations.forEach(({ el, prop, prev }) => {
-        if (el?.style) {
-          el.style[prop] = prev || "";
+      mutations.forEach(({ el, prop, prev, attr, custom }) => {
+        if (attr === "style" && el?.setAttribute) {
+          el.setAttribute("style", prev || "");
+          return;
+        }
+        if (el?.style && prop) {
+          if (custom) {
+            el.style.setProperty(prop, prev || "");
+          } else {
+            el.style[prop] = prev || "";
+          }
         }
       });
     };
@@ -567,74 +615,6 @@ export default function DashboardContent({ onNavigate }) {
       const response = await adminAPI.getSystemStats(query);
       const payload = response?.stats || response || {};
       setStats(payload);
-
-      if (typeof window !== "undefined") {
-        // eslint-disable-next-line no-console
-        console.groupCollapsed("%c[AdminDashboard]%c stats payload", "color: #2563eb; font-weight: 600;", "color: inherit;");
-        // eslint-disable-next-line no-console
-        console.log("filters", query);
-        // eslint-disable-next-line no-console
-        console.dir(payload, { depth: null });
-        // eslint-disable-next-line no-console
-        console.groupEnd();
-
-        const quotaSummary = Array.isArray(payload?.quota_summary) ? payload.quota_summary : [];
-        const quotaViewRows = Array.isArray(payload?.quota_usage_view_rows)
-          ? payload.quota_usage_view_rows
-          : [];
-
-        if (quotaSummary.length) {
-          // eslint-disable-next-line no-console
-          console.groupCollapsed(
-            "%c[AdminDashboard]%c quota summary",
-            "color: #2563eb; font-weight: 600;",
-            "color: inherit;"
-          );
-          // eslint-disable-next-line no-console
-          console.table(
-            quotaSummary.map((item) => ({
-              category: item?.category_name,
-              subcategory: item?.subcategory_name,
-              allocated: item?.allocated_amount,
-              used: item?.used_amount,
-              remaining: item?.remaining_budget,
-              maxGrants: item?.max_grants,
-              usedGrants: item?.used_grants,
-              remainingGrants: item?.remaining_grants,
-              year: item?.year,
-            }))
-          );
-          // eslint-disable-next-line no-console
-          console.log("filters", query);
-          // eslint-disable-next-line no-console
-          console.groupEnd();
-        } else {
-          // eslint-disable-next-line no-console
-          console.warn("[AdminDashboard] quota summary is empty", {
-            filters: query,
-            raw: payload?.quota_summary,
-          });
-        }
-
-        if (quotaViewRows.length) {
-          // eslint-disable-next-line no-console
-          console.groupCollapsed(
-            "%c[AdminDashboard]%c quota usage view rows",
-            "color: #2563eb; font-weight: 600;",
-            "color: inherit;"
-          );
-          // eslint-disable-next-line no-console
-          console.table(quotaViewRows);
-          // eslint-disable-next-line no-console
-          console.groupEnd();
-        } else {
-          // eslint-disable-next-line no-console
-          console.warn("[AdminDashboard] quota usage view rows are empty", {
-            filters: query,
-            raw: payload?.quota_usage_view_rows,
-          });
-        }
-      }
 
       const serverFilter = normalizeServerFilter(payload?.selected_filter, params);
       if (serverFilter) {
