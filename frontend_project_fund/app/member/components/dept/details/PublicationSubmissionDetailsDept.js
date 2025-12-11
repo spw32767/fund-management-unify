@@ -1399,6 +1399,30 @@ export default function PublicationSubmissionDetailsDept({ submissionId, onBack 
     submission?.submitted_date ??
     null;
 
+  const contactPhone = firstNonEmpty(
+    submission?.contact_phone,
+    submission?.details?.data?.contact_phone,
+    pubDetail?.contact_phone,
+  );
+
+  const bankAccount = firstNonEmpty(
+    submission?.bank_account,
+    submission?.details?.data?.bank_account,
+    pubDetail?.bank_account,
+  );
+
+  const bankName = firstNonEmpty(
+    submission?.bank_name,
+    submission?.details?.data?.bank_name,
+    pubDetail?.bank_name,
+  );
+
+  const bankAccountName = firstNonEmpty(
+    submission?.bank_account_name,
+    submission?.details?.data?.bank_account_name,
+    pubDetail?.bank_account_name,
+  );
+
   useEffect(() => {
     if (!submission?.submission_id) return;
 
@@ -2236,6 +2260,11 @@ export default function PublicationSubmissionDetailsDept({ submissionId, onBack 
             
             {/* Info grid: วันที่ต่าง ๆ และเลขอ้างอิงประกาศ */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-3 mt-2">
+              <div className="flex items-start gap-2">
+                <span className="text-gray-500 shrink-0">เบอร์ติดต่อ:</span>
+                <span className="font-medium break-words">{contactPhone || '-'}</span>
+              </div>
+
               {/* วันที่สร้างคำร้อง (ถ้ามี) */}
               {submission.created_at && (
                 <div className="flex items-start gap-2">
@@ -2291,6 +2320,21 @@ export default function PublicationSubmissionDetailsDept({ submissionId, onBack 
                   )}
                 </div>
               )}
+
+              <div className="flex items-start gap-2 md:col-span-2 lg:col-span-3">
+                <span className="text-gray-500 shrink-0">ข้อมูลธนาคาร:</span>
+                <div className="flex flex-col text-sm font-medium text-gray-700">
+                  <span>
+                    เลขที่บัญชี: <span className="font-semibold">{bankAccount || '-'}</span>
+                  </span>
+                  <span>
+                    ชื่อบัญชี: <span className="font-semibold">{bankAccountName || '-'}</span>
+                  </span>
+                  <span>
+                    ธนาคาร: <span className="font-semibold">{bankName || '-'}</span>
+                  </span>
+                </div>
+              </div>
 
               {/* ประกาศเงินรางวัล (Reward Announcement) */}
               {(rewardAnn || pubDetail?.reward_announcement) && (

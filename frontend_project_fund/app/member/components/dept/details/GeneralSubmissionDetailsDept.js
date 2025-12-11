@@ -1138,6 +1138,30 @@ export default function GeneralSubmissionDetailsDept({ submissionId, onBack }) {
   const adminRejectedAt = submission?.admin_rejected_at || submission?.adminRejectedAt || null;
   const adminRejectionReason = submission?.admin_rejection_reason || submission?.adminRejectionReason || '';
 
+  const contactPhone =
+    submission?.contact_phone ||
+    submission?.details?.data?.contact_phone ||
+    detail?.contact_phone ||
+    '';
+
+  const bankAccount =
+    submission?.bank_account ||
+    submission?.details?.data?.bank_account ||
+    detail?.bank_account ||
+    '';
+
+  const bankName =
+    submission?.bank_name ||
+    submission?.details?.data?.bank_name ||
+    detail?.bank_name ||
+    '';
+
+  const bankAccountName =
+    submission?.bank_account_name ||
+    submission?.details?.data?.bank_account_name ||
+    detail?.bank_account_name ||
+    '';
+
   // Best-effort fund subcategory display name (no backend change)
   const fundName = (() => {
     const cand =
@@ -1612,6 +1636,11 @@ export default function GeneralSubmissionDetailsDept({ submissionId, onBack }) {
             <span className="font-medium break-all">{submission.submission_number || '-'}</span>
           </div>
 
+          <div className="flex items-start gap-2">
+            <span className="text-gray-500 shrink-0">เบอร์ติดต่อ:</span>
+            <span className="font-medium break-words">{contactPhone || '-'}</span>
+          </div>
+
           {/* วันที่สร้างคำร้อง (ถ้ามี) */}
           {createdAt && (
             <div className="flex items-start gap-2">
@@ -1635,6 +1664,21 @@ export default function GeneralSubmissionDetailsDept({ submissionId, onBack }) {
               <span className="font-medium">{formatDate(adminApprovedAt || headApprovedAt)}</span>
             </div>
           )}
+
+          <div className="flex items-start gap-2 md:col-span-2 lg:col-span-3">
+            <span className="text-gray-500 shrink-0">ข้อมูลธนาคาร:</span>
+            <div className="flex flex-col text-sm font-medium text-gray-700">
+              <span>
+                เลขที่บัญชี: <span className="font-semibold">{bankAccount || '-'}</span>
+              </span>
+              <span>
+                ชื่อบัญชี: <span className="font-semibold">{bankAccountName || '-'}</span>
+              </span>
+              <span>
+                ธนาคาร: <span className="font-semibold">{bankName || '-'}</span>
+              </span>
+            </div>
+          </div>
 
           {/* เหตุผลการไม่อนุมัติ (ถ้ามี) */}
           {(adminRejectedAt || headRejectedAt) && (adminRejectionReason || headRejectionReason) && (

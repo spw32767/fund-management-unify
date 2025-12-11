@@ -662,6 +662,30 @@ export default function FundApplicationDetail({
     );
   }, [submission]);
 
+  const contactPhone = firstNonEmpty(
+    submission?.contact_phone,
+    submission?.details?.data?.contact_phone,
+    detail?.contact_phone,
+  );
+
+  const bankAccount = firstNonEmpty(
+    submission?.bank_account,
+    submission?.details?.data?.bank_account,
+    detail?.bank_account,
+  );
+
+  const bankName = firstNonEmpty(
+    submission?.bank_name,
+    submission?.details?.data?.bank_name,
+    detail?.bank_name,
+  );
+
+  const bankAccountName = firstNonEmpty(
+    submission?.bank_account_name,
+    submission?.details?.data?.bank_account_name,
+    detail?.bank_account_name,
+  );
+
   const mainAnnouncementId = deriveAnnouncementId(
     detail?.main_annoucement_id,
     detail?.main_announcement_id,
@@ -912,6 +936,12 @@ export default function FundApplicationDetail({
                     {submission.submission_number || "-"}
                   </span>
                 </div>
+                <div className="flex items-start gap-2">
+                  <span className="text-gray-500 shrink-0">เบอร์ติดต่อ:</span>
+                  <span className="font-medium break-words">
+                    {contactPhone || "-"}
+                  </span>
+                </div>
                 {submittedAt && (
                   <div className="flex items-start gap-2">
                     <span className="text-gray-500 shrink-0">วันที่ส่งคำร้อง:</span>
@@ -939,6 +969,20 @@ export default function FundApplicationDetail({
                     </span>
                   </div>
                 )}
+                <div className="flex items-start gap-2 lg:col-span-2 xl:col-span-3">
+                  <span className="text-gray-500 shrink-0">ข้อมูลธนาคาร:</span>
+                  <div className="flex flex-col text-sm font-medium text-gray-700">
+                    <span>
+                      เลขที่บัญชี: <span className="font-semibold">{bankAccount || "-"}</span>
+                    </span>
+                    <span>
+                      ชื่อบัญชี: <span className="font-semibold">{bankAccountName || "-"}</span>
+                    </span>
+                    <span>
+                      ธนาคาร: <span className="font-semibold">{bankName || "-"}</span>
+                    </span>
+                  </div>
+                </div>
                 {announceReference && (
                   <div className="flex items-start gap-2 lg:col-span-2 xl:col-span-3">
                     <span className="text-gray-500 shrink-0">
