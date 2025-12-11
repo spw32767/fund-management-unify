@@ -21,7 +21,6 @@ const YearManagementTab = ({ years = [], onSaveYear /*, onDeleteYear */ }) => {
   const [editingYear, setEditingYear] = useState(null);
   const [yearForm, setYearForm] = useState({
     year: "",
-    budget: "",
     status: "active",
   });
 
@@ -59,9 +58,6 @@ const YearManagementTab = ({ years = [], onSaveYear /*, onDeleteYear */ }) => {
       if (key === "year") {
         return ((parseInt(a.year) || 0) - (parseInt(b.year) || 0)) * mul;
       }
-      if (key === "budget") {
-        return ((+a.budget || 0) - (+b.budget || 0)) * mul;
-      }
       if (key === "status") {
         // put active before inactive in asc
         const av = a.status === "active" ? 1 : 0;
@@ -75,7 +71,7 @@ const YearManagementTab = ({ years = [], onSaveYear /*, onDeleteYear */ }) => {
   // ====== Handlers (keep behavior semantics) ======
   const handleAddNew = () => {
     setEditingYear(null);
-    setYearForm({ year: "", budget: "", status: "active" });
+    setYearForm({ year: "", status: "active" });
     setShowForm(true);
   };
 
@@ -83,7 +79,6 @@ const YearManagementTab = ({ years = [], onSaveYear /*, onDeleteYear */ }) => {
     setEditingYear(item);
     setYearForm({
       year: item.year ?? "",
-      budget: item.budget ?? "",
       status: item.status ?? "active",
     });
     setShowForm(true);
@@ -91,7 +86,7 @@ const YearManagementTab = ({ years = [], onSaveYear /*, onDeleteYear */ }) => {
 
   const handleCancelEdit = () => {
     setEditingYear(null);
-    setYearForm({ year: "", budget: "", status: "active" });
+    setYearForm({ year: "", status: "active" });
     setShowForm(false);
   };
 
@@ -101,14 +96,10 @@ const YearManagementTab = ({ years = [], onSaveYear /*, onDeleteYear */ }) => {
       Swal.fire("ข้อมูลไม่ครบ", "กรุณาระบุปีงบประมาณเป็นตัวเลข 4 หลัก (พ.ศ.)", "warning");
       return;
     }
-    const yearData = {
-      ...yearForm,
-      // normalize numeric
-      budget: parseFloat(yearForm.budget) || 0,
-    };
+    const yearData = { ...yearForm };
     onSaveYear(yearData, editingYear);
     setEditingYear(null);
-    setYearForm({ year: "", budget: "", status: "active" });
+    setYearForm({ year: "", status: "active" });
     setShowForm(false);
     Swal.fire("สำเร็จ", "บันทึกปีงบประมาณเรียบร้อย", "success");
   };
@@ -147,7 +138,7 @@ const YearManagementTab = ({ years = [], onSaveYear /*, onDeleteYear */ }) => {
         iconBgClass="bg-orange-100"
         iconColorClass="text-orange-600"
         title="จัดการปีงบประมาณ"
-        description="เพิ่ม/แก้ไข ปีงบประมาณและวงเงินรวม พร้อมสถานะการเปิดใช้งาน"
+        description="เพิ่ม/แก้ไข ปีงบประมาณ และสถานะการเปิดใช้งาน"
         actions={
           <button
             onClick={handleAddNew}
@@ -172,14 +163,6 @@ const YearManagementTab = ({ years = [], onSaveYear /*, onDeleteYear */ }) => {
                     ปีงบประมาณ {sortIcon("year")}
                   </button>
                 </th>
-                <th className="px-4 py-3 text-right font-semibold text-gray-700">
-                  <button
-                    className="inline-flex items-center gap-1 justify-end hover:text-blue-600"
-                    onClick={() => toggleSort("budget")}
-                  >
-                    วงเงินรวม {sortIcon("budget")}
-                  </button>
-                </th>
                 <th className="px-4 py-3 text-center font-semibold text-gray-700">
                   <button
                     className="inline-flex items-center gap-1 justify-center hover:text-blue-600"
@@ -196,9 +179,6 @@ const YearManagementTab = ({ years = [], onSaveYear /*, onDeleteYear */ }) => {
                 <tr key={item.year}>
                   <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900">
                     พ.ศ. {item.year}
-                  </td>
-                  <td className="px-4 py-3 whitespace-nowrap text-sm text-right text-gray-900">
-                    {new Intl.NumberFormat("th-TH").format(item.budget || 0)} บาท
                   </td>
                   <td className="px-4 py-3 whitespace-nowrap text-center">
                     <StatusBadge
@@ -262,7 +242,7 @@ const YearManagementTab = ({ years = [], onSaveYear /*, onDeleteYear */ }) => {
               <p className="text-base font-semibold text-gray-900">
                 {editingYear ? "แก้ไขปีงบประมาณ" : "เพิ่มปีงบประมาณ"}
               </p>
-              <p className="text-sm text-gray-500">กำหนดปีงบประมาณ วงเงินรวม และสถานะการใช้งาน</p>
+              <p className="text-sm text-gray-500">กำหนดปีงบประมาณ และสถานะการใช้งาน</p>
             </div>
           </div>
         }
@@ -282,19 +262,6 @@ const YearManagementTab = ({ years = [], onSaveYear /*, onDeleteYear */ }) => {
               value={yearForm.year}
               onChange={(e) => setYearForm({ ...yearForm, year: e.target.value })}
               className="w-full rounded-lg border border-gray-300 px-3 py-2 text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-200"
-            />
-          </div>
-
-          <div>
-            <label className="mb-1 block text-sm font-semibold text-gray-700">วงเงินรวม (บาท)</label>
-            <input
-              type="number"
-              placeholder="เช่น 1000000"
-              value={yearForm.budget}
-              onChange={(e) => setYearForm({ ...yearForm, budget: e.target.value })}
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-200"
-              min="0"
-              step="1000"
             />
           </div>
 
