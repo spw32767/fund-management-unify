@@ -63,6 +63,7 @@ export default function FundSettingsContent({ onNavigate }) {
   // Years Management
   const [years, setYears] = useState([]);
   const [selectedYear, setSelectedYear] = useState(null);
+  const [systemCurrentYear, setSystemCurrentYear] = useState(null);
   
   // Categories Management
   const [categories, setCategories] = useState([]);
@@ -210,6 +211,8 @@ export default function FundSettingsContent({ onNavigate }) {
 
       const systemYearValue =
         currentYearRes?.current_year ?? currentYearRes?.data?.current_year ?? null;
+
+      setSystemCurrentYear(systemYearValue);
 
       if (!nextSelected && systemYearValue !== null) {
         nextSelected = findMatchingYear(systemYearValue);
@@ -1379,6 +1382,7 @@ export default function FundSettingsContent({ onNavigate }) {
             <YearManagementTab
               years={years}
               selectedYear={selectedYear}
+              systemCurrentYear={systemCurrentYear}
               onSelectYear={(year) =>
                 handleYearChange(year?.year_id ?? year?.year ?? null)
               }

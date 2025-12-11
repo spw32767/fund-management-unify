@@ -7,7 +7,6 @@ import {
   Calendar,
   PlusCircle,
   Star,
-  CheckCircle2,
   Clock4
 } from "lucide-react";
 import Swal from "sweetalert2";
@@ -18,6 +17,7 @@ import SettingsModal from "@/app/admin/components/settings/common/SettingsModal"
 const YearManagementTab = ({
   years = [],
   selectedYear,
+  systemCurrentYear,
   onSelectYear,
   onSaveYear /*, onDeleteYear */
 }) => {
@@ -44,6 +44,14 @@ const YearManagementTab = ({
     if (selectedYear.year !== undefined && year.year !== undefined) {
       return `${selectedYear.year}` === `${year.year}`;
     }
+    return false;
+  };
+
+  const isSystemCurrentYear = (year) => {
+    if (!systemCurrentYear || !year) return false;
+    const target = String(systemCurrentYear);
+    if (year.year_id !== undefined && `${year.year_id}` === target) return true;
+    if (year.year !== undefined && `${year.year}` === target) return true;
     return false;
   };
 
@@ -133,11 +141,13 @@ const YearManagementTab = ({
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             {sortedYears.map((item) => {
               const isSelected = isSelectedYear(item);
+              const isCurrent = isSystemCurrentYear(item);
 
               return (
                 <div
                   key={item.year_id || item.year}
-                  className={`rounded-xl border p-4 shadow-sm transition hover:-translate-y-1 hover:shadow ${
+                  onClick={() => onSelectYear?.(item)}
+                  className={`cursor-pointer rounded-xl border p-4 shadow-sm transition hover:-translate-y-1 hover:shadow ${
                     isSelected
                       ? "border-blue-300 bg-blue-50"
                       : "border-gray-200 bg-white"
@@ -149,11 +159,11 @@ const YearManagementTab = ({
                         <Calendar size={14} />
                         ปีงบประมาณ
                       </div>
-                      <div className="flex items-center gap-2 text-2xl font-bold text-gray-900">
+                      <div className="flex flex-wrap items-center gap-2 text-2xl font-bold text-gray-900">
                         พ.ศ. {item.year}
-                        {isSelected && (
+                        {isCurrent && (
                           <span className="inline-flex items-center gap-1 rounded-full bg-blue-100 px-2 py-1 text-xs font-semibold text-blue-700">
-                            <Star size={12} /> ใช้งานกับทุน
+                            <Star size={12} /> กำลังใช้เป็นปีงบประมาณปัจจุบัน
                           </span>
                         )}
                       </div>
@@ -179,15 +189,9 @@ const YearManagementTab = ({
 
                   <div className="mt-4 flex flex-wrap gap-2">
                     <button
-                      type="button"
-                      onClick={() => onSelectYear?.(item)}
-                      className="inline-flex items-center gap-2 rounded-lg bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-700 transition hover:bg-blue-100"
-                    >
-                      <CheckCircle2 size={14} />
-                      ใช้ปีนี้กับการตั้งค่าทุน
-                    </button>
-                    <button
                       onClick={() => handleEdit(item)}
+                      onMouseDown={(e) => e.stopPropagation()}
+                      onClickCapture={(e) => e.stopPropagation()}
                       className="inline-flex items-center gap-2 rounded-lg border border-gray-300 px-3 py-2 text-xs font-medium text-gray-700 transition hover:bg-gray-100"
                     >
                       <Edit size={14} /> แก้ไขปีงบประมาณ
