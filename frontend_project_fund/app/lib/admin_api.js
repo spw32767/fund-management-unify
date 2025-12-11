@@ -1259,15 +1259,11 @@ export const adminAPI = {
 
   // Validate required fields for different operations
   validateYearData(yearData) {
-    const required = ['year', 'budget'];
+    const required = ['year'];
     const missing = required.filter(field => !yearData[field]);
-    
+
     if (missing.length > 0) {
       throw new Error(`Missing required fields: ${missing.join(', ')}`);
-    }
-    
-    if (isNaN(parseFloat(yearData.budget)) || parseFloat(yearData.budget) <= 0) {
-      throw new Error('Budget must be a positive number');
     }
   },
 

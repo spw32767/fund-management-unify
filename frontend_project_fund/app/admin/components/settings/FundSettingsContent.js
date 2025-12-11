@@ -1061,10 +1061,6 @@ export default function FundSettingsContent({ onNavigate }) {
       }
     } else if (targetYearValue) {
       copyOptions.targetYear = `${targetYearValue}`.trim();
-      const parsedBudget = Number(currentYear?.budget);
-      if (Number.isFinite(parsedBudget)) {
-        copyOptions.target_budget = parsedBudget;
-      }
     }
 
     if (mode === 'existing' && copyOptions.targetYearId) {
