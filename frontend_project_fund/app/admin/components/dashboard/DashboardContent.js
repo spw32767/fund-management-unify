@@ -181,6 +181,13 @@ function FilterControls({ filters, options, onScopeChange, onYearChange, onInsta
 }
 
 function OverviewCards({ overview, currentDate, scopeDescription, onNavigate }) {
+  const handlePendingClick = useCallback(() => {
+    if (typeof window !== "undefined") {
+      localStorage.setItem("adminPendingFocus", "1");
+    }
+    onNavigate?.("applications-list");
+  }, [onNavigate]);
+
   const cards = useMemo(() => {
     const totalApplications = Number(overview?.total_applications ?? 0);
     const pending = Number(overview?.pending_count ?? 0);
@@ -201,7 +208,7 @@ function OverviewCards({ overview, currentDate, scopeDescription, onNavigate }) 
         value: formatNumber(pending),
         icon: Clock,
         gradient: "from-amber-400 to-orange-500",
-        onClick: () => onNavigate?.("applications-list"),
+        onClick: handlePendingClick,
       },
       {
         label: "ผู้ใช้งานทั้งหมด",
@@ -609,13 +616,20 @@ export default function DashboardContent({ onNavigate }) {
 
       if (exportFormat === "pdf") {
         const imgData = canvas.toDataURL("image/png");
-        const orientation = canvas.width >= canvas.height ? "l" : "p";
         const pdf = new jsPDF({
-          orientation,
+          orientation: "l",
           unit: "px",
-          format: [canvas.width, canvas.height],
+          format: [Math.max(canvas.width, canvas.height), Math.min(canvas.width, canvas.height)],
         });
-        pdf.addImage(imgData, "PNG", 0, 0, canvas.width, canvas.height);
+
+        const pageWidth = pdf.internal.pageSize.getWidth();
+        const pageHeight = pdf.internal.pageSize.getHeight();
+        const ratio = Math.min(pageWidth / canvas.width, pageHeight / canvas.height);
+
+        const renderWidth = canvas.width * ratio;
+        const renderHeight = canvas.height * ratio;
+
+        pdf.addImage(imgData, "PNG", 0, 0, renderWidth, renderHeight);
         pdf.save(filename);
       } else {
         const mime = exportFormat === "jpeg" ? "image/jpeg" : "image/png";

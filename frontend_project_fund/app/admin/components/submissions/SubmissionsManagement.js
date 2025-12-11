@@ -289,6 +289,25 @@ export default function SubmissionsManagement() {
     }
   }, []);
 
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const focusPending = localStorage.getItem('adminPendingFocus');
+    if (!focusPending) return;
+
+    localStorage.removeItem('adminPendingFocus');
+    const pendingStatus = statuses.find((s) => {
+      const name = String(s?.status_name || s?.name || '').toLowerCase();
+      const code = String(s?.status_code || s?.slug || '').toLowerCase();
+      return name.includes('pending') || name.includes('รอดำเนินการ') || code.includes('pending');
+    });
+
+    const pendingValue = pendingStatus
+      ? String(pendingStatus.status_id ?? pendingStatus.id ?? '')
+      : '1';
+
+    setFilters((prev) => ({ ...prev, status: pendingValue }));
+  }, [statuses]);
+
   // ---------- FETCH-ALL for selected year (no backend pagination in UI) ----------
   const fetchAllForYear = async (yearId) => {
     setLoading(true);
