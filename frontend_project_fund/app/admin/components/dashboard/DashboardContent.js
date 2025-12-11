@@ -17,6 +17,7 @@ import {
   SlidersHorizontal,
   ChevronDown,
   ChevronRight,
+  Download,
 } from "lucide-react";
 
 import PageLayout from "../common/PageLayout";
@@ -461,6 +462,7 @@ export default function DashboardContent({ onNavigate }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
   const [filters, setFilters] = useState({ scope: "current_year", year: "", installment: "" });
   const filtersRef = useRef(filters);
 
@@ -468,11 +470,15 @@ export default function DashboardContent({ onNavigate }) {
     filtersRef.current = filters;
   }, [filters]);
 
-  const loadDashboard = useCallback(async ({ silent = false, targetFilters } = {}) => {
-    const params = targetFilters || filtersRef.current;
-    const query = Object.fromEntries(
+  const buildQueryParams = useCallback((params) => {
+    return Object.fromEntries(
       Object.entries(params).filter(([, value]) => value !== undefined && value !== null && value !== "")
     );
+  }, []);
+
+  const loadDashboard = useCallback(async ({ silent = false, targetFilters } = {}) => {
+    const params = targetFilters || filtersRef.current;
+    const query = buildQueryParams(params);
 
     if (silent) {
       setIsRefreshing(true);
@@ -571,7 +577,21 @@ export default function DashboardContent({ onNavigate }) {
         setLoading(false);
       }
     }
-  }, []);
+  }, [buildQueryParams]);
+
+  const handleExport = useCallback(async () => {
+    const params = buildQueryParams(filtersRef.current);
+    const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+    setIsExporting(true);
+    try {
+      await adminAPI.exportDashboardStats(params, `admin-dashboard-${timestamp}.json`);
+    } catch (exportError) {
+      console.error("Failed to export dashboard data", exportError);
+      setError("ไม่สามารถส่งออกข้อมูลได้");
+    } finally {
+      setIsExporting(false);
+    }
+  }, [buildQueryParams]);
 
   useEffect(() => {
     loadDashboard();
@@ -687,6 +707,15 @@ export default function DashboardContent({ onNavigate }) {
               className="inline-flex items-center gap-2 rounded-lg border border-blue-600 px-3 py-2 text-sm font-medium text-blue-600 hover:bg-blue-50 transition"
             >
               จัดการคำร้อง
+            </button>
+            <button
+              type="button"
+              onClick={handleExport}
+              disabled={isExporting}
+              className="inline-flex items-center gap-2 rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 transition disabled:opacity-60"
+            >
+              <Download className={`w-4 h-4 ${isExporting ? "animate-spin" : ""}`} />
+              {isExporting ? "กำลังส่งออก..." : "ส่งออกข้อมูล"}
             </button>
             <button
               type="button"
