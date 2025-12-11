@@ -1,6 +1,6 @@
 // FundSettingsContent.js
 import React, { useState, useEffect } from "react";
-import { Settings, CalendarRange, DollarSign, PencilLine, FileText, FileStack, ListChecks, BellRing, Layers, Wallet, AlertTriangle } from "lucide-react";
+import { Settings, CalendarRange, DollarSign, PencilLine, FileText, FileStack, ListChecks, BellRing, AlertTriangle } from "lucide-react";
 import Swal from 'sweetalert2';
 
 // Import separated components
@@ -30,16 +30,14 @@ import systemConfigAPI from "@/app/lib/system_config_api";
 import { adminInstallmentAPI } from "@/app/lib/admin_installment_api";
 
 const TAB_ITEMS = [
-  { id: "funds", label: "จัดการทุน", icon: DollarSign },
-  { id: "project-types", label: "ประเภทโครงการ", icon: Layers },
-  { id: "project-plans", label: "แผนงบประมาณ", icon: Wallet },
-  { id: "installments", label: "ตั้งค่าวันตัดรอบการพิจารณา", icon: CalendarRange },
+  { id: "funds", label: "จัดการทุนและปีงบประมาณ", icon: DollarSign },
   { id: "reward-config", label: "จัดการเงินรางวัล", icon: Settings },
-  { id: "reward-terms", label: "ข้อตกลงเงินรางวัล", icon: ListChecks },
-  { id: "notification-templates", label: "ข้อความแจ้งเตือน", icon: BellRing },
-  { id: "system", label: "ตั้งค่าระบบ", icon: PencilLine },
-  { id: "announcements", label: "ประกาศ/ไฟล์", icon: FileText },
+  { id: "installments", label: "ตั้งค่าวันตัดรอบการพิจารณา", icon: CalendarRange },
   { id: "document-types", label: "ตั้งค่าเอกสารทุนแนบ", icon: FileStack },
+  { id: "reward-terms", label: "ข้อตกลงเงินรางวัล", icon: ListChecks },
+  { id: "system", label: "ตั้งค่าระบบ", icon: PencilLine },
+  { id: "announcements", label: "ประกาศ", icon: FileText },
+  { id: "notification-templates", label: "การแจ้งเตือน", icon: BellRing },
 ];
 
 // SweetAlert2 configuration
