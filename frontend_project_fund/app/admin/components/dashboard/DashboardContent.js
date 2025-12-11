@@ -581,10 +581,14 @@ export default function DashboardContent({ onNavigate }) {
 
   const handleExport = useCallback(async () => {
     const params = buildQueryParams(filtersRef.current);
+    const yearLabel =
+      filtersRef.current?.year ||
+      (stats?.filter_options?.current_year ? String(stats.filter_options.current_year) : "all-years");
     const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+    const filename = `admin-dashboard-summary-${yearLabel}-${timestamp}.json`;
     setIsExporting(true);
     try {
-      await adminAPI.exportDashboardStats(params, `admin-dashboard-${timestamp}.json`);
+      await adminAPI.exportDashboardStats(params, filename);
     } catch (exportError) {
       console.error("Failed to export dashboard data", exportError);
       setError("ไม่สามารถส่งออกข้อมูลได้");
@@ -715,7 +719,7 @@ export default function DashboardContent({ onNavigate }) {
               className="inline-flex items-center gap-2 rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 transition disabled:opacity-60"
             >
               <Download className={`w-4 h-4 ${isExporting ? "animate-spin" : ""}`} />
-              {isExporting ? "กำลังส่งออก..." : "ส่งออกข้อมูล"}
+              {isExporting ? "กำลังส่งออก..." : "ส่งออกสรุป"}
             </button>
             <button
               type="button"
