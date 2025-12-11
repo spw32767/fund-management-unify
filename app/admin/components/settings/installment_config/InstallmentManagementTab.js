@@ -140,6 +140,17 @@ const InstallmentManagementTab = ({ years = [] }) => {
     return yearOptions.find((option) => option.id === selectedYearId) ?? null;
   }, [yearOptions, selectedYearId]);
 
+  const selectedYearValue = useMemo(() => {
+    if (!selectedYearOption) return null;
+    return extractYearNumeric(selectedYearOption.raw);
+  }, [selectedYearOption]);
+
+  const isCurrentYearSelected =
+    currentYearLoaded &&
+    currentYearValue !== null &&
+    selectedYearValue !== null &&
+    String(selectedYearValue) === String(currentYearValue);
+
   const existingYearValues = useMemo(() => {
     return yearOptions
       .map((option) => extractYearNumeric(option.raw))
@@ -355,16 +366,11 @@ const InstallmentManagementTab = ({ years = [] }) => {
     return Array.from(new Set(base)).sort((a, b) => a - b);
   }, [editingPeriod?.installment_number, formData.installment_number]);
 
-  const selectedYearValue = useMemo(() => {
-    if (!selectedYearOption) return null;
-    return extractYearNumeric(selectedYearOption.raw);
-  }, [selectedYearOption]);
-
-  const selectedYearNumber = useMemo(() => {
-    if (selectedYearValue === null || selectedYearValue === undefined) return null;
-    const numeric = Number(selectedYearValue);
-    return Number.isFinite(numeric) ? numeric : null;
-  }, [selectedYearValue]);
+    const selectedYearNumber = useMemo(() => {
+      if (selectedYearValue === null || selectedYearValue === undefined) return null;
+      const numeric = Number(selectedYearValue);
+      return Number.isFinite(numeric) ? numeric : null;
+    }, [selectedYearValue]);
 
   const nextYear = useMemo(() => {
     if (!selectedYearNumber) return null;
@@ -727,6 +733,12 @@ const InstallmentManagementTab = ({ years = [] }) => {
             </select>
           </div>
         </div>
+
+        {isCurrentYearSelected && !loading && periods.length === 0 && (
+          <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+            ตอนนี้ยังไม่มีการตั้งค่าวันตัดรอบการพิจารณาของทุนในปีงบประมาณ {selectedYearValue}
+          </div>
+        )}
 
         <div className="overflow-x-auto rounded-lg border border-gray-200">
           <table className="min-w-full divide-y divide-gray-200">

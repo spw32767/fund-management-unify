@@ -1,6 +1,6 @@
-// FundSettingsContent.js - Updated Main Component with SweetAlert2
+// FundSettingsContent.js
 import React, { useState, useEffect } from "react";
-import { Settings, Calendar, CalendarRange, DollarSign, PencilLine, FileText, FileStack, ListChecks, BellRing, Layers, Wallet } from "lucide-react";
+import { Settings, CalendarRange, DollarSign, PencilLine, FileText, FileStack, ListChecks, BellRing, Layers, Wallet } from "lucide-react";
 import Swal from 'sweetalert2';
 
 // Import separated components
@@ -32,7 +32,6 @@ const TAB_ITEMS = [
   { id: "funds", label: "จัดการทุน", icon: DollarSign },
   { id: "project-types", label: "ประเภทโครงการ", icon: Layers },
   { id: "project-plans", label: "แผนงบประมาณ", icon: Wallet },
-  { id: "years", label: "จัดการปีงบประมาณ", icon: Calendar },
   { id: "installments", label: "ตั้งค่าวันตัดรอบการพิจารณา", icon: CalendarRange },
   { id: "reward-config", label: "จัดการเงินรางวัล", icon: Settings },
   { id: "reward-terms", label: "ข้อตกลงเงินรางวัล", icon: ListChecks },
@@ -64,9 +63,11 @@ export default function FundSettingsContent({ onNavigate }) {
   // Years Management
   const [years, setYears] = useState([]);
   const [selectedYear, setSelectedYear] = useState(null);
+  const [currentYearValue, setCurrentYearValue] = useState(null); 
   
   // Categories Management
   const [categories, setCategories] = useState([]);
+  const [categoriesLoaded, setCategoriesLoaded] = useState(false); 
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [expandedCategories, setExpandedCategories] = useState({});
   const [expandedSubcategories, setExpandedSubcategories] = useState({});
@@ -154,6 +155,7 @@ export default function FundSettingsContent({ onNavigate }) {
     if (selectedYear) {
       loadCategories();
     }
+    // เพิ่ม categoriesLoaded ใน dependency array เพื่อให้สอดคล้องกับ logic ใน FundSettingsContent2.js
   }, [selectedYear]);
 
   // ==================== DATA LOADING FUNCTIONS ====================
@@ -212,6 +214,12 @@ export default function FundSettingsContent({ onNavigate }) {
       const systemYearValue =
         currentYearRes?.current_year ?? currentYearRes?.data?.current_year ?? null;
 
+      if (systemYearValue !== undefined) {
+        setCurrentYearValue(systemYearValue ?? null);
+      } else {
+        setCurrentYearValue(new Date().getFullYear() + 543);
+      }
+
       if (!nextSelected && systemYearValue !== null) {
         nextSelected = findMatchingYear(systemYearValue);
       }
@@ -267,6 +275,8 @@ export default function FundSettingsContent({ onNavigate }) {
     if (!silent) {
       setLoading(true);
     }
+    // เพิ่ม categoriesLoaded ใน finally เพื่อให้สอดคล้องกับ logic ใน FundSettingsContent2.js
+    setCategoriesLoaded(false); 
     setError(null);
     try {
       const data = await adminAPI.getCategoriesWithDetails(selectedYear.year_id);
@@ -466,6 +476,7 @@ export default function FundSettingsContent({ onNavigate }) {
       setError("ไม่สามารถโหลดข้อมูลหมวดหมู่ได้");
       showError("ไม่สามารถโหลดข้อมูลหมวดหมู่ได้");
     } finally {
+      setCategoriesLoaded(true); 
       if (!silent) {
         setLoading(false);
       }
@@ -521,30 +532,6 @@ export default function FundSettingsContent({ onNavigate }) {
       setLoading(false);
     }
   };
-
-  /*
-  const handleDeleteYear = async (year) => {
-    setLoading(true);
-    try {
-      await adminAPI.deleteYear(year.year_id);
-      setYears(prev => prev.filter(y => y.year_id !== year.year_id));
-      if (selectedYear?.year_id === year.year_id) {
-        setSelectedYear(null);
-        setCategories([]);
-      }
-      showSuccess("ลบปีงบประมาณเรียบร้อยแล้ว");
-    } catch (error) {
-      console.error("Error deleting year:", error);
-      showError(`เกิดข้อผิดพลาดในการลบ: ${error.message}`);
-      if (error && typeof error === 'object') {
-        error.handled = true;
-      }
-      throw error;
-    } finally {
-      setLoading(false);
-    }
-  };
-  */
 
   // ==================== CATEGORY MANAGEMENT HANDLERS ====================
   
@@ -782,7 +769,7 @@ export default function FundSettingsContent({ onNavigate }) {
         await adminAPI.deleteBudget(existingOverallBudget.subcategory_budget_id);
       }
 
-      await loadCategories();
+      await loadCategories(); 
 
       setSubcategoryModalOpen(false);
       setEditingSubcategory(null);
@@ -1375,19 +1362,25 @@ export default function FundSettingsContent({ onNavigate }) {
   const renderActiveContent = () => {
     switch (activeTab) {
       case "funds":
-        return <FundManagementTab {...fundManagementTabProps} />;
+        return (
+          <div className="space-y-6">
+            <YearManagementTab
+              years={years}
+              selectedYear={selectedYear}
+              // ใช้ currentYearValue ที่เปลี่ยนชื่อแล้ว
+              systemCurrentYear={currentYearValue} 
+              onSelectYear={(year) =>
+                handleYearChange(year?.year_id ?? year?.year ?? null)
+              }
+              onSaveYear={handleSaveYear}
+            />
+            <FundManagementTab {...fundManagementTabProps} />
+          </div>
+        );
       case "project-types":
         return <ProjectTypesManager />;
       case "project-plans":
         return <BudgetPlansManager />;
-      case "years":
-        return (
-          <YearManagementTab
-            years={years}
-            onSaveYear={handleSaveYear}
-            // onDeleteYear={handleDeleteYear}
-          />
-        );
       case "installments":
         return <InstallmentManagementTab years={years} />;
       case "reward-config":

@@ -5,6 +5,7 @@ import Swal from "sweetalert2";
 import { Save, RefreshCw, Calendar as CalendarIcon, Clock, Settings as SettingsIcon } from "lucide-react";
 import systemConfigAPI from "@/app/lib/system_config_api";
 import apiClient from "@/app/lib/api";
+import { adminAPI } from "@/app/lib/admin_api";
 import SettingsSectionCard from "@/app/admin/components/settings/common/SettingsSectionCard";
 
 /** ไทย: แปลงวันที่ ISO เป็นรูปแบบไทยอ่านง่าย (ปี พ.ศ., เดือนแบบคำ, เวลา HH:mm) */
@@ -301,6 +302,7 @@ export default function SystemConfigSettings() {
 
   const [windowInfo, setWindowInfo] = useState(null);
   const [annList, setAnnList] = useState([]);
+  const [yearOptions, setYearOptions] = useState([]);
 
   // --- ผู้ใช้ ---
   const [allUsers, setAllUsers] = useState([]); // ผู้ใช้ทั้งหมด (สำหรับ userMap/ประวัติ)
@@ -359,6 +361,24 @@ export default function SystemConfigSettings() {
       setAnnList(Array.isArray(items) ? items : []);
     } catch (e) {
       setAnnList([]);
+    }
+  }
+
+  // ====== โหลดปีงบประมาณเพื่อใช้เป็น dropdown ======
+  async function loadYearOptions() {
+    try {
+      const res = await adminAPI.getYears();
+      const list = Array.isArray(res) ? res : res?.data ?? res?.items ?? [];
+      const years = Array.from(
+        new Set(
+          list
+            .map((y) => String(y?.year ?? "").trim())
+            .filter((v) => v && /^\d{4}$/.test(v))
+        )
+      ).sort((a, b) => Number(b) - Number(a));
+      setYearOptions(years);
+    } catch (e) {
+      setYearOptions([]);
     }
   }
 
@@ -543,7 +563,7 @@ export default function SystemConfigSettings() {
     (async () => {
       setLoading(true);
       try {
-        await Promise.all([loadAnnouncements(), loadConfig()]);
+        await Promise.all([loadAnnouncements(), loadConfig(), loadYearOptions()]);
         await loadAllUsersAndFilter(); // <-- โหลดผู้ใช้ทั้งหมดก่อน
         setHeadLoading(true);
         await Promise.all([loadCurrentHead(), loadHeadHistory()]);
@@ -665,6 +685,15 @@ export default function SystemConfigSettings() {
   }, [headHistory, showAllHeadHistory]);
 
   const hasMoreHeadHistory = (headHistory || []).length > HEAD_HISTORY_LIMIT;
+
+  const selectableYearOptions = useMemo(() => {
+    const set = new Set(yearOptions || []);
+    const current = String(form.current_year || "").trim();
+    if (current) set.add(current);
+    return Array.from(set)
+      .filter(Boolean)
+      .sort((a, b) => Number(b) - Number(a));
+  }, [yearOptions, form.current_year]);
 
   const currentHeadNote = useMemo(() => {
     const note = currentHead?.note;
@@ -904,6 +933,7 @@ export default function SystemConfigSettings() {
             Promise.all([
               loadAnnouncements(),
               loadConfig(),
+              loadYearOptions(),
               loadAllUsersAndFilter(), // รีโหลดผู้ใช้ทั้งหมดแล้วค่อยกรอง
               loadCurrentHead(),
               loadHeadHistory(),
@@ -941,13 +971,21 @@ export default function SystemConfigSettings() {
               <div className="space-y-5">
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-gray-700">ปีงบประมาณปัจจุบัน</label>
-                  <input
-                    type="text"
+                  <select
                     value={form.current_year}
                     onChange={(e) => setForm((f) => ({ ...f, current_year: e.target.value }))}
                     className="w-full rounded-lg border border-gray-300 px-4 py-2 text-sm text-gray-800 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
-                    placeholder="เช่น 2568"
-                  />
+                  >
+                    <option value="">เลือกปีงบประมาณ</option>
+                    {selectableYearOptions.map((year) => (
+                      <option key={year} value={year}>
+                        พ.ศ. {year}
+                      </option>
+                    ))}
+                  </select>
+                  {selectableYearOptions.length === 0 && (
+                    <p className="text-xs text-gray-500">เพิ่มปีงบประมาณในเมนูจัดการทุน เพื่อให้เลือกตั้งเป็นปีปัจจุบัน</p>
+                  )}
                 </div>
 
                 <div className="space-y-2">
