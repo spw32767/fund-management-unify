@@ -1114,6 +1114,8 @@ export default function GeneralSubmissionDetailsDept({ submissionId, onBack }) {
   const applicant = pickApplicant(submission);
   const detail =
     submission?.FundApplicationDetail ||
+    submission?.fund_application_detail ||
+    submission?.details?.data?.fund_application_detail ||
     submission?.details?.data ||
     submission?.payload ||
     submission;
@@ -1138,30 +1140,6 @@ export default function GeneralSubmissionDetailsDept({ submissionId, onBack }) {
   const adminRejectedAt = submission?.admin_rejected_at || submission?.adminRejectedAt || null;
   const adminRejectionReason = submission?.admin_rejection_reason || submission?.adminRejectionReason || '';
 
-  const contactPhone =
-    submission?.contact_phone ||
-    submission?.details?.data?.contact_phone ||
-    detail?.contact_phone ||
-    '';
-
-  const bankAccount =
-    submission?.bank_account ||
-    submission?.details?.data?.bank_account ||
-    detail?.bank_account ||
-    '';
-
-  const bankName =
-    submission?.bank_name ||
-    submission?.details?.data?.bank_name ||
-    detail?.bank_name ||
-    '';
-
-  const bankAccountName =
-    submission?.bank_account_name ||
-    submission?.details?.data?.bank_account_name ||
-    detail?.bank_account_name ||
-    '';
-
   // Best-effort fund subcategory display name (no backend change)
   const fundName = (() => {
     const cand =
@@ -1182,6 +1160,34 @@ export default function GeneralSubmissionDetailsDept({ submissionId, onBack }) {
     }
     return null;
   };
+
+  const contactPhone = firstNonEmpty(
+    submission?.contact_phone,
+    submission?.details?.data?.contact_phone,
+    detail?.contact_phone,
+    detail?.fund_application_detail?.contact_phone,
+  ) || '';
+
+  const bankAccount = firstNonEmpty(
+    submission?.bank_account,
+    submission?.details?.data?.bank_account,
+    detail?.bank_account,
+    detail?.fund_application_detail?.bank_account,
+  ) || '';
+
+  const bankName = firstNonEmpty(
+    submission?.bank_name,
+    submission?.details?.data?.bank_name,
+    detail?.bank_name,
+    detail?.fund_application_detail?.bank_name,
+  ) || '';
+
+  const bankAccountName = firstNonEmpty(
+    submission?.bank_account_name,
+    submission?.details?.data?.bank_account_name,
+    detail?.bank_account_name,
+    detail?.fund_application_detail?.bank_account_name,
+  ) || '';
 
   const getSubcategoryNameGeneral = (submission, detail) => {
     // 1) ลองจาก detail ก่อน (ชื่อ key เปลี่ยนได้ตามฟอร์ม)

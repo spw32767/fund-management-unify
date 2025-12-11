@@ -1357,6 +1357,7 @@ export default function PublicationSubmissionDetailsDept({ submissionId, onBack 
   const pubDetail =
     submission?.PublicationRewardDetail ||
     submission?.publication_reward_detail ||
+    submission?.details?.data?.publication_reward_detail ||
     submission?.details?.data ||
     {};
 
@@ -1403,24 +1404,28 @@ export default function PublicationSubmissionDetailsDept({ submissionId, onBack 
     submission?.contact_phone,
     submission?.details?.data?.contact_phone,
     pubDetail?.contact_phone,
+    pubDetail?.publication_reward_detail?.contact_phone,
   );
 
   const bankAccount = firstNonEmpty(
     submission?.bank_account,
     submission?.details?.data?.bank_account,
     pubDetail?.bank_account,
+    pubDetail?.publication_reward_detail?.bank_account,
   );
 
   const bankName = firstNonEmpty(
     submission?.bank_name,
     submission?.details?.data?.bank_name,
     pubDetail?.bank_name,
+    pubDetail?.publication_reward_detail?.bank_name,
   );
 
   const bankAccountName = firstNonEmpty(
     submission?.bank_account_name,
     submission?.details?.data?.bank_account_name,
     pubDetail?.bank_account_name,
+    pubDetail?.publication_reward_detail?.bank_account_name,
   );
 
   useEffect(() => {
