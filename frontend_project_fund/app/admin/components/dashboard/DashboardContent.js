@@ -182,10 +182,9 @@ function OverviewCards({ overview, currentDate, scopeDescription, onNavigate }) 
     const totalApplications = Number(overview?.total_applications ?? 0);
     const pending = Number(overview?.pending_count ?? 0);
     const totalUsers = Number(overview?.total_users ?? 0);
-    const usedBudget = Number(overview?.used_budget ?? 0);
-    const totalBudget = Number(overview?.total_budget ?? 0);
+    const usedBudget = Number(overview?.used_budget ?? overview?.total_approved_amount ?? 0);
+    const totalBudget = Number(overview?.total_budget ?? overview?.total_requested_amount ?? 0);
     const approvalRate = Number(overview?.approval_rate ?? 0);
-    const remainingBudget = Number(overview?.remaining_budget ?? Math.max(totalBudget - usedBudget, 0));
 
     return [
       {
@@ -218,12 +217,6 @@ function OverviewCards({ overview, currentDate, scopeDescription, onNavigate }) 
         value: formatCurrency(totalBudget),
         icon: PieChart,
         gradient: "from-slate-500 to-gray-700",
-      },
-      {
-        label: "คงเหลืองบประมาณ",
-        value: formatCurrency(remainingBudget),
-        icon: CircleDollarSign,
-        gradient: "from-teal-500 to-emerald-600",
       },
       {
         label: "อัตราการอนุมัติ",
