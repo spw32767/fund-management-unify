@@ -495,6 +495,17 @@ const FundManagementTab = ({
         }
         contentClassName="space-y-6"
       >
+      <div className="flex flex-col gap-1 rounded-lg border border-blue-100 bg-blue-50/80 px-4 py-3 text-sm text-blue-900 shadow-sm">
+        <p className="font-medium">
+          {selectedYear
+            ? `กำลังตั้งค่าทุนสำหรับปี พ.ศ. ${selectedYearDisplay}`
+            : "เลือกปีงบประมาณจากบัตรด้านบนเพื่อเริ่มจัดการทุน"}
+        </p>
+        <p className="text-xs text-blue-700">
+          จัดลำดับและแก้ไขปีงบประมาณได้จากส่วน "จัดการปีงบประมาณ" ด้านบนก่อนเพิ่มหมวดหมู่หรือทุนย่อย
+        </p>
+      </div>
+
       <div className="flex flex-wrap gap-3 items-center">
         <div className="flex items-center gap-2">
           <label className="text-sm font-medium text-gray-700">ปีงบประมาณ</label>
@@ -542,7 +553,7 @@ const FundManagementTab = ({
         <div className="text-center py-16 border border-dashed rounded-lg">
           <div className="text-4xl mb-2">📅</div>
           <h3 className="text-lg font-medium text-gray-900 mb-2">กรุณาเลือกปีงบประมาณ</h3>
-          <p className="text-gray-600">เลือกปีงบประมาณเพื่อจัดการโครงสร้างทุน</p>
+          <p className="text-gray-600">เลือกปีงบประมาณจากบัตรด้านบนเพื่อจัดการโครงสร้างทุน</p>
         </div>
       ) : filteredCategories.length === 0 ? (
         <div className="text-center py-16 border border-dashed rounded-lg">
