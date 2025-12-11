@@ -1527,6 +1527,7 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
     
     // Bank info
     bank_account: '',
+    bank_account_name: '',
     bank_name: '',
     phone_number: '',
     signature: '',
@@ -1618,6 +1619,7 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
       external_funding_amount: 0,
       total_amount: 0,
       bank_account: '',
+      bank_account_name: '',
       bank_name: '',
       phone_number: '',
       signature: '',
@@ -2489,6 +2491,7 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
               '',
             phone_number: payload.phone_number ?? prev.phone_number ?? '',
             bank_account: payload.bank_account ?? prev.bank_account ?? '',
+            bank_account_name: payload.bank_account_name ?? prev.bank_account_name ?? '',
             bank_name: payload.bank_name ?? prev.bank_name ?? '',
           };
         });
@@ -5561,6 +5564,10 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
         const createPayload = {
           submission_type: 'publication_reward',
           year_id: formData.year_id,
+          contact_phone: formData.phone_number || '',
+          bank_account: formData.bank_account || '',
+          bank_account_name: formData.bank_account_name || '',
+          bank_name: formData.bank_name || '',
         };
 
         const resolvedCategoryId = formData.category_id || categoryId || null;
@@ -5598,6 +5605,11 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
         if (submissionSubcategoryBudgetId) {
           updatePayload.subcategory_budget_id = submissionSubcategoryBudgetId;
         }
+
+        updatePayload.contact_phone = formData.phone_number || '';
+        updatePayload.bank_account = formData.bank_account || '';
+        updatePayload.bank_account_name = formData.bank_account_name || '';
+        updatePayload.bank_name = formData.bank_name || '';
 
         if (Object.keys(updatePayload).length > 0) {
           try {
@@ -5964,11 +5976,12 @@ const showSubmissionConfirmation = async () => {
           </div>
         </div>
 
-        ${formData.bank_account || formData.bank_name ? `
+        ${formData.bank_account || formData.bank_name || formData.bank_account_name ? `
           <div class="bg-purple-50 p-4 rounded-lg">
             <h4 class="font-semibold text-purple-700 mb-2">ข้อมูลธนาคาร</h4>
             <div class="space-y-2 text-sm">
               <p><span class="font-medium">เลขบัญชี:</span> ${formData.bank_account || '-'}</p>
+              <p><span class="font-medium">ชื่อบัญชี:</span> ${formData.bank_account_name || '-'}</p>
               <p><span class="font-medium">ธนาคาร:</span> ${formData.bank_name || '-'}</p>
             </div>
           </div>
@@ -6262,6 +6275,10 @@ const showSubmissionConfirmation = async () => {
           category_id: formData.category_id || categoryId,
           subcategory_id: submissionSubcategoryId,        // Dynamic resolved
           subcategory_budget_id: submissionSubcategoryBudgetId,  // Dynamic resolved
+          contact_phone: formData.phone_number || '',
+          bank_account: formData.bank_account || '',
+          bank_account_name: formData.bank_account_name || '',
+          bank_name: formData.bank_name || '',
         });
         
         submissionId = submissionResponse.submission.submission_id;
@@ -6437,7 +6454,7 @@ const showSubmissionConfirmation = async () => {
         // Bank info
         bank_account: formData.bank_account || '',
         bank_name: formData.bank_name || '',
-        bank_account_name: '', // empty string
+        bank_account_name: formData.bank_account_name || '',
         phone_number: formData.phone_number || '',
         
         // Additional info
@@ -7934,6 +7951,31 @@ const showSubmissionConfirmation = async () => {
               <p className="text-xs text-gray-500 mt-1">กรอกเฉพาะตัวเลข 10-15 หลัก (Enter 10-15 digits only)</p>
               {errors.bank_account && (
                 <p id="error-bank_account" className="text-red-500 text-sm mt-1">{errors.bank_account}</p>
+              )}
+            </div>
+
+            {/* Bank Account Name */}
+            <div id="field-bank_account_name">
+              <label htmlFor="bank_account_name" className="block text-sm font-medium text-gray-700 mb-2">
+                ชื่อบัญชีธนาคาร (Account Holder Name) <span className="text-red-500">*</span>
+              </label>
+              <input
+                id="bank_account_name"
+                type="text"
+                name="bank_account_name"
+                value={formData.bank_account_name}
+                onChange={handleInputChange}
+                placeholder="ชื่อ-นามสกุลเจ้าของบัญชี"
+                required
+                aria-required="true"
+                aria-invalid={errors.bank_account_name ? 'true' : 'false'}
+                aria-describedby={errors.bank_account_name ? 'error-bank_account_name' : undefined}
+                className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:border-blue-500 ${
+                  errors.bank_account_name ? 'border-red-500' : 'border-gray-300'
+                }`}
+              />
+              {errors.bank_account_name && (
+                <p id="error-bank_account_name" className="text-red-500 text-sm mt-1">{errors.bank_account_name}</p>
               )}
             </div>
 
