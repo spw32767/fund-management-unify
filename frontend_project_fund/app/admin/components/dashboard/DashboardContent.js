@@ -17,6 +17,7 @@ import {
   SlidersHorizontal,
   ChevronDown,
   ChevronRight,
+  Download,
 } from "lucide-react";
 
 import PageLayout from "../common/PageLayout";
@@ -178,14 +179,20 @@ function FilterControls({ filters, options, onScopeChange, onYearChange, onInsta
 }
 
 function OverviewCards({ overview, currentDate, scopeDescription, onNavigate }) {
+  const handlePendingClick = useCallback(() => {
+    if (typeof window !== "undefined") {
+      localStorage.setItem("adminPendingFocus", "1");
+    }
+    onNavigate?.("applications-list");
+  }, [onNavigate]);
+
   const cards = useMemo(() => {
     const totalApplications = Number(overview?.total_applications ?? 0);
     const pending = Number(overview?.pending_count ?? 0);
     const totalUsers = Number(overview?.total_users ?? 0);
-    const usedBudget = Number(overview?.used_budget ?? 0);
-    const totalBudget = Number(overview?.total_budget ?? 0);
+    const usedBudget = Number(overview?.used_budget ?? overview?.total_approved_amount ?? 0);
+    const totalBudget = Number(overview?.total_budget ?? overview?.total_requested_amount ?? 0);
     const approvalRate = Number(overview?.approval_rate ?? 0);
-    const remainingBudget = Number(overview?.remaining_budget ?? Math.max(totalBudget - usedBudget, 0));
 
     return [
       {
@@ -199,7 +206,7 @@ function OverviewCards({ overview, currentDate, scopeDescription, onNavigate }) 
         value: formatNumber(pending),
         icon: Clock,
         gradient: "from-amber-400 to-orange-500",
-        onClick: () => onNavigate?.("applications-list"),
+        onClick: handlePendingClick,
       },
       {
         label: "ผู้ใช้งานทั้งหมด",
@@ -218,12 +225,6 @@ function OverviewCards({ overview, currentDate, scopeDescription, onNavigate }) 
         value: formatCurrency(totalBudget),
         icon: PieChart,
         gradient: "from-slate-500 to-gray-700",
-      },
-      {
-        label: "คงเหลืองบประมาณ",
-        value: formatCurrency(remainingBudget),
-        icon: CircleDollarSign,
-        gradient: "from-teal-500 to-emerald-600",
       },
       {
         label: "อัตราการอนุมัติ",
@@ -475,11 +476,15 @@ export default function DashboardContent({ onNavigate }) {
     filtersRef.current = filters;
   }, [filters]);
 
-  const loadDashboard = useCallback(async ({ silent = false, targetFilters } = {}) => {
-    const params = targetFilters || filtersRef.current;
-    const query = Object.fromEntries(
+  const buildQueryParams = useCallback((params) => {
+    return Object.fromEntries(
       Object.entries(params).filter(([, value]) => value !== undefined && value !== null && value !== "")
     );
+  }, []);
+
+  const loadDashboard = useCallback(async ({ silent = false, targetFilters } = {}) => {
+    const params = targetFilters || filtersRef.current;
+    const query = buildQueryParams(params);
 
     if (silent) {
       setIsRefreshing(true);
@@ -492,65 +497,6 @@ export default function DashboardContent({ onNavigate }) {
       const response = await adminAPI.getSystemStats(query);
       const payload = response?.stats || response || {};
       setStats(payload);
-
-      if (typeof window !== "undefined") {
-        const quotaSummary = Array.isArray(payload?.quota_summary) ? payload.quota_summary : [];
-        const quotaViewRows = Array.isArray(payload?.quota_usage_view_rows)
-          ? payload.quota_usage_view_rows
-          : [];
-
-        if (quotaSummary.length) {
-          // eslint-disable-next-line no-console
-          console.groupCollapsed(
-            "%c[AdminDashboard]%c quota summary",
-            "color: #2563eb; font-weight: 600;",
-            "color: inherit;"
-          );
-          // eslint-disable-next-line no-console
-          console.table(
-            quotaSummary.map((item) => ({
-              category: item?.category_name,
-              subcategory: item?.subcategory_name,
-              allocated: item?.allocated_amount,
-              used: item?.used_amount,
-              remaining: item?.remaining_budget,
-              maxGrants: item?.max_grants,
-              usedGrants: item?.used_grants,
-              remainingGrants: item?.remaining_grants,
-              year: item?.year,
-            }))
-          );
-          // eslint-disable-next-line no-console
-          console.log("filters", query);
-          // eslint-disable-next-line no-console
-          console.groupEnd();
-        } else {
-          // eslint-disable-next-line no-console
-          console.warn("[AdminDashboard] quota summary is empty", {
-            filters: query,
-            raw: payload?.quota_summary,
-          });
-        }
-
-        if (quotaViewRows.length) {
-          // eslint-disable-next-line no-console
-          console.groupCollapsed(
-            "%c[AdminDashboard]%c quota usage view rows",
-            "color: #2563eb; font-weight: 600;",
-            "color: inherit;"
-          );
-          // eslint-disable-next-line no-console
-          console.table(quotaViewRows);
-          // eslint-disable-next-line no-console
-          console.groupEnd();
-        } else {
-          // eslint-disable-next-line no-console
-          console.warn("[AdminDashboard] quota usage view rows are empty", {
-            filters: query,
-            raw: payload?.quota_usage_view_rows,
-          });
-        }
-      }
 
       const serverFilter = normalizeServerFilter(payload?.selected_filter, params);
       if (serverFilter) {
@@ -569,7 +515,19 @@ export default function DashboardContent({ onNavigate }) {
         setLoading(false);
       }
     }
-  }, []);
+  }, [buildQueryParams]);
+
+  const handleExportAllData = useCallback(() => {
+    if (typeof window !== "undefined") {
+      localStorage.setItem("adminAutoExport", "1");
+    }
+
+    if (onNavigate) {
+      onNavigate("applications-list");
+    } else if (typeof window !== "undefined") {
+      window.location.href = "/admin/applications-list";
+    }
+  }, [onNavigate]);
 
   useEffect(() => {
     loadDashboard();
@@ -682,9 +640,17 @@ export default function DashboardContent({ onNavigate }) {
             <button
               type="button"
               onClick={() => onNavigate?.("applications-list")}
-              className="inline-flex items-center gap-2 rounded-lg border border-blue-600 px-3 py-2 text-sm font-medium text-blue-600 hover:bg-blue-50 transition"
+              className="inline-flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-medium text-blue-700 hover:bg-blue-100 transition"
             >
               จัดการคำร้อง
+            </button>
+            <button
+              type="button"
+              onClick={handleExportAllData}
+              className="inline-flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-medium text-blue-700 hover:bg-blue-100 transition"
+            >
+              <Download className="w-4 h-4" />
+              ส่งออกข้อมูลทั้งหมด
             </button>
             <button
               type="button"
@@ -700,7 +666,7 @@ export default function DashboardContent({ onNavigate }) {
       )}
     >
       {error ? (
-        <ErrorState message={error} onRetry={handleRefresh} />
+          <ErrorState message={error} onRetry={handleRefresh} />
       ) : (
         <div className="space-y-8">
           <OverviewCards
