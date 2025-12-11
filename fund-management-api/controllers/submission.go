@@ -1639,6 +1639,10 @@ func AttachDocumentToSubmission(c *gin.Context) {
 		DisplayOrder      int    `json:"display_order"`
 		OriginalName      string `json:"original_name"`
 		ExternalFundingID *int   `json:"external_funding_id"`
+		PhoneNumber       string `json:"phone_number"`
+		BankAccount       string `json:"bank_account"`
+		BankName          string `json:"bank_name"`
+		BankAccountName   string `json:"bank_account_name"`
 	}
 
 	var req AttachDocumentRequest
