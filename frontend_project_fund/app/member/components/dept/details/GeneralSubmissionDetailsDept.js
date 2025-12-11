@@ -910,6 +910,7 @@ export default function GeneralSubmissionDetailsDept({ submissionId, onBack }) {
 
         if (res?.submission_users) data.submission_users = res.submission_users;
         if (res?.documents) data.documents = res.documents;
+        if (res?.details) data.details = res.details;
 
         if (res?.details?.type === 'fund_application' && res.details.data) {
           data.FundApplicationDetail = res.details.data;
@@ -1272,6 +1273,7 @@ export default function GeneralSubmissionDetailsDept({ submissionId, onBack }) {
     let data = res?.submission || res;
     if (res?.submission_users) data.submission_users = res.submission_users;
     if (res?.documents) data.documents = res.documents;
+    if (res?.details) data.details = res.details;
     if (res?.details?.type === 'fund_application' && res.details.data) {
       data.FundApplicationDetail = res.details.data;
     }
@@ -1307,6 +1309,7 @@ export default function GeneralSubmissionDetailsDept({ submissionId, onBack }) {
     let data = res?.submission || res;
     if (res?.submission_users) data.submission_users = res.submission_users;
     if (res?.documents) data.documents = res.documents;
+    if (res?.details) data.details = res.details;
     if (res?.details?.type === 'fund_application' && res.details.data) {
       data.FundApplicationDetail = res.details.data;
     }
@@ -1342,6 +1345,7 @@ export default function GeneralSubmissionDetailsDept({ submissionId, onBack }) {
     let data = res?.submission || res;
     if (res?.submission_users) data.submission_users = res.submission_users;
     if (res?.documents) data.documents = res.documents;
+    if (res?.details) data.details = res.details;
     if (res?.details?.type === 'fund_application' && res.details.data) {
       data.FundApplicationDetail = res.details.data;
     }

@@ -1205,6 +1205,7 @@ export default function PublicationSubmissionDetailsDept({ submissionId, onBack 
     let data = res?.submission || res;
     if (res?.submission_users) data.submission_users = res.submission_users;
     if (res?.documents) data.documents = res.documents;
+    if (res?.details) data.details = res.details;
     if (res?.details?.type === "publication_reward" && res.details.data) {
       data.PublicationRewardDetail = res.details.data;
     }
@@ -1223,6 +1224,7 @@ export default function PublicationSubmissionDetailsDept({ submissionId, onBack 
         // Normalize arrays
         if (res?.submission_users) data.submission_users = res.submission_users;
         if (res?.documents) data.documents = res.documents;
+        if (res?.details) data.details = res.details;
 
         // Publication detail ...
         if (res?.details?.type === 'publication_reward' && res.details.data) {
@@ -1971,6 +1973,7 @@ export default function PublicationSubmissionDetailsDept({ submissionId, onBack 
     const data = res?.submission || res || {};
     if (res?.submission_users) data.submission_users = res.submission_users;
     if (res?.documents) data.documents = res.documents;
+    if (res?.details) data.details = res.details;
     if (res?.details?.type === 'publication_reward' && res.details.data) {
       data.PublicationRewardDetail = res.details.data;
     }
@@ -2006,6 +2009,7 @@ export default function PublicationSubmissionDetailsDept({ submissionId, onBack 
     const data = res?.submission || res || {};
     if (res?.submission_users) data.submission_users = res.submission_users;
     if (res?.documents) data.documents = res.documents;
+    if (res?.details) data.details = res.details;
     if (res?.details?.type === 'publication_reward' && res.details.data) {
       data.PublicationRewardDetail = res.details.data;
     }
@@ -2041,6 +2045,7 @@ export default function PublicationSubmissionDetailsDept({ submissionId, onBack 
     const data = res?.submission || res || {};
     if (res?.submission_users) data.submission_users = res.submission_users;
     if (res?.documents) data.documents = res.documents;
+    if (res?.details) data.details = res.details;
     if (res?.details?.type === 'publication_reward' && res.details.data) {
       data.PublicationRewardDetail = res.details.data;
     }

@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import { toast } from "react-hot-toast";
 import { PDFDocument } from "pdf-lib";
-import { 
+import {
   ArrowLeft,
   FileText,
   Calendar,
@@ -811,6 +811,16 @@ export default function PublicationRewardDetail({
     submission.publication_reward_detail ||
     {};
 
+  const detail = useMemo(
+    () =>
+      submission?.publication_reward_detail ||
+      submission?.PublicationRewardDetail ||
+      submission?.details?.data?.publication_reward_detail ||
+      submission?.details?.data ||
+      {},
+    [submission],
+  );
+
   // Approved amounts may come from different fields depending on API version
   const toNumber = (val) =>
     val !== undefined && val !== null ? Number(val) : null;
@@ -843,6 +853,30 @@ export default function PublicationRewardDetail({
     !Number.isNaN(approvedTotal);
 
   const applicant = getApplicant();
+
+  const contactPhone = firstNonEmpty(
+    submission?.contact_phone,
+    submission?.details?.data?.contact_phone,
+    detail?.contact_phone,
+  );
+
+  const bankAccount = firstNonEmpty(
+    submission?.bank_account,
+    submission?.details?.data?.bank_account,
+    detail?.bank_account,
+  );
+
+  const bankName = firstNonEmpty(
+    submission?.bank_name,
+    submission?.details?.data?.bank_name,
+    detail?.bank_name,
+  );
+
+  const bankAccountName = firstNonEmpty(
+    submission?.bank_account_name,
+    submission?.details?.data?.bank_account_name,
+    detail?.bank_account_name,
+  );
 
   const statusCode =
     getCodeById(submission.status_id) ||
@@ -985,6 +1019,10 @@ export default function PublicationRewardDetail({
                 </span>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-3 mt-2">
+                <div className="flex items-start gap-2">
+                  <span className="text-gray-500 shrink-0">เบอร์ติดต่อ:</span>
+                  <span className="font-medium break-words">{contactPhone || '-'}</span>
+                </div>
                 {submission.created_at && (
                   <div className="flex items-start gap-2">
                     <span className="text-gray-500 shrink-0">วันที่สร้างคำร้อง:</span>
@@ -1047,6 +1085,20 @@ export default function PublicationRewardDetail({
                     )}
                   </div>
                 )}
+                <div className="flex items-start gap-2 lg:col-span-3">
+                  <span className="text-gray-500 shrink-0">ข้อมูลธนาคาร:</span>
+                  <div className="flex flex-col text-sm font-medium text-gray-700">
+                    <span>
+                      เลขที่บัญชี: <span className="font-semibold">{bankAccount || '-'}</span>
+                    </span>
+                    <span>
+                      ชื่อบัญชี: <span className="font-semibold">{bankAccountName || '-'}</span>
+                    </span>
+                    <span>
+                      ธนาคาร: <span className="font-semibold">{bankName || '-'}</span>
+                    </span>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
