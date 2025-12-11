@@ -86,7 +86,6 @@ export default function ApplicationList({ onNavigate }) {
         .map((year) => ({
           year_id: year?.year_id != null ? Number(year.year_id) : null,
           year: year?.year != null ? String(year.year) : null,
-          budget: year?.budget != null ? Number(year.budget) : 0,
           status: year?.status ?? 'active',
         }))
         .filter((year) => year.year_id != null && year.year);
