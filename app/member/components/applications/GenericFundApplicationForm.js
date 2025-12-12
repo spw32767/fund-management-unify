@@ -1337,6 +1337,9 @@ export default function GenericFundApplicationForm({
   const [formData, setFormData] = useState({
     name: "",
     phone: "",
+    bank_account: "",
+    bank_account_name: "",
+    bank_name: "",
     project_title: "",
     project_description: "",
     requested_amount: "",
@@ -1931,6 +1934,21 @@ export default function GenericFundApplicationForm({
         submission.ProjectTitle
       );
 
+      const bankAccount = firstNonEmptyString(
+        submission.bank_account,
+        submission.BankAccount,
+      );
+
+      const bankAccountName = firstNonEmptyString(
+        submission.bank_account_name,
+        submission.BankAccountName,
+      );
+
+      const bankName = firstNonEmptyString(
+        submission.bank_name,
+        submission.BankName,
+      );
+
       const projectDescription = firstNonEmptyString(
         detail?.project_description,
         detail?.ProjectDescription,
@@ -1955,6 +1973,9 @@ export default function GenericFundApplicationForm({
         ...prev,
         name: resolvedName || prev.name || '',
         phone: normalizedPhone || prev.phone || '',
+        bank_account: bankAccount || prev.bank_account || '',
+        bank_account_name: bankAccountName || prev.bank_account_name || '',
+        bank_name: bankName || prev.bank_name || '',
         project_title: projectTitle || prev.project_title || '',
         project_description: projectDescription || prev.project_description || '',
         requested_amount: limitedRequestedAmount || prev.requested_amount || '',
@@ -2660,6 +2681,24 @@ export default function GenericFundApplicationForm({
       }
     }
 
+    const cleanedBankAccount = formData.bank_account.replace(/\s+/g, '');
+    if (!cleanedBankAccount) {
+      newErrors.bank_account = 'กรุณากรอกเลขบัญชีธนาคาร';
+    } else {
+      const bankAccountRegex = /^\d{10,15}$/;
+      if (!bankAccountRegex.test(cleanedBankAccount)) {
+        newErrors.bank_account = 'เลขบัญชีธนาคารต้องเป็นตัวเลข 10-15 หลัก';
+      }
+    }
+
+    if (!formData.bank_account_name.trim()) {
+      newErrors.bank_account_name = 'กรุณาระบุชื่อบัญชีธนาคาร';
+    }
+
+    if (!formData.bank_name.trim()) {
+      newErrors.bank_name = 'กรุณาระบุชื่อธนาคาร';
+    }
+
     if (!formData.requested_amount || isNaN(parseFloat(formData.requested_amount)) || parseFloat(formData.requested_amount) <= 0) {
       newErrors.requested_amount = 'กรุณาระบุจำนวนเงินที่ขอ';
     }
@@ -2770,6 +2809,10 @@ export default function GenericFundApplicationForm({
           category_id: contextCategoryId,
           subcategory_id: contextSubcategoryId,
           subcategory_budget_id: contextBudgetId,
+          contact_phone: formData.phone || '',
+          bank_account: formData.bank_account || '',
+          bank_account_name: formData.bank_account_name || '',
+          bank_name: formData.bank_name || '',
         };
 
         const submissionRes = await submissionAPI.createSubmission(payload);
@@ -2784,6 +2827,10 @@ export default function GenericFundApplicationForm({
             category_id: contextCategoryId,
             subcategory_id: contextSubcategoryId,
             subcategory_budget_id: contextBudgetId,
+            contact_phone: formData.phone || '',
+            bank_account: formData.bank_account || '',
+            bank_account_name: formData.bank_account_name || '',
+            bank_name: formData.bank_name || '',
           });
         } catch (updateError) {
           console.warn('Failed to update submission metadata for draft:', updateError);
@@ -2948,6 +2995,10 @@ export default function GenericFundApplicationForm({
           category_id: contextCategoryId,
           subcategory_id: contextSubcategoryId,
           subcategory_budget_id: contextBudgetId,
+          contact_phone: formData.phone || '',
+          bank_account: formData.bank_account || '',
+          bank_account_name: formData.bank_account_name || '',
+          bank_name: formData.bank_name || '',
         };
         if (statusForSubmission?.id) {
           submissionPayload.status_id = statusForSubmission.id;
@@ -2964,6 +3015,10 @@ export default function GenericFundApplicationForm({
             category_id: contextCategoryId,
             subcategory_id: contextSubcategoryId,
             subcategory_budget_id: contextBudgetId,
+            contact_phone: formData.phone || '',
+            bank_account: formData.bank_account || '',
+            bank_account_name: formData.bank_account_name || '',
+            bank_name: formData.bank_name || '',
           });
         } catch (updateError) {
           console.warn('Failed to update submission metadata before submit:', updateError);
@@ -3268,11 +3323,11 @@ export default function GenericFundApplicationForm({
                   <p className="text-xs text-gray-500">ระบบจะแสดงคำนำหน้าและชื่อ-นามสกุลจากข้อมูลผู้ใช้โดยอัตโนมัติ</p>
                 </div>
 
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-gray-700" htmlFor="applicant-phone">
-                    เบอร์โทรศัพท์
-                  </label>
-                  <input
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-gray-700" htmlFor="applicant-phone">
+                  เบอร์โทรศัพท์
+                </label>
+                <input
                     id="applicant-phone"
                     type="tel"
                     value={formData.phone}
@@ -3291,6 +3346,82 @@ export default function GenericFundApplicationForm({
                     </p>
                   ) : (
                     <p className="text-xs text-gray-500">รูปแบบที่แนะนำ: XXX-XXX-XXXX (ข้อมูลนี้ใช้สำหรับติดต่อกลับเท่านั้น)</p>
+                  )}
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-gray-700" htmlFor="bank-account">
+                    เลขบัญชีธนาคาร
+                  </label>
+                  <input
+                    id="bank-account"
+                    type="text"
+                    value={formData.bank_account}
+                    onChange={(e) => handleInputChange('bank_account', e.target.value.replace(/\D/g, '').slice(0, 15))}
+                    placeholder="กรอกเลขบัญชี 10-15 หลัก"
+                    maxLength={15}
+                    disabled={!canEdit}
+                    className={`w-full rounded-lg border px-4 py-2.5 text-gray-700 shadow-sm transition focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 ${
+                      errors.bank_account ? 'border-red-400 focus:border-red-500 focus:ring-red-100' : 'border-gray-300'
+                    }`}
+                  />
+                  {errors.bank_account ? (
+                    <p className="flex items-center gap-1 text-sm text-red-500">
+                      <AlertCircle className="h-4 w-4" />
+                      {errors.bank_account}
+                    </p>
+                  ) : (
+                    <p className="text-xs text-gray-500">กรอกเฉพาะตัวเลข</p>
+                  )}
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-gray-700" htmlFor="bank-account-name">
+                    ชื่อบัญชีธนาคาร
+                  </label>
+                  <input
+                    id="bank-account-name"
+                    type="text"
+                    value={formData.bank_account_name}
+                    onChange={(e) => handleInputChange('bank_account_name', e.target.value)}
+                    placeholder="ชื่อ-นามสกุลเจ้าของบัญชี"
+                    disabled={!canEdit}
+                    className={`w-full rounded-lg border px-4 py-2.5 text-gray-700 shadow-sm transition focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 ${
+                      errors.bank_account_name ? 'border-red-400 focus:border-red-500 focus:ring-red-100' : 'border-gray-300'
+                    }`}
+                  />
+                  {errors.bank_account_name ? (
+                    <p className="flex items-center gap-1 text-sm text-red-500">
+                      <AlertCircle className="h-4 w-4" />
+                      {errors.bank_account_name}
+                    </p>
+                  ) : (
+                    <p className="text-xs text-gray-500">กรอกชื่อ-นามสกุลตามหน้าสมุดบัญชี</p>
+                  )}
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-gray-700" htmlFor="bank-name">
+                    ชื่อธนาคาร
+                  </label>
+                  <input
+                    id="bank-name"
+                    type="text"
+                    value={formData.bank_name}
+                    onChange={(e) => handleInputChange('bank_name', e.target.value)}
+                    placeholder="เช่น ธนาคารกรุงเทพ"
+                    disabled={!canEdit}
+                    className={`w-full rounded-lg border px-4 py-2.5 text-gray-700 shadow-sm transition focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 ${
+                      errors.bank_name ? 'border-red-400 focus:border-red-500 focus:ring-red-100' : 'border-gray-300'
+                    }`}
+                  />
+                  {errors.bank_name ? (
+                    <p className="flex items-center gap-1 text-sm text-red-500">
+                      <AlertCircle className="h-4 w-4" />
+                      {errors.bank_name}
+                    </p>
+                  ) : (
+                    <p className="text-xs text-gray-500">ระบุชื่อธนาคารที่ต้องการรับเงิน</p>
                   )}
                 </div>
 

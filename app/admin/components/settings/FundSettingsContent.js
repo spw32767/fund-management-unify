@@ -1,6 +1,6 @@
 // FundSettingsContent.js
 import React, { useState, useEffect } from "react";
-import { Settings, CalendarRange, DollarSign, PencilLine, FileText, FileStack, ListChecks, BellRing, Layers, Wallet } from "lucide-react";
+import { Settings, CalendarRange, DollarSign, PencilLine, FileText, FileStack, ListChecks, BellRing, AlertTriangle } from "lucide-react";
 import Swal from 'sweetalert2';
 
 // Import separated components
@@ -27,18 +27,17 @@ import DeleteConfirmDialog from "@/app/admin/components/settings/funds_config/De
 // Import real API
 import { adminAPI } from "@/app/lib/admin_api";
 import systemConfigAPI from "@/app/lib/system_config_api";
+import { adminInstallmentAPI } from "@/app/lib/admin_installment_api";
 
 const TAB_ITEMS = [
-  { id: "funds", label: "จัดการทุน", icon: DollarSign },
-  { id: "project-types", label: "ประเภทโครงการ", icon: Layers },
-  { id: "project-plans", label: "แผนงบประมาณ", icon: Wallet },
-  { id: "installments", label: "ตั้งค่าวันตัดรอบการพิจารณา", icon: CalendarRange },
+  { id: "funds", label: "จัดการทุนและปีงบประมาณ", icon: DollarSign },
   { id: "reward-config", label: "จัดการเงินรางวัล", icon: Settings },
-  { id: "reward-terms", label: "ข้อตกลงเงินรางวัล", icon: ListChecks },
-  { id: "notification-templates", label: "ข้อความแจ้งเตือน", icon: BellRing },
-  { id: "system", label: "ตั้งค่าระบบ", icon: PencilLine },
-  { id: "announcements", label: "ประกาศ/ไฟล์", icon: FileText },
+  { id: "installments", label: "ตั้งค่าวันตัดรอบการพิจารณา", icon: CalendarRange },
   { id: "document-types", label: "ตั้งค่าเอกสารทุนแนบ", icon: FileStack },
+  { id: "reward-terms", label: "ข้อตกลงเงินรางวัล", icon: ListChecks },
+  { id: "system", label: "ตั้งค่าระบบ", icon: PencilLine },
+  { id: "announcements", label: "ประกาศ", icon: FileText },
+  { id: "notification-templates", label: "การแจ้งเตือน", icon: BellRing },
 ];
 
 // SweetAlert2 configuration
@@ -90,6 +89,8 @@ export default function FundSettingsContent({ onNavigate }) {
   const [deleteTarget, setDeleteTarget] = useState(null);
 
   const [connectionStatus, setConnectionStatus] = useState('checking');
+  const [globalAlerts, setGlobalAlerts] = useState([]);
+  const [alertChecking, setAlertChecking] = useState(false);
 
   // เพิ่ม useEffect สำหรับตรวจสอบการเชื่อมต่อ
   useEffect(() => {
@@ -157,6 +158,10 @@ export default function FundSettingsContent({ onNavigate }) {
     }
     // เพิ่ม categoriesLoaded ใน dependency array เพื่อให้สอดคล้องกับ logic ใน FundSettingsContent2.js
   }, [selectedYear]);
+
+  useEffect(() => {
+    checkCurrentYearAlerts();
+  }, [currentYearValue, years, categories, selectedYear]);
 
   // ==================== DATA LOADING FUNCTIONS ====================
   
@@ -267,6 +272,31 @@ export default function FundSettingsContent({ onNavigate }) {
     }
 
     return fallback;
+  };
+
+  const findYearByValue = (value) => {
+    if (value === null || value === undefined) return null;
+    const normalizedValue = String(value);
+    return (
+      years.find((year) => {
+        if (!year) return false;
+        if (year.year !== undefined && year.year !== null && String(year.year) === normalizedValue) {
+          return true;
+        }
+        if (year.year_id !== undefined && year.year_id !== null && String(year.year_id) === normalizedValue) {
+          return true;
+        }
+        return false;
+      }) || null
+    );
+  };
+
+  const hasFundData = (fundCategories = []) => {
+    if (!Array.isArray(fundCategories) || fundCategories.length === 0) return false;
+    const hasSubcategory = fundCategories.some(
+      (category) => Array.isArray(category.subcategories) && category.subcategories.length > 0
+    );
+    return hasSubcategory || fundCategories.length > 0;
   };
 
   const loadCategories = async ({ silent = false } = {}) => {
@@ -480,6 +510,124 @@ export default function FundSettingsContent({ onNavigate }) {
       if (!silent) {
         setLoading(false);
       }
+    }
+  };
+
+  const checkCurrentYearAlerts = async () => {
+    if (!currentYearValue) {
+      setGlobalAlerts([]);
+      return;
+    }
+
+    const currentYear = findYearByValue(currentYearValue);
+    const targetYearId = currentYear?.year_id ?? null;
+    const targetYearLabel = currentYear?.year ?? currentYearValue;
+
+    if (!targetYearLabel) {
+      setGlobalAlerts([]);
+      return;
+    }
+
+    setAlertChecking(true);
+
+    const isViewingCurrentYear = selectedYear && (
+      (selectedYear.year !== undefined && selectedYear.year !== null && String(selectedYear.year) === String(targetYearLabel)) ||
+      (selectedYear.year_id !== undefined && selectedYear.year_id !== null && targetYearId !== null && String(selectedYear.year_id) === String(targetYearId))
+    );
+
+    const fundPromise = (async () => {
+      if (!targetYearId) return false;
+
+      if (isViewingCurrentYear) {
+        return hasFundData(categories);
+      }
+
+      try {
+        const data = await adminAPI.getCategoriesWithDetails(targetYearId);
+        return hasFundData(data);
+      } catch (err) {
+        console.warn('ไม่สามารถตรวจสอบข้อมูลทุนของปีปัจจุบัน:', err);
+        return false;
+      }
+    })();
+
+    const installmentPromise = (async () => {
+      if (!targetYearId) return false;
+      try {
+        const { items } = await adminInstallmentAPI.list({ yearId: targetYearId, limit: 1, offset: 0 });
+        return Array.isArray(items) && items.length > 0;
+      } catch (err) {
+        console.warn('ไม่สามารถตรวจสอบรอบการพิจารณาของปีปัจจุบัน:', err);
+        return false;
+      }
+    })();
+
+    const rewardRatesPromise = (async () => {
+      try {
+        const response = await adminAPI.getPublicationRewardRates(targetYearLabel);
+        const ratesData = response?.rates ?? response?.data ?? [];
+        return Array.isArray(ratesData) && ratesData.length > 0;
+      } catch (err) {
+        console.warn('ไม่สามารถตรวจสอบอัตราเงินรางวัลของปีปัจจุบัน:', err);
+        return false;
+      }
+    })();
+
+    const rewardConfigsPromise = (async () => {
+      try {
+        const response = await adminAPI.getRewardConfigs(targetYearLabel);
+        const configsPayload = response?.data ?? response?.configs ?? [];
+        const configsArray = Array.isArray(configsPayload)
+          ? configsPayload
+          : Array.isArray(response?.data?.data)
+            ? response.data.data
+            : [];
+
+        const filteredConfigs = configsArray.filter((config) => {
+          const configYear =
+            config?.year != null
+              ? String(config.year)
+              : config?.year_id != null
+                ? String(config.year_id)
+                : null;
+          return configYear === String(targetYearLabel);
+        });
+
+        return filteredConfigs.length > 0;
+      } catch (err) {
+        console.warn('ไม่สามารถตรวจสอบวงเงินค่าธรรมเนียมของปีปัจจุบัน:', err);
+        return false;
+      }
+    })();
+
+    try {
+      const [hasFunds, hasInstallments, hasRewardRates, hasRewardConfigs] = await Promise.all([
+        fundPromise,
+        installmentPromise,
+        rewardRatesPromise,
+        rewardConfigsPromise,
+      ]);
+
+      const warnings = [];
+
+      if (!hasFunds) {
+        warnings.push(`ตอนนี้ยังไม่มีข้อมูลทุนในปีงบประมาณ ${targetYearLabel}`);
+      }
+      if (!hasInstallments) {
+        warnings.push(`ตอนนี้ยังไม่มีการตั้งค่าวันตัดรอบการพิจารณาของทุนในปีงบประมาณ ${targetYearLabel}`);
+      }
+      if (!hasRewardRates) {
+        warnings.push(`ตอนนี้ยังไม่มีอัตราเงินรางวัล (Reward Rates) สำหรับปีงบประมาณ ${targetYearLabel}`);
+      }
+      if (!hasRewardConfigs) {
+        warnings.push(`ตอนนี้ยังไม่มีวงเงินค่าธรรมเนียม (Fee Limits) สำหรับปีงบประมาณ ${targetYearLabel}`);
+      }
+
+      setGlobalAlerts(warnings);
+    } catch (err) {
+      console.error('ไม่สามารถตรวจสอบการแจ้งเตือนภาพรวมของปีปัจจุบัน:', err);
+    } finally {
+      setAlertChecking(false);
     }
   };
 
@@ -1411,6 +1559,30 @@ export default function FundSettingsContent({ onNavigate }) {
       ]}
       loading={loading}
     >
+      {alertChecking ? (
+        <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          กำลังตรวจสอบข้อมูลปีงบประมาณ {currentYearValue || ''}...
+        </div>
+      ) : null}
+
+      {globalAlerts.length > 0 && (
+        <div className="mb-6 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="h-5 w-5 text-amber-600" />
+            <div className="space-y-2">
+              <p className="font-semibold text-amber-900">
+                การแจ้งเตือนข้อมูลปีงบประมาณ {currentYearValue || ''}
+              </p>
+              <ul className="list-disc space-y-1 pl-5 text-sm text-amber-900">
+                {globalAlerts.map((message, index) => (
+                  <li key={`${message}-${index}`}>{message}</li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Tab Navigation */}
       <div className="bg-white rounded-lg shadow-sm mb-6">
         <div className="flex flex-wrap">
