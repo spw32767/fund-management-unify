@@ -2489,7 +2489,11 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
               payload.university_rankings ??
               prev.university_ranking ??
               '',
-            phone_number: payload.phone_number ?? prev.phone_number ?? '',
+            phone_number:
+              payload.phone_number ??
+              payload.contact_phone ??
+              prev.phone_number ??
+              '',
             bank_account: payload.bank_account ?? prev.bank_account ?? '',
             bank_account_name: payload.bank_account_name ?? prev.bank_account_name ?? '',
             bank_name: payload.bank_name ?? prev.bank_name ?? '',
