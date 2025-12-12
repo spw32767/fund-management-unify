@@ -247,6 +247,11 @@ export const submissionAPI = {
     }
   },
 
+  // Backwards-compatible alias
+  async update(submissionId, updateData) {
+    return this.updateSubmission(submissionId, updateData);
+  },
+
   // 5. Delete submission (unsubmitted only)
   async deleteSubmission(submissionId) {
     try {

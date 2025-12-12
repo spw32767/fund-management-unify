@@ -27,7 +27,6 @@ const RewardConfigManager = () => {
   const [loading, setLoading] = useState(false);
   const [selectedYear, setSelectedYear] = useState('');
   const [years, setYears] = useState([]);
-  const [currentYearValue, setCurrentYearValue] = useState('');
   const [copying, setCopying] = useState(false);
   const [copyModalOpen, setCopyModalOpen] = useState(false);
   const [copyMode, setCopyMode] = useState('new');
@@ -88,9 +87,6 @@ const RewardConfigManager = () => {
     () => years.map((year) => Number(year)).filter((value) => Number.isFinite(value)),
     [years]
   );
-
-  const isCurrentYearSelected =
-    currentYearValue && selectedYear && String(selectedYear) === String(currentYearValue);
 
   const hasExistingTargets = existingTargetYears.length > 0;
 
@@ -157,14 +153,6 @@ const RewardConfigManager = () => {
       const systemYearCandidateRaw =
         currentYearResponse?.current_year ?? currentYearResponse?.data?.current_year ?? null;
 
-      const systemYearString =
-        systemYearCandidateRaw !== null && systemYearCandidateRaw !== undefined
-          ? String(systemYearCandidateRaw)
-          : '';
-      if (systemYearString) {
-        setCurrentYearValue(systemYearString);
-      }
-
       const mergedYears = [...adminYears, ...rateYears, ...configYears];
       if (systemYearCandidateRaw != null) {
         mergedYears.push(String(systemYearCandidateRaw));
@@ -193,7 +181,6 @@ const RewardConfigManager = () => {
             ? String(systemYearCandidateRaw)
             : (new Date().getFullYear() + 543).toString();
         if (fallbackYear) {
-          setCurrentYearValue(fallbackYear);
           setYears([fallbackYear]);
           setSelectedYear(fallbackYear);
         } else {
@@ -203,7 +190,6 @@ const RewardConfigManager = () => {
       }
     } catch {
       const currentYear = (new Date().getFullYear() + 543).toString();
-      setCurrentYearValue(currentYear);
       setYears([currentYear]);
       setSelectedYear(currentYear);
     }
@@ -256,18 +242,6 @@ const RewardConfigManager = () => {
     }
     setLoading(false);
   };
-
-  const showRatesWarning =
-    isCurrentYearSelected &&
-    !loading &&
-    activeSubTab === 'rates' &&
-    rewardRates.length === 0;
-
-  const showConfigsWarning =
-    isCurrentYearSelected &&
-    !loading &&
-    activeSubTab === 'configs' &&
-    rewardConfigs.length === 0;
 
   // ====== Helpers ======
   const quartileOrder = (q) => quartileOptions.find(x => x.value === q)?.order ?? 999;
@@ -607,18 +581,6 @@ const RewardConfigManager = () => {
           </button>
         </nav>
       </div>
-
-      {showRatesWarning && (
-        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-          ตอนนี้ยังไม่มีอัตราเงินรางวัล (Reward Rates) สำหรับปีงบประมาณ {selectedYear}
-        </div>
-      )}
-
-      {showConfigsWarning && (
-        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-          ตอนนี้ยังไม่มีวงเงินค่าธรรมเนียม (Fee Limits) สำหรับปีงบประมาณ {selectedYear}
-        </div>
-      )}
 
       {/* Content */}
       {loading ? (
