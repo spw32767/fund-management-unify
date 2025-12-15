@@ -41,6 +41,8 @@ const xmlEscape = (value) => {
     .replace(/'/g, '&apos;');
 };
 
+const HYPERLINK_STYLE_INDEX = 1;
+
 const buildSheetXml = (columns, rows) => {
   const lines = [];
   const hyperlinks = [];
@@ -78,7 +80,9 @@ const buildSheetXml = (columns, rows) => {
           display: displayText,
         });
         const text = xmlEscape(displayText);
-        lines.push(`      <c r="${cellRef}" t="inlineStr"><is><t>${text}</t></is></c>`);
+        lines.push(
+          `      <c r="${cellRef}" s="${HYPERLINK_STYLE_INDEX}" t="inlineStr"><is><t>${text}</t></is></c>`
+        );
       } else if (typeof cellValue === 'number' && Number.isFinite(cellValue)) {
         lines.push(`      <c r="${cellRef}"><v>${cellValue}</v></c>`);
       } else {
@@ -158,10 +162,17 @@ const buildWorkbookRelsXml = () => `<?xml version="1.0" encoding="UTF-8" standal
 
 const buildStylesXml = () => `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
-  <fonts count="1">
+  <fonts count="2">
     <font>
       <sz val="11"/>
       <color theme="1"/>
+      <name val="Calibri"/>
+      <family val="2"/>
+    </font>
+    <font>
+      <sz val="11"/>
+      <color theme="10"/>
+      <u/>
       <name val="Calibri"/>
       <family val="2"/>
     </font>
@@ -183,8 +194,9 @@ const buildStylesXml = () => `<?xml version="1.0" encoding="UTF-8" standalone="y
   <cellStyleXfs count="1">
     <xf numFmtId="0" fontId="0" fillId="0" borderId="0"/>
   </cellStyleXfs>
-  <cellXfs count="1">
+  <cellXfs count="2">
     <xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>
+    <xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1"/>
   </cellXfs>
   <cellStyles count="1">
     <cellStyle name="Normal" xfId="0" builtinId="0"/>
