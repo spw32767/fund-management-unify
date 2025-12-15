@@ -41,8 +41,12 @@ const xmlEscape = (value) => {
     .replace(/'/g, '&apos;');
 };
 
+const HYPERLINK_STYLE_INDEX = 1;
+
 const buildSheetXml = (columns, rows) => {
   const lines = [];
+  const hyperlinks = [];
+
   lines.push(
     '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>',
     '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">',
@@ -60,7 +64,26 @@ const buildSheetXml = (columns, rows) => {
       if (cellValue === null || cellValue === undefined || cellValue === '') {
         return;
       }
-      if (typeof cellValue === 'number' && Number.isFinite(cellValue)) {
+
+      const isHyperlink =
+        typeof cellValue === 'object' &&
+        cellValue !== null &&
+        typeof cellValue.hyperlink === 'string' &&
+        cellValue.hyperlink.trim() !== '';
+
+      if (isHyperlink) {
+        const displayText =
+          cellValue.text || cellValue.display || cellValue.label || cellValue.hyperlink;
+        hyperlinks.push({
+          ref: cellRef,
+          target: cellValue.hyperlink,
+          display: displayText,
+        });
+        const text = xmlEscape(displayText);
+        lines.push(
+          `      <c r="${cellRef}" s="${HYPERLINK_STYLE_INDEX}" t="inlineStr"><is><t>${text}</t></is></c>`
+        );
+      } else if (typeof cellValue === 'number' && Number.isFinite(cellValue)) {
         lines.push(`      <c r="${cellRef}"><v>${cellValue}</v></c>`);
       } else {
         const text = xmlEscape(cellValue);
@@ -73,7 +96,36 @@ const buildSheetXml = (columns, rows) => {
     lines.push('    </row>');
   });
 
-  lines.push('  </sheetData>', '</worksheet>');
+  lines.push('  </sheetData>');
+
+  if (hyperlinks.length) {
+    lines.push('  <hyperlinks>');
+    hyperlinks.forEach((link, idx) => {
+      const relId = `rId${idx + 1}`;
+      const display = xmlEscape(link.display || '');
+      const displayAttr = display ? ` display="${display}"` : '';
+      lines.push(`    <hyperlink ref="${link.ref}" r:id="${relId}"${displayAttr}/>`);
+    });
+    lines.push('  </hyperlinks>');
+  }
+
+  lines.push('</worksheet>');
+  return { xml: lines.join('\n'), hyperlinks };
+};
+
+const buildSheetRelsXml = (hyperlinks) => {
+  const lines = [
+    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>',
+    '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">',
+  ];
+
+  hyperlinks.forEach((link, idx) => {
+    lines.push(
+      `  <Relationship Id="rId${idx + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="${xmlEscape(link.target)}" TargetMode="External"/>`
+    );
+  });
+
+  lines.push('</Relationships>');
   return lines.join('\n');
 };
 
@@ -110,10 +162,17 @@ const buildWorkbookRelsXml = () => `<?xml version="1.0" encoding="UTF-8" standal
 
 const buildStylesXml = () => `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
-  <fonts count="1">
+  <fonts count="2">
     <font>
       <sz val="11"/>
       <color theme="1"/>
+      <name val="Calibri"/>
+      <family val="2"/>
+    </font>
+    <font>
+      <sz val="11"/>
+      <color theme="10"/>
+      <u/>
       <name val="Calibri"/>
       <family val="2"/>
     </font>
@@ -135,8 +194,9 @@ const buildStylesXml = () => `<?xml version="1.0" encoding="UTF-8" standalone="y
   <cellStyleXfs count="1">
     <xf numFmtId="0" fontId="0" fillId="0" borderId="0"/>
   </cellStyleXfs>
-  <cellXfs count="1">
+  <cellXfs count="2">
     <xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>
+    <xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1"/>
   </cellXfs>
   <cellStyles count="1">
     <cellStyle name="Normal" xfId="0" builtinId="0"/>
@@ -186,8 +246,8 @@ const buildCoreXml = () => {
 };
 
 const fileEntries = (columns, rows, sheetName) => {
-  const sheetXml = buildSheetXml(columns, rows);
-  return [
+  const { xml: sheetXml, hyperlinks } = buildSheetXml(columns, rows);
+  const entries = [
     { path: '[Content_Types].xml', content: buildContentTypesXml() },
     { path: '_rels/.rels', content: buildRelsXml() },
     { path: 'docProps/app.xml', content: buildAppXml() },
@@ -197,6 +257,15 @@ const fileEntries = (columns, rows, sheetName) => {
     { path: 'xl/styles.xml', content: buildStylesXml() },
     { path: 'xl/worksheets/sheet1.xml', content: sheetXml },
   ];
+
+  if (hyperlinks.length) {
+    entries.push({
+      path: 'xl/worksheets/_rels/sheet1.xml.rels',
+      content: buildSheetRelsXml(hyperlinks),
+    });
+  }
+
+  return entries;
 };
 
 const encodeFile = (path, content) => {
