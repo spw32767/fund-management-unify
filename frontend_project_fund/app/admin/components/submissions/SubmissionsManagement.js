@@ -137,7 +137,12 @@ const getMergedDocumentExportValue = (...sources) => {
     const meta = extractMergedDocumentMeta(source);
     if (meta) {
       const url = resolveFileURL(meta.filePath);
-      return url;
+      if (url) {
+        return {
+          text: meta.displayName || 'เปิดไฟล์',
+          hyperlink: url,
+        };
+      }
     }
   }
   return '';
