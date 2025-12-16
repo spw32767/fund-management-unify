@@ -452,9 +452,6 @@ export default function AnnouncementPage() {
         ? getAnnouncementDownloadURL(row)
         : getFundFormDownloadURL(row);
 
-    const url = apiDownloadUrl || fallbackUrl;
-    if (!url) return;
-
     try {
       const headers = new Headers();
       const token = typeof apiClient.getToken === 'function' ? apiClient.getToken() : null;
@@ -462,11 +459,37 @@ export default function AnnouncementPage() {
         headers.set('Authorization', `Bearer ${token}`);
       }
 
-      const response = await fetch(url, {
-        method: 'GET',
-        headers,
-        credentials: 'include',
-      });
+      let response = null;
+
+      if (apiDownloadUrl) {
+        const apiResponse = await fetch(apiDownloadUrl, {
+          method: 'GET',
+          headers,
+          credentials: 'include',
+        });
+
+        if (apiResponse.ok) {
+          response = apiResponse;
+        } else if (!fallbackUrl || fallbackUrl === apiDownloadUrl) {
+          throw new Error(
+            `API download failed with status ${apiResponse.status} ${apiResponse.statusText}`
+          );
+        }
+      }
+
+      if (!response && fallbackUrl) {
+        response = await fetch(fallbackUrl, { method: 'GET' });
+
+        if (!response.ok) {
+          throw new Error(
+            `Fallback download failed with status ${response.status} ${response.statusText}`
+          );
+        }
+      }
+
+      if (!response) {
+        return;
+      }
 
       const blob = await response.blob();
       const link = document.createElement('a');
