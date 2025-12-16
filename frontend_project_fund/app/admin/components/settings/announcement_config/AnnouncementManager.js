@@ -510,52 +510,48 @@ export default function AnnouncementManager() {
   }
 
   async function handleDownloadFile(row, entity) {
-      const meta = getFileAccessMeta(row, entity);
+    const meta = getFileAccessMeta(row, entity);
 
-      // 1. ตรวจสอบว่าไฟล์นี้กำลังถูกดาวน์โหลดอยู่หรือไม่
-      if (downloadingIds.has(meta.id)) {
-        return;
-      }
+    if (downloadingIds.has(meta.id)) {
+      return;
+    }
 
-      const { downloadEndpoint, directURL, fallbackFileName } = meta;
-      const downloadFileName = sanitizeDownloadFileName(fallbackFileName);
+    const { directURL, fallbackFileName } = meta;
+    const downloadFileName = sanitizeDownloadFileName(fallbackFileName);
 
-      if (!downloadEndpoint) { // เราจะใช้ downloadEndpoint เป็นหลัก
-        toast("error", "ไม่พบไฟล์สำหรับดาวน์โหลด");
-        return;
-      }
+    if (!directURL) {
+      toast("error", "ไม่พบไฟล์สำหรับดาวน์โหลด");
+      return;
+    }
 
-      try {
-        // 2. เพิ่ม ID เข้าไปใน state เพื่อเริ่มสถานะ "กำลังดาวน์โหลด"
-        setDownloadingIds(prev => new Set(prev).add(meta.id));
+    try {
+      setDownloadingIds((prev) => new Set(prev).add(meta.id));
 
-        const blob = await fetchFileBlob(downloadEndpoint, {
-          requiresAuth: true,
-        });
-        const link = document.createElement("a");
-        link.href = URL.createObjectURL(blob);
-        link.download = downloadFileName;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        URL.revokeObjectURL(link.href);
-
-      } catch (error) {
-        console.error("[AnnouncementManager] Failed to download file", {
-          meta,
-          error,
-          errorMessage: error?.message,
-          errorStack: error?.stack,
-        });
-        toast("error", "ดาวน์โหลดไม่สำเร็จ");
-      } finally {
-          // 4. ไม่ว่าจะสำเร็จหรือล้มเหลว ให้เอา ID ออกจาก state เสมอ
-          setDownloadingIds(prev => {
-              const next = new Set(prev);
-              next.delete(meta.id);
-              return next;
-          });
-      }
+      const blob = await fetchFileBlob(directURL, {
+        requiresAuth: true,
+      });
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = downloadFileName;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(link.href);
+    } catch (error) {
+      console.error("[AnnouncementManager] Failed to download file", {
+        meta,
+        error,
+        errorMessage: error?.message,
+        errorStack: error?.stack,
+      });
+      toast("error", "ดาวน์โหลดไม่สำเร็จ");
+    } finally {
+      setDownloadingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(meta.id);
+        return next;
+      });
+    }
   }
     /** ===== Forms (Announcement) ===== */
   function blankAnnouncementForm() {

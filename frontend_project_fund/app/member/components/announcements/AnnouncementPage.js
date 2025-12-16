@@ -388,23 +388,52 @@ export default function AnnouncementPage() {
     }
   }, [years, currentYearLabel, selectedYearId, selectedFormYearId]);
 
+  const resolveFileURL = (filePath) => {
+    if (!filePath) return null;
+
+    try {
+      const baseUrl = apiClient.baseURL?.replace(/\/?api\/v1$/, '') ?? '';
+      const base = baseUrl || window.location.origin;
+      return new URL(filePath, base).href;
+    } catch (error) {
+      console.error('Failed to resolve file URL', { filePath, error });
+      return null;
+    }
+  };
+
+  const getDownloadFileName = (filePath) => {
+    const rawName = typeof filePath === 'string' ? filePath.split(/[/\\]/).pop() : '';
+    if (!rawName) return 'file';
+    return rawName.replace(/[\\/:*?"<>|]/g, '_');
+  };
+
   const handleViewFile = (filePath) => {
-    if (!filePath) return;
-    const baseUrl = apiClient.baseURL.replace(/\/?api\/v1$/, '');
-    const url = new URL(filePath, baseUrl).href;
+    const url = resolveFileURL(filePath);
+    if (!url) return;
     window.open(url, '_blank');
   };
 
   const handleDownloadFile = async (filePath) => {
-    if (!filePath) return;
-    const baseUrl = apiClient.baseURL.replace(/\/?api\/v1$/, '');
-    const url = new URL(filePath, baseUrl).href;
+    const url = resolveFileURL(filePath);
+    if (!url) return;
+
     try {
-      const response = await fetch(url);
+      const headers = new Headers();
+      const token = typeof apiClient.getToken === 'function' ? apiClient.getToken() : null;
+      if (token) {
+        headers.set('Authorization', `Bearer ${token}`);
+      }
+
+      const response = await fetch(url, {
+        method: 'GET',
+        headers,
+        credentials: 'include',
+      });
+
       const blob = await response.blob();
       const link = document.createElement('a');
       link.href = URL.createObjectURL(blob);
-      link.download = filePath.split('/').pop() || 'file';
+      link.download = getDownloadFileName(filePath);
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
