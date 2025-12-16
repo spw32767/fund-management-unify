@@ -84,12 +84,12 @@ export default function Navigation({
       icon: FileCheck,
       hasSubmenu: false
     },
-    {
-      id: 'import-export',
-      label: 'นำเข้า/ส่งออก',
-      icon: ArrowDownUp,
-      hasSubmenu: false
-    },
+    // {
+    //   id: 'import-export',
+    //   label: 'นำเข้า/ส่งออก',
+    //   icon: ArrowDownUp,
+    //   hasSubmenu: false
+    // },
     // {
     //   id: 'notifications',
     //   label: 'การแจ้งเตือน',
