@@ -443,31 +443,9 @@ func DeleteAnnouncement(c *gin.Context) {
 	})
 }
 
-// getUserIDFromContext safely extracts the user ID from the Gin context and returns
-// it as an *int for optional associations.
-func getUserIDFromContext(c *gin.Context) *int {
-	if userID, ok := c.Get("userID"); ok {
-		switch v := userID.(type) {
-		case int:
-			uid := v
-			return &uid
-		case int64:
-			uid := int(v)
-			return &uid
-		case uint:
-			uid := int(v)
-			return &uid
-		case uint64:
-			uid := int(v)
-			return &uid
-		}
-	}
-	return nil
-}
-
 // DownloadAnnouncementFile - ดาวน์โหลดไฟล์ประกาศ
 func DownloadAnnouncementFile(c *gin.Context) {
-	id := c.Param("id")
+        id := c.Param("id")
 
 	// Find announcement
 	var announcement models.Announcement
@@ -496,7 +474,10 @@ func DownloadAnnouncementFile(c *gin.Context) {
 			ViewedAt:       time.Now(),
 		}
 
-		view.UserID = getUserIDFromContext(c)
+                if userID, ok := getUserIDFromContext(c); ok {
+                        uid := int(userID)
+                        view.UserID = &uid
+                }
 
 		config.DB.Create(&view)
 	}()
@@ -537,7 +518,10 @@ func ViewAnnouncementFile(c *gin.Context) {
 			ViewedAt:       time.Now(),
 		}
 
-		view.UserID = getUserIDFromContext(c)
+                if userID, ok := getUserIDFromContext(c); ok {
+                        uid := int(userID)
+                        view.UserID = &uid
+                }
 
 		config.DB.Create(&view)
 	}()
