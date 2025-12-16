@@ -257,7 +257,7 @@ const SubcategoryModal = ({
               </div>
 
               <div>
-                <label className="block text-sm font-semibold mb-2 text-gray-700">บทบาทที่เห็นทุนนี้</label>
+                <label className="block text-sm font-semibold mb-2 text-gray-700">กำหนดผู้ที่สามารถขอทุน</label>
                 <div className="space-y-2">
                   {roleOptions.map((role) => {
                     const checked = subcategoryForm.target_roles.includes(role.value);
