@@ -516,10 +516,10 @@ export default function AnnouncementManager() {
       return;
     }
 
-    const { directURL, fallbackFileName } = meta;
+    const { directURL, downloadEndpoint, fallbackFileName } = meta;
     const downloadFileName = sanitizeDownloadFileName(fallbackFileName);
 
-    if (!directURL) {
+    if (!directURL && !downloadEndpoint) {
       toast("error", "ไม่พบไฟล์สำหรับดาวน์โหลด");
       return;
     }
@@ -527,7 +527,8 @@ export default function AnnouncementManager() {
     try {
       setDownloadingIds((prev) => new Set(prev).add(meta.id));
 
-      const blob = await fetchFileBlob(directURL, {
+      const sourceURL = downloadEndpoint || directURL;
+      const blob = await fetchFileBlob(sourceURL, {
         requiresAuth: true,
       });
       const link = document.createElement("a");
