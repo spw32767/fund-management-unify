@@ -13,6 +13,30 @@ import InstallmentFormModal from "@/app/admin/components/settings/installment_co
 
 const DEFAULT_LIMIT = 20;
 const INSTALLMENT_OPTIONS = [1, 2, 3, 4, 5];
+const FUND_LEVEL_OPTIONS = [
+  { value: "category", label: "ทุนหลัก (fund_category)" },
+  { value: "subcategory", label: "ทุนรอง (fund_subcategory)" },
+];
+
+const FUND_KEYWORD_PRESETS = {
+  category: [
+    { value: "main_promotion", label: "ทุนส่งเสริมการวิจัยและนวัตกรรม" },
+    { value: "main_support", label: "ทุนอุดหนุนกิจกรรม" },
+  ],
+  subcategory: [
+    {
+      value: "international_presentation",
+      label: "ทุนนำเสนอต่างประเทศ",
+      parent: "main_promotion",
+    },
+  ],
+};
+
+const LEGACY_FUND_TYPE_BY_KEYWORD = {
+  main_support: "main_support",
+  main_promotion: "main_promotion",
+  international_presentation: "international_presentation",
+};
 
 const toThaiDate = (value) => {
   if (!value) return "-";
@@ -103,6 +127,17 @@ const initialFormState = {
 
 const InstallmentManagementTab = ({ years = [] }) => {
   const [selectedYearId, setSelectedYearId] = useState(null);
+  const defaultCategoryKeyword =
+    FUND_KEYWORD_PRESETS.category[0]?.value ?? "main_support";
+  const defaultSubParentKeyword =
+    FUND_KEYWORD_PRESETS.subcategory[0]?.parent ?? "main_promotion";
+  const [selectedFundLevel, setSelectedFundLevel] = useState("category");
+  const [selectedFundKeyword, setSelectedFundKeyword] = useState(
+    defaultCategoryKeyword
+  );
+  const [selectedFundParentKeyword, setSelectedFundParentKeyword] = useState(
+    defaultSubParentKeyword
+  );
   const [currentYearValue, setCurrentYearValue] = useState(null);
   const [currentYearLoaded, setCurrentYearLoaded] = useState(false);
   const [defaultYearApplied, setDefaultYearApplied] = useState(false);
@@ -265,7 +300,7 @@ const InstallmentManagementTab = ({ years = [] }) => {
   }, [selectedYearId]);
 
   const loadPeriods = useCallback(async () => {
-    if (!selectedYearId) {
+    if (!selectedYearId || !selectedFundKeyword) {
       setPeriods([]);
       setPaging({ total: 0, limit: DEFAULT_LIMIT, offset: 0 });
       return;
@@ -280,6 +315,13 @@ const InstallmentManagementTab = ({ years = [] }) => {
     try {
       const { items, paging: nextPaging } = await adminInstallmentAPI.list({
         yearId: selectedYearId,
+        fundType: LEGACY_FUND_TYPE_BY_KEYWORD[selectedFundKeyword],
+        fundLevel: selectedFundLevel,
+        fundKeyword: selectedFundKeyword,
+        fundParentKeyword:
+          selectedFundLevel === "subcategory"
+            ? selectedFundParentKeyword
+            : undefined,
         limit,
         offset,
       });
@@ -297,7 +339,13 @@ const InstallmentManagementTab = ({ years = [] }) => {
     } finally {
       setLoading(false);
     }
-  }, [selectedYearId, page]);
+  }, [
+    selectedYearId,
+    selectedFundLevel,
+    selectedFundKeyword,
+    selectedFundParentKeyword,
+    page,
+  ]);
 
   useEffect(() => {
     loadPeriods();
@@ -313,6 +361,30 @@ const InstallmentManagementTab = ({ years = [] }) => {
 
     setSelectedYearId(nextValue);
     setDefaultYearApplied(true);
+  };
+
+  const handleFundLevelChange = (event) => {
+    const nextLevel = event.target.value || "";
+    setSelectedFundLevel(nextLevel);
+    if (nextLevel === "subcategory") {
+      const preset = FUND_KEYWORD_PRESETS.subcategory[0];
+      setSelectedFundKeyword(preset?.value || "");
+      setSelectedFundParentKeyword(preset?.parent || "");
+    } else {
+      const preset = FUND_KEYWORD_PRESETS.category[0];
+      setSelectedFundKeyword(preset?.value || "");
+      setSelectedFundParentKeyword("main_promotion");
+    }
+    setPage(0);
+  };
+
+  const handleFundKeywordChange = (event) => {
+    setSelectedFundKeyword(event.target.value || "");
+    setPage(0);
+  };
+
+  const handleFundParentKeywordChange = (event) => {
+    setSelectedFundParentKeyword(event.target.value || "");
   };
 
   useEffect(() => {
@@ -417,6 +489,20 @@ const InstallmentManagementTab = ({ years = [] }) => {
       return false;
     }
 
+    if (!selectedFundKeyword) {
+      Swal.fire("ข้อมูลไม่ครบ", "กรุณาระบุ Keyword ของทุน", "warning");
+      return false;
+    }
+
+    if (selectedFundLevel === "subcategory" && !selectedFundParentKeyword) {
+      Swal.fire(
+        "ข้อมูลไม่ครบ",
+        "กรุณาระบุ Keyword ของทุนหลักที่อยู่เหนือทุนรอง",
+        "warning"
+      );
+      return false;
+    }
+
     const installmentNumber = Number(formData.installment_number);
     if (
       !installmentNumber ||
@@ -447,6 +533,11 @@ const InstallmentManagementTab = ({ years = [] }) => {
 
     const payload = {
       year_id: selectedYearId,
+      fund_type: LEGACY_FUND_TYPE_BY_KEYWORD[selectedFundKeyword],
+      fund_level: selectedFundLevel,
+      fund_keyword: selectedFundKeyword,
+      fund_parent_keyword:
+        selectedFundLevel === "subcategory" ? selectedFundParentKeyword : undefined,
       installment_number: Number(formData.installment_number),
       cutoff_date: String(formData.cutoff_date || "").trim(),
     };
@@ -643,6 +734,13 @@ const InstallmentManagementTab = ({ years = [] }) => {
         setCopying(true);
         const payload = {
           sourceYearId: selectedYearId,
+          fundType: LEGACY_FUND_TYPE_BY_KEYWORD[selectedFundKeyword],
+          fundLevel: selectedFundLevel,
+          fundKeyword: selectedFundKeyword,
+          fundParentKeyword:
+            selectedFundLevel === "subcategory"
+              ? selectedFundParentKeyword
+              : undefined,
           targetYear: targetYearValue,
         };
 
@@ -731,6 +829,60 @@ const InstallmentManagementTab = ({ years = [] }) => {
                 </option>
               ))}
             </select>
+            <span className="text-sm font-medium text-gray-700">ระดับทุน</span>
+            <select
+              value={selectedFundLevel}
+              onChange={handleFundLevelChange}
+              className="min-w-[200px] rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
+            >
+              {FUND_LEVEL_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+
+            <span className="text-sm font-medium text-gray-700">Fund Keyword</span>
+            <input
+              type="text"
+              value={selectedFundKeyword}
+              onChange={handleFundKeywordChange}
+              className="w-52 rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
+              placeholder="เช่น main_support"
+            />
+
+            {selectedFundLevel === "subcategory" && (
+              <>
+                <span className="text-sm font-medium text-gray-700">Fund หลัก (Keyword)</span>
+                <input
+                  type="text"
+                  value={selectedFundParentKeyword}
+                  onChange={handleFundParentKeywordChange}
+                  className="w-52 rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
+                  placeholder="เช่น main_promotion"
+                />
+              </>
+            )}
+
+            <div className="flex flex-wrap items-center gap-2 text-xs text-gray-600">
+              {FUND_KEYWORD_PRESETS[selectedFundLevel]?.map((preset) => (
+                <button
+                  key={preset.value}
+                  type="button"
+                  onClick={() => {
+                    setSelectedFundKeyword(preset.value);
+                    if (preset.parent) setSelectedFundParentKeyword(preset.parent);
+                  }}
+                  className={`rounded-full border px-3 py-1 transition hover:border-blue-500 hover:text-blue-700 ${
+                    selectedFundKeyword === preset.value
+                      ? "border-blue-500 bg-blue-50 text-blue-700"
+                      : "border-gray-300"
+                  }`}
+                >
+                  {preset.label}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
 
