@@ -224,8 +224,6 @@ export default function AnnouncementManager() {
   const initialAnnouncementFilters = useMemo(
     () => ({
       q: "",
-      type: "",
-      status: "",
       year_id: "",
       sort: "display_order:asc,published_at:desc",
       page: 1,
@@ -1018,20 +1016,6 @@ export default function AnnouncementManager() {
     [normalizedYears]
   );
 
-  const announcementTypeOptions = useMemo(
-    () =>
-      Object.entries(TYPE_LABEL).map(([value, label]) => ({
-        value,
-        label,
-      })),
-    []
-  );
-
-  const statusOptions = [
-    { value: "active", label: "เผยแพร่" },
-    { value: "inactive", label: "ปิดใช้งาน" },
-  ];
-
   const resolveYearLabel = (row) => {
     if (!row) return "-";
     const idCandidates = [
@@ -1092,7 +1076,7 @@ export default function AnnouncementManager() {
           }
           contentClassName="space-y-6"
         >
-          <div className="grid grid-cols-1 lg:grid-cols-4 gap-3">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
             <div className="lg:col-span-2 flex flex-col gap-1">
               <label className="text-sm text-gray-600" htmlFor="announcement-search">
                 ค้นหา (ชื่อไฟล์/หัวข้อ)
@@ -1128,47 +1112,7 @@ export default function AnnouncementManager() {
                 ))}
               </select>
             </div>
-            <div className="flex flex-col gap-1">
-              <label className="text-sm text-gray-600" htmlFor="announcement-type">
-                หมวดหมู่ประกาศ
-              </label>
-              <select
-                id="announcement-type"
-                value={aFilters.type}
-                onChange={(e) =>
-                  setAFilters((prev) => ({ ...prev, type: e.target.value, page: 1 }))
-                }
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
-              >
-                <option value="">ทุกหมวดหมู่</option>
-                {announcementTypeOptions.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="flex flex-col gap-1">
-              <label className="text-sm text-gray-600" htmlFor="announcement-status">
-                สถานะ
-              </label>
-              <select
-                id="announcement-status"
-                value={aFilters.status}
-                onChange={(e) =>
-                  setAFilters((prev) => ({ ...prev, status: e.target.value, page: 1 }))
-                }
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
-              >
-                <option value="">ทุกสถานะ</option>
-                {statusOptions.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="lg:col-span-4 flex flex-wrap gap-2 justify-end">
+            <div className="lg:col-span-3 flex flex-wrap gap-2 justify-end">
               <button
                 onClick={() => setAFilters(() => ({ ...initialAnnouncementFilters }))}
                 className="inline-flex items-center gap-2 rounded-lg border border-gray-300 px-4 py-2 text-sm text-gray-700 transition hover:bg-gray-50"
