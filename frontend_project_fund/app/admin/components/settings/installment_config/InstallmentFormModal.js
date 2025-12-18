@@ -14,6 +14,11 @@ const InstallmentFormModal = ({
   submitting,
   onSubmit,
 }) => {
+  const FUND_LEVEL_OPTIONS = [
+    { value: "category", label: "ทุนหลัก (fund_category)" },
+    { value: "subcategory", label: "ทุนรอง (fund_subcategory)" },
+  ];
+
   const availableOptions = useMemo(() => {
     if (!Array.isArray(installmentOptions)) return [];
     return installmentOptions.map((option) => ({
@@ -60,6 +65,50 @@ const InstallmentFormModal = ({
       }
     >
       <div className="grid gap-4 md:grid-cols-2">
+        <label className="flex flex-col gap-1">
+          <span className="text-sm font-semibold text-gray-700">ระดับทุน</span>
+          <select
+            value={formData.fund_level}
+            onChange={(e) => onChange("fund_level", e.target.value)}
+            className="rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+            disabled={submitting}
+          >
+            {FUND_LEVEL_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label className="flex flex-col gap-1">
+          <span className="text-sm font-semibold text-gray-700">Fund Keyword</span>
+          <input
+            type="text"
+            value={formData.fund_keyword}
+            onChange={(e) => onChange("fund_keyword", e.target.value)}
+            className="rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+            placeholder="เช่น main_support"
+            disabled={submitting}
+          />
+        </label>
+
+        {formData.fund_level === "subcategory" ? (
+          <label className="flex flex-col gap-1">
+            <span className="text-sm font-semibold text-gray-700">Fund หลัก (Keyword)</span>
+            <input
+              type="text"
+              value={formData.fund_parent_keyword}
+              onChange={(e) => onChange("fund_parent_keyword", e.target.value)}
+              className="rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+              placeholder="เช่น main_promotion"
+              disabled={submitting}
+            />
+          </label>
+        ) : (
+          <div className="hidden md:block" />
+        )}
+
         <label className="flex flex-col gap-1">
           <span className="text-sm font-semibold text-gray-700">เลขรอบการพิจารณา *</span>
           <select
