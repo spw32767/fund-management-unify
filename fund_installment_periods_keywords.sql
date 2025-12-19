@@ -21,3 +21,8 @@ SET `fund_level` = COALESCE(NULLIF(`fund_level`, ''), 'category'),
 -- Improve lookup performance for year-level conflicts
 CREATE INDEX `idx_fund_installment_periods_level_keyword` ON `fund_installment_periods` (`fund_level`, `fund_keyword`, `year_id`, `installment_number`);
 CREATE INDEX `idx_fund_installment_periods_level_keyword_cutoff` ON `fund_installment_periods` (`fund_level`, `fund_keyword`, `year_id`, `cutoff_date`);
+
+-- Update uniqueness to include fund selection
+ALTER TABLE `fund_installment_periods`
+  DROP INDEX `ux_period_year_installment`,
+  ADD UNIQUE KEY `ux_period_year_installment` (`year_id`, `installment_number`, `fund_level`, `fund_keyword`);

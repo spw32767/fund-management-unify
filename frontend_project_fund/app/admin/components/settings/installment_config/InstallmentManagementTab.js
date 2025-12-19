@@ -1056,8 +1056,8 @@ const InstallmentManagementTab = ({ years = [] }) => {
         onClose={handleCloseForm}
         title={
           editingPeriod
-            ? `แก้ไขรอบการพิจารณาที่ ${editingPeriod.installment_number ?? ""}`
-            : "เพิ่มวันตัดรอบการพิจารณาใหม่"
+            ? `แก้ไขรอบการพิจารณาที่ ${editingPeriod.installment_number ?? ""} (${selectedFundChoice?.label || ""})`
+            : `เพิ่มวันตัดรอบการพิจารณาใหม่ (${selectedFundChoice?.label || ""})`
         }
         formData={formData}
         onChange={handleFormChange}
