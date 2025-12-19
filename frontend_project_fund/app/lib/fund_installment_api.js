@@ -167,6 +167,14 @@ const determineInstallmentNumberFromPeriods = (periods, submissionDate) => {
   return null;
 };
 
+const normalizeString = (value) => {
+  if (value == null) {
+    return null;
+  }
+  const trimmed = String(value).trim();
+  return trimmed ? trimmed : null;
+};
+
 export const fundInstallmentAPI = {
   async list(params = {}) {
     const response = await apiClient.get("/fund-installment-periods", params);
@@ -174,10 +182,23 @@ export const fundInstallmentAPI = {
     return periods.map((item) => normalizePeriodItem(item)).filter(Boolean);
   },
 
-  async resolveInstallmentNumber({ yearId = null, submissionDate = new Date() } = {}) {
+  async resolveInstallmentNumber({
+    yearId = null,
+    submissionDate = new Date(),
+    fundLevel = null,
+    fundKeyword = null,
+  } = {}) {
     const params = {};
     if (yearId != null) {
       params.year_id = yearId;
+    }
+    const normalizedLevel = normalizeString(fundLevel);
+    const normalizedKeyword = normalizeString(fundKeyword);
+    if (normalizedLevel) {
+      params.fund_level = normalizedLevel;
+    }
+    if (normalizedKeyword) {
+      params.fund_keyword = normalizedKeyword;
     }
 
     const response = await apiClient.get("/fund-installment-periods", params);
