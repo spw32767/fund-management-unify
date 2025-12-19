@@ -1,18 +1,22 @@
--- Add fund-level keyword support for installment periods
+-- Add fund-level keyword support for installment periods (using human-readable fund names)
 ALTER TABLE `fund_installment_periods`
   ADD COLUMN `fund_level` ENUM('category','subcategory') NOT NULL DEFAULT 'category' AFTER `installment_period_id`,
   ADD COLUMN `fund_keyword` VARCHAR(255) NOT NULL DEFAULT '' AFTER `fund_level`,
   ADD COLUMN `fund_parent_keyword` VARCHAR(255) DEFAULT NULL AFTER `fund_keyword`;
 
--- Populate existing rows with default category keywords
+-- Populate existing rows with readable names instead of keyword codes
 UPDATE `fund_installment_periods`
-SET `fund_level` = 'category',
-    `fund_keyword` = 'main_support',
-    `fund_parent_keyword` = NULL
-WHERE `fund_keyword` = '' OR `fund_keyword` IS NULL;
-
--- Optional: tag known promotion rows if needed
--- UPDATE `fund_installment_periods` SET `fund_keyword` = 'main_promotion' WHERE <condition matching ทุนส่งเสริมการวิจัยและนวัตกรรม>;
+SET `fund_level` = COALESCE(NULLIF(`fund_level`, ''), 'category'),
+    `fund_keyword` = CASE
+      WHEN `fund_level` = 'subcategory' THEN 'ทุนนำเสนอต่างประเทศ'
+      WHEN `fund_keyword` = 'main_promotion' THEN 'ทุนส่งเสริมการวิจัย'
+      WHEN `fund_keyword` = 'main_support' OR `fund_keyword` = '' THEN 'ทุนอุดหนุนกิจกรรม'
+      ELSE `fund_keyword`
+    END,
+    `fund_parent_keyword` = CASE
+      WHEN `fund_level` = 'subcategory' THEN 'ทุนส่งเสริมการวิจัย'
+      ELSE NULL
+    END;
 
 -- Improve lookup performance for year-level conflicts
 CREATE INDEX `idx_fund_installment_periods_level_keyword` ON `fund_installment_periods` (`fund_level`, `fund_keyword`, `year_id`, `installment_number`);

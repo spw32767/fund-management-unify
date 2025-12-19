@@ -16,29 +16,29 @@ const INSTALLMENT_OPTIONS = [1, 2, 3, 4, 5];
 
 const FUND_CHOICES = [
   {
-    label: "ทุนส่งเสริมการวิจัยและนวัตกรรม",
-    keyword: "main_promotion",
+    label: "ทุนส่งเสริมการวิจัย",
+    keyword: "ทุนส่งเสริมการวิจัย",
     fund_level: "category",
     fund_parent_keyword: "",
   },
   {
     label: "ทุนอุดหนุนกิจกรรม",
-    keyword: "main_support",
+    keyword: "ทุนอุดหนุนกิจกรรม",
     fund_level: "category",
     fund_parent_keyword: "",
   },
   {
     label: "ทุนนำเสนอต่างประเทศ",
-    keyword: "international_presentation",
+    keyword: "ทุนนำเสนอต่างประเทศ",
     fund_level: "subcategory",
-    fund_parent_keyword: "main_promotion",
+    fund_parent_keyword: "ทุนส่งเสริมการวิจัย",
   },
 ];
 
 const LEGACY_FUND_TYPE_BY_KEYWORD = {
-  main_support: "main_support",
-  main_promotion: "main_promotion",
-  international_presentation: "international_presentation",
+  ทุนอุดหนุนกิจกรรม: "main_support",
+  ทุนส่งเสริมการวิจัย: "main_promotion",
+  ทุนนำเสนอต่างประเทศ: "international_presentation",
 };
 
 const toThaiDate = (value) => {
@@ -126,9 +126,6 @@ const initialFormState = {
   name: "",
   status: "active",
   remark: "",
-  fund_level: "category",
-  fund_keyword: "",
-  fund_parent_keyword: "",
 };
 
 const InstallmentManagementTab = ({ years = [] }) => {
@@ -395,9 +392,6 @@ const InstallmentManagementTab = ({ years = [] }) => {
     setFormData({
       ...initialFormState,
       status: "active",
-      fund_level: selectedFundLevel,
-      fund_keyword: selectedFundChoice?.keyword ?? "",
-      fund_parent_keyword: selectedFundParentKeyword,
     });
     setFormOpen(true);
   };
@@ -414,15 +408,6 @@ const InstallmentManagementTab = ({ years = [] }) => {
       name: period.name ?? "",
       status: period.status ?? "active",
       remark: period.remark ?? "",
-      fund_level: period.fund_level ?? selectedFundLevel,
-      fund_keyword:
-        period.fund_keyword ??
-        period.fund_type ??
-        selectedFundChoice?.keyword ??
-        "",
-      fund_parent_keyword:
-        period.fund_parent_keyword ??
-        (period.fund_level === "subcategory" ? selectedFundParentKeyword : ""),
     });
     setFormOpen(true);
   };
@@ -495,30 +480,13 @@ const InstallmentManagementTab = ({ years = [] }) => {
       return false;
     }
 
-    const fundLevel = String(formData.fund_level || selectedFundLevel || "").trim();
-    const fundKeyword = String(
-      formData.fund_keyword || selectedFundChoice?.keyword || ""
-    ).trim();
-    const fundParentKeyword = String(
-      formData.fund_parent_keyword || selectedFundParentKeyword || ""
-    ).trim();
-
-    if (!fundLevel) {
-      Swal.fire("ข้อมูลไม่ครบ", "กรุณาเลือกระดับทุน", "warning");
+    if (!selectedFundChoice?.keyword) {
+      Swal.fire("ข้อมูลไม่ครบ", "กรุณาเลือกชื่อทุน", "warning");
       return false;
     }
 
-    if (!fundKeyword) {
-      Swal.fire("ข้อมูลไม่ครบ", "กรุณาระบุ Keyword ของทุน", "warning");
-      return false;
-    }
-
-    if (fundLevel === "subcategory" && !fundParentKeyword) {
-      Swal.fire(
-        "ข้อมูลไม่ครบ",
-        "กรุณาระบุ Keyword ของทุนหลักที่อยู่เหนือทุนรอง",
-        "warning"
-      );
+    if (selectedFundLevel === "subcategory" && !selectedFundParentKeyword) {
+      Swal.fire("ข้อมูลไม่ครบ", "กรุณาระบุชื่อทุนหลักของทุนรอง", "warning");
       return false;
     }
 
@@ -550,14 +518,9 @@ const InstallmentManagementTab = ({ years = [] }) => {
   const handleSubmit = async () => {
     if (!validateForm()) return;
 
-    const fundLevel =
-      String(formData.fund_level || selectedFundLevel || "").trim() || "category";
-    const fundKeyword =
-      String(formData.fund_keyword || selectedFundChoice?.keyword || "").trim() ||
-      selectedFundKeyword;
-    const fundParentKeyword = String(
-      formData.fund_parent_keyword || selectedFundParentKeyword || ""
-    ).trim();
+    const fundLevel = selectedFundLevel;
+    const fundKeyword = selectedFundChoice?.keyword || selectedFundKeyword;
+    const fundParentKeyword = selectedFundParentKeyword;
 
     const payload = {
       year_id: selectedYearId,
