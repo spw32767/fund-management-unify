@@ -88,16 +88,15 @@ type Submission struct {
 
 // FundApplicationDetail represents fund application specific details
 type FundApplicationDetail struct {
-	DetailID                    int        `gorm:"primaryKey;column:detail_id" json:"detail_id"`
-	SubmissionID                int        `gorm:"column:submission_id" json:"submission_id"`
-	SubcategoryID               int        `gorm:"column:subcategory_id" json:"subcategory_id"`
-	ProjectTitle                string     `gorm:"column:project_title" json:"project_title"`
-	ProjectDescription          string     `gorm:"column:project_description" json:"project_description"`
-	RequestedAmount             float64    `gorm:"column:requested_amount" json:"requested_amount"`
-	ApprovedAmount              float64    `gorm:"column:approved_amount" json:"approved_amount"`
-	AnnounceReferenceNumber     string     `gorm:"column:announce_reference_number" json:"announce_reference_number,omitempty"`
-	ClosedAt                    *time.Time `gorm:"column:closed_at" json:"closed_at,omitempty"`
-	InstallmentFundNameAtSubmit *string    `gorm:"column:installment_fund_name_at_submit" json:"installment_fund_name_at_submit,omitempty"`
+	DetailID                int        `gorm:"primaryKey;column:detail_id" json:"detail_id"`
+	SubmissionID            int        `gorm:"column:submission_id" json:"submission_id"`
+	SubcategoryID           int        `gorm:"column:subcategory_id" json:"subcategory_id"`
+	ProjectTitle            string     `gorm:"column:project_title" json:"project_title"`
+	ProjectDescription      string     `gorm:"column:project_description" json:"project_description"`
+	RequestedAmount         float64    `gorm:"column:requested_amount" json:"requested_amount"`
+	ApprovedAmount          float64    `gorm:"column:approved_amount" json:"approved_amount"`
+	AnnounceReferenceNumber string     `gorm:"column:announce_reference_number" json:"announce_reference_number,omitempty"`
+	ClosedAt                *time.Time `gorm:"column:closed_at" json:"closed_at,omitempty"`
 
 	// ========== เพิ่ม fields ใหม่สำหรับ tracking ==========
 	MainAnnoucement             *int `json:"main_annoucement" gorm:"column:main_annoucement"`
@@ -143,8 +142,7 @@ type PublicationRewardDetail struct {
 	Signature      string `gorm:"column:signature" json:"signature"`
 
 	// === อื่นๆ ===
-	AnnounceReferenceNumber     string  `gorm:"column:announce_reference_number" json:"announce_reference_number,omitempty"`
-	InstallmentFundNameAtSubmit *string `gorm:"column:installment_fund_name_at_submit" json:"installment_fund_name_at_submit,omitempty"`
+	AnnounceReferenceNumber string `gorm:"column:announce_reference_number" json:"announce_reference_number,omitempty"`
 
 	HasUniversityFunding string  `json:"has_university_funding" gorm:"column:has_university_funding"`
 	FundingReferences    *string `json:"funding_references" gorm:"column:funding_references"`

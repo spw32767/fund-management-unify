@@ -674,16 +674,6 @@ func SubmitSubmission(c *gin.Context) {
 		}
 		if installmentFundName != nil {
 			submission.InstallmentFundNameAtSubmit = installmentFundName
-			if err := tx.Model(&models.FundApplicationDetail{}).
-				Where("submission_id = ?", submission.SubmissionID).
-				Update("installment_fund_name_at_submit", *installmentFundName).Error; err != nil {
-				return err
-			}
-			if err := tx.Model(&models.PublicationRewardDetail{}).
-				Where("submission_id = ?", submission.SubmissionID).
-				Update("installment_fund_name_at_submit", *installmentFundName).Error; err != nil {
-				return err
-			}
 		}
 
 		if submission.SubmissionType != "publication_reward" {
