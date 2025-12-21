@@ -8,7 +8,7 @@ ALTER TABLE `fund_installment_periods`
 UPDATE `fund_installment_periods`
 SET `fund_level` = COALESCE(NULLIF(`fund_level`, ''), 'category'),
     `fund_keyword` = CASE
-      WHEN `fund_level` = 'subcategory' THEN 'ทุนนำเสนอต่างประเทศ'
+      WHEN `fund_level` = 'subcategory' THEN 'ทุนสนับสนุนผู้เชี่ยวชาญต่างประเทศ'
       WHEN `fund_keyword` = 'main_promotion' THEN 'ทุนส่งเสริมการวิจัย'
       WHEN `fund_keyword` = 'main_support' OR `fund_keyword` = '' THEN 'ทุนอุดหนุนกิจกรรม'
       ELSE `fund_keyword`

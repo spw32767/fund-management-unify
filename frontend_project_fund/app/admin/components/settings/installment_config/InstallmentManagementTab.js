@@ -28,8 +28,8 @@ const FUND_CHOICES = [
     fund_parent_keyword: "",
   },
   {
-    label: "ทุนนำเสนอต่างประเทศ",
-    keyword: "ทุนนำเสนอต่างประเทศ",
+    label: "ทุนสนับสนุนผู้เชี่ยวชาญต่างประเทศ",
+    keyword: "ทุนสนับสนุนผู้เชี่ยวชาญต่างประเทศ",
     fund_level: "subcategory",
     fund_parent_keyword: "ทุนส่งเสริมการวิจัย",
   },
@@ -38,7 +38,7 @@ const FUND_CHOICES = [
 const LEGACY_FUND_TYPE_BY_KEYWORD = {
   ทุนอุดหนุนกิจกรรม: "main_support",
   ทุนส่งเสริมการวิจัย: "main_promotion",
-  ทุนนำเสนอต่างประเทศ: "international_presentation",
+  ทุนสนับสนุนผู้เชี่ยวชาญต่างประเทศ: "international_presentation",
 };
 
 const toThaiDate = (value) => {

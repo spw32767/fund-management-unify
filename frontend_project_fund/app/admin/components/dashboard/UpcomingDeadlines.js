@@ -30,7 +30,7 @@ export default function UpcomingDeadlines({ periods = [] }) {
   return (
     <div className="space-y-4">
       {items.map((period) => {
-        const key = `${period.year || ""}-${period.installment || period.name}`;
+        const key = `${period.year || ""}-${period.installment || period.name}-${period.fund_keyword || period.name || ""}`;
         const statusMeta = STATUS_LABELS[period.status] || STATUS_LABELS.open;
         const remainingLabel = formatRemainingDays(Number(period.days_remaining));
         const cutoffLabel = formatThaiDateTime(period.cutoff_datetime || period.cutoff_date);
