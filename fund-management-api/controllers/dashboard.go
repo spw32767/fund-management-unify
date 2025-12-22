@@ -1968,10 +1968,11 @@ func buildAdminUpcomingInstallments(filter dashboardFilter) []map[string]interfa
 		Name              string
 		CutoffDate        time.Time
 		Year              string
+		FundKeyword       string
 	}
 
 	query := config.DB.Table("fund_installment_periods fip").
-		Select("fip.installment_number, fip.name, fip.cutoff_date, y.year").
+		Select("fip.installment_number, fip.name, fip.cutoff_date, y.year, fip.fund_keyword").
 		Joins("JOIN years y ON fip.year_id = y.year_id").
 		Where("fip.deleted_at IS NULL")
 
@@ -2026,6 +2027,7 @@ func buildAdminUpcomingInstallments(filter dashboardFilter) []map[string]interfa
 			"name":            periodLabel,
 			"cutoff_date":     row.CutoffDate.Format("2006-01-02"),
 			"year":            row.Year,
+			"fund_keyword":    row.FundKeyword,
 			"days_remaining":  remainingDays,
 			"status":          status,
 			"cutoff_datetime": row.CutoffDate.Format(time.RFC3339),
@@ -2485,7 +2487,16 @@ func buildInstallmentTrend(filter dashboardFilter, statuses dashboardStatusSets)
 		Joins("LEFT JOIN fund_application_details fad ON s.submission_id = fad.submission_id").
 		Joins("LEFT JOIN publication_reward_details prd ON s.submission_id = prd.submission_id").
 		Joins("LEFT JOIN years y ON s.year_id = y.year_id").
-		Joins("LEFT JOIN fund_installment_periods fip ON fip.year_id = s.year_id AND fip.installment_number = s.installment_number_at_submit AND fip.deleted_at IS NULL").
+		Joins("LEFT JOIN fund_subcategories fs ON s.subcategory_id = fs.subcategory_id AND fs.delete_at IS NULL").
+		Joins("LEFT JOIN fund_categories fc ON s.category_id = fc.category_id AND fc.delete_at IS NULL").
+		Joins(`LEFT JOIN fund_installment_periods fip
+            ON fip.year_id = s.year_id
+            AND fip.installment_number = s.installment_number_at_submit
+            AND fip.deleted_at IS NULL
+            AND (
+                (fs.subcategory_id IS NOT NULL AND fip.fund_level = 'subcategory' AND fip.fund_keyword = fs.subcategory_name)
+                OR (fs.subcategory_id IS NULL AND fc.category_id IS NOT NULL AND fip.fund_level = 'category' AND fip.fund_keyword = fc.category_name)
+            )`).
 		Where("s.submission_type IN ? AND s.deleted_at IS NULL AND s.installment_number_at_submit IS NOT NULL", submissionTypes)
 
 	query = applyFilterToSubmissions(query, "s", filter)

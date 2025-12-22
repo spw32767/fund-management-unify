@@ -368,14 +368,15 @@ func UpdateSubmission(c *gin.Context) {
 	roleID, _ := c.Get("roleID")
 
 	type UpdateSubmissionRequest struct {
-		CategoryID                *int    `json:"category_id"`
-		SubcategoryID             *int    `json:"subcategory_id"`
-		SubcategoryBudgetID       *int    `json:"subcategory_budget_id"`
-		InstallmentNumberAtSubmit *int    `json:"installment_number_at_submit"`
-		ContactPhone              *string `json:"contact_phone"`
-		BankAccount               *string `json:"bank_account"`
-		BankName                  *string `json:"bank_name"`
-		BankAccountName           *string `json:"bank_account_name"`
+		CategoryID                  *int    `json:"category_id"`
+		SubcategoryID               *int    `json:"subcategory_id"`
+		SubcategoryBudgetID         *int    `json:"subcategory_budget_id"`
+		InstallmentNumberAtSubmit   *int    `json:"installment_number_at_submit"`
+		InstallmentFundNameAtSubmit *string `json:"installment_fund_name_at_submit"`
+		ContactPhone                *string `json:"contact_phone"`
+		BankAccount                 *string `json:"bank_account"`
+		BankName                    *string `json:"bank_name"`
+		BankAccountName             *string `json:"bank_account_name"`
 		// อนาคตจะมีฟิลด์อื่นก็ใส่เพิ่มได้
 	}
 
@@ -419,6 +420,14 @@ func UpdateSubmission(c *gin.Context) {
 	}
 	if req.InstallmentNumberAtSubmit != nil {
 		updates["installment_number_at_submit"] = *req.InstallmentNumberAtSubmit
+	}
+	if req.InstallmentFundNameAtSubmit != nil {
+		trimmed := strings.TrimSpace(*req.InstallmentFundNameAtSubmit)
+		if trimmed == "" {
+			updates["installment_fund_name_at_submit"] = nil
+		} else {
+			updates["installment_fund_name_at_submit"] = trimmed
+		}
 	}
 
 	if phone := normalizeOptionalString(req.ContactPhone); phone != nil {
@@ -612,9 +621,15 @@ func SubmitSubmission(c *gin.Context) {
 	now := time.Now()
 
 	if err := config.DB.Transaction(func(tx *gorm.DB) error {
-		resolvedInstallment, resolveErr := determineSubmissionInstallmentNumber(tx, submission.YearID, now)
+		resolvedInstallment, resolveErr := determineSubmissionInstallmentNumber(tx, submission, now)
 		if resolveErr != nil {
 			log.Printf("failed to resolve installment number for submission %d: %v", submission.SubmissionID, resolveErr)
+		}
+
+		var installmentFundName *string
+		if selection, selectionErr := resolveSubmissionFundSelection(tx, &submission); selectionErr == nil && selection != nil && strings.TrimSpace(selection.Keyword) != "" {
+			name := strings.TrimSpace(selection.Keyword)
+			installmentFundName = &name
 		}
 
 		updates := map[string]interface{}{
@@ -641,6 +656,9 @@ func SubmitSubmission(c *gin.Context) {
 		if resolvedInstallment != nil {
 			updates["installment_number_at_submit"] = *resolvedInstallment
 		}
+		if installmentFundName != nil {
+			updates["installment_fund_name_at_submit"] = *installmentFundName
+		}
 
 		if err := tx.Model(&models.Submission{}).
 			Where("submission_id = ?", submission.SubmissionID).
@@ -653,6 +671,9 @@ func SubmitSubmission(c *gin.Context) {
 		submission.StatusID = targetStatusID
 		if resolvedInstallment != nil {
 			submission.InstallmentNumberAtSubmit = resolvedInstallment
+		}
+		if installmentFundName != nil {
+			submission.InstallmentFundNameAtSubmit = installmentFundName
 		}
 
 		if submission.SubmissionType != "publication_reward" {
@@ -850,15 +871,116 @@ func SubmitSubmission(c *gin.Context) {
 	})
 }
 
-func determineSubmissionInstallmentNumber(db *gorm.DB, yearID int, submissionTime time.Time) (*int, error) {
-	number, err := resolveInstallmentNumberFromPeriods(db, yearID, submissionTime)
+type installmentFundSelection struct {
+	Level   string
+	Keyword string
+}
+
+func normalizeFundName(value string) string {
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" {
+		return ""
+	}
+
+	normalized := strings.TrimLeft(trimmed, " \t\n\r")
+	for {
+		changed := strings.TrimLeft(normalized, "0123456789.")
+		if changed == normalized {
+			break
+		}
+		normalized = strings.TrimSpace(changed)
+	}
+
+	return normalized
+}
+
+func determineSubmissionInstallmentNumber(db *gorm.DB, submission models.Submission, submissionTime time.Time) (*int, error) {
+	selection, err := resolveSubmissionFundSelection(db, &submission)
+	if err != nil {
+		return nil, err
+	}
+
+	number, err := resolveInstallmentNumberFromPeriods(db, submission.YearID, submissionTime, selection)
 	if err != nil {
 		return nil, err
 	}
 	return number, nil
 }
 
-func resolveInstallmentNumberFromPeriods(db *gorm.DB, yearID int, submissionTime time.Time) (*int, error) {
+func resolveSubmissionFundSelection(db *gorm.DB, submission *models.Submission) (*installmentFundSelection, error) {
+	if submission == nil {
+		return nil, nil
+	}
+
+	if db == nil {
+		db = config.DB
+	}
+
+	if submission.SubcategoryID != nil && *submission.SubcategoryID > 0 {
+		var subcategory models.FundSubcategory
+		query := db.Where("subcategory_id = ? AND (delete_at IS NULL OR delete_at = '0000-00-00 00:00:00')", *submission.SubcategoryID).
+			Preload("Category")
+		if err := query.First(&subcategory).Error; err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, err
+		}
+
+		name := normalizeFundName(subcategory.SubcategoryName)
+		if name == "" && submission.SubcategoryName != nil {
+			name = normalizeFundName(*submission.SubcategoryName)
+		}
+		if name == "" {
+			return nil, nil
+		}
+		return &installmentFundSelection{Level: "subcategory", Keyword: name}, nil
+	}
+
+	if submission.CategoryID != nil && *submission.CategoryID > 0 {
+		var category models.FundCategory
+		query := db.Where("category_id = ? AND (delete_at IS NULL OR delete_at = '0000-00-00 00:00:00')", *submission.CategoryID)
+		if err := query.First(&category).Error; err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, err
+		}
+
+		name := normalizeFundName(category.CategoryName)
+		if name == "" && submission.CategoryName != nil {
+			name = normalizeFundName(*submission.CategoryName)
+		}
+		if name == "" {
+			return nil, nil
+		}
+		return &installmentFundSelection{Level: "category", Keyword: name}, nil
+	}
+
+	if submission.SubcategoryName != nil {
+		name := normalizeFundName(*submission.SubcategoryName)
+		if name != "" {
+			return &installmentFundSelection{Level: "subcategory", Keyword: name}, nil
+		}
+	}
+
+	if submission.CategoryName != nil {
+		name := normalizeFundName(*submission.CategoryName)
+		if name != "" {
+			return &installmentFundSelection{Level: "category", Keyword: name}, nil
+		}
+	}
+
+	return nil, nil
+}
+
+func matchesFundKeyword(periodKeyword string, selectionKeyword string) bool {
+	periodNormalized := normalizeFundName(periodKeyword)
+	selectionNormalized := normalizeFundName(selectionKeyword)
+	if periodNormalized == "" || selectionNormalized == "" {
+		return false
+	}
+	if strings.EqualFold(periodNormalized, selectionNormalized) {
+		return true
+	}
+	return strings.Contains(periodNormalized, selectionNormalized) || strings.Contains(selectionNormalized, periodNormalized)
+}
+
+func resolveInstallmentNumberFromPeriods(db *gorm.DB, yearID int, submissionTime time.Time, selection *installmentFundSelection) (*int, error) {
 	if db == nil {
 		db = config.DB
 	}
@@ -872,8 +994,55 @@ func resolveInstallmentNumberFromPeriods(db *gorm.DB, yearID int, submissionTime
 		query = query.Where("year_id = ?", yearID)
 	}
 
+	if selection != nil && selection.Level != "" && selection.Keyword != "" {
+		query = query.Where("fund_level = ? AND fund_keyword = ?", selection.Level, selection.Keyword)
+	}
+
 	if err := query.Find(&periods).Error; err != nil {
 		return nil, err
+	}
+	if len(periods) == 0 && selection != nil && selection.Level != "" && selection.Keyword != "" {
+		fallbackQuery := db.Model(&models.FundInstallmentPeriod{}).
+			Where("deleted_at IS NULL").
+			Order("cutoff_date ASC, installment_number ASC")
+		if yearID > 0 {
+			fallbackQuery = fallbackQuery.Where("year_id = ?", yearID)
+		}
+		selectionName := normalizeFundName(selection.Keyword)
+		fallbackQuery = fallbackQuery.Where("fund_level = ? AND fund_keyword LIKE ?", selection.Level, "%"+selectionName+"%")
+		if err := fallbackQuery.Find(&periods).Error; err != nil {
+			return nil, err
+		}
+	}
+	if len(periods) == 0 && selection != nil && selection.Level != "" && selection.Keyword != "" {
+		fallbackQuery := db.Model(&models.FundInstallmentPeriod{}).
+			Where("deleted_at IS NULL").
+			Order("cutoff_date ASC, installment_number ASC").
+			Where("fund_level = ?", selection.Level)
+		if yearID > 0 {
+			fallbackQuery = fallbackQuery.Where("year_id = ?", yearID)
+		}
+		var rawPeriods []models.FundInstallmentPeriod
+		if err := fallbackQuery.Find(&rawPeriods).Error; err != nil {
+			return nil, err
+		}
+		periods = rawPeriods[:0]
+		for _, period := range rawPeriods {
+			if matchesFundKeyword(ptrValue(period.FundKeyword), selection.Keyword) {
+				periods = append(periods, period)
+			}
+		}
+	}
+	if len(periods) == 0 && selection != nil {
+		fallbackQuery := db.Model(&models.FundInstallmentPeriod{}).
+			Where("deleted_at IS NULL").
+			Order("cutoff_date ASC, installment_number ASC")
+		if yearID > 0 {
+			fallbackQuery = fallbackQuery.Where("year_id = ?", yearID)
+		}
+		if err := fallbackQuery.Find(&periods).Error; err != nil {
+			return nil, err
+		}
 	}
 	if len(periods) == 0 {
 		return nil, nil
