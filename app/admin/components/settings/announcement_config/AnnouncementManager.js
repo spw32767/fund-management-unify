@@ -221,15 +221,18 @@ export default function AnnouncementManager() {
   const debounceA = useRef(null);
   const debounceF = useRef(null);
 
-  const [aFilters, setAFilters] = useState({
-    q: "",
-    type: "",
-    status: "",
-    year_id: "",
-    sort: "display_order:asc,published_at:desc",
-    page: 1,
-    limit: 100,
-  });
+  const initialAnnouncementFilters = useMemo(
+    () => ({
+      q: "",
+      year_id: "",
+      sort: "display_order:asc,published_at:desc",
+      page: 1,
+      limit: 100,
+    }),
+    []
+  );
+
+  const [aFilters, setAFilters] = useState(() => ({ ...initialAnnouncementFilters }));
   const [fFilters, setFFilters] = useState({
     q: "",
     form_type: "",
@@ -242,11 +245,19 @@ export default function AnnouncementManager() {
   });
 
   useEffect(() => {
-    loadAnnouncements();
     loadFundForms();
     loadYears();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (debounceA.current) clearTimeout(debounceA.current);
+    debounceA.current = setTimeout(() => {
+      loadAnnouncements();
+    }, 350);
+    return () => debounceA.current && clearTimeout(debounceA.current);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [aFilters]);
 
   useEffect(() => {
     const anyOpen = aEditOpen || aFileOpen || fEditOpen || fFileOpen;
@@ -1065,6 +1076,51 @@ export default function AnnouncementManager() {
           }
           contentClassName="space-y-6"
         >
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+            <div className="lg:col-span-2 flex flex-col gap-1">
+              <label className="text-sm text-gray-600" htmlFor="announcement-search">
+                ค้นหา (ชื่อไฟล์/หัวข้อ)
+              </label>
+              <input
+                id="announcement-search"
+                type="search"
+                value={aFilters.q}
+                onChange={(e) =>
+                  setAFilters((prev) => ({ ...prev, q: e.target.value.trimStart(), page: 1 }))
+                }
+                placeholder="เช่น ชื่อไฟล์หรือชื่อประกาศ"
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+              />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-sm text-gray-600" htmlFor="announcement-year">
+                ปีงบประมาณ
+              </label>
+              <select
+                id="announcement-year"
+                value={aFilters.year_id}
+                onChange={(e) =>
+                  setAFilters((prev) => ({ ...prev, year_id: e.target.value, page: 1 }))
+                }
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+              >
+                <option value="">ทุกปี</option>
+                {yearOptions.map((y) => (
+                  <option key={y.value} value={y.value}>
+                    {y.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="lg:col-span-3 flex flex-wrap gap-2 justify-end">
+              <button
+                onClick={() => setAFilters(() => ({ ...initialAnnouncementFilters }))}
+                className="inline-flex items-center gap-2 rounded-lg border border-gray-300 px-4 py-2 text-sm text-gray-700 transition hover:bg-gray-50"
+              >
+                <X size={16} /> ล้างตัวกรอง
+              </button>
+            </div>
+          </div>
           {loadingAnnouncements ? (
             <div className="flex items-center justify-center py-8">
               <div className="w-8 h-8 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin"></div>

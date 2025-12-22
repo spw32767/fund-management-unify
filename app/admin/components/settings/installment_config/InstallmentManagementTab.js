@@ -14,6 +14,33 @@ import InstallmentFormModal from "@/app/admin/components/settings/installment_co
 const DEFAULT_LIMIT = 20;
 const INSTALLMENT_OPTIONS = [1, 2, 3, 4, 5];
 
+const FUND_CHOICES = [
+  {
+    label: "ทุนส่งเสริมการวิจัย",
+    keyword: "ทุนส่งเสริมการวิจัย",
+    fund_level: "category",
+    fund_parent_keyword: "",
+  },
+  {
+    label: "ทุนอุดหนุนกิจกรรม",
+    keyword: "ทุนอุดหนุนกิจกรรม",
+    fund_level: "category",
+    fund_parent_keyword: "",
+  },
+  {
+    label: "ทุนสนับสนุนผู้เชี่ยวชาญต่างประเทศ",
+    keyword: "ทุนสนับสนุนผู้เชี่ยวชาญต่างประเทศ",
+    fund_level: "subcategory",
+    fund_parent_keyword: "ทุนส่งเสริมการวิจัย",
+  },
+];
+
+const LEGACY_FUND_TYPE_BY_KEYWORD = {
+  ทุนอุดหนุนกิจกรรม: "main_support",
+  ทุนส่งเสริมการวิจัย: "main_promotion",
+  ทุนสนับสนุนผู้เชี่ยวชาญต่างประเทศ: "international_presentation",
+};
+
 const toThaiDate = (value) => {
   if (!value) return "-";
 
@@ -103,6 +130,10 @@ const initialFormState = {
 
 const InstallmentManagementTab = ({ years = [] }) => {
   const [selectedYearId, setSelectedYearId] = useState(null);
+  const defaultFundChoice = FUND_CHOICES[0];
+  const [selectedFundKeyword, setSelectedFundKeyword] = useState(
+    defaultFundChoice.keyword
+  );
   const [currentYearValue, setCurrentYearValue] = useState(null);
   const [currentYearLoaded, setCurrentYearLoaded] = useState(false);
   const [defaultYearApplied, setDefaultYearApplied] = useState(false);
@@ -160,6 +191,16 @@ const InstallmentManagementTab = ({ years = [] }) => {
   const availableExistingYears = useMemo(() => {
     return yearOptions.filter((option) => option.id && option.id !== selectedYearId);
   }, [yearOptions, selectedYearId]);
+
+  const selectedFundChoice = useMemo(() => {
+    return (
+      FUND_CHOICES.find((choice) => choice.keyword === selectedFundKeyword) ??
+      FUND_CHOICES[0]
+    );
+  }, [selectedFundKeyword]);
+
+  const selectedFundLevel = selectedFundChoice?.fund_level ?? "category";
+  const selectedFundParentKeyword = selectedFundChoice?.fund_parent_keyword ?? "";
 
   useEffect(() => {
     let ignore = false;
@@ -265,7 +306,7 @@ const InstallmentManagementTab = ({ years = [] }) => {
   }, [selectedYearId]);
 
   const loadPeriods = useCallback(async () => {
-    if (!selectedYearId) {
+    if (!selectedYearId || !selectedFundKeyword) {
       setPeriods([]);
       setPaging({ total: 0, limit: DEFAULT_LIMIT, offset: 0 });
       return;
@@ -280,6 +321,13 @@ const InstallmentManagementTab = ({ years = [] }) => {
     try {
       const { items, paging: nextPaging } = await adminInstallmentAPI.list({
         yearId: selectedYearId,
+        fundType: LEGACY_FUND_TYPE_BY_KEYWORD[selectedFundKeyword],
+        fundLevel: selectedFundLevel,
+        fundKeyword: selectedFundKeyword,
+        fundParentKeyword:
+          selectedFundLevel === "subcategory"
+            ? selectedFundParentKeyword
+            : undefined,
         limit,
         offset,
       });
@@ -297,7 +345,13 @@ const InstallmentManagementTab = ({ years = [] }) => {
     } finally {
       setLoading(false);
     }
-  }, [selectedYearId, page]);
+  }, [
+    selectedYearId,
+    selectedFundLevel,
+    selectedFundKeyword,
+    selectedFundParentKeyword,
+    page,
+  ]);
 
   useEffect(() => {
     loadPeriods();
@@ -315,6 +369,12 @@ const InstallmentManagementTab = ({ years = [] }) => {
     setDefaultYearApplied(true);
   };
 
+  const handleFundChoiceChange = (event) => {
+    const keyword = event.target.value || defaultFundChoice.keyword;
+    setSelectedFundKeyword(keyword);
+    setPage(0);
+  };
+
   useEffect(() => {
     if (!formOpen) {
       setFormData(initialFormState);
@@ -329,7 +389,10 @@ const InstallmentManagementTab = ({ years = [] }) => {
 
   const openCreateForm = () => {
     setEditingPeriod(null);
-    setFormData({ ...initialFormState, status: "active" });
+    setFormData({
+      ...initialFormState,
+      status: "active",
+    });
     setFormOpen(true);
   };
 
@@ -417,6 +480,16 @@ const InstallmentManagementTab = ({ years = [] }) => {
       return false;
     }
 
+    if (!selectedFundChoice?.keyword) {
+      Swal.fire("ข้อมูลไม่ครบ", "กรุณาเลือกชื่อทุน", "warning");
+      return false;
+    }
+
+    if (selectedFundLevel === "subcategory" && !selectedFundParentKeyword) {
+      Swal.fire("ข้อมูลไม่ครบ", "กรุณาระบุชื่อทุนหลักของทุนรอง", "warning");
+      return false;
+    }
+
     const installmentNumber = Number(formData.installment_number);
     if (
       !installmentNumber ||
@@ -445,8 +518,16 @@ const InstallmentManagementTab = ({ years = [] }) => {
   const handleSubmit = async () => {
     if (!validateForm()) return;
 
+    const fundLevel = selectedFundLevel;
+    const fundKeyword = selectedFundChoice?.keyword || selectedFundKeyword;
+    const fundParentKeyword = selectedFundParentKeyword;
+
     const payload = {
       year_id: selectedYearId,
+      fund_type: LEGACY_FUND_TYPE_BY_KEYWORD[fundKeyword],
+      fund_level: fundLevel,
+      fund_keyword: fundKeyword,
+      fund_parent_keyword: fundLevel === "subcategory" ? fundParentKeyword : undefined,
       installment_number: Number(formData.installment_number),
       cutoff_date: String(formData.cutoff_date || "").trim(),
     };
@@ -643,6 +724,13 @@ const InstallmentManagementTab = ({ years = [] }) => {
         setCopying(true);
         const payload = {
           sourceYearId: selectedYearId,
+          fundType: LEGACY_FUND_TYPE_BY_KEYWORD[selectedFundKeyword],
+          fundLevel: selectedFundLevel,
+          fundKeyword: selectedFundKeyword,
+          fundParentKeyword:
+            selectedFundLevel === "subcategory"
+              ? selectedFundParentKeyword
+              : undefined,
           targetYear: targetYearValue,
         };
 
@@ -727,6 +815,18 @@ const InstallmentManagementTab = ({ years = [] }) => {
             >
               {yearOptions.map((option) => (
                 <option key={option.id ?? option.label} value={option.id ?? ""}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+            <span className="text-sm font-medium text-gray-700">ชื่อทุน</span>
+            <select
+              value={selectedFundKeyword}
+              onChange={handleFundChoiceChange}
+              className="min-w-[260px] rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
+            >
+              {FUND_CHOICES.map((option) => (
+                <option key={option.keyword} value={option.keyword}>
                   {option.label}
                 </option>
               ))}
@@ -956,8 +1056,8 @@ const InstallmentManagementTab = ({ years = [] }) => {
         onClose={handleCloseForm}
         title={
           editingPeriod
-            ? `แก้ไขรอบการพิจารณาที่ ${editingPeriod.installment_number ?? ""}`
-            : "เพิ่มวันตัดรอบการพิจารณาใหม่"
+            ? `แก้ไขรอบการพิจารณาที่ ${editingPeriod.installment_number ?? ""} (${selectedFundChoice?.label || ""})`
+            : `เพิ่มวันตัดรอบการพิจารณาใหม่ (${selectedFundChoice?.label || ""})`
         }
         formData={formData}
         onChange={handleFormChange}

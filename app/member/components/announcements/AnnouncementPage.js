@@ -388,29 +388,136 @@ export default function AnnouncementPage() {
     }
   }, [years, currentYearLabel, selectedYearId, selectedFormYearId]);
 
+  const getApiBaseURL = () => {
+    const baseUrl = apiClient.baseURL || '';
+    return baseUrl.replace(/\/?api\/v\d+$/, '');
+  };
+
+  const resolveFileURL = (filePath) => {
+    if (!filePath) return null;
+
+    try {
+      const base = getApiBaseURL() || window.location.origin;
+      return new URL(filePath, base).href;
+    } catch (error) {
+      console.error('Failed to resolve file URL', { filePath, error });
+      return null;
+    }
+  };
+
+  const getAnnouncementDownloadURL = (row) => {
+    const id = extractAnnouncementId(row);
+    if (!id) return null;
+    const base = getApiBaseURL();
+    if (!base) return null;
+    return `${base}/announcements/${encodeURIComponent(id)}/download`;
+  };
+
+  const getFundFormId = (item) => {
+    if (!item || typeof item !== 'object') return null;
+    const candidates = [item.fund_form_id, item.form_id, item.id, item.FormID];
+    for (const candidate of candidates) {
+      if (candidate != null && candidate !== '') {
+        return String(candidate);
+      }
+    }
+    return null;
+  };
+
+  const getFundFormDownloadURL = (row) => {
+    const id = getFundFormId(row);
+    if (!id) return null;
+    const base = getApiBaseURL();
+    if (!base) return null;
+    return `${base}/fund-forms/${encodeURIComponent(id)}/download`;
+  };
+
+  const getDownloadFileName = (filePath) => {
+    const rawName = typeof filePath === 'string' ? filePath.split(/[/\\]/).pop() : '';
+    if (!rawName) return 'file';
+    return rawName.replace(/[\\/:*?"<>|]/g, '_');
+  };
+
   const handleViewFile = (filePath) => {
-    if (!filePath) return;
-    const baseUrl = apiClient.baseURL.replace(/\/?api\/v1$/, '');
-    const url = new URL(filePath, baseUrl).href;
+    const url = resolveFileURL(filePath);
+    if (!url) return;
     window.open(url, '_blank');
   };
 
-  const handleDownloadFile = async (filePath) => {
-    if (!filePath) return;
-    const baseUrl = apiClient.baseURL.replace(/\/?api\/v1$/, '');
-    const url = new URL(filePath, baseUrl).href;
+  const handleDownloadFile = async (row, entity = 'announcement') => {
+    const filePath = row?.file_path ?? row;
+    const fallbackUrl = resolveFileURL(filePath);
+    const apiDownloadUrl =
+      entity === 'announcement'
+        ? getAnnouncementDownloadURL(row)
+        : getFundFormDownloadURL(row);
+
     try {
-      const response = await fetch(url);
+      const headers = new Headers();
+      const token = typeof apiClient.getToken === 'function' ? apiClient.getToken() : null;
+      if (token) {
+        headers.set('Authorization', `Bearer ${token}`);
+      }
+
+      let response = null;
+
+      if (apiDownloadUrl) {
+        const apiResponse = await fetch(apiDownloadUrl, {
+          method: 'GET',
+          headers,
+          credentials: 'include',
+        });
+
+        if (apiResponse.ok) {
+          response = apiResponse;
+        } else if (!fallbackUrl || fallbackUrl === apiDownloadUrl) {
+          throw new Error(
+            `API download failed with status ${apiResponse.status} ${apiResponse.statusText}`
+          );
+        }
+      }
+
+      if (!response && fallbackUrl) {
+        response = await fetch(fallbackUrl, { method: 'GET' });
+
+        if (!response.ok) {
+          throw new Error(
+            `Fallback download failed with status ${response.status} ${response.statusText}`
+          );
+        }
+      }
+
+      if (!response) {
+        return;
+      }
+
       const blob = await response.blob();
       const link = document.createElement('a');
       link.href = URL.createObjectURL(blob);
-      link.download = filePath.split('/').pop() || 'file';
+      link.download = getDownloadFileName(filePath);
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
       URL.revokeObjectURL(link.href);
     } catch (error) {
       console.error('Download failed:', error);
+
+      if (apiDownloadUrl && fallbackUrl && apiDownloadUrl !== fallbackUrl) {
+        try {
+          const retry = await fetch(fallbackUrl, { method: 'GET' });
+          const blob = await retry.blob();
+          const link = document.createElement('a');
+          link.href = URL.createObjectURL(blob);
+          link.download = getDownloadFileName(filePath);
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          URL.revokeObjectURL(link.href);
+          return;
+        } catch (fallbackError) {
+          console.error('Fallback download also failed:', fallbackError);
+        }
+      }
     }
   };
 
@@ -747,7 +854,7 @@ export default function AnnouncementPage() {
             ดู
           </button>
           <button
-            onClick={() => handleDownloadFile(row.file_path)}
+            onClick={() => handleDownloadFile(row, 'announcement')}
             className="inline-flex items-center gap-1 px-3 py-1 text-sm text-green-600 bg-green-50 hover:bg-green-100 rounded-md transition-colors"
             title="ดาวน์โหลดไฟล์"
           >
@@ -841,7 +948,7 @@ export default function AnnouncementPage() {
             ดู
           </button>
           <button
-            onClick={() => handleDownloadFile(row.file_path)}
+            onClick={() => handleDownloadFile(row, 'fundForm')}
             className="inline-flex items-center gap-1 px-3 py-1 text-sm text-green-600 bg-green-50 hover:bg-green-100 rounded-md transition-colors"
             title="ดาวน์โหลดไฟล์"
           >

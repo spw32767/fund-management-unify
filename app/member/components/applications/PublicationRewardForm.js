@@ -642,6 +642,31 @@ const findFirstString = (candidates) => {
   return null;
 };
 
+const resolveInstallmentFundSelection = ({
+  subcategoryId,
+  categoryId,
+  subcategoryName,
+  categoryName,
+} = {}) => {
+  const resolvedSubcategoryName = findFirstString([subcategoryName]);
+  const resolvedCategoryName = findFirstString([categoryName]);
+
+  if (subcategoryId && resolvedSubcategoryName) {
+    return { fundLevel: 'subcategory', fundKeyword: resolvedSubcategoryName };
+  }
+  if (categoryId && resolvedCategoryName) {
+    return { fundLevel: 'category', fundKeyword: resolvedCategoryName };
+  }
+  if (resolvedSubcategoryName) {
+    return { fundLevel: 'subcategory', fundKeyword: resolvedSubcategoryName };
+  }
+  if (resolvedCategoryName) {
+    return { fundLevel: 'category', fundKeyword: resolvedCategoryName };
+  }
+
+  return { fundLevel: null, fundKeyword: null };
+};
+
 const buildFundSummaryFromPayload = (submission = {}, detail = {}) => {
   const subcategoryBudget =
     submission?.SubcategoryBudget ||
@@ -6561,9 +6586,43 @@ const showSubmissionConfirmation = async () => {
 
       const submissionDate = new Date();
       try {
+        const optionKey = formData.author_status && formData.journal_quartile
+          ? `${formData.author_status}|${formData.journal_quartile}`
+          : null;
+        const optionContext = optionKey ? budgetOptionMap[optionKey] : null;
+        const { fundLevel, fundKeyword } = resolveInstallmentFundSelection({
+          subcategoryId:
+            formData.subcategory_id ??
+            optionContext?.subcategory_id ??
+            subcategory?.subcategory_id ??
+            subcategory?.SubcategoryID ??
+            null,
+          categoryId:
+            formData.category_id ??
+            categoryId ??
+            subcategory?.category_id ??
+            subcategory?.category?.category_id ??
+            null,
+          subcategoryName:
+            formData.subcategory_name ??
+            optionContext?.subcategory_name ??
+            optionContext?.subcategory_name_th ??
+            subcategory?.subcategory_name ??
+            subcategory?.SubcategoryName ??
+            subcategory?.name ??
+            subcategory?.Name ??
+            null,
+          categoryName:
+            formData.category_name ??
+            subcategory?.category?.category_name ??
+            subcategory?.category?.CategoryName ??
+            null,
+        });
         const installmentNumber = await fundInstallmentAPI.resolveInstallmentNumber({
           yearId: formData.year_id ?? null,
           submissionDate,
+          fundLevel,
+          fundKeyword,
         });
 
         if (installmentNumber != null) {

@@ -1251,6 +1251,39 @@ const resolveFundContextIdentifiers = (context) => {
   };
 };
 
+const resolveInstallmentFundSelection = (context, identifiers = {}) => {
+  const safeContext = context || {};
+  const categoryId = identifiers?.categoryId ?? null;
+  const subcategoryId = identifiers?.subcategoryId ?? null;
+
+  const categoryName = firstNonEmptyString(
+    safeContext?.category_name,
+    safeContext?.category?.category_name,
+    safeContext?.subcategory?.category?.category_name,
+    safeContext?.subcategory?.category_name,
+  );
+  const subcategoryName = firstNonEmptyString(
+    safeContext?.subcategory_name,
+    safeContext?.subcategory?.subcategory_name,
+    safeContext?.subcategory?.name,
+  );
+
+  if (subcategoryId && subcategoryName) {
+    return { fundLevel: 'subcategory', fundKeyword: subcategoryName };
+  }
+  if (categoryId && categoryName) {
+    return { fundLevel: 'category', fundKeyword: categoryName };
+  }
+  if (subcategoryName) {
+    return { fundLevel: 'subcategory', fundKeyword: subcategoryName };
+  }
+  if (categoryName) {
+    return { fundLevel: 'category', fundKeyword: categoryName };
+  }
+
+  return { fundLevel: null, fundKeyword: null };
+};
+
 const pickFirstObject = (...values) => {
   for (const value of values) {
     if (value && typeof value === 'object') {
@@ -3058,9 +3091,15 @@ export default function GenericFundApplicationForm({
       if (submissionId) {
         const submissionDate = new Date();
         try {
+          const { fundLevel, fundKeyword } = resolveInstallmentFundSelection(effectiveFundContext, {
+            categoryId: resolvedCategoryId,
+            subcategoryId: resolvedSubcategoryId,
+          });
           const installmentNumber = await fundInstallmentAPI.resolveInstallmentNumber({
             yearId: effectiveFundContext?.year_id ?? formData.year_id ?? null,
             submissionDate,
+            fundLevel,
+            fundKeyword,
           });
 
           if (installmentNumber != null) {

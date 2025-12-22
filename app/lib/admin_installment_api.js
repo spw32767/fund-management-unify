@@ -39,6 +39,11 @@ const normalizePeriod = (item) => {
     item.installment_period_id ?? item.installmentPeriodId ?? item.id ?? null
   );
 
+  const fundLevel = item.fund_level ?? item.fundLevel ?? null;
+  const fundKeyword = item.fund_keyword ?? item.fundKeyword ?? null;
+  const fundParentKeyword =
+    item.fund_parent_keyword ?? item.fundParentKeyword ?? null;
+
   const yearId = toNumberOrNull(item.year_id ?? item.yearId ?? null);
   const installmentNumber = toNumberOrNull(
     item.installment_number ?? item.installmentNumber ?? null
@@ -53,6 +58,10 @@ const normalizePeriod = (item) => {
 
   return {
     raw: item,
+    fund_type: (item.fund_type ?? item.fundType ?? null) || null,
+    fund_level: fundLevel || null,
+    fund_keyword: fundKeyword || null,
+    fund_parent_keyword: fundParentKeyword || null,
     installment_period_id: id,
     year_id: yearId,
     installment_number: installmentNumber,
@@ -82,9 +91,22 @@ const extractItems = (payload) => {
 };
 
 export const adminInstallmentAPI = {
-  async list({ yearId, status = "all", limit = 50, offset = 0 } = {}) {
+  async list({
+    yearId,
+    fundType,
+    fundLevel,
+    fundKeyword,
+    fundParentKeyword,
+    status = "all",
+    limit = 50,
+    offset = 0,
+  } = {}) {
     if (!yearId) {
       throw new Error("yearId is required to list installment periods");
+    }
+
+    if (!fundType && !fundKeyword) {
+      throw new Error("fund keyword is required to list installment periods");
     }
 
     const params = {
@@ -92,6 +114,11 @@ export const adminInstallmentAPI = {
       limit,
       offset,
     };
+
+    if (fundType) params.fund_type = fundType;
+    if (fundLevel) params.fund_level = fundLevel;
+    if (fundKeyword) params.fund_keyword = fundKeyword;
+    if (fundParentKeyword) params.fund_parent_keyword = fundParentKeyword;
 
     if (status) {
       params.status = status;
@@ -133,7 +160,15 @@ export const adminInstallmentAPI = {
     return { raw: response, period };
   },
 
-  async copy({ sourceYearId, targetYearId, targetYear } = {}) {
+  async copy({
+    sourceYearId,
+    targetYearId,
+    targetYear,
+    fundType,
+    fundLevel,
+    fundKeyword,
+    fundParentKeyword,
+  } = {}) {
     if (!sourceYearId) {
       throw new Error("sourceYearId is required to copy installment periods");
     }
@@ -141,6 +176,11 @@ export const adminInstallmentAPI = {
     const payload = {
       source_year_id: Number(sourceYearId),
     };
+
+    if (fundType) payload.fund_type = fundType;
+    if (fundLevel) payload.fund_level = fundLevel;
+    if (fundKeyword) payload.fund_keyword = fundKeyword;
+    if (fundParentKeyword) payload.fund_parent_keyword = fundParentKeyword;
 
     if (
       targetYearId !== undefined &&
