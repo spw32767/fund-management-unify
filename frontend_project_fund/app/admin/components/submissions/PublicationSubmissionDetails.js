@@ -35,6 +35,7 @@ import { useStatusMap } from '@/app/hooks/useStatusMap';
 import apiClient from "@/app/lib/api";
 import { adminAnnouncementAPI } from "@/app/lib/admin_announcement_api";
 import { adminSubmissionAPI } from '@/app/lib/admin_submission_api';
+import { fundInstallmentAPI, resolveInstallmentNumberFromPeriods } from '@/app/lib/fund_installment_api';
 import { rewardConfigAPI } from '@/app/lib/publication_api';
 import adminAPI from '@/app/lib/admin_api';
 import { notificationsAPI } from '@/app/lib/notifications_api';
@@ -410,6 +411,81 @@ const getSubcategoryName = (submission, pubDetail) => {
     subcatObj?.label
   );
   return fromObj || '-';
+};
+
+const resolveInstallmentNumber = (submission, pubDetail) => {
+  const raw =
+    pubDetail?.installment_number_at_submit ??
+    submission?.installment_number_at_submit ??
+    pubDetail?.installment_number ??
+    submission?.installment_number ??
+    null;
+  if (raw === null || raw === undefined || raw === '') return null;
+  const parsed = Number(raw);
+  return Number.isFinite(parsed) ? parsed : null;
+};
+
+const resolveInstallmentFundSelection = (submission, pubDetail) => {
+  const explicitKeyword = firstNonEmpty(
+    pubDetail?.installment_fund_name_at_submit,
+    submission?.installment_fund_name_at_submit,
+  );
+  const subcategoryName = getSubcategoryName(submission, pubDetail);
+  const categoryName = firstNonEmpty(
+    pubDetail?.category_name,
+    submission?.category_name,
+    pubDetail?.category?.category_name,
+    submission?.category?.category_name,
+    pubDetail?.Category?.category_name,
+    submission?.Category?.category_name,
+    pubDetail?.Subcategory?.category?.category_name,
+    submission?.Subcategory?.category?.category_name,
+  );
+
+  const subcategoryId = pubDetail?.subcategory_id ?? submission?.subcategory_id ?? null;
+  const categoryId = pubDetail?.category_id ?? submission?.category_id ?? null;
+
+  if (explicitKeyword) {
+    if (subcategoryId != null) {
+      return { fundLevel: 'subcategory', fundKeyword: explicitKeyword };
+    }
+    if (categoryId != null) {
+      return { fundLevel: 'category', fundKeyword: explicitKeyword };
+    }
+  }
+
+  if (subcategoryName && subcategoryName !== '-' && (subcategoryId != null || subcategoryName)) {
+    return { fundLevel: 'subcategory', fundKeyword: subcategoryName };
+  }
+  if (categoryName && (categoryId != null || categoryName)) {
+    return { fundLevel: 'category', fundKeyword: categoryName };
+  }
+  return { fundLevel: null, fundKeyword: null };
+};
+
+const extractInstallmentPeriodName = (period) => {
+  const raw = period?.raw ?? period;
+  if (!raw || typeof raw !== 'object') return null;
+  const name = raw.name ?? raw.period_name ?? raw.periodName ?? raw.label ?? null;
+  if (typeof name === 'string' && name.trim() !== '') {
+    return name.trim();
+  }
+  return null;
+};
+
+const formatInstallmentLabel = ({ installmentNumber, periodName }) => {
+  if (!installmentNumber && !periodName) return '-';
+  const normalizedName = typeof periodName === 'string' ? periodName.trim() : '';
+  if (normalizedName) {
+    if (installmentNumber && !normalizedName.includes('รอบ')) {
+      return `${normalizedName} (รอบที่ ${installmentNumber})`;
+    }
+    return normalizedName;
+  }
+  if (installmentNumber) {
+    return `รอบที่ ${installmentNumber}`;
+  }
+  return '-';
 };
 
 // ---------- Add: helpers for resolving names via adminAPI ----------
@@ -1559,6 +1635,10 @@ export default function PublicationSubmissionDetails({ submissionId, onBack }) {
   const [fundNames, setFundNames] = useState({ category: null, subcategory: null });
   const [fundNamesLoading, setFundNamesLoading] = useState(false);
 
+  // Installment period info
+  const [installmentPeriod, setInstallmentPeriod] = useState(null);
+  const [installmentLoading, setInstallmentLoading] = useState(false);
+
   const [attachments, setAttachments] = useState([]);
   const [attachmentsLoading, setAttachmentsLoading] = useState(false)
   const visibleAttachments = useMemo(
@@ -1774,6 +1854,102 @@ export default function PublicationSubmissionDetails({ submissionId, onBack }) {
     submission?.publication_reward_detail ||
     submission?.details?.data ||
     {};
+
+  const installmentNumber = useMemo(
+    () => resolveInstallmentNumber(submission, pubDetail),
+    [submission, pubDetail]
+  );
+  const installmentYearId = useMemo(
+    () =>
+      submission?.year_id ??
+      pubDetail?.year_id ??
+      submission?.Year?.year_id ??
+      null,
+    [submission, pubDetail]
+  );
+  const installmentFundSelection = useMemo(
+    () => resolveInstallmentFundSelection(submission, pubDetail),
+    [submission, pubDetail]
+  );
+  const installmentLabel = useMemo(
+    () =>
+      formatInstallmentLabel({
+        installmentNumber: installmentPeriod?.installmentNumber ?? installmentNumber,
+        periodName: installmentPeriod?.name,
+      }),
+    [installmentNumber, installmentPeriod]
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadInstallmentPeriod = async () => {
+      if (!submission) {
+        setInstallmentPeriod(null);
+        setInstallmentLoading(false);
+        return;
+      }
+
+      const { fundLevel, fundKeyword } = installmentFundSelection;
+      if (!installmentYearId || !fundLevel || !fundKeyword) {
+        setInstallmentPeriod({ name: null, raw: null, installmentNumber: installmentNumber ?? null });
+        setInstallmentLoading(false);
+        return;
+      }
+
+      setInstallmentLoading(true);
+      try {
+        const periods = await fundInstallmentAPI.list({
+          year_id: installmentYearId,
+          fund_level: fundLevel,
+          fund_keyword: fundKeyword,
+        });
+        if (cancelled) return;
+        const submissionDate =
+          submission?.submitted_at ||
+          submission?.submitted_date ||
+          submission?.created_at ||
+          null;
+        const resolvedNumber =
+          installmentNumber ??
+          resolveInstallmentNumberFromPeriods(periods, submissionDate);
+        const matched = resolvedNumber
+          ? periods.find(
+            (period) => String(period.installmentNumber) === String(resolvedNumber)
+          )
+          : null;
+        const name = matched ? extractInstallmentPeriodName(matched) : null;
+        console.log('[PublicationSubmissionDetails] installment debug', {
+          submissionId: submission?.submission_id,
+          installmentNumber,
+          resolvedNumber,
+          installmentYearId,
+          fundLevel,
+          fundKeyword,
+          periodsCount: periods.length,
+          periodName: name,
+        });
+        setInstallmentPeriod({
+          name,
+          raw: matched?.raw ?? matched ?? null,
+          installmentNumber: resolvedNumber ?? null,
+        });
+      } catch (error) {
+        console.warn('[PublicationSubmissionDetails] Failed to load installment period', error);
+        if (!cancelled) {
+          setInstallmentPeriod({ name: null, raw: null, installmentNumber: installmentNumber ?? null });
+        }
+      } finally {
+        if (!cancelled) {
+          setInstallmentLoading(false);
+        }
+      }
+    };
+
+    loadInstallmentPeriod();
+    return () => {
+      cancelled = true;
+    };
+  }, [submission, installmentNumber, installmentYearId, installmentFundSelection]);
 
   const requestedSummary = useMemo(
     () => deriveRequestedSummary(pubDetail, submission),
@@ -2315,6 +2491,13 @@ export default function PublicationSubmissionDetails({ submissionId, onBack }) {
               <div className="flex items-start gap-2">
                 <span className="text-gray-500 shrink-0">เลขที่คำร้อง:</span>
                 <span className="font-medium">{submission.submission_number || '-'}</span>
+              </div>
+
+              <div className="flex items-start gap-2">
+                <span className="text-gray-500 shrink-0">รอบการพิจารณา:</span>
+                <span className="font-medium">
+                  {installmentLoading ? 'กำลังโหลด...' : installmentLabel}
+                </span>
               </div>
 
               {/* วันที่สร้างคำร้อง (ถ้ามี) */}

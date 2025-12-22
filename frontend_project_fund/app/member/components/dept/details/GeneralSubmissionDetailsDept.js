@@ -14,6 +14,7 @@ import PageLayout from '../../common/PageLayout';
 import Card from '../../common/Card';
 import StatusBadge from '../../common/StatusBadge';
 import deptHeadAPI from '@/app/lib/dept_head_api';
+import { fundInstallmentAPI, resolveInstallmentNumberFromPeriods } from '@/app/lib/fund_installment_api';
 import apiClient from '@/app/lib/api';
 import { notificationsAPI } from '@/app/lib/notifications_api';
 import { toast } from 'react-hot-toast';
@@ -59,6 +60,97 @@ const formatDate = (dateString) => {
   } catch (_) {
     return d.toISOString().slice(0,10);
   }
+};
+
+const firstNonEmptyString = (...values) => {
+  for (const value of values) {
+    if (typeof value === 'string' && value.trim() !== '') {
+      return value.trim();
+    }
+  }
+  return null;
+};
+
+const resolveInstallmentNumber = (submission, detail) => {
+  const raw =
+    detail?.installment_number_at_submit ??
+    submission?.installment_number_at_submit ??
+    detail?.installment_number ??
+    submission?.installment_number ??
+    null;
+  if (raw === null || raw === undefined || raw === '') return null;
+  const parsed = Number(raw);
+  return Number.isFinite(parsed) ? parsed : null;
+};
+
+const resolveInstallmentFundSelection = (submission, detail) => {
+  const explicitKeyword = firstNonEmptyString(
+    detail?.installment_fund_name_at_submit,
+    submission?.installment_fund_name_at_submit,
+  );
+  const categoryName = firstNonEmptyString(
+    detail?.category_name,
+    submission?.category_name,
+    detail?.category?.category_name,
+    submission?.category?.category_name,
+    detail?.Category?.category_name,
+    submission?.Category?.category_name,
+    detail?.Subcategory?.category?.category_name,
+    submission?.Subcategory?.category?.category_name,
+  );
+  const subcategoryName = firstNonEmptyString(
+    detail?.subcategory_name,
+    submission?.subcategory_name,
+    detail?.subcategory?.subcategory_name,
+    submission?.subcategory?.subcategory_name,
+    detail?.Subcategory?.subcategory_name,
+    submission?.Subcategory?.subcategory_name,
+  );
+
+  const subcategoryId = detail?.subcategory_id ?? submission?.subcategory_id ?? null;
+  const categoryId = detail?.category_id ?? submission?.category_id ?? null;
+
+  if (explicitKeyword) {
+    if (subcategoryId != null) {
+      return { fundLevel: 'subcategory', fundKeyword: explicitKeyword };
+    }
+    if (categoryId != null) {
+      return { fundLevel: 'category', fundKeyword: explicitKeyword };
+    }
+  }
+
+  if ((subcategoryId != null || subcategoryName) && subcategoryName) {
+    return { fundLevel: 'subcategory', fundKeyword: subcategoryName };
+  }
+  if ((categoryId != null || categoryName) && categoryName) {
+    return { fundLevel: 'category', fundKeyword: categoryName };
+  }
+  return { fundLevel: null, fundKeyword: null };
+};
+
+const extractInstallmentPeriodName = (period) => {
+  const raw = period?.raw ?? period;
+  if (!raw || typeof raw !== 'object') return null;
+  const name = raw.name ?? raw.period_name ?? raw.periodName ?? raw.label ?? null;
+  if (typeof name === 'string' && name.trim() !== '') {
+    return name.trim();
+  }
+  return null;
+};
+
+const formatInstallmentLabel = ({ installmentNumber, periodName }) => {
+  if (!installmentNumber && !periodName) return '-';
+  const normalizedName = typeof periodName === 'string' ? periodName.trim() : '';
+  if (normalizedName) {
+    if (installmentNumber && !normalizedName.includes('รอบ')) {
+      return `${normalizedName} (รอบที่ ${installmentNumber})`;
+    }
+    return normalizedName;
+  }
+  if (installmentNumber) {
+    return `รอบที่ ${installmentNumber}`;
+  }
+  return '-';
 };
 
 const statusIconOf = (statusCode) => {
@@ -890,6 +982,47 @@ export default function GeneralSubmissionDetailsDept({ submissionId, onBack }) {
   const [mainAnn, setMainAnn] = useState(null);
   const [activityAnn, setActivityAnn] = useState(null);
 
+  // Installment period info
+  const [installmentPeriod, setInstallmentPeriod] = useState(null);
+  const [installmentLoading, setInstallmentLoading] = useState(false);
+
+  const detail = useMemo(
+    () =>
+      submission?.FundApplicationDetail ||
+      submission?.fund_application_detail ||
+      submission?.details?.data?.fund_application_detail ||
+      submission?.details?.data ||
+      submission?.payload ||
+      submission ||
+      null,
+    [submission]
+  );
+  const installmentNumber = useMemo(
+    () => resolveInstallmentNumber(submission, detail),
+    [submission, detail]
+  );
+  const installmentYearId = useMemo(
+    () =>
+      submission?.year_id ??
+      detail?.year_id ??
+      submission?.Year?.year_id ??
+      detail?.Year?.year_id ??
+      null,
+    [submission, detail]
+  );
+  const installmentFundSelection = useMemo(
+    () => resolveInstallmentFundSelection(submission, detail),
+    [submission, detail]
+  );
+  const installmentLabel = useMemo(
+    () =>
+      formatInstallmentLabel({
+        installmentNumber: installmentPeriod?.installmentNumber ?? installmentNumber,
+        periodName: installmentPeriod?.name,
+      }),
+    [installmentNumber, installmentPeriod]
+  );
+
   const cleanupMergedUrl = () => {
     if (mergedUrlRef.current) {
       URL.revokeObjectURL(mergedUrlRef.current);
@@ -897,6 +1030,77 @@ export default function GeneralSubmissionDetailsDept({ submissionId, onBack }) {
     }
   };
   useEffect(() => () => cleanupMergedUrl(), []);
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadInstallmentPeriod = async () => {
+      if (!submission) {
+        setInstallmentPeriod(null);
+        setInstallmentLoading(false);
+        return;
+      }
+
+      const { fundLevel, fundKeyword } = installmentFundSelection;
+      if (!installmentYearId || !fundLevel || !fundKeyword) {
+        setInstallmentPeriod({ name: null, raw: null, installmentNumber: installmentNumber ?? null });
+        setInstallmentLoading(false);
+        return;
+      }
+
+      setInstallmentLoading(true);
+      try {
+        const periods = await fundInstallmentAPI.list({
+          year_id: installmentYearId,
+          fund_level: fundLevel,
+          fund_keyword: fundKeyword,
+        });
+        if (cancelled) return;
+        const submissionDate =
+          submission?.submitted_at ||
+          submission?.submitted_date ||
+          submission?.created_at ||
+          null;
+        const resolvedNumber =
+          installmentNumber ??
+          resolveInstallmentNumberFromPeriods(periods, submissionDate);
+        const matched = resolvedNumber
+          ? periods.find(
+            (period) => String(period.installmentNumber) === String(resolvedNumber)
+          )
+          : null;
+        const name = matched ? extractInstallmentPeriodName(matched) : null;
+        console.log('[GeneralSubmissionDetailsDept] installment debug', {
+          submissionId: submission?.submission_id,
+          installmentNumber,
+          resolvedNumber,
+          installmentYearId,
+          fundLevel,
+          fundKeyword,
+          periodsCount: periods.length,
+          periodName: name,
+        });
+        setInstallmentPeriod({
+          name,
+          raw: matched?.raw ?? matched ?? null,
+          installmentNumber: resolvedNumber ?? null,
+        });
+      } catch (error) {
+        console.warn('[GeneralSubmissionDetailsDept] Failed to load installment period', error);
+        if (!cancelled) {
+          setInstallmentPeriod({ name: null, raw: null, installmentNumber: installmentNumber ?? null });
+        }
+      } finally {
+        if (!cancelled) {
+          setInstallmentLoading(false);
+        }
+      }
+    };
+
+    loadInstallmentPeriod();
+    return () => {
+      cancelled = true;
+    };
+  }, [submission, installmentNumber, installmentYearId, installmentFundSelection]);
 
   // Load details
   useEffect(() => {
@@ -1113,14 +1317,6 @@ export default function GeneralSubmissionDetailsDept({ submissionId, onBack }) {
   }
 
   const applicant = pickApplicant(submission);
-  const detail =
-    submission?.FundApplicationDetail ||
-    submission?.fund_application_detail ||
-    submission?.details?.data?.fund_application_detail ||
-    submission?.details?.data ||
-    submission?.payload ||
-    submission;
-
   const requestedAmount =
     parseAmount(detail?.requested_amount ?? submission?.requested_amount) ?? 0;
   const approvedAmount =
@@ -1644,6 +1840,13 @@ export default function GeneralSubmissionDetailsDept({ submissionId, onBack }) {
           <div className="flex items-start gap-2">
             <span className="text-gray-500 shrink-0">เลขที่คำร้อง:</span>
             <span className="font-medium break-all">{submission.submission_number || '-'}</span>
+          </div>
+
+          <div className="flex items-start gap-2">
+            <span className="text-gray-500 shrink-0">รอบการพิจารณา:</span>
+            <span className="font-medium">
+              {installmentLoading ? 'กำลังโหลด...' : installmentLabel}
+            </span>
           </div>
 
           <div className="flex items-start gap-2">
