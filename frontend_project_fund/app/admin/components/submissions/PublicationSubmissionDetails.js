@@ -35,7 +35,7 @@ import { useStatusMap } from '@/app/hooks/useStatusMap';
 import apiClient from "@/app/lib/api";
 import { adminAnnouncementAPI } from "@/app/lib/admin_announcement_api";
 import { adminSubmissionAPI } from '@/app/lib/admin_submission_api';
-import { fundInstallmentAPI } from '@/app/lib/fund_installment_api';
+import { fundInstallmentAPI, resolveInstallmentNumberFromPeriods } from '@/app/lib/fund_installment_api';
 import { rewardConfigAPI } from '@/app/lib/publication_api';
 import adminAPI from '@/app/lib/admin_api';
 import { notificationsAPI } from '@/app/lib/notifications_api';
@@ -426,6 +426,10 @@ const resolveInstallmentNumber = (submission, pubDetail) => {
 };
 
 const resolveInstallmentFundSelection = (submission, pubDetail) => {
+  const explicitKeyword = firstNonEmpty(
+    pubDetail?.installment_fund_name_at_submit,
+    submission?.installment_fund_name_at_submit,
+  );
   const subcategoryName = getSubcategoryName(submission, pubDetail);
   const categoryName = firstNonEmpty(
     pubDetail?.category_name,
@@ -440,6 +444,15 @@ const resolveInstallmentFundSelection = (submission, pubDetail) => {
 
   const subcategoryId = pubDetail?.subcategory_id ?? submission?.subcategory_id ?? null;
   const categoryId = pubDetail?.category_id ?? submission?.category_id ?? null;
+
+  if (explicitKeyword) {
+    if (subcategoryId != null) {
+      return { fundLevel: 'subcategory', fundKeyword: explicitKeyword };
+    }
+    if (categoryId != null) {
+      return { fundLevel: 'category', fundKeyword: explicitKeyword };
+    }
+  }
 
   if (subcategoryName && subcategoryName !== '-' && (subcategoryId != null || subcategoryName)) {
     return { fundLevel: 'subcategory', fundKeyword: subcategoryName };
@@ -1861,7 +1874,7 @@ export default function PublicationSubmissionDetails({ submissionId, onBack }) {
   const installmentLabel = useMemo(
     () =>
       formatInstallmentLabel({
-        installmentNumber,
+        installmentNumber: installmentPeriod?.installmentNumber ?? installmentNumber,
         periodName: installmentPeriod?.name,
       }),
     [installmentNumber, installmentPeriod]
@@ -1870,7 +1883,7 @@ export default function PublicationSubmissionDetails({ submissionId, onBack }) {
   useEffect(() => {
     let cancelled = false;
     const loadInstallmentPeriod = async () => {
-      if (!submission || !installmentNumber) {
+      if (!submission) {
         setInstallmentPeriod(null);
         setInstallmentLoading(false);
         return;
@@ -1878,7 +1891,7 @@ export default function PublicationSubmissionDetails({ submissionId, onBack }) {
 
       const { fundLevel, fundKeyword } = installmentFundSelection;
       if (!installmentYearId || !fundLevel || !fundKeyword) {
-        setInstallmentPeriod({ name: null, raw: null });
+        setInstallmentPeriod({ name: null, raw: null, installmentNumber: installmentNumber ?? null });
         setInstallmentLoading(false);
         return;
       }
@@ -1891,15 +1904,39 @@ export default function PublicationSubmissionDetails({ submissionId, onBack }) {
           fund_keyword: fundKeyword,
         });
         if (cancelled) return;
-        const matched = periods.find(
-          (period) => String(period.installmentNumber) === String(installmentNumber)
-        );
+        const submissionDate =
+          submission?.submitted_at ||
+          submission?.submitted_date ||
+          submission?.created_at ||
+          null;
+        const resolvedNumber =
+          installmentNumber ??
+          resolveInstallmentNumberFromPeriods(periods, submissionDate);
+        const matched = resolvedNumber
+          ? periods.find(
+            (period) => String(period.installmentNumber) === String(resolvedNumber)
+          )
+          : null;
         const name = matched ? extractInstallmentPeriodName(matched) : null;
-        setInstallmentPeriod({ name, raw: matched?.raw ?? matched ?? null });
+        console.log('[PublicationSubmissionDetails] installment debug', {
+          submissionId: submission?.submission_id,
+          installmentNumber,
+          resolvedNumber,
+          installmentYearId,
+          fundLevel,
+          fundKeyword,
+          periodsCount: periods.length,
+          periodName: name,
+        });
+        setInstallmentPeriod({
+          name,
+          raw: matched?.raw ?? matched ?? null,
+          installmentNumber: resolvedNumber ?? null,
+        });
       } catch (error) {
         console.warn('[PublicationSubmissionDetails] Failed to load installment period', error);
         if (!cancelled) {
-          setInstallmentPeriod({ name: null, raw: null });
+          setInstallmentPeriod({ name: null, raw: null, installmentNumber: installmentNumber ?? null });
         }
       } finally {
         if (!cancelled) {
