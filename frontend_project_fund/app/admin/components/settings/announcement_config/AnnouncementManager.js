@@ -662,10 +662,11 @@ export default function AnnouncementManager() {
       toast("error", e.message || "เกิดข้อผิดพลาด");
     }
   }
-  async function handleAReplaceFile(e) {
-    e?.preventDefault?.();
-    if (!aFileObj) return toast("warning", `กรุณาเลือกไฟล์ ${FILE_TYPE_LABEL}`);
-    if (!isAllowedUploadFile(aFileObj)) {
+  async function handleAReplaceFile(fileOverride, event) {
+    const fileToUpload = fileOverride ?? aFileObj;
+    event?.preventDefault?.();
+    if (!fileToUpload) return toast("warning", `กรุณาเลือกไฟล์ ${FILE_TYPE_LABEL}`);
+    if (!isAllowedUploadFile(fileToUpload)) {
       return toast("warning", `ไฟล์ต้องเป็น ${FILE_TYPE_LABEL}`);
     }
     try {
@@ -673,9 +674,10 @@ export default function AnnouncementManager() {
       if (id == null) {
         return toast("error", "ไม่พบรหัสประกาศสำหรับแทนที่ไฟล์");
       }
-      await adminAnnouncementAPI.replaceFile(id, aFileObj);
+      await adminAnnouncementAPI.replaceFile(id, fileToUpload);
       toast("success", "แทนที่ไฟล์สำเร็จ");
       setAFileOpen(false);
+      setAFileObj(null);
       await loadAnnouncements();
     } catch (e) {
       toast("error", e.message || "เกิดข้อผิดพลาด");
@@ -1387,6 +1389,9 @@ export default function AnnouncementManager() {
         data={aEditing}
         yearOptions={yearOptions}
         loadingYears={loadingYears}
+        onReplaceFile={async (file) => {
+          await handleAReplaceFile(file);
+        }}
         onSubmit={async (payload) => {
           try {
             const toRFC3339 = (v) => (v ? new Date(v).toISOString() : "");

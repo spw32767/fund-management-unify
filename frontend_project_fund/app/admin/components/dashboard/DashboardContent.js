@@ -179,13 +179,6 @@ function FilterControls({ filters, options, onScopeChange, onYearChange, onInsta
 }
 
 function OverviewCards({ overview, currentDate, scopeDescription, onNavigate }) {
-  const handlePendingClick = useCallback(() => {
-    if (typeof window !== "undefined") {
-      localStorage.setItem("adminPendingFocus", "1");
-    }
-    onNavigate?.("applications-list");
-  }, [onNavigate]);
-
   const cards = useMemo(() => {
     const totalApplications = Number(overview?.total_applications ?? 0);
     const pending = Number(overview?.pending_count ?? 0);
@@ -206,7 +199,6 @@ function OverviewCards({ overview, currentDate, scopeDescription, onNavigate }) 
         value: formatNumber(pending),
         icon: Clock,
         gradient: "from-amber-400 to-orange-500",
-        onClick: handlePendingClick,
       },
       {
         label: "ผู้ใช้งานทั้งหมด",
@@ -233,7 +225,7 @@ function OverviewCards({ overview, currentDate, scopeDescription, onNavigate }) 
         gradient: "from-indigo-500 to-purple-600",
       },
     ];
-  }, [overview, onNavigate]);
+  }, [overview]);
 
   return (
     <div className="space-y-4">
@@ -253,11 +245,14 @@ function OverviewCards({ overview, currentDate, scopeDescription, onNavigate }) 
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6 gap-4">
         {cards.map((card) => {
           const CardWrapper = card.onClick ? "button" : "div";
+          const clickableClass = card.onClick
+            ? "transition transform hover:scale-[1.02] focus:outline-none focus:ring-2 focus:ring-white/60 cursor-pointer"
+            : "";
           return (
             <CardWrapper
               key={card.label}
               onClick={card.onClick}
-              className={`relative overflow-hidden rounded-xl bg-gradient-to-br ${card.gradient} text-white p-5 shadow-lg transition transform hover:scale-[1.02] focus:outline-none focus:ring-2 focus:ring-white/60 ${card.onClick ? "cursor-pointer" : ""}`}
+              className={`relative overflow-hidden rounded-xl bg-gradient-to-br ${card.gradient} text-white p-5 shadow-lg ${clickableClass}`}
               type={card.onClick ? "button" : undefined}
             >
               <div className="relative z-10">

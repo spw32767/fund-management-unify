@@ -690,7 +690,14 @@ function DecisionDropdown({ value, onChange, disabled = false, className = '' })
 /* =========================
  * Approval Panel
  * ========================= */
-function FundApprovalPanel({ submission, fundDetail, onApprove, onReject, onRequestRevision }) {
+function FundApprovalPanel({
+  submission,
+  fundDetail,
+  announcementReferenceNumber,
+  onApprove,
+  onReject,
+  onRequestRevision,
+}) {
   const statusId = Number(submission?.status_id);
   const requested = Number(fundDetail?.requested_amount || 0);
 
@@ -709,11 +716,12 @@ function FundApprovalPanel({ submission, fundDetail, onApprove, onReject, onRequ
   const [approved, setApproved] = React.useState(
     defaultApprovedAmount
   );
+  const autoAnnounceReference =
+    typeof announcementReferenceNumber === 'string' ? announcementReferenceNumber.trim() : '';
   const announceReference =
+    autoAnnounceReference ||
     fundDetail?.announce_reference_number ||
-    submission?.announce_reference_number ||
-    submission?.announce_reference ||
-    '';
+    (submission?.announce_reference_number ?? submission?.announce_reference ?? '');
   const [announceRef, setAnnounceRef] = React.useState(announceReference || '');
   const [comment, setComment] = React.useState(
     submission?.admin_comment ?? ''
@@ -1103,9 +1111,9 @@ function FundApprovalPanel({ submission, fundDetail, onApprove, onReject, onRequ
             <div className="w-full rounded-md border bg-white shadow-sm transition-all border-gray-300 hover:border-blue-300 focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-500">
               <input
                 type="text"
-                className="w-full p-2.5 rounded-md outline-none bg-transparent"
+                className="w-full p-2.5 rounded-md outline-none bg-gray-100 text-gray-500 cursor-not-allowed"
                 value={announceRef}
-                onChange={(e) => setAnnounceRef(e.target.value)}
+                readOnly
                 placeholder="เช่น 123/2568"
               />
             </div>
@@ -2537,6 +2545,14 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
         <FundApprovalPanel
           submission={submission}
           fundDetail={detail}
+          announcementReferenceNumber={
+            activityAnn?.announcement_reference_number ??
+            activityAnn?.reference_number ??
+            activityAnn?.reference_code ??
+            activityAnn?.reference ??
+            activityAnn?.announcement_reference ??
+            ''
+          }
           onApprove={approve}
           onReject={reject}
           onRequestRevision={requestRevision}
