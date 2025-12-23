@@ -494,7 +494,14 @@ function DecisionDropdown({ value, onChange, disabled = false, className = '' })
 /* =========================
  * Dept Decision Panel (แทน Approval Result เดิมทั้งก้อน)
  * ========================= */
-function DeptDecisionPanel({ submission, onApprove, onReject, onRequestRevision, onBack }) {
+function DeptDecisionPanel({
+  submission,
+  announcementReferenceNumber,
+  onApprove,
+  onReject,
+  onRequestRevision,
+  onBack,
+}) {
   const [comment, setComment] = useState(
     submission?.head_comment ??
       submission?.department_head_comment ??
@@ -504,7 +511,10 @@ function DeptDecisionPanel({ submission, onApprove, onReject, onRequestRevision,
   const [headSignature, setHeadSignature] = useState(
     submission?.head_signature ?? ''
   );
+  const autoAnnounceReference =
+    typeof announcementReferenceNumber === 'string' ? announcementReferenceNumber.trim() : '';
   const announceReference =
+    autoAnnounceReference ||
     submission?.announce_reference_number ??
     submission?.announce_reference ??
     '';
@@ -793,7 +803,7 @@ function DeptDecisionPanel({ submission, onApprove, onReject, onRequestRevision,
               className="w-full rounded-lg border-0 bg-transparent p-3 outline-none"
               placeholder="เช่น 123/2568"
               value={announceRef}
-              onChange={(e) => setAnnounceRef(e.target.value)}
+              readOnly
               disabled={saving || decisionPending}
             />
           </div>
@@ -1972,6 +1982,14 @@ export default function GeneralSubmissionDetailsDept({ submissionId, onBack }) {
         <RequestInfoCard submission={submission} detail={detail} />
         <DeptDecisionPanel
           submission={submission}
+          announcementReferenceNumber={
+            activityAnn?.announcement_reference_number ??
+            activityAnn?.reference_number ??
+            activityAnn?.reference_code ??
+            activityAnn?.reference ??
+            activityAnn?.announcement_reference ??
+            ''
+          }
           onApprove={approve}
           onReject={reject}
           onRequestRevision={requestRevision}

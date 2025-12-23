@@ -1536,7 +1536,7 @@ function ApprovalPanel({ submission, pubDetail, requestedSummary, approvedSummar
                 className="w-full p-2.5 rounded-md outline-none bg-transparent"
                 placeholder="เช่น 123/2568"
                 value={announceRef}
-                onChange={(e) => setAnnounceRef(e.target.value)}
+                readOnly
               />
             </div>
           </div>
@@ -2050,6 +2050,27 @@ export default function PublicationSubmissionDetails({ submissionId, onBack }) {
     submission?.details?.data,
   ]);
 
+  useEffect(() => {
+    const autoRef =
+      rewardAnn?.announcement_reference_number ??
+      rewardAnn?.reference_number ??
+      rewardAnn?.reference_code ??
+      rewardAnn?.reference ??
+      rewardAnn?.announcement_reference ??
+      '';
+    const fallbackRef =
+      pubDetail?.announce_reference_number ||
+      submission?.announce_reference_number ||
+      submission?.announce_reference ||
+      '';
+    setAnnounceRef(autoRef || fallbackRef || '');
+  }, [
+    rewardAnn,
+    pubDetail?.announce_reference_number,
+    submission?.announce_reference_number,
+    submission?.announce_reference,
+  ]);
+
   const handleViewAnnouncement = async (id, annObj) => {
     // เปิดแท็บก่อน เพื่อให้ยังเป็น user-gesture (กัน popup-blocker)
     const win = window.open('about:blank', '_blank', 'noopener,noreferrer');
@@ -2392,6 +2413,27 @@ export default function PublicationSubmissionDetails({ submissionId, onBack }) {
     submission?.PublicationRewardDetail,
     submission?.publication_reward_detail,
     submission?.details?.data,
+  ]);
+
+  useEffect(() => {
+    const autoRef =
+      rewardAnn?.announcement_reference_number ??
+      rewardAnn?.reference_number ??
+      rewardAnn?.reference_code ??
+      rewardAnn?.reference ??
+      rewardAnn?.announcement_reference ??
+      '';
+    const fallbackRef =
+      pubDetail?.announce_reference_number ||
+      submission?.announce_reference_number ||
+      submission?.announce_reference ||
+      '';
+    setAnnounceRef(autoRef || fallbackRef || '');
+  }, [
+    rewardAnn,
+    pubDetail?.announce_reference_number,
+    submission?.announce_reference_number,
+    submission?.announce_reference,
   ]);
 
   if (loading) {

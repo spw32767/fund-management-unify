@@ -690,7 +690,14 @@ function DecisionDropdown({ value, onChange, disabled = false, className = '' })
 /* =========================
  * Approval Panel
  * ========================= */
-function FundApprovalPanel({ submission, fundDetail, onApprove, onReject, onRequestRevision }) {
+function FundApprovalPanel({
+  submission,
+  fundDetail,
+  announcementReferenceNumber,
+  onApprove,
+  onReject,
+  onRequestRevision,
+}) {
   const statusId = Number(submission?.status_id);
   const requested = Number(fundDetail?.requested_amount || 0);
 
@@ -709,7 +716,10 @@ function FundApprovalPanel({ submission, fundDetail, onApprove, onReject, onRequ
   const [approved, setApproved] = React.useState(
     defaultApprovedAmount
   );
+  const autoAnnounceReference =
+    typeof announcementReferenceNumber === 'string' ? announcementReferenceNumber.trim() : '';
   const announceReference =
+    autoAnnounceReference ||
     fundDetail?.announce_reference_number ||
     submission?.announce_reference_number ||
     submission?.announce_reference ||
@@ -1105,7 +1115,7 @@ function FundApprovalPanel({ submission, fundDetail, onApprove, onReject, onRequ
                 type="text"
                 className="w-full p-2.5 rounded-md outline-none bg-transparent"
                 value={announceRef}
-                onChange={(e) => setAnnounceRef(e.target.value)}
+                readOnly
                 placeholder="เช่น 123/2568"
               />
             </div>
@@ -2537,6 +2547,14 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
         <FundApprovalPanel
           submission={submission}
           fundDetail={detail}
+          announcementReferenceNumber={
+            activityAnn?.announcement_reference_number ??
+            activityAnn?.reference_number ??
+            activityAnn?.reference_code ??
+            activityAnn?.reference ??
+            activityAnn?.announcement_reference ??
+            ''
+          }
           onApprove={approve}
           onReject={reject}
           onRequestRevision={requestRevision}
