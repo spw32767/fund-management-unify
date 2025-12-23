@@ -105,7 +105,9 @@ export default function LoginPage() {
       // เพราะ login function จะ update isAuthenticated และ user state
       
     } catch (error) {
-      console.error('Login error:', error);
+      if (!error?.name || error?.name !== 'AuthError') {
+        console.error('Login error:', error);
+      }
       // Error จะถูก handle ใน AuthContext แล้ว
     }
   };
