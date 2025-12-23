@@ -232,7 +232,9 @@ export function AuthProvider({ children }) {
         return response;
         
     } catch (error) {
+        if (!(error instanceof AuthError)) {
         console.error('Login error:', error);
+        }
         
         let errorMessage = 'เกิดข้อผิดพลาดในการเข้าสู่ระบบ';
 
@@ -242,6 +244,10 @@ export function AuthProvider({ children }) {
         errorMessage = 'ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้';
         } else if (error.message) {
         errorMessage = error.message;
+        }
+
+        if (errorMessage === 'Invalid email or password') {
+        errorMessage = 'อีเมลหรือรหัสผ่านไม่ถูกต้อง';
         }
 
         dispatch({
