@@ -67,6 +67,7 @@ const normalizePeriodItem = (item) => {
       : null;
 
   const yearId = parseInteger(item.year_id ?? item.yearId ?? item.year);
+  const fundKeyword = item.fund_keyword ?? item.fundKeyword ?? null;
 
   return {
     raw: item,
@@ -74,6 +75,7 @@ const normalizePeriodItem = (item) => {
     cutoffDate,
     status,
     yearId,
+    fundKeyword,
   };
 };
 

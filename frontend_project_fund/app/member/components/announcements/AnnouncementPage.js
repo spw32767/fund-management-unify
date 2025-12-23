@@ -42,6 +42,51 @@ const formatInstallmentNumber = (value) => {
 
 const DAY_IN_MS = 24 * 60 * 60 * 1000;
 
+const FUND_KEYWORD_SECTIONS = [
+  {
+    keyword: "ทุนส่งเสริมการวิจัย",
+    title: "ทุนส่งเสริมการวิจัย",
+    description: "รอบการพิจารณาสำหรับทุนส่งเสริมการวิจัยและนวัตกรรม",
+    accent: "indigo",
+  },
+  {
+    keyword: "ทุนอุดหนุนกิจกรรม",
+    title: "ทุนอุดหนุนกิจกรรม",
+    description: "รอบการพิจารณาสำหรับทุนอุดหนุนกิจกรรม",
+    accent: "emerald",
+  },
+  {
+    keyword: "ทุนสนับสนุนผู้เชี่ยวชาญต่างประเทศ",
+    title: "ทุนสนับสนุนผู้เชี่ยวชาญต่างประเทศ",
+    description: "รอบการพิจารณาสำหรับทุนสนับสนุนผู้เชี่ยวชาญต่างประเทศ",
+    accent: "amber",
+  },
+];
+
+const SECTION_STYLES = {
+  indigo: {
+    nextCard: "border-indigo-100 bg-indigo-50",
+    nextText: "text-indigo-900",
+    nextSubText: "text-indigo-800",
+    nextLabel: "text-indigo-700",
+    nextBadge: "bg-white text-indigo-700",
+  },
+  emerald: {
+    nextCard: "border-emerald-100 bg-emerald-50",
+    nextText: "text-emerald-900",
+    nextSubText: "text-emerald-800",
+    nextLabel: "text-emerald-700",
+    nextBadge: "bg-white text-emerald-700",
+  },
+  amber: {
+    nextCard: "border-amber-100 bg-amber-50",
+    nextText: "text-amber-900",
+    nextSubText: "text-amber-800",
+    nextLabel: "text-amber-700",
+    nextBadge: "bg-white text-amber-700",
+  },
+};
+
 const getCountdownLabel = (targetDate, referenceDate) => {
   if (!(targetDate instanceof Date) || Number.isNaN(targetDate.getTime())) {
     return null;
@@ -69,6 +114,14 @@ const getCountdownLabel = (targetDate, referenceDate) => {
 
   const diffDays = Math.ceil(Math.abs(diffMs) / DAY_IN_MS);
   return `ผ่านไปแล้ว ${diffDays.toLocaleString("th-TH")} วัน`;
+};
+
+const normalizeFundKeyword = (value) => {
+  if (value === null || value === undefined) {
+    return null;
+  }
+  const trimmed = String(value).trim();
+  return trimmed ? trimmed : null;
 };
 
 const getInstallmentKey = (period) => {
@@ -569,22 +622,10 @@ export default function AnnouncementPage() {
     return map;
   }, [years]);
 
-  const activeInstallmentYearId = useMemo(() => {
-    if (selectedYearId && selectedYearId !== "all") {
-      return String(selectedYearId);
-    }
-
-    if (currentYearLabel != null) {
-      const matchedYear = Array.isArray(years)
-        ? years.find((year) => String(year.year) === String(currentYearLabel))
-        : null;
-      if (matchedYear?.year_id != null) {
-        return String(matchedYear.year_id);
-      }
-    }
-
-    return null;
-  }, [selectedYearId, currentYearLabel, years]);
+  const currentYearLabelNormalized =
+    currentYearLabel != null && currentYearLabel !== ""
+      ? String(currentYearLabel)
+      : null;
 
   const normalizedInstallments = useMemo(() => {
     if (!Array.isArray(installmentPeriods)) {
@@ -599,18 +640,23 @@ export default function AnnouncementPage() {
   }, [installmentPeriods]);
 
   const filteredInstallments = useMemo(() => {
-    if (!activeInstallmentYearId) {
-      return normalizedInstallments;
+    if (!currentYearLabelNormalized) {
+      return [];
     }
 
     return normalizedInstallments.filter((period) => {
       if (period.yearId == null) {
-        return true;
+        return false;
       }
 
-      return String(period.yearId) === activeInstallmentYearId;
+      const yearLabel = yearLabelMap.get(String(period.yearId));
+      if (!yearLabel) {
+        return false;
+      }
+
+      return String(yearLabel) === currentYearLabelNormalized;
     });
-  }, [normalizedInstallments, activeInstallmentYearId]);
+  }, [normalizedInstallments, yearLabelMap, currentYearLabelNormalized]);
 
   const sortedInstallments = useMemo(() => {
     const items = [...filteredInstallments];
@@ -671,6 +717,7 @@ export default function AnnouncementPage() {
       const yearLabel =
         period.yearId != null ? yearLabelMap.get(String(period.yearId)) ?? null : null;
       const key = getInstallmentKey(period) ?? `${period.installmentNumber}-${period.cutoffDate.getTime()}`;
+      const fundKeyword = normalizeFundKeyword(period.fundKeyword ?? period.raw?.fund_keyword);
 
       return {
         key,
@@ -682,9 +729,29 @@ export default function AnnouncementPage() {
           nextInstallment &&
           (period === nextInstallment || getInstallmentKey(nextInstallment) === key),
         status: period.status ?? null,
+        fundKeyword,
       };
     });
   }, [sortedInstallments, yearLabelMap, systemNowDate, nextInstallment]);
+
+  const installmentCardsByKeyword = useMemo(() => {
+    const map = new Map();
+    FUND_KEYWORD_SECTIONS.forEach((section) => {
+      map.set(section.keyword, []);
+    });
+
+    installmentCards.forEach((card) => {
+      if (!card.fundKeyword) {
+        return;
+      }
+      const existing = map.get(card.fundKeyword);
+      if (existing) {
+        existing.push(card);
+      }
+    });
+
+    return map;
+  }, [installmentCards]);
 
   useEffect(() => {
     const configIdSet = new Set(systemConfigAnnouncementIds.map(String));
@@ -1083,58 +1150,76 @@ export default function AnnouncementPage() {
                 <span className="ml-2">กำลังโหลด...</span>
               </div>
             ) : installmentCards.length > 0 ? (
-              <div className="space-y-6">
-                <div className="grid gap-4 md:grid-cols-3">
-                  {installmentCards.map((card) => (
-                    <div
-                      key={card.key}
-                      className={`rounded-xl border p-4 shadow-sm ${
-                        card.isNext
-                          ? "border-indigo-100 bg-indigo-50"
-                          : "border-gray-200 bg-white"
-                      }`}
-                    >
-                      <div className="flex items-center justify-between">
-                        <p
-                          className={`text-sm font-medium ${
-                            card.isNext ? "text-indigo-700" : "text-gray-600"
-                          }`}
-                        >
-                          {card.isNext ? "รอบถัดไป" : "รอบการพิจารณา"}
-                        </p>
-                        {card.status ? (
-                          <span className="rounded-full bg-white px-2 py-0.5 text-xs font-medium text-gray-600 shadow-sm">
-                            {card.status}
+              <div className="space-y-8">
+                {FUND_KEYWORD_SECTIONS.map((section) => {
+                  const sectionCards = installmentCardsByKeyword.get(section.keyword) ?? [];
+                  const styles = SECTION_STYLES[section.accent] ?? SECTION_STYLES.indigo;
+
+                  return (
+                    <div key={section.keyword} className="space-y-4">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <h3 className="text-base font-semibold text-gray-900">
+                            {section.title}
+                          </h3>
+                          <p className="text-sm text-gray-600">{section.description}</p>
+                        </div>
+                        {currentYearLabelNormalized ? (
+                          <span className="inline-flex items-center rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-600">
+                            ปีงบประมาณ {currentYearLabelNormalized}
                           </span>
                         ) : null}
                       </div>
-                      <p
-                        className={`mt-2 text-xl font-semibold ${
-                          card.isNext ? "text-indigo-900" : "text-gray-900"
-                        }`}
-                      >
-                        รอบพิจารณาครั้งที่ {formatInstallmentNumber(card.installmentNumber)}
-                      </p>
-                      <p className={card.isNext ? "text-indigo-800" : "text-gray-700"}>
-                        {card.cutoffLabel}
-                      </p>
-                      {card.yearLabel ? (
-                        <p className="text-sm text-gray-600">ปีงบประมาณ {card.yearLabel}</p>
-                      ) : null}
-                      {card.countdownLabel ? (
-                        <span
-                          className={`mt-2 inline-flex w-fit items-center rounded-full px-3 py-1 text-xs font-medium ${
-                            card.isNext
-                              ? "bg-white text-indigo-700"
-                              : "bg-gray-100 text-gray-700"
-                          }`}
-                        >
-                          {card.countdownLabel}
-                        </span>
-                      ) : null}
+
+                      {sectionCards.length > 0 ? (
+                        <div className="grid gap-4 md:grid-cols-3">
+                          {sectionCards.map((card) => {
+                            const nextCardClass = card.isNext ? styles.nextCard : "border-gray-200 bg-white";
+                            const titleClass = card.isNext ? styles.nextText : "text-gray-900";
+                            const subTextClass = card.isNext ? styles.nextSubText : "text-gray-700";
+                            const labelClass = card.isNext ? styles.nextLabel : "text-gray-600";
+                            const badgeClass = card.isNext ? styles.nextBadge : "bg-gray-100 text-gray-700";
+
+                            return (
+                              <div
+                                key={card.key}
+                                className={`rounded-xl border p-4 shadow-sm ${nextCardClass}`}
+                              >
+                                <div className="flex items-center justify-between">
+                                  <p className={`text-sm font-medium ${labelClass}`}>
+                                    {card.isNext ? "รอบถัดไป" : "รอบการพิจารณา"}
+                                  </p>
+                                  {card.status ? (
+                                    <span className={`rounded-full px-2 py-0.5 text-xs font-medium shadow-sm ${badgeClass}`}>
+                                      {card.status}
+                                    </span>
+                                  ) : null}
+                                </div>
+                                <p className={`mt-2 text-xl font-semibold ${titleClass}`}>
+                                  รอบพิจารณาครั้งที่ {formatInstallmentNumber(card.installmentNumber)}
+                                </p>
+                                <p className={subTextClass}>{card.cutoffLabel}</p>
+                                {card.yearLabel ? (
+                                  <p className="text-sm text-gray-600">ปีงบประมาณ {card.yearLabel}</p>
+                                ) : null}
+                                {card.countdownLabel ? (
+                                  <span className={`mt-2 inline-flex w-fit items-center rounded-full px-3 py-1 text-xs font-medium ${badgeClass}`}>
+                                    {card.countdownLabel}
+                                  </span>
+                                ) : null}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <div className="rounded-lg border border-gray-200 bg-gray-50 p-4 text-sm text-gray-600">
+                          ยังไม่มีรอบการพิจารณาสำหรับหมวดนี้ในปีปัจจุบัน
+                        </div>
+                      )}
                     </div>
-                  ))}
-                </div>
+                  );
+                })}
+
                 {latestPastInstallmentDisplay && !nextInstallmentDisplay ? (
                   <div className="rounded-lg border border-amber-200 bg-amber-50 p-5 text-amber-800">
                     <p className="text-base font-semibold">ยังไม่มีรอบถัดไปในระบบ</p>
