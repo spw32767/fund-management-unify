@@ -219,6 +219,7 @@ class APIClient {
 
       // Handle token expiration with automatic refresh
       if (response.status === 401) {
+        const isLoginRequest = /\/login(?:\?|$)/.test(url);
         if ((data.code === 'TOKEN_EXPIRED' || data.code === 'SESSION_EXPIRED') && retryCount === 0) {
           // If currently refreshing, wait for it to complete
           if (this.isRefreshing) {
@@ -252,12 +253,14 @@ class APIClient {
             }
             throw new AuthError('Session expired. Please login again.');
           }
-        } else {
+        } else if (!isLoginRequest) {
           // Other auth errors or max retries reached
           this.clearAuth();
           if (typeof window !== 'undefined') {
             window.location.href = '/login';
           }
+          throw new AuthError(data.error || 'Authentication failed');
+        } else {
           throw new AuthError(data.error || 'Authentication failed');
         }
       }
