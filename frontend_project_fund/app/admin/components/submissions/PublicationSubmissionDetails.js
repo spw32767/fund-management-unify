@@ -1533,7 +1533,7 @@ function ApprovalPanel({ submission, pubDetail, requestedSummary, approvedSummar
             >
               <input
                 type="text"
-                className="w-full p-2.5 rounded-md outline-none bg-transparent"
+                className="w-full p-2.5 rounded-md outline-none bg-gray-100 text-gray-500 cursor-not-allowed"
                 placeholder="เช่น 123/2568"
                 value={announceRef}
                 readOnly

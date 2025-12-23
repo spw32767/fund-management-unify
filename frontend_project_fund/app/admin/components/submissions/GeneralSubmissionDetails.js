@@ -1111,7 +1111,7 @@ function FundApprovalPanel({
             <div className="w-full rounded-md border bg-white shadow-sm transition-all border-gray-300 hover:border-blue-300 focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-500">
               <input
                 type="text"
-                className="w-full p-2.5 rounded-md outline-none bg-transparent"
+                className="w-full p-2.5 rounded-md outline-none bg-gray-100 text-gray-500 cursor-not-allowed"
                 value={announceRef}
                 readOnly
                 placeholder="เช่น 123/2568"

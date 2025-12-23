@@ -798,7 +798,7 @@ function DeptDecisionPanel({
           >
             <input
               type="text"
-              className="w-full rounded-lg border-0 bg-transparent p-3 outline-none"
+              className="w-full rounded-lg border-0 bg-gray-100 p-3 text-gray-500 outline-none cursor-not-allowed"
               placeholder="เช่น 123/2568"
               value={announceRef}
               readOnly
