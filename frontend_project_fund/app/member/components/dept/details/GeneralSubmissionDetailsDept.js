@@ -515,9 +515,7 @@ function DeptDecisionPanel({
     typeof announcementReferenceNumber === 'string' ? announcementReferenceNumber.trim() : '';
   const announceReference =
     autoAnnounceReference ||
-    submission?.announce_reference_number ??
-    submission?.announce_reference ??
-    '';
+    (submission?.announce_reference_number ?? submission?.announce_reference ?? '');
   const [announceRef, setAnnounceRef] = useState(announceReference || '');
   const [saving, setSaving] = useState(false);
   const [selectedAction, setSelectedAction] = useState('approve');

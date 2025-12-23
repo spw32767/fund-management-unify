@@ -721,9 +721,7 @@ function FundApprovalPanel({
   const announceReference =
     autoAnnounceReference ||
     fundDetail?.announce_reference_number ||
-    submission?.announce_reference_number ||
-    submission?.announce_reference ||
-    '';
+    (submission?.announce_reference_number ?? submission?.announce_reference ?? '');
   const [announceRef, setAnnounceRef] = React.useState(announceReference || '');
   const [comment, setComment] = React.useState(
     submission?.admin_comment ?? ''
