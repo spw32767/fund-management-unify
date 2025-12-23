@@ -231,21 +231,24 @@ export default function AnnouncementManager() {
     }),
     []
   );
+  const initialFundFormFilters = useMemo(
+    () => ({
+      q: "",
+      form_type: "",
+      fund_category: "",
+      status: "",
+      year_id: "",
+      sort: "display_order:asc",
+      page: 1,
+      limit: 100,
+    }),
+    []
+  );
 
   const [aFilters, setAFilters] = useState(() => ({ ...initialAnnouncementFilters }));
-  const [fFilters, setFFilters] = useState({
-    q: "",
-    form_type: "",
-    fund_category: "",
-    status: "",
-    year_id: "",
-    sort: "display_order:asc",
-    page: 1,
-    limit: 100,
-  });
+  const [fFilters, setFFilters] = useState(() => ({ ...initialFundFormFilters }));
 
   useEffect(() => {
-    loadFundForms();
     loadYears();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -258,6 +261,15 @@ export default function AnnouncementManager() {
     return () => debounceA.current && clearTimeout(debounceA.current);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [aFilters]);
+
+  useEffect(() => {
+    if (debounceF.current) clearTimeout(debounceF.current);
+    debounceF.current = setTimeout(() => {
+      loadFundForms();
+    }, 350);
+    return () => debounceF.current && clearTimeout(debounceF.current);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fFilters]);
 
   useEffect(() => {
     const anyOpen = aEditOpen || aFileOpen || fEditOpen || fFileOpen;
@@ -1267,6 +1279,109 @@ export default function AnnouncementManager() {
         }
         contentClassName="space-y-6"
       >
+        <div className="grid grid-cols-1 lg:grid-cols-6 gap-3">
+          <div className="lg:col-span-2 flex flex-col gap-1">
+            <label className="text-sm text-gray-600" htmlFor="fundform-search">
+              ค้นหา (ชื่อไฟล์/หัวข้อ)
+            </label>
+            <input
+              id="fundform-search"
+              type="search"
+              value={fFilters.q}
+              onChange={(e) =>
+                setFFilters((prev) => ({ ...prev, q: e.target.value.trimStart(), page: 1 }))
+              }
+              placeholder="เช่น ชื่อไฟล์หรือชื่อแบบฟอร์ม"
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+            />
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-sm text-gray-600" htmlFor="fundform-type">
+              ประเภทฟอร์ม
+            </label>
+            <select
+              id="fundform-type"
+              value={fFilters.form_type}
+              onChange={(e) =>
+                setFFilters((prev) => ({ ...prev, form_type: e.target.value, page: 1 }))
+              }
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+            >
+              <option value="">ทุกประเภท</option>
+              {Object.entries(FORM_TYPE_LABEL).map(([value, label]) => (
+                <option key={value} value={value}>
+                  {label}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-sm text-gray-600" htmlFor="fundform-category">
+              หมวดหมู่กองทุน
+            </label>
+            <select
+              id="fundform-category"
+              value={fFilters.fund_category}
+              onChange={(e) =>
+                setFFilters((prev) => ({ ...prev, fund_category: e.target.value, page: 1 }))
+              }
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+            >
+              <option value="">ทุกหมวด</option>
+              {Object.entries(FUND_CATEGORY_LABEL).map(([value, label]) => (
+                <option key={value} value={value}>
+                  {label}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-sm text-gray-600" htmlFor="fundform-status">
+              สถานะ
+            </label>
+            <select
+              id="fundform-status"
+              value={fFilters.status}
+              onChange={(e) =>
+                setFFilters((prev) => ({ ...prev, status: e.target.value, page: 1 }))
+              }
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+            >
+              <option value="">ทั้งหมด</option>
+              <option value="active">เปิดใช้งาน</option>
+              <option value="inactive">ปิดใช้งาน</option>
+              <option value="archived">เก็บถาวร</option>
+            </select>
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-sm text-gray-600" htmlFor="fundform-year">
+              ปีงบประมาณ
+            </label>
+            <select
+              id="fundform-year"
+              value={fFilters.year_id}
+              onChange={(e) =>
+                setFFilters((prev) => ({ ...prev, year_id: e.target.value, page: 1 }))
+              }
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+            >
+              <option value="">ทุกปี</option>
+              {yearOptions.map((y) => (
+                <option key={y.value} value={y.value}>
+                  {y.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="lg:col-span-6 flex flex-wrap gap-2 justify-end">
+            <button
+              onClick={() => setFFilters(() => ({ ...initialFundFormFilters }))}
+              className="inline-flex items-center gap-2 rounded-lg border border-gray-300 px-4 py-2 text-sm text-gray-700 transition hover:bg-gray-50"
+            >
+              <X size={16} /> ล้างตัวกรอง
+            </button>
+          </div>
+        </div>
         {loadingForms ? (
           <div className="flex items-center justify-center py-8">
             <div className="w-8 h-8 border-4 border-green-200 border-t-green-600 rounded-full animate-spin"></div>
