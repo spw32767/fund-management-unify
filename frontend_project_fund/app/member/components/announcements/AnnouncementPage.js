@@ -666,6 +666,26 @@ export default function AnnouncementPage() {
     };
   }, [latestPastInstallment, yearLabelMap, systemNowDate]);
 
+  const installmentCards = useMemo(() => {
+    return sortedInstallments.map((period) => {
+      const yearLabel =
+        period.yearId != null ? yearLabelMap.get(String(period.yearId)) ?? null : null;
+      const key = getInstallmentKey(period) ?? `${period.installmentNumber}-${period.cutoffDate.getTime()}`;
+
+      return {
+        key,
+        installmentNumber: period.installmentNumber,
+        cutoffLabel: formatThaiDate(period.cutoffDate),
+        yearLabel,
+        countdownLabel: getCountdownLabel(period.cutoffDate, systemNowDate),
+        isNext:
+          nextInstallment &&
+          (period === nextInstallment || getInstallmentKey(nextInstallment) === key),
+        status: period.status ?? null,
+      };
+    });
+  }, [sortedInstallments, yearLabelMap, systemNowDate, nextInstallment]);
+
   useEffect(() => {
     const configIdSet = new Set(systemConfigAnnouncementIds.map(String));
 
@@ -1062,42 +1082,77 @@ export default function AnnouncementPage() {
                 <div className="w-8 h-8 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin"></div>
                 <span className="ml-2">กำลังโหลด...</span>
               </div>
-            ) : nextInstallmentDisplay ? (
+            ) : installmentCards.length > 0 ? (
               <div className="space-y-6">
-                <div className="rounded-xl border border-indigo-100 bg-indigo-50 p-5 shadow-sm">
-                  <p className="text-sm font-medium text-indigo-700">รอบถัดไป</p>
-                  <div className="mt-2 space-y-2">
-                    <p className="text-2xl font-semibold text-indigo-900">
-                      รอบพิจารณาครั้งที่ {formatInstallmentNumber(nextInstallmentDisplay.installmentNumber)}
+                <div className="grid gap-4 md:grid-cols-3">
+                  {installmentCards.map((card) => (
+                    <div
+                      key={card.key}
+                      className={`rounded-xl border p-4 shadow-sm ${
+                        card.isNext
+                          ? "border-indigo-100 bg-indigo-50"
+                          : "border-gray-200 bg-white"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <p
+                          className={`text-sm font-medium ${
+                            card.isNext ? "text-indigo-700" : "text-gray-600"
+                          }`}
+                        >
+                          {card.isNext ? "รอบถัดไป" : "รอบการพิจารณา"}
+                        </p>
+                        {card.status ? (
+                          <span className="rounded-full bg-white px-2 py-0.5 text-xs font-medium text-gray-600 shadow-sm">
+                            {card.status}
+                          </span>
+                        ) : null}
+                      </div>
+                      <p
+                        className={`mt-2 text-xl font-semibold ${
+                          card.isNext ? "text-indigo-900" : "text-gray-900"
+                        }`}
+                      >
+                        รอบพิจารณาครั้งที่ {formatInstallmentNumber(card.installmentNumber)}
+                      </p>
+                      <p className={card.isNext ? "text-indigo-800" : "text-gray-700"}>
+                        {card.cutoffLabel}
+                      </p>
+                      {card.yearLabel ? (
+                        <p className="text-sm text-gray-600">ปีงบประมาณ {card.yearLabel}</p>
+                      ) : null}
+                      {card.countdownLabel ? (
+                        <span
+                          className={`mt-2 inline-flex w-fit items-center rounded-full px-3 py-1 text-xs font-medium ${
+                            card.isNext
+                              ? "bg-white text-indigo-700"
+                              : "bg-gray-100 text-gray-700"
+                          }`}
+                        >
+                          {card.countdownLabel}
+                        </span>
+                      ) : null}
+                    </div>
+                  ))}
+                </div>
+                {latestPastInstallmentDisplay && !nextInstallmentDisplay ? (
+                  <div className="rounded-lg border border-amber-200 bg-amber-50 p-5 text-amber-800">
+                    <p className="text-base font-semibold">ยังไม่มีรอบถัดไปในระบบ</p>
+                    <p className="mt-2 text-sm">
+                      รอบล่าสุดที่บันทึกคือรอบที่{" "}
+                      {formatInstallmentNumber(latestPastInstallmentDisplay.installmentNumber)}{" "}
+                      เมื่อวันที่ {latestPastInstallmentDisplay.cutoffLabel}
+                      {latestPastInstallmentDisplay.yearLabel
+                        ? ` (ปีงบประมาณ ${latestPastInstallmentDisplay.yearLabel})`
+                        : ""}
+                      .
                     </p>
-                    <p className="text-lg text-indigo-800">{nextInstallmentDisplay.cutoffLabel}</p>
-                    {nextInstallmentDisplay.yearLabel ? (
-                      <p className="text-sm text-indigo-700">
-                        ปีงบประมาณ {nextInstallmentDisplay.yearLabel}
+                    {latestPastInstallmentDisplay.countdownLabel ? (
+                      <p className="mt-2 text-sm">
+                        {latestPastInstallmentDisplay.countdownLabel}
                       </p>
                     ) : null}
-                    {nextInstallmentDisplay.countdownLabel ? (
-                      <span className="inline-flex w-fit items-center gap-2 rounded-full bg-white px-3 py-1 text-sm font-medium text-indigo-700 shadow-sm">
-                        {nextInstallmentDisplay.countdownLabel}
-                      </span>
-                    ) : null}
                   </div>
-                </div>
-              </div>
-            ) : latestPastInstallmentDisplay ? (
-              <div className="rounded-lg border border-amber-200 bg-amber-50 p-5 text-amber-800">
-                <p className="text-base font-semibold">ยังไม่มีรอบถัดไปในระบบ</p>
-                <p className="mt-2 text-sm">
-                  รอบล่าสุดที่บันทึกคือรอบที่ {formatInstallmentNumber(latestPastInstallmentDisplay.installmentNumber)}
-                  {" "}
-                  เมื่อวันที่ {latestPastInstallmentDisplay.cutoffLabel}
-                  {latestPastInstallmentDisplay.yearLabel
-                    ? ` (ปีงบประมาณ ${latestPastInstallmentDisplay.yearLabel})`
-                    : ""}
-                  .
-                </p>
-                {latestPastInstallmentDisplay.countdownLabel ? (
-                  <p className="mt-2 text-sm">{latestPastInstallmentDisplay.countdownLabel}</p>
                 ) : null}
               </div>
             ) : (
