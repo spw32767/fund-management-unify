@@ -1172,7 +1172,7 @@ export default function AnnouncementPage() {
                       </div>
 
                       {sectionCards.length > 0 ? (
-                        <div className="grid gap-4 md:grid-cols-3">
+                        <div className="grid gap-3 md:grid-cols-3">
                           {sectionCards.map((card) => {
                             const nextCardClass = card.isNext ? styles.nextCard : "border-gray-200 bg-white";
                             const titleClass = card.isNext ? styles.nextText : "text-gray-900";
@@ -1183,27 +1183,27 @@ export default function AnnouncementPage() {
                             return (
                               <div
                                 key={card.key}
-                                className={`rounded-xl border p-4 shadow-sm ${nextCardClass}`}
+                                className={`rounded-lg border p-3 shadow-sm ${nextCardClass}`}
                               >
                                 <div className="flex items-center justify-between">
-                                  <p className={`text-sm font-medium ${labelClass}`}>
+                                  <p className={`text-xs font-medium ${labelClass}`}>
                                     {card.isNext ? "รอบถัดไป" : "รอบการพิจารณา"}
                                   </p>
                                   {card.status ? (
-                                    <span className={`rounded-full px-2 py-0.5 text-xs font-medium shadow-sm ${badgeClass}`}>
+                                    <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium shadow-sm ${badgeClass}`}>
                                       {card.status}
                                     </span>
                                   ) : null}
                                 </div>
-                                <p className={`mt-2 text-xl font-semibold ${titleClass}`}>
+                                <p className={`mt-2 text-base font-semibold ${titleClass}`}>
                                   รอบพิจารณาครั้งที่ {formatInstallmentNumber(card.installmentNumber)}
                                 </p>
-                                <p className={subTextClass}>{card.cutoffLabel}</p>
+                                <p className={`text-sm ${subTextClass}`}>{card.cutoffLabel}</p>
                                 {card.yearLabel ? (
-                                  <p className="text-sm text-gray-600">ปีงบประมาณ {card.yearLabel}</p>
+                                  <p className="text-xs text-gray-600">ปีงบประมาณ {card.yearLabel}</p>
                                 ) : null}
                                 {card.countdownLabel ? (
-                                  <span className={`mt-2 inline-flex w-fit items-center rounded-full px-3 py-1 text-xs font-medium ${badgeClass}`}>
+                                  <span className={`mt-2 inline-flex w-fit items-center rounded-full px-2.5 py-0.5 text-[11px] font-medium ${badgeClass}`}>
                                     {card.countdownLabel}
                                   </span>
                                 ) : null}
