@@ -213,6 +213,23 @@ func GetPublicationOptions(c *gin.Context) {
 		}
 	}
 
+	// Fallback: if no fund_description matches were found, still surface the budgets
+	// so that users can submit when rates exist but descriptions don't explicitly
+	// mention the quartile (common when duplicating data for a new fiscal year).
+	if len(options) == 0 && len(budgets) > 0 {
+		defaultBudget := budgets[0]
+		for _, rate := range rates {
+			options = append(options, gin.H{
+				"author_status":         rate.AuthorStatus,
+				"journal_quartile":      rate.JournalQuartile,
+				"reward_amount":         rate.RewardAmount,
+				"subcategory_id":        defaultBudget.SubcategoryID,
+				"subcategory_budget_id": defaultBudget.BudgetID,
+				"fund_description":      defaultBudget.FundDescription,
+			})
+		}
+	}
+
 	c.JSON(http.StatusOK, gin.H{"options": options, "total": len(options)})
 }
 
