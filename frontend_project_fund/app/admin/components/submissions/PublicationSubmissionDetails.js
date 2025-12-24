@@ -796,77 +796,6 @@ function DecisionDropdown({ value, onChange, disabled = false, className = '' })
 function ApprovalPanel({ submission, pubDetail, requestedSummary, approvedSummary, onApprove, onReject, onRequestRevision }) {
   const statusId = Number(submission?.status_id);
   const approvable = statusId === 1; // อยู่ระหว่างการพิจารณา
-  if (!approvable) {
-    const requestedTotal = Number(
-      requestedSummary?.netTotal ?? requestedSummary?.total ?? 0
-    );
-    const approvedTotalNumber = Number(
-      approvedSummary?.netTotal ?? approvedSummary?.total ?? 0
-    );
-
-    const announceValue =
-      pubDetail?.announce_reference_number ||
-      submission?.announce_reference_number ||
-      submission?.announce_reference ||
-      '';
-
-    const adminCommentValue = submission?.admin_comment ?? '';
-
-    const rejectionReason =
-      submission?.admin_rejection_reason ??
-      submission?.head_rejection_reason ??
-      submission?.admin_rejected ??
-      '';
-
-    return (
-      <Card title="ผลการพิจารณา (Approval Result)" icon={DollarSign} collapsible={false}>
-        <div className="space-y-4 text-sm">
-          <div className="flex items-start justify-between">
-            <span className="text-gray-600">สถานะ</span>
-            <span className="font-medium">
-              <StatusBadge
-                statusId={submission?.status_id}
-                fallbackLabel={submission?.status?.status_name}
-              />
-            </span>
-          </div>
-
-          <div className="flex items-start justify-between">
-            <span className="text-gray-600">จำนวนที่ขอ</span>
-            <span className="font-semibold text-blue-700">฿{formatCurrency(requestedTotal)}</span>
-          </div>
-
-          <div className="flex items-start justify-between">
-            <span className="text-gray-600">จำนวนที่อนุมัติ</span>
-            <span className="font-semibold text-green-700">
-              {Number.isFinite(approvedTotalNumber) ? `฿${formatCurrency(approvedTotalNumber)}` : '—'}
-            </span>
-          </div>
-
-          <div className="flex items-start justify-between">
-            <span className="text-gray-600">หมายเลขอ้างอิงประกาศผลการพิจารณา</span>
-            <span className="font-medium break-all">{announceValue || '—'}</span>
-          </div>
-
-          <div>
-            <div className="text-gray-600 mb-1">หมายเหตุของผู้ดูแลระบบ</div>
-            <div className="rounded-md border border-gray-200 bg-gray-50 p-2 min-h-[40px] whitespace-pre-wrap break-words">
-              {adminCommentValue || '—'}
-            </div>
-          </div>
-
-          {rejectionReason && (
-            <div>
-              <div className="text-gray-600 mb-1">เหตุผลการไม่อนุมัติ</div>
-              <div className="rounded-md border border-gray-200 bg-gray-50 p-2 min-h-[40px] whitespace-pre-wrap break-words">
-                {rejectionReason}
-              </div>
-            </div>
-          )}
-        </div>
-      </Card>
-    );
-  }
 
   // Defaults from "ข้อมูลการเงิน"
   const requestedReward = requestedSummary?.reward ??
@@ -953,6 +882,12 @@ function ApprovalPanel({ submission, pubDetail, requestedSummary, approvedSummar
 
   // โหลดเพดานจาก reward config
   useEffect(() => {
+    if (!approvable) {
+      setFeeCap(null);
+      setCapError(null);
+      return;
+    }
+
     const fetchCap = async () => {
       try {
         setCapLoading(true);
@@ -996,7 +931,7 @@ function ApprovalPanel({ submission, pubDetail, requestedSummary, approvedSummar
     };
 
     fetchCap();
-  }, [pubDetail?.quartile, pubDetail?.journal_quartile, pubDetail?.publication_year, pubDetail?.publication_date]);
+  }, [approvable, pubDetail?.quartile, pubDetail?.journal_quartile, pubDetail?.publication_year, pubDetail?.publication_date]);
 
   const applyAutoSharedFeeValues = React.useCallback(() => {
     if (hideSharedFeeFields) {
@@ -1053,6 +988,78 @@ function ApprovalPanel({ submission, pubDetail, requestedSummary, approvedSummar
     }
     return null;
   };
+
+  if (!approvable) {
+    const requestedTotal = Number(
+      requestedSummary?.netTotal ?? requestedSummary?.total ?? 0
+    );
+    const approvedTotalNumber = Number(
+      approvedSummary?.netTotal ?? approvedSummary?.total ?? 0
+    );
+
+    const announceValue =
+      pubDetail?.announce_reference_number ||
+      submission?.announce_reference_number ||
+      submission?.announce_reference ||
+      '';
+
+    const adminCommentValue = submission?.admin_comment ?? '';
+
+    const rejectionReason =
+      submission?.admin_rejection_reason ??
+      submission?.head_rejection_reason ??
+      submission?.admin_rejected ??
+      '';
+
+    return (
+      <Card title="ผลการพิจารณา (Approval Result)" icon={DollarSign} collapsible={false}>
+        <div className="space-y-4 text-sm">
+          <div className="flex items-start justify-between">
+            <span className="text-gray-600">สถานะ</span>
+            <span className="font-medium">
+              <StatusBadge
+                statusId={submission?.status_id}
+                fallbackLabel={submission?.status?.status_name}
+              />
+            </span>
+          </div>
+
+          <div className="flex items-start justify-between">
+            <span className="text-gray-600">จำนวนที่ขอ</span>
+            <span className="font-semibold text-blue-700">฿{formatCurrency(requestedTotal)}</span>
+          </div>
+
+          <div className="flex items-start justify-between">
+            <span className="text-gray-600">จำนวนที่อนุมัติ</span>
+            <span className="font-semibold text-green-700">
+              {Number.isFinite(approvedTotalNumber) ? `฿${formatCurrency(approvedTotalNumber)}` : '—'}
+            </span>
+          </div>
+
+          <div className="flex items-start justify-between">
+            <span className="text-gray-600">หมายเลขอ้างอิงประกาศผลการพิจารณา</span>
+            <span className="font-medium break-all">{announceValue || '—'}</span>
+          </div>
+
+          <div>
+            <div className="text-gray-600 mb-1">หมายเหตุของผู้ดูแลระบบ</div>
+            <div className="rounded-md border border-gray-200 bg-gray-50 p-2 min-h-[40px] whitespace-pre-wrap break-words">
+              {adminCommentValue || '—'}
+            </div>
+          </div>
+
+          {rejectionReason && (
+            <div>
+              <div className="text-gray-600 mb-1">เหตุผลการไม่อนุมัติ</div>
+              <div className="rounded-md border border-gray-200 bg-gray-50 p-2 min-h-[40px] whitespace-pre-wrap break-words">
+                {rejectionReason}
+              </div>
+            </div>
+          )}
+        </div>
+      </Card>
+    );
+  }
 
   // เปลี่ยนค่าเมื่อเปิดสวิตช์
   const handleChangeReward = (next) => {
