@@ -28,27 +28,33 @@ func matchesFund(desc, authorStatus, quartile string) bool {
 	d = strings.ReplaceAll(d, "％", "%")
 	d = strings.ReplaceAll(d, "  ", " ")
 
+	// Broad quartile coverage patterns (e.g., "Q1-Q4", "Q1-4", "Q1 to Q4")
+	hasAllQuartiles := strings.Contains(d, "q1-q4") || strings.Contains(d, "q1-4") ||
+		strings.Contains(d, "q1 ถึง q4") || strings.Contains(d, "q1 to q4") ||
+		strings.Contains(d, "ทุกควอรไทล์") || strings.Contains(d, "ทุกควอร์ไทล์") ||
+		strings.Contains(d, "ทุก quartile") || strings.Contains(d, "all quartile")
+
 	switch quartile {
 	case "T5":
 		// วารสาร ... (ลำดับ 5% แรก)
-		return strings.Contains(d, "5%") || strings.Contains(d, "5 %")
+		return strings.Contains(d, "5%") || strings.Contains(d, "5 %") || hasAllQuartiles
 	case "T10":
 		// วารสาร ... (ลำดับ 10% แรก)
-		return strings.Contains(d, "10%") || strings.Contains(d, "10 %")
+		return strings.Contains(d, "10%") || strings.Contains(d, "10 %") || hasAllQuartiles
 	case "Q1":
-		return strings.Contains(d, "ควอร์ไทล์ 1") || strings.Contains(d, "q1")
+		return strings.Contains(d, "ควอร์ไทล์ 1") || strings.Contains(d, "q1") || hasAllQuartiles
 	case "Q2":
-		return strings.Contains(d, "ควอร์ไทล์ 2") || strings.Contains(d, "q2")
+		return strings.Contains(d, "ควอร์ไทล์ 2") || strings.Contains(d, "q2") || hasAllQuartiles
 	case "Q3":
-		return strings.Contains(d, "ควอร์ไทล์ 3") || strings.Contains(d, "q3")
+		return strings.Contains(d, "ควอร์ไทล์ 3") || strings.Contains(d, "q3") || hasAllQuartiles
 	case "Q4":
-		return strings.Contains(d, "ควอร์ไทล์ 4") || strings.Contains(d, "q4")
+		return strings.Contains(d, "ควอร์ไทล์ 4") || strings.Contains(d, "q4") || hasAllQuartiles
 	case "TCI":
 		// TCI กลุ่มที่ 1 สาขาวิทยาศาสตร์เทคโนโลยี
-		return strings.Contains(d, "tci") &&
+		return (strings.Contains(d, "tci") &&
 			(strings.Contains(d, "กลุ่มที่ 1") || strings.Contains(d, "group 1")) &&
 			(strings.Contains(d, "วิทยาศาสตร์") || strings.Contains(d, "เทคโนโลยี") ||
-				strings.Contains(d, "science") || strings.Contains(d, "technology"))
+				strings.Contains(d, "science") || strings.Contains(d, "technology"))) || hasAllQuartiles
 	default:
 		return false
 	}
@@ -142,10 +148,11 @@ func GetPublicationOptions(c *gin.Context) {
 		SubcategoryID   int
 		BudgetID        int
 		FundDescription string
+		RecordScope     string
 	}
 	var budgets []budgetRow
 	if err := config.DB.Table("fund_subcategories fs").
-		Select("fs.subcategory_id, sb.subcategory_budget_id AS budget_id, sb.fund_description").
+		Select("fs.subcategory_id, sb.subcategory_budget_id AS budget_id, sb.fund_description, sb.record_scope").
 		Joins(`
                         JOIN subcategory_budgets sb
                           ON sb.subcategory_id = fs.subcategory_id
@@ -167,18 +174,38 @@ func GetPublicationOptions(c *gin.Context) {
 	// Match budgets to rate rows by fund_description bucket
 	options := []gin.H{}
 	for _, rate := range rates {
-		for _, b := range budgets {
-			if matchesFund(b.FundDescription, rate.AuthorStatus, rate.JournalQuartile) {
-				options = append(options, gin.H{
-					"author_status":         rate.AuthorStatus,
-					"journal_quartile":      rate.JournalQuartile,
-					"reward_amount":         rate.RewardAmount,
-					"subcategory_id":        b.SubcategoryID,
-					"subcategory_budget_id": b.BudgetID,
-					"fund_description":      b.FundDescription,
-				})
+		var overall *budgetRow
+		var matched *budgetRow
+
+		for i := range budgets {
+			if budgets[i].RecordScope == "overall" && overall == nil {
+				overall = &budgets[i]
+			}
+
+			if matchesFund(budgets[i].FundDescription, rate.AuthorStatus, rate.JournalQuartile) {
+				matched = &budgets[i]
 				break
 			}
+		}
+
+		// Fallback: use overall or first budget when no specific match is found
+		if matched == nil {
+			if overall != nil {
+				matched = overall
+			} else if len(budgets) > 0 {
+				matched = &budgets[0]
+			}
+		}
+
+		if matched != nil {
+			options = append(options, gin.H{
+				"author_status":         rate.AuthorStatus,
+				"journal_quartile":      rate.JournalQuartile,
+				"reward_amount":         rate.RewardAmount,
+				"subcategory_id":        matched.SubcategoryID,
+				"subcategory_budget_id": matched.BudgetID,
+				"fund_description":      matched.FundDescription,
+			})
 		}
 	}
 
@@ -288,6 +315,14 @@ func ResolvePublicationBudget(c *gin.Context) {
 		}
 		if b.RecordScope == "rule" && matchesFund(b.FundDescription, authorStatus, quartile) {
 			ruleRow = &budgets[i]
+		}
+	}
+
+	if overallRow == nil {
+		if ruleRow != nil {
+			overallRow = ruleRow
+		} else if len(budgets) > 0 {
+			overallRow = &budgets[0]
 		}
 	}
 
