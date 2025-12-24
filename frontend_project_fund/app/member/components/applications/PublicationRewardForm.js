@@ -1818,8 +1818,13 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
       }
     } catch (err) {
       const message = typeof err?.message === 'string' ? err.message.toLowerCase() : '';
-      if (message.includes('no overall budget')) {
-        return buildOptionFallback();
+      const status = err?.status ?? err?.response?.status ?? null;
+
+      if (status === 404 || message.includes('not found') || message.includes('no overall budget')) {
+        const fallback = buildOptionFallback();
+        if (fallback.subcategory_id || fallback.subcategory_budget_id || fallback.reward_amount) {
+          return fallback;
+        }
       }
 
       console.error('resolveBudgetAndSubcategory error:', err);
