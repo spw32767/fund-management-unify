@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"fund-management-api/config"
@@ -181,31 +182,67 @@ func GetPublicationOptions(c *gin.Context) {
 		}
 	}
 
-	// Load active budgets for the category/year
+	// Load active budgets for the category/year. If none exist for the requested
+	// year, fall back to the latest available year so the FE still receives
+	// usable options instead of a hard 404.
 	type budgetRow struct {
 		SubcategoryID   int
 		BudgetID        int
 		FundDescription string
 	}
 	var budgets []budgetRow
-	if err := config.DB.Table("fund_subcategories fs").
-		Select("fs.subcategory_id, sb.subcategory_budget_id AS budget_id, sb.fund_description").
-		Joins(`
-                        JOIN subcategory_budgets sb
-                          ON sb.subcategory_id = fs.subcategory_id
-                         AND sb.status = 'active'
-                         AND sb.delete_at IS NULL
-                `).
-		Where(`
-                        fs.delete_at IS NULL
-                        AND fs.status = 'active'
-                        AND fs.category_id = ?
-                        AND fs.year_id = ?
-                        AND (fs.form_type = 'publication_reward' OR fs.form_type IS NULL)
-                `, categoryID, yearID).
-		Find(&budgets).Error; err != nil {
+	budgetQuery := func(targetYear string, dest *[]budgetRow) error {
+		return config.DB.Table("fund_subcategories fs").
+			Select("fs.subcategory_id, sb.subcategory_budget_id AS budget_id, sb.fund_description").
+			Joins(`
+                                JOIN subcategory_budgets sb
+                                  ON sb.subcategory_id = fs.subcategory_id
+                                 AND sb.status = 'active'
+                                 AND sb.delete_at IS NULL
+                        `).
+			Where(`
+                                fs.delete_at IS NULL
+                                AND fs.status = 'active'
+                                AND fs.category_id = ?
+                                AND fs.year_id = ?
+                                AND (fs.form_type = 'publication_reward' OR fs.form_type IS NULL)
+                        `, categoryID, targetYear).
+			Find(dest).Error
+	}
+
+	if err := budgetQuery(yearID, &budgets); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch budgets"})
 		return
+	}
+	if len(budgets) == 0 {
+		var fallbackYear struct{ YearID int }
+		if err := config.DB.Table("fund_subcategories fs").
+			Select("fs.year_id").
+			Joins(`
+                                JOIN subcategory_budgets sb
+                                  ON sb.subcategory_id = fs.subcategory_id
+                                 AND sb.status = 'active'
+                                 AND sb.delete_at IS NULL
+                        `).
+			Where(`
+                                fs.delete_at IS NULL
+                                AND fs.status = 'active'
+                                AND fs.category_id = ?
+                                AND (fs.form_type = 'publication_reward' OR fs.form_type IS NULL)
+                        `, categoryID).
+			Order("fs.year_id DESC").
+			Limit(1).
+			Scan(&fallbackYear).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch fallback budgets"})
+			return
+		}
+
+		if fallbackYear.YearID != 0 {
+			if err := budgetQuery(strconv.Itoa(fallbackYear.YearID), &budgets); err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch fallback budgets"})
+				return
+			}
+		}
 	}
 
 	// Prefetch reward_config rows so we can surface whether manuscript/page charge
@@ -359,7 +396,8 @@ func ResolvePublicationBudget(c *gin.Context) {
 		return
 	}
 
-	// Load budgets for the category/year
+	// Load budgets for the category/year, falling back to the latest available
+	// year to avoid 404s when the current cycle has not been configured yet.
 	type budgetRow struct {
 		SubcategoryID     int
 		BudgetID          int
@@ -371,33 +409,67 @@ func ResolvePublicationBudget(c *gin.Context) {
 		MaxGrants         sql.NullInt64
 	}
 	var budgets []budgetRow
-	if err := config.DB.Table("fund_subcategories fs").
-		Select(`
-                        fs.subcategory_id,
-                        sb.subcategory_budget_id AS budget_id,
-                        sb.fund_description,
-                        sb.record_scope,
-                        sb.allocated_amount,
-                        sb.max_amount_per_grant,
-                        sb.max_amount_per_year,
-                        sb.max_grants
-                `).
-		Joins(`
-                        JOIN subcategory_budgets sb
-                          ON sb.subcategory_id = fs.subcategory_id
-                         AND sb.status = 'active'
-                         AND sb.delete_at IS NULL
-                `).
-		Where(`
-                        fs.delete_at IS NULL
-                        AND fs.status = 'active'
-                        AND fs.category_id = ?
-                        AND fs.year_id = ?
-                        AND (fs.form_type = 'publication_reward' OR fs.form_type IS NULL)
-                `, categoryID, yearID).
-		Find(&budgets).Error; err != nil {
+	budgetQuery := func(targetYear string, dest *[]budgetRow) error {
+		return config.DB.Table("fund_subcategories fs").
+			Select(`
+                                fs.subcategory_id,
+                                sb.subcategory_budget_id AS budget_id,
+                                sb.fund_description,
+                                sb.record_scope,
+                                sb.allocated_amount,
+                                sb.max_amount_per_grant,
+                                sb.max_amount_per_year,
+                                sb.max_grants
+                        `).
+			Joins(`
+                                JOIN subcategory_budgets sb
+                                  ON sb.subcategory_id = fs.subcategory_id
+                                 AND sb.status = 'active'
+                                 AND sb.delete_at IS NULL
+                        `).
+			Where(`
+                                fs.delete_at IS NULL
+                                AND fs.status = 'active'
+                                AND fs.category_id = ?
+                                AND fs.year_id = ?
+                                AND (fs.form_type = 'publication_reward' OR fs.form_type IS NULL)
+                        `, categoryID, targetYear).
+			Find(dest).Error
+	}
+
+	if err := budgetQuery(yearID, &budgets); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch budgets"})
 		return
+	}
+	if len(budgets) == 0 {
+		var fallbackYear struct{ YearID int }
+		if err := config.DB.Table("fund_subcategories fs").
+			Select("fs.year_id").
+			Joins(`
+                                JOIN subcategory_budgets sb
+                                  ON sb.subcategory_id = fs.subcategory_id
+                                 AND sb.status = 'active'
+                                 AND sb.delete_at IS NULL
+                        `).
+			Where(`
+                                fs.delete_at IS NULL
+                                AND fs.status = 'active'
+                                AND fs.category_id = ?
+                                AND (fs.form_type = 'publication_reward' OR fs.form_type IS NULL)
+                        `, categoryID).
+			Order("fs.year_id DESC").
+			Limit(1).
+			Scan(&fallbackYear).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch fallback budgets"})
+			return
+		}
+
+		if fallbackYear.YearID != 0 {
+			if err := budgetQuery(strconv.Itoa(fallbackYear.YearID), &budgets); err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch fallback budgets"})
+				return
+			}
+		}
 	}
 
 	var overallRow *budgetRow
