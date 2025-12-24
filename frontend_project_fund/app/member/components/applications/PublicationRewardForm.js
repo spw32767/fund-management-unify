@@ -199,6 +199,12 @@ const normalizeStatusCode = (value) => {
   }
 };
 
+const normalizeQuartileCode = (value) => {
+  if (value === null || value === undefined) return '';
+  const normalized = String(value).trim();
+  return normalized ? normalized.toUpperCase() : '';
+};
+
 const EDITABLE_STATUS_CODES = new Set(['draft', 'needs_more_info']);
 
 const parsePublicationDateParts = (value, fallback = {}) => {
@@ -1772,46 +1778,59 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
     optionContext = {},
     fallbackReward = null,
   }) => {
+    const normalizedQuartile = normalizeQuartileCode(journal_quartile) || journal_quartile;
+    const buildOptionFallback = () => {
+      const derivedName = findFirstString([
+        optionContext?.subcategory_name,
+        optionContext?.subcategory_name_th,
+        optionContext?.fund_description,
+      ]);
+      return {
+        subcategory_id: optionContext?.subcategory_id
+          ?? optionContext?.subcategoryId
+          ?? optionContext?.subcategoryID
+          ?? optionContext?.SubcategoryId
+          ?? optionContext?.SubcategoryID
+          ?? null,
+        subcategory_budget_id: optionContext?.subcategory_budget_id
+          ?? optionContext?.subcategoryBudgetId
+          ?? optionContext?.subcategoryBudgetID
+          ?? optionContext?.SubcategoryBudgetId
+          ?? optionContext?.SubcategoryBudgetID
+          ?? null,
+        overall_subcategory_budget_id: optionContext?.overall_subcategory_budget_id ?? null,
+        reward_amount: optionContext?.reward_amount ?? optionContext?.RewardAmount ?? fallbackReward ?? null,
+        policy: optionContext?.policy ?? null,
+        subcategory_name: derivedName ?? null,
+        fund_description: optionContext?.fund_description ?? null,
+      };
+    };
+
     try {
       const response = await publicationBudgetAPI.resolve({
         category_id,
         year_id,
         author_status,
-        journal_quartile
+        journal_quartile: normalizedQuartile
       });
-      return response;
+      if (response) {
+        return response;
+      }
     } catch (err) {
       const message = typeof err?.message === 'string' ? err.message.toLowerCase() : '';
       if (message.includes('no overall budget')) {
-        const derivedName = findFirstString([
-          optionContext?.subcategory_name,
-          optionContext?.subcategory_name_th,
-          optionContext?.fund_description,
-        ]);
-        return {
-          subcategory_id: optionContext?.subcategory_id
-            ?? optionContext?.subcategoryId
-            ?? optionContext?.subcategoryID
-            ?? optionContext?.SubcategoryId
-            ?? optionContext?.SubcategoryID
-            ?? null,
-          subcategory_budget_id: optionContext?.subcategory_budget_id
-            ?? optionContext?.subcategoryBudgetId
-            ?? optionContext?.subcategoryBudgetID
-            ?? optionContext?.SubcategoryBudgetId
-            ?? optionContext?.SubcategoryBudgetID
-            ?? null,
-          overall_subcategory_budget_id: optionContext?.overall_subcategory_budget_id ?? null,
-          reward_amount: optionContext?.reward_amount ?? optionContext?.RewardAmount ?? fallbackReward ?? null,
-          policy: optionContext?.policy ?? null,
-          subcategory_name: derivedName ?? null,
-          fund_description: optionContext?.fund_description ?? null,
-        };
+        return buildOptionFallback();
       }
 
       console.error('resolveBudgetAndSubcategory error:', err);
-      return null;
     }
+
+    const fallbackResult = buildOptionFallback();
+    if (fallbackResult.subcategory_id || fallbackResult.subcategory_budget_id || fallbackResult.reward_amount) {
+      return fallbackResult;
+    }
+
+    return null;
   };
 
   // Helper: get years that have budgets for this category
@@ -1844,7 +1863,7 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
 
       const pushPair = (status, quartile) => {
         const normalizedStatus = typeof status === 'string' ? status.trim() : '';
-        const normalizedQuartile = typeof quartile === 'string' ? quartile.trim() : '';
+        const normalizedQuartile = normalizeQuartileCode(quartile);
         if (!normalizedStatus || !normalizedQuartile) {
           return null;
         }
@@ -1872,7 +1891,7 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
         if (!key) return;
 
         const [, rawQuartileCode] = key.split('|');
-        const normalizedQuartileCode = rawQuartileCode ? rawQuartileCode.trim().toUpperCase() : '';
+        const normalizedQuartileCode = normalizeQuartileCode(rawQuartileCode);
 
         const rewardAmount = parseNumberOrNull(opt.reward_amount);
         if (rewardAmount !== null) {
@@ -1960,9 +1979,7 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
           }
 
           const [, fallbackQuartileCodeRaw] = normalizedKey.split('|');
-          const fallbackQuartileCode = fallbackQuartileCodeRaw
-            ? fallbackQuartileCodeRaw.trim().toUpperCase()
-            : '';
+          const fallbackQuartileCode = normalizeQuartileCode(fallbackQuartileCodeRaw);
 
           if (fallbackQuartileCode && !budgetMap[normalizedKey].journal_quartile_code) {
             budgetMap[normalizedKey].journal_quartile_code = fallbackQuartileCode;
@@ -3580,9 +3597,9 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
             const map = {};
             rateList.forEach((rate) => {
               const authorStatus = rate?.author_status ?? rate?.AuthorStatus ?? '';
-              const quartile = rate?.journal_quartile ?? rate?.JournalQuartile ?? '';
+              const quartile = normalizeQuartileCode(rate?.journal_quartile ?? rate?.JournalQuartile ?? '');
               if (!authorStatus || !quartile) return;
-              const key = `${String(authorStatus).trim()}|${String(quartile).trim()}`;
+              const key = `${String(authorStatus).trim()}|${quartile}`;
               const amount = parseNumberOrNull(rate?.reward_amount ?? rate?.RewardAmount);
               if (amount !== null) {
                 map[key] = amount;
@@ -3804,7 +3821,7 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
     else {
       setFormData(prev => ({
         ...prev,
-        [name]: value
+        [name]: name === 'journal_quartile' ? normalizeQuartileCode(value) : value
       }));
       if (['author_status', 'journal_quartile'].includes(name)) {
         setResolutionError('');
