@@ -793,7 +793,7 @@ function DecisionDropdown({ value, onChange, disabled = false, className = '' })
 /* =========================
  * Approval Panel (admin-only)
  * ========================= */
-function ApprovalPanel({ submission, pubDetail, requestedSummary, approvedSummary, onApprove, onReject, onRequestRevision }) {
+function ApprovalPanel({ submission, pubDetail, rewardAnn, requestedSummary, approvedSummary, onApprove, onReject, onRequestRevision }) {
   const statusId = Number(submission?.status_id);
   const approvable = statusId === 1; // อยู่ระหว่างการพิจารณา
   if (!approvable) {
@@ -939,6 +939,27 @@ function ApprovalPanel({ submission, pubDetail, requestedSummary, approvedSummar
 
   const revisionAutoValue = hideSharedFeeFields ? 0 : requestedRevision;
   const publicationAutoValue = hideSharedFeeFields ? 0 : requestedPublication;
+
+  useEffect(() => {
+    const autoRef =
+      rewardAnn?.announcement_reference_number ??
+      rewardAnn?.reference_number ??
+      rewardAnn?.reference_code ??
+      rewardAnn?.reference ??
+      rewardAnn?.announcement_reference ??
+      '';
+    const fallbackRef =
+      pubDetail?.announce_reference_number ||
+      submission?.announce_reference_number ||
+      submission?.announce_reference ||
+      '';
+    setAnnounceRef(autoRef || fallbackRef || '');
+  }, [
+    rewardAnn,
+    pubDetail?.announce_reference_number,
+    submission?.announce_reference_number,
+    submission?.announce_reference,
+  ]);
 
   useEffect(() => {
     setManualEdit(false);
@@ -2050,28 +2071,7 @@ export default function PublicationSubmissionDetails({ submissionId, onBack }) {
     submission?.details?.data,
   ]);
 
-  useEffect(() => {
-    const autoRef =
-      rewardAnn?.announcement_reference_number ??
-      rewardAnn?.reference_number ??
-      rewardAnn?.reference_code ??
-      rewardAnn?.reference ??
-      rewardAnn?.announcement_reference ??
-      '';
-    const fallbackRef =
-      pubDetail?.announce_reference_number ||
-      submission?.announce_reference_number ||
-      submission?.announce_reference ||
-      '';
-    setAnnounceRef(autoRef || fallbackRef || '');
-  }, [
-    rewardAnn,
-    pubDetail?.announce_reference_number,
-    submission?.announce_reference_number,
-    submission?.announce_reference,
-  ]);
-
-  const handleViewAnnouncement = async (id, annObj) => {
+    const handleViewAnnouncement = async (id, annObj) => {
     // เปิดแท็บก่อน เพื่อให้ยังเป็น user-gesture (กัน popup-blocker)
     const win = window.open('about:blank', '_blank', 'noopener,noreferrer');
 
@@ -2413,27 +2413,6 @@ export default function PublicationSubmissionDetails({ submissionId, onBack }) {
     submission?.PublicationRewardDetail,
     submission?.publication_reward_detail,
     submission?.details?.data,
-  ]);
-
-  useEffect(() => {
-    const autoRef =
-      rewardAnn?.announcement_reference_number ??
-      rewardAnn?.reference_number ??
-      rewardAnn?.reference_code ??
-      rewardAnn?.reference ??
-      rewardAnn?.announcement_reference ??
-      '';
-    const fallbackRef =
-      pubDetail?.announce_reference_number ||
-      submission?.announce_reference_number ||
-      submission?.announce_reference ||
-      '';
-    setAnnounceRef(autoRef || fallbackRef || '');
-  }, [
-    rewardAnn,
-    pubDetail?.announce_reference_number,
-    submission?.announce_reference_number,
-    submission?.announce_reference,
   ]);
 
   if (loading) {
@@ -2905,12 +2884,13 @@ export default function PublicationSubmissionDetails({ submissionId, onBack }) {
           <ApprovalPanel
             submission={submission}
             pubDetail={pubDetail}
-          requestedSummary={requestedSummary}
-          approvedSummary={approvedSummary}
-          onApprove={approve}
-          onReject={reject}
-          onRequestRevision={requestRevision}
-        />
+            rewardAnn={rewardAnn}
+            requestedSummary={requestedSummary}
+            approvedSummary={approvedSummary}
+            onApprove={approve}
+            onReject={reject}
+            onRequestRevision={requestRevision}
+          />
         </div>
       )}
 
