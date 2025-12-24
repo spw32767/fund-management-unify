@@ -1789,8 +1789,18 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
           optionContext?.fund_description,
         ]);
         return {
-          subcategory_id: optionContext?.subcategory_id ?? optionContext?.subcategoryId ?? null,
-          subcategory_budget_id: optionContext?.subcategory_budget_id ?? optionContext?.subcategoryBudgetId ?? null,
+          subcategory_id: optionContext?.subcategory_id
+            ?? optionContext?.subcategoryId
+            ?? optionContext?.subcategoryID
+            ?? optionContext?.SubcategoryId
+            ?? optionContext?.SubcategoryID
+            ?? null,
+          subcategory_budget_id: optionContext?.subcategory_budget_id
+            ?? optionContext?.subcategoryBudgetId
+            ?? optionContext?.subcategoryBudgetID
+            ?? optionContext?.SubcategoryBudgetId
+            ?? optionContext?.SubcategoryBudgetID
+            ?? null,
           overall_subcategory_budget_id: optionContext?.overall_subcategory_budget_id ?? null,
           reward_amount: optionContext?.reward_amount ?? optionContext?.RewardAmount ?? fallbackReward ?? null,
           policy: optionContext?.policy ?? null,
@@ -1846,6 +1856,16 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
         return normalizedKey;
       };
 
+      const resolveIdentifier = (...candidates) => {
+        for (const candidate of candidates) {
+          const parsed = parseIntegerOrNull(candidate);
+          if (parsed !== null) {
+            return parsed;
+          }
+        }
+        return null;
+      };
+
       options.forEach(opt => {
         if (!opt) return;
         const key = pushPair(opt.author_status, opt.journal_quartile);
@@ -1861,6 +1881,7 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
 
         const subcategoryBudget =
           opt.subcategory_budget ??
+          opt.subcategoryBudget ??
           opt.SubcategoryBudget ??
           null;
 
@@ -1884,8 +1905,26 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
         ]) || '';
 
         budgetMap[key] = {
-          subcategory_id: opt.subcategory_id ?? null,
-          subcategory_budget_id: opt.subcategory_budget_id ?? null,
+          subcategory_id: resolveIdentifier(
+            opt.subcategory_id,
+            opt.subcategoryId,
+            opt.subcategoryID,
+            opt.SubcategoryID,
+            opt.SubcategoryId,
+            opt.subcategory?.id,
+            opt.Subcategory?.id,
+            subcategoryBudget?.subcategory_id,
+          ),
+          subcategory_budget_id: resolveIdentifier(
+            opt.subcategory_budget_id,
+            opt.subcategoryBudgetId,
+            opt.subcategoryBudgetID,
+            opt.SubcategoryBudgetId,
+            opt.SubcategoryBudgetID,
+            opt.subcategory_budget?.id,
+            subcategoryBudget?.subcategory_budget_id,
+            subcategoryBudget?.id,
+          ),
           fund_name: opt.fund_name ?? opt.fund_title ?? null,
           fund_title: opt.fund_title ?? null,
           fund_description: resolvedFundDescription,
@@ -2937,8 +2976,30 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
             fallbackReward,
           });
           if (result) {
-            const resolvedSubcategoryId = parseIntegerOrNull(result?.subcategory_id ?? optionContext.subcategory_id);
-            const resolvedBudgetId = parseIntegerOrNull(result?.subcategory_budget_id ?? optionContext.subcategory_budget_id);
+            const resolvedSubcategoryId = parseIntegerOrNull(
+              result?.subcategory_id ??
+              result?.subcategoryId ??
+              result?.subcategoryID ??
+              result?.SubcategoryId ??
+              result?.SubcategoryID ??
+              optionContext.subcategory_id ??
+              optionContext.subcategoryId ??
+              optionContext.subcategoryID ??
+              optionContext.SubcategoryId ??
+              optionContext.SubcategoryID
+            );
+            const resolvedBudgetId = parseIntegerOrNull(
+              result?.subcategory_budget_id ??
+              result?.subcategoryBudgetId ??
+              result?.subcategoryBudgetID ??
+              result?.SubcategoryBudgetId ??
+              result?.SubcategoryBudgetID ??
+              optionContext.subcategory_budget_id ??
+              optionContext.subcategoryBudgetId ??
+              optionContext.subcategoryBudgetID ??
+              optionContext.SubcategoryBudgetId ??
+              optionContext.SubcategoryBudgetID
+            );
             const resolvedReward = parseNumberOrNull(result?.reward_amount);
             const normalizedPolicy = normalizePolicyPayload(result.policy);
             const resolvedName = findFirstString([
@@ -6800,7 +6861,8 @@ const showSubmissionConfirmation = async () => {
     return firstCandidate || '';
   })();
   const shouldShowDraftBanner = Boolean(
-    (editingExistingSubmission || lockedFundSummary) && (bannerPrimaryDescription || bannerSecondaryDescription)
+    (editingExistingSubmission || lockedFundSummary || selectedFundSummary) &&
+    (bannerPrimaryDescription || bannerSecondaryDescription)
   );
   const enforceBudgetYearReadOnly = Boolean(lockedBudgetYearId) || editingExistingSubmission || isReadOnly;
   const disableAuthorStatusSelect = selectionLocked || authorStatusOptions.length === 0;
