@@ -124,6 +124,57 @@ export default function AdminScopusResearchSearch() {
     }
   };
 
+  const normalizeCiteScoreStatus = (status) => {
+    if (!status) return "";
+    return String(status).trim().toLowerCase();
+  };
+
+  const pickLatestCompleteMetric = (metrics) => {
+    const completeMetrics = metrics.filter(
+      (metric) => normalizeCiteScoreStatus(metric?.cite_score_status) === "complete",
+    );
+    if (completeMetrics.length === 0) {
+      return null;
+    }
+    return completeMetrics.reduce((latest, metric) => {
+      const metricYear = Number(metric?.metric_year ?? metric?.year ?? 0);
+      if (!latest) return metric;
+      const latestYear = Number(latest?.metric_year ?? latest?.year ?? 0);
+      return metricYear >= latestYear ? metric : latest;
+    }, null);
+  };
+
+  const resolveCompleteCiteScore = (pub) => {
+    const metricsList = Array.isArray(pub?.scopus_source_metrics)
+      ? pub.scopus_source_metrics
+      : [];
+    const completeMetric = pickLatestCompleteMetric(metricsList);
+    if (completeMetric) {
+      return {
+        status: completeMetric.cite_score_status,
+        rank: completeMetric.cite_score_rank,
+        percentile: completeMetric.cite_score_percentile,
+        quartile: completeMetric.cite_score_quartile,
+      };
+    }
+
+    const status =
+      pub?.cite_score_status ?? pub?.scopus_source_metrics?.cite_score_status ?? "";
+    if (normalizeCiteScoreStatus(status) !== "complete") {
+      return null;
+    }
+
+    return {
+      status,
+      rank: pub?.cite_score_rank ?? pub?.scopus_source_metrics?.cite_score_rank,
+      percentile:
+        pub?.cite_score_percentile ??
+        pub?.scopus_source_metrics?.cite_score_percentile,
+      quartile:
+        pub?.cite_score_quartile ?? pub?.scopus_source_metrics?.cite_score_quartile,
+    };
+  };
+
   const buildExportRows = useCallback((items, startOffset = 0) => {
     if (!Array.isArray(items) || items.length === 0) return [];
     const formatCoverDate = (value) => {
@@ -133,6 +184,7 @@ export default function AdminScopusResearchSearch() {
       return date.toISOString().split("T")[0];
     };
     return items.map((pub, index) => {
+      const citeScoreMetrics = resolveCompleteCiteScore(pub);
       const rowNumber = startOffset + index + 1;
       const citedByValue =
         pub.cited_by !== undefined && pub.cited_by !== null ? pub.cited_by : "";
@@ -167,13 +219,12 @@ export default function AdminScopusResearchSearch() {
         citedBy: citedByValue,
         authkeywords: keywords,
         fundSponsor: pub.fund_sponsor || "",
-        citeScoreStatus:
-          pub.cite_score_status ?? pub.scopus_source_metrics?.cite_score_status ?? "",
-        citeScoreRank: pub.cite_score_rank ?? pub.scopus_source_metrics?.cite_score_rank ?? "",
+        citeScoreStatus: citeScoreMetrics?.status ?? "",
+        citeScoreRank: citeScoreMetrics?.rank ?? "",
         citeScorePercentile:
-          pub.cite_score_percentile ?? pub.scopus_source_metrics?.cite_score_percentile ?? "",
+          citeScoreMetrics?.percentile ?? "",
         citeScoreQuartile:
-          (pub.cite_score_quartile || pub.scopus_source_metrics?.cite_score_quartile || "")?.toUpperCase(),
+          (citeScoreMetrics?.quartile || "")?.toUpperCase(),
         year: pub.publication_year || coverYear,
         eid: pub.eid || "",
         scopusUrl: pub.scopus_url || "",
@@ -342,10 +393,9 @@ export default function AdminScopusResearchSearch() {
                           const citedByValue = pub.cited_by !== undefined && pub.cited_by !== null ? pub.cited_by : null;
                           const yearValue = pub.publication_year || "-";
                           const scopusUrl = pub.scopus_url;
-                          const citeScorePercentile =
-                            pub.cite_score_percentile ?? pub.scopus_source_metrics?.cite_score_percentile;
-                          const citeScoreQuartile =
-                            pub.cite_score_quartile ?? pub.scopus_source_metrics?.cite_score_quartile;
+                          const citeScoreMetrics = resolveCompleteCiteScore(pub);
+                          const citeScorePercentile = citeScoreMetrics?.percentile;
+                          const citeScoreQuartile = citeScoreMetrics?.quartile;
                           const subtypeDescription =
                             pub.scopus_documents?.subtype_description ||
                             pub.subtype_description ||

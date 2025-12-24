@@ -633,6 +633,57 @@ export default function ProfileContent() {
     }
   };
 
+  const normalizeCiteScoreStatus = (status) => {
+    if (!status) return "";
+    return String(status).trim().toLowerCase();
+  };
+
+  const pickLatestCompleteMetric = (metrics) => {
+    const completeMetrics = metrics.filter(
+      (metric) => normalizeCiteScoreStatus(metric?.cite_score_status) === "complete",
+    );
+    if (completeMetrics.length === 0) {
+      return null;
+    }
+    return completeMetrics.reduce((latest, metric) => {
+      const metricYear = Number(metric?.metric_year ?? metric?.year ?? 0);
+      if (!latest) return metric;
+      const latestYear = Number(latest?.metric_year ?? latest?.year ?? 0);
+      return metricYear >= latestYear ? metric : latest;
+    }, null);
+  };
+
+  const resolveCompleteCiteScore = (pub) => {
+    const metricsList = Array.isArray(pub?.scopus_source_metrics)
+      ? pub.scopus_source_metrics
+      : [];
+    const completeMetric = pickLatestCompleteMetric(metricsList);
+    if (completeMetric) {
+      return {
+        status: completeMetric.cite_score_status,
+        rank: completeMetric.cite_score_rank,
+        percentile: completeMetric.cite_score_percentile,
+        quartile: completeMetric.cite_score_quartile,
+      };
+    }
+
+    const status =
+      pub?.cite_score_status ?? pub?.scopus_source_metrics?.cite_score_status ?? "";
+    if (normalizeCiteScoreStatus(status) !== "complete") {
+      return null;
+    }
+
+    return {
+      status,
+      rank: pub?.cite_score_rank ?? pub?.scopus_source_metrics?.cite_score_rank,
+      percentile:
+        pub?.cite_score_percentile ??
+        pub?.scopus_source_metrics?.cite_score_percentile,
+      quartile:
+        pub?.cite_score_quartile ?? pub?.scopus_source_metrics?.cite_score_quartile,
+    };
+  };
+
   const formatPercentile = (value) => {
     if (value === null || value === undefined) return null;
     const num = Number(value);
@@ -649,6 +700,7 @@ export default function ProfileContent() {
       return date.toISOString().split("T")[0];
     };
     return items.map((pub, index) => {
+      const citeScoreMetrics = resolveCompleteCiteScore(pub);
       const rowNumber = startOffset + index + 1;
       const citedByValue =
         pub.cited_by !== undefined && pub.cited_by !== null ? pub.cited_by : "";
@@ -683,13 +735,12 @@ export default function ProfileContent() {
         citedBy: citedByValue,
         authkeywords: keywords,
         fundSponsor: pub.fund_sponsor || "",
-        citeScoreStatus:
-          pub.cite_score_status ?? pub.scopus_source_metrics?.cite_score_status ?? "",
-        citeScoreRank: pub.cite_score_rank ?? pub.scopus_source_metrics?.cite_score_rank ?? "",
+        citeScoreStatus: citeScoreMetrics?.status ?? "",
+        citeScoreRank: citeScoreMetrics?.rank ?? "",
         citeScorePercentile:
-          pub.cite_score_percentile ?? pub.scopus_source_metrics?.cite_score_percentile ?? "",
+          citeScoreMetrics?.percentile ?? "",
         citeScoreQuartile:
-          (pub.cite_score_quartile || pub.scopus_source_metrics?.cite_score_quartile || "")?.toUpperCase(),
+          (citeScoreMetrics?.quartile || "")?.toUpperCase(),
         year: pub.publication_year || coverYear,
         eid: pub.eid || "",
         scopusUrl: pub.scopus_url || "",
@@ -1809,6 +1860,7 @@ export default function ProfileContent() {
                                 pub.subtype_description ||
                                 pub.subtypeDescription;
                               const shouldShowCiteScore = subtypeDescription === "Article";
+                              const citeScoreMetrics = resolveCompleteCiteScore(pub);
                               return (
                                 <tr key={key} className="hover:bg-gray-50">
                                   <td className="px-4 py-2 text-center text-gray-700">
@@ -1856,20 +1908,22 @@ export default function ProfileContent() {
                                   </td>
                                   {isScopusActive ? (
                                     <td className="px-4 py-2 text-center">
-                                      {shouldShowCiteScore && (pub.cite_score_quartile || pub.cite_score_percentile) ? (
+                                      {shouldShowCiteScore &&
+                                      (citeScoreMetrics?.quartile || citeScoreMetrics?.percentile) ? (
                                         <div className="flex flex-col items-center gap-1">
-                                          {pub.cite_score_quartile ? (
+                                          {citeScoreMetrics?.quartile ? (
                                             <span
                                               className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ${quartileBadgeClass(
-                                                pub.cite_score_quartile,
+                                                citeScoreMetrics.quartile,
                                               )}`}
                                             >
-                                              Quartile {pub.cite_score_quartile.toUpperCase()}
+                                              Quartile {citeScoreMetrics.quartile.toUpperCase()}
                                             </span>
                                           ) : null}
-                                          {formatPercentile(pub.cite_score_percentile) ? (
+                                          {formatPercentile(citeScoreMetrics?.percentile) ? (
                                             <span className="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-1 text-[11px] font-medium text-gray-700">
-                                              Percentile {formatPercentile(pub.cite_score_percentile)}
+                                              Percentile{" "}
+                                              {formatPercentile(citeScoreMetrics?.percentile)}
                                             </span>
                                           ) : null}
                                         </div>
