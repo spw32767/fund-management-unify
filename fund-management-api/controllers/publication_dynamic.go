@@ -56,13 +56,25 @@ func matchesFund(desc, authorStatus, quartile string) bool {
 		hasGroup := group1 || group2
 
 		// accept both science/tech and social/humanities wording
-		sci := strings.Contains(d, "วิทยาศาสตร์") || strings.Contains(d, "เทคโนโลยี") || strings.Contains(d, "science") || strings.Contains(d, "technology")
-		social := strings.Contains(d, "สังคม") || strings.Contains(d, "มนุษยศาสตร์") || strings.Contains(d, "social") || strings.Contains(d, "human")
+		sci := strings.Contains(d, "วิทยาศาสตร์") || strings.Contains(d, "เทคโนโลยี") || strings.Contains(d, "science") ||
+			strings.Contains(d, "technology")
+		social := strings.Contains(d, "สังคม") || strings.Contains(d, "มนุษยศาสตร์") || strings.Contains(d, "social") ||
+			strings.Contains(d, "human")
 
 		return hasGroup && (sci || social)
 	}
 
 	return false
+}
+
+// rewardCfg represents reward_config rows we need to expose alongside rate/budget
+// matching. Defined at file scope so both option and resolver handlers can reuse it.
+type rewardCfg struct {
+	Year                 string
+	JournalQuartile      string
+	MaxAmount            float64
+	ConditionDescription string
+	IsActive             bool
 }
 
 // GetEnabledYearsForCategory returns years that have budgets for a category
@@ -195,11 +207,31 @@ func GetPublicationOptions(c *gin.Context) {
 		return
 	}
 
+	// Prefetch reward_config rows so we can surface whether manuscript/page charge
+	// fees are currently claimable for the selected quartile.
+	var rewardConfigs []rewardCfg
+	if err := config.DB.Table(models.RewardConfig{}.TableName()).
+		Select("year, journal_quartile, max_amount, condition_description, is_active").
+		Where("year = ? AND delete_at IS NULL", rateYear).
+		Order("is_active DESC").
+		Find(&rewardConfigs).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch reward config"})
+		return
+	}
+	rewardCfgMap := make(map[string]rewardCfg)
+	for _, cfg := range rewardConfigs {
+		key := strings.ToUpper(strings.TrimSpace(cfg.JournalQuartile))
+		if _, exists := rewardCfgMap[key]; !exists {
+			rewardCfgMap[key] = cfg
+		}
+	}
+
 	// Match budgets to rate rows by fund_description bucket
 	options := []gin.H{}
 	for _, rate := range rates {
 		for _, b := range budgets {
 			if matchesFund(b.FundDescription, rate.AuthorStatus, rate.JournalQuartile) {
+				cfg := rewardCfgMap[strings.ToUpper(rate.JournalQuartile)]
 				options = append(options, gin.H{
 					"author_status":         rate.AuthorStatus,
 					"journal_quartile":      rate.JournalQuartile,
@@ -207,6 +239,12 @@ func GetPublicationOptions(c *gin.Context) {
 					"subcategory_id":        b.SubcategoryID,
 					"subcategory_budget_id": b.BudgetID,
 					"fund_description":      b.FundDescription,
+					"reward_config": gin.H{
+						"year":                  cfg.Year,
+						"max_amount":            cfg.MaxAmount,
+						"condition_description": cfg.ConditionDescription,
+						"is_active":             cfg.IsActive,
+					},
 				})
 				break
 			}
@@ -303,6 +341,20 @@ func ResolvePublicationBudget(c *gin.Context) {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch fallback rate"})
 			return
 		}
+	}
+
+	// Load reward_config metadata for manuscript/page charge fees. We surface it
+	// regardless of active status so the FE can display whether additional fees
+	// are claimable for the selected quartile/year.
+	var rewardCfg rewardCfg
+	cfgErr := config.DB.Table(models.RewardConfig{}.TableName()).
+		Select("year, journal_quartile, max_amount, condition_description, is_active").
+		Where("journal_quartile = ? AND delete_at IS NULL", quartile).
+		Order("(year = ?) DESC, year DESC", year.Year).
+		First(&rewardCfg).Error
+	if cfgErr != nil && !errors.Is(cfgErr, gorm.ErrRecordNotFound) {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch reward config"})
+		return
 	}
 
 	// Load budgets for the category/year
@@ -473,6 +525,13 @@ func ResolvePublicationBudget(c *gin.Context) {
 		"subcategory_budget_id": chosenRow.BudgetID,
 		"fund_description":      chosenRow.FundDescription,
 		"reward_amount":         rate.RewardAmount,
+		"reward_config": gin.H{
+			"year":                  rewardCfg.Year,
+			"journal_quartile":      rewardCfg.JournalQuartile,
+			"max_amount":            rewardCfg.MaxAmount,
+			"condition_description": rewardCfg.ConditionDescription,
+			"is_active":             rewardCfg.IsActive,
+		},
 		"policy": gin.H{
 			"overall": gin.H{
 				"subcategory_budget_id": overallRow.BudgetID,
