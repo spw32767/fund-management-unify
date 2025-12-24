@@ -2422,27 +2422,6 @@ export default function PublicationSubmissionDetails({ submissionId, onBack }) {
     submission?.details?.data,
   ]);
 
-  useEffect(() => {
-    const autoRef =
-      rewardAnn?.announcement_reference_number ??
-      rewardAnn?.reference_number ??
-      rewardAnn?.reference_code ??
-      rewardAnn?.reference ??
-      rewardAnn?.announcement_reference ??
-      '';
-    const fallbackRef =
-      pubDetail?.announce_reference_number ||
-      submission?.announce_reference_number ||
-      submission?.announce_reference ||
-      '';
-    setAnnounceRef(autoRef || fallbackRef || '');
-  }, [
-    rewardAnn,
-    pubDetail?.announce_reference_number,
-    submission?.announce_reference_number,
-    submission?.announce_reference,
-  ]);
-
   if (loading) {
     return (
       <PageLayout
