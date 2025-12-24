@@ -13,6 +13,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 // matchesFund determines if a fund description matches a given quartile bucket.
@@ -350,7 +351,8 @@ func ResolvePublicationBudget(c *gin.Context) {
 	cfgErr := config.DB.Table(models.RewardConfig{}.TableName()).
 		Select("year, journal_quartile, max_amount, condition_description, is_active").
 		Where("journal_quartile = ? AND delete_at IS NULL", quartile).
-		Order("(year = ?) DESC, year DESC", year.Year).
+		Order(clause.OrderBy{Orders: []clause.Order{{Expr: gorm.Expr("(year = ?)", year.Year), Desc: true}}}).
+		Order("year DESC").
 		First(&rewardCfg).Error
 	if cfgErr != nil && !errors.Is(cfgErr, gorm.ErrRecordNotFound) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch reward config"})
