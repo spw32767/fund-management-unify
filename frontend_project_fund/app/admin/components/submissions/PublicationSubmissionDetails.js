@@ -793,7 +793,16 @@ function DecisionDropdown({ value, onChange, disabled = false, className = '' })
 /* =========================
  * Approval Panel (admin-only)
  * ========================= */
-function ApprovalPanel({ submission, pubDetail, requestedSummary, approvedSummary, onApprove, onReject, onRequestRevision }) {
+function ApprovalPanel({
+  submission,
+  pubDetail,
+  requestedSummary,
+  approvedSummary,
+  onApprove,
+  onReject,
+  onRequestRevision,
+  announcementReferenceNumber,
+}) {
   const statusId = Number(submission?.status_id);
   const approvable = statusId === 1; // อยู่ระหว่างการพิจารณา
   if (!approvable) {
@@ -917,7 +926,18 @@ function ApprovalPanel({ submission, pubDetail, requestedSummary, approvedSummar
   const [publicationApprove, setPublicationApprove] = useState(approvedPublicationDefault);
   const [totalApprove, setTotalApprove] = useState(approvedTotalDefault);
 
-  const [announceRef, setAnnounceRef] = useState(pubDetail?.announce_reference_number || '');
+  const autoAnnounceReference =
+    typeof announcementReferenceNumber === 'string'
+      ? announcementReferenceNumber.trim()
+      : '';
+  const announceReference =
+    autoAnnounceReference ||
+    pubDetail?.announce_reference_number ||
+    submission?.announce_reference_number ||
+    submission?.announce_reference ||
+    '';
+
+  const [announceRef, setAnnounceRef] = useState(announceReference || '');
 
   // Shared cap from announcement
   const [feeCap, setFeeCap] = useState(null);
@@ -943,6 +963,10 @@ function ApprovalPanel({ submission, pubDetail, requestedSummary, approvedSummar
   useEffect(() => {
     setManualEdit(false);
   }, [submission?.submission_id]);
+
+  useEffect(() => {
+    setAnnounceRef(announceReference || '');
+  }, [announceReference]);
 
   useEffect(() => {
     setAdminComment(
@@ -1631,6 +1655,29 @@ export default function PublicationSubmissionDetails({ submissionId, onBack }) {
   const [mainAnn, setMainAnn] = useState(null);      // object จาก announcements/:id
   const [rewardAnn, setRewardAnn] = useState(null);  // object จาก announcements/:id
 
+  const announcementReferenceNumber = useMemo(() => {
+    const autoRef =
+      rewardAnn?.announcement_reference_number ??
+      rewardAnn?.reference_number ??
+      rewardAnn?.reference_code ??
+      rewardAnn?.reference ??
+      rewardAnn?.announcement_reference ??
+      '';
+
+    const fallbackRef =
+      pubDetail?.announce_reference_number ||
+      submission?.announce_reference_number ||
+      submission?.announce_reference ||
+      '';
+
+    return autoRef || fallbackRef || '';
+  }, [
+    rewardAnn,
+    pubDetail?.announce_reference_number,
+    submission?.announce_reference_number,
+    submission?.announce_reference,
+  ]);
+
   // Add: resolved fund names
   const [fundNames, setFundNames] = useState({ category: null, subcategory: null });
   const [fundNamesLoading, setFundNamesLoading] = useState(false);
@@ -2050,27 +2097,6 @@ export default function PublicationSubmissionDetails({ submissionId, onBack }) {
     submission?.details?.data,
   ]);
 
-  useEffect(() => {
-    const autoRef =
-      rewardAnn?.announcement_reference_number ??
-      rewardAnn?.reference_number ??
-      rewardAnn?.reference_code ??
-      rewardAnn?.reference ??
-      rewardAnn?.announcement_reference ??
-      '';
-    const fallbackRef =
-      pubDetail?.announce_reference_number ||
-      submission?.announce_reference_number ||
-      submission?.announce_reference ||
-      '';
-    setAnnounceRef(autoRef || fallbackRef || '');
-  }, [
-    rewardAnn,
-    pubDetail?.announce_reference_number,
-    submission?.announce_reference_number,
-    submission?.announce_reference,
-  ]);
-
   const handleViewAnnouncement = async (id, annObj) => {
     // เปิดแท็บก่อน เพื่อให้ยังเป็น user-gesture (กัน popup-blocker)
     const win = window.open('about:blank', '_blank', 'noopener,noreferrer');
@@ -2413,27 +2439,6 @@ export default function PublicationSubmissionDetails({ submissionId, onBack }) {
     submission?.PublicationRewardDetail,
     submission?.publication_reward_detail,
     submission?.details?.data,
-  ]);
-
-  useEffect(() => {
-    const autoRef =
-      rewardAnn?.announcement_reference_number ??
-      rewardAnn?.reference_number ??
-      rewardAnn?.reference_code ??
-      rewardAnn?.reference ??
-      rewardAnn?.announcement_reference ??
-      '';
-    const fallbackRef =
-      pubDetail?.announce_reference_number ||
-      submission?.announce_reference_number ||
-      submission?.announce_reference ||
-      '';
-    setAnnounceRef(autoRef || fallbackRef || '');
-  }, [
-    rewardAnn,
-    pubDetail?.announce_reference_number,
-    submission?.announce_reference_number,
-    submission?.announce_reference,
   ]);
 
   if (loading) {
@@ -2905,12 +2910,13 @@ export default function PublicationSubmissionDetails({ submissionId, onBack }) {
           <ApprovalPanel
             submission={submission}
             pubDetail={pubDetail}
-          requestedSummary={requestedSummary}
-          approvedSummary={approvedSummary}
-          onApprove={approve}
-          onReject={reject}
-          onRequestRevision={requestRevision}
-        />
+            requestedSummary={requestedSummary}
+            approvedSummary={approvedSummary}
+            announcementReferenceNumber={announcementReferenceNumber}
+            onApprove={approve}
+            onReject={reject}
+            onRequestRevision={requestRevision}
+          />
         </div>
       )}
 
