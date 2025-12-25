@@ -92,8 +92,15 @@ const formatDate = (value) => {
 
 const firstNonEmpty = (...vals) => {
   for (const v of vals) {
-    if (typeof v === "string" && v.trim() !== "") {
-      return v.trim();
+    if (v === null || v === undefined) continue;
+
+    const asString =
+      typeof v === "string" || typeof v === "number"
+        ? String(v).trim()
+        : "";
+
+    if (asString !== "") {
+      return asString;
     }
   }
   return null;
@@ -1043,6 +1050,34 @@ export default function PublicationRewardDetail({
     submission.approval_date ??
     null;
 
+  const contactPhone =
+    firstNonEmpty(
+      submission?.contact_phone,
+      submission?.details?.data?.contact_phone,
+      pubDetail?.contact_phone,
+    ) || "";
+
+  const bankAccount =
+    firstNonEmpty(
+      submission?.bank_account,
+      submission?.details?.data?.bank_account,
+      pubDetail?.bank_account,
+    ) || "";
+
+  const bankAccountName =
+    firstNonEmpty(
+      submission?.bank_account_name,
+      submission?.details?.data?.bank_account_name,
+      pubDetail?.bank_account_name,
+    ) || "";
+
+  const bankName =
+    firstNonEmpty(
+      submission?.bank_name,
+      submission?.details?.data?.bank_name,
+      pubDetail?.bank_name,
+    ) || "";
+
   const mainAnnouncementId = deriveAnnouncementId(
     pubDetail?.main_annoucement_id,
     pubDetail?.main_announcement_id,
@@ -1165,6 +1200,10 @@ export default function PublicationRewardDetail({
                     {installmentLoading ? "กำลังโหลด..." : installmentLabel}
                   </span>
                 </div>
+                <div className="flex items-start gap-2">
+                  <span className="text-gray-500 shrink-0">เบอร์ติดต่อ:</span>
+                  <span className="font-medium break-words">{contactPhone || "-"}</span>
+                </div>
                 {submission.created_at && (
                   <div className="flex items-start gap-2">
                     <span className="text-gray-500 shrink-0">วันที่สร้างคำร้อง:</span>
@@ -1185,6 +1224,20 @@ export default function PublicationRewardDetail({
                     <span className="font-medium">{formatDate(approvedAt)}</span>
                   </div>
                 )}
+                <div className="flex items-start gap-2 lg:col-span-3">
+                  <span className="text-gray-500 shrink-0">ข้อมูลธนาคาร:</span>
+                  <div className="flex flex-col text-sm font-medium text-gray-700">
+                    <span>
+                      เลขที่บัญชี: <span className="font-semibold">{bankAccount || "-"}</span>
+                    </span>
+                    <span>
+                      ชื่อบัญชี: <span className="font-semibold">{bankAccountName || "-"}</span>
+                    </span>
+                    <span>
+                      ธนาคาร: <span className="font-semibold">{bankName || "-"}</span>
+                    </span>
+                  </div>
+                </div>
                 {announceReference && (
                   <div className="flex items-start gap-2 lg:col-span-3">
                     <span className="text-gray-500 shrink-0">หมายเลขอ้างอิงประกาศผลการพิจารณา:</span>
