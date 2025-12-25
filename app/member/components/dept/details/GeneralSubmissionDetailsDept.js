@@ -1361,7 +1361,13 @@ export default function GeneralSubmissionDetailsDept({ submissionId, onBack }) {
   // ---- Robust subcategory/fund display name (fallbacks) ----
   const firstNonEmpty = (...vals) => {
     for (const v of vals) {
-      if (typeof v === 'string' && v.trim() !== '') return v.trim();
+      if (v === null || v === undefined) continue;
+
+      const str = typeof v === 'string' || typeof v === 'number'
+        ? String(v).trim()
+        : '';
+
+      if (str !== '') return str;
     }
     return null;
   };

@@ -80,8 +80,15 @@ const getFileURL = (filePath) => {
 
 const firstNonEmpty = (...values) => {
   for (const value of values) {
-    if (typeof value === "string" && value.trim() !== "") {
-      return value.trim();
+    if (value === null || value === undefined) continue;
+
+    const asString =
+      typeof value === "string" || typeof value === "number"
+        ? String(value).trim()
+        : "";
+
+    if (asString !== "") {
+      return asString;
     }
   }
   return null;
