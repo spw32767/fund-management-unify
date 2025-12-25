@@ -9,7 +9,6 @@ import (
 	"regexp"
 	"strings"
 	"time"
-	"unicode"
 )
 
 // CreateUserFolderIfNotExists สร้างโฟลเดอร์ user ถ้ายังไม่มี
@@ -87,6 +86,10 @@ func SanitizeForFilename(filename string) string {
 	reg := regexp.MustCompile(`[<>:"/\\|?*]`)
 	cleaned := reg.ReplaceAllString(filename, "_")
 	cleaned = strings.TrimSpace(cleaned)
+
+	// Replace any whitespace (including tabs and newlines) with underscores before truncation.
+	whitespace := regexp.MustCompile(`\s+`)
+	cleaned = whitespace.ReplaceAllString(cleaned, "_")
 
 	// Truncate by runes (to avoid corrupting multi-byte characters) while preserving the extension.
 	const maxLength = 100
