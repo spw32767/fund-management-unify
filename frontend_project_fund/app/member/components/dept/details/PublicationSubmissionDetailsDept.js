@@ -2502,6 +2502,22 @@ export default function PublicationSubmissionDetailsDept({ submissionId, onBack 
               </div>
 
 
+              <div className="flex items-start gap-2 md:col-span-2 lg:col-span-3">
+                <span className="text-gray-500 shrink-0">ข้อมูลธนาคาร:</span>
+                <div className="flex flex-col text-sm font-medium text-gray-700">
+                  <span>
+                    เลขที่บัญชี: <span className="font-semibold">{bankAccount || '-'}</span>
+                  </span>
+                  <span>
+                    ชื่อบัญชี: <span className="font-semibold">{bankAccountName || '-'}</span>
+                  </span>
+                  <span>
+                    ธนาคาร: <span className="font-semibold">{bankName || '-'}</span>
+                  </span>
+                </div>
+              </div>
+
+
               {/* หมายเลขอ้างอิงประกาศ */}
               {pubDetail?.announce_reference_number && (
                 <div className="flex items-start gap-2">
@@ -2551,21 +2567,6 @@ export default function PublicationSubmissionDetailsDept({ submissionId, onBack 
                   )}
                 </div>
               )}
-
-              <div className="flex items-start gap-2 md:col-span-2 lg:col-span-3">
-                <span className="text-gray-500 shrink-0">ข้อมูลธนาคาร:</span>
-                <div className="flex flex-col text-sm font-medium text-gray-700">
-                  <span>
-                    เลขที่บัญชี: <span className="font-semibold">{bankAccount || '-'}</span>
-                  </span>
-                  <span>
-                    ชื่อบัญชี: <span className="font-semibold">{bankAccountName || '-'}</span>
-                  </span>
-                  <span>
-                    ธนาคาร: <span className="font-semibold">{bankName || '-'}</span>
-                  </span>
-                </div>
-              </div>
             </div>
           </div>
         </div>
