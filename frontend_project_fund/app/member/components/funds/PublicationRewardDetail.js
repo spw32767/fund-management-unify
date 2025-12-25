@@ -846,47 +846,10 @@ export default function PublicationRewardDetail({
     anchor.remove();
   };
 
-  if (loading) {
-    return (
-      <PageLayout
-        title="รายละเอียดคำร้อง (Submission Details)"
-        subtitle="กำลังโหลดข้อมูล... (Loading...)"
-        icon={FileText}
-      >
-        <div className="flex justify-center items-center py-12">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-            <p className="mt-4 text-gray-600">กำลังโหลดข้อมูล... (Loading...)</p>
-          </div>
-        </div>
-      </PageLayout>
-    );
-  }
-
-  if (!submission) {
-    return (
-      <PageLayout
-        title="ไม่พบข้อมูล (Data Not Found)"
-        subtitle="ไม่พบข้อมูลคำร้องที่ต้องการ (Requested submission not found)"
-        icon={AlertCircle}
-      >
-        <Card collapsible={false}>
-          <div className="text-center py-12">
-            <AlertCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
-            <p className="text-gray-600">ไม่พบข้อมูลคำร้องที่ต้องการ (Requested submission not found)</p>
-            <button onClick={handleBack} className="btn btn-primary mt-4">
-              กลับไปหน้ารายการ (Back to list)
-            </button>
-          </div>
-        </Card>
-      </PageLayout>
-    );
-  }
-
   // Extract publication details
   const pubDetail =
-    submission.PublicationRewardDetail ||
-    submission.publication_reward_detail ||
+    submission?.PublicationRewardDetail ||
+    submission?.publication_reward_detail ||
     {};
 
   const installmentNumber = useMemo(
@@ -984,6 +947,43 @@ export default function PublicationRewardDetail({
       cancelled = true;
     };
   }, [submission, installmentNumber, installmentYearId, installmentFundSelection]);
+
+  if (loading) {
+    return (
+      <PageLayout
+        title="รายละเอียดคำร้อง (Submission Details)"
+        subtitle="กำลังโหลดข้อมูล... (Loading...)"
+        icon={FileText}
+      >
+        <div className="flex justify-center items-center py-12">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+            <p className="mt-4 text-gray-600">กำลังโหลดข้อมูล... (Loading...)</p>
+          </div>
+        </div>
+      </PageLayout>
+    );
+  }
+
+  if (!submission) {
+    return (
+      <PageLayout
+        title="ไม่พบข้อมูล (Data Not Found)"
+        subtitle="ไม่พบข้อมูลคำร้องที่ต้องการ (Requested submission not found)"
+        icon={AlertCircle}
+      >
+        <Card collapsible={false}>
+          <div className="text-center py-12">
+            <AlertCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
+            <p className="text-gray-600">ไม่พบข้อมูลคำร้องที่ต้องการ (Requested submission not found)</p>
+            <button onClick={handleBack} className="btn btn-primary mt-4">
+              กลับไปหน้ารายการ (Back to list)
+            </button>
+          </div>
+        </Card>
+      </PageLayout>
+    );
+  }
 
   // Approved amounts may come from different fields depending on API version
   const toNumber = (val) =>
