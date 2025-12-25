@@ -365,7 +365,13 @@ const getUserEmail = (user) => (user?.email ? user.email : '');
 // ---------- Add: helpers for subcategory name from payload ----------
 const firstNonEmpty = (...vals) => {
   for (const v of vals) {
-    if (typeof v === 'string' && v.trim() !== '') return v.trim();
+    if (v === null || v === undefined) continue;
+
+    const str = typeof v === 'string' || typeof v === 'number'
+      ? String(v).trim()
+      : '';
+
+    if (str !== '') return str;
   }
   return null;
 };
