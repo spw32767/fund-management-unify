@@ -2429,6 +2429,7 @@ export default function PublicationSubmissionDetailsDept({ submissionId, onBack 
       icon={getColoredStatusIcon(getCodeById(submission?.status_id) || submission?.status?.status_code)}
       collapsible={false}
       headerClassName="items-center"
+      className="mb-6"
       title={
         <div className="flex items-center gap-2">
           <span>สถานะคำร้อง (Submission Status)</span>
@@ -2460,6 +2461,10 @@ export default function PublicationSubmissionDetailsDept({ submissionId, onBack 
             
             {/* Info grid: วันที่ต่าง ๆ และเลขอ้างอิงประกาศ */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-3 mt-2">
+              <div className="flex items-start gap-2">
+                <span className="text-gray-500 shrink-0">เลขที่คำร้อง:</span>
+                <span className="font-medium break-all">{submission.submission_number || '-'}</span>
+              </div>
               <div className="flex items-start gap-2">
                 <span className="text-gray-500 shrink-0">รอบการพิจารณา:</span>
                 <span className="font-medium">
