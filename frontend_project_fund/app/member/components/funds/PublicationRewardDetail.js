@@ -92,8 +92,15 @@ const formatDate = (value) => {
 
 const firstNonEmpty = (...vals) => {
   for (const v of vals) {
-    if (typeof v === "string" && v.trim() !== "") {
-      return v.trim();
+    if (v === null || v === undefined) continue;
+
+    const asString =
+      typeof v === "string" || typeof v === "number"
+        ? String(v).trim()
+        : "";
+
+    if (asString !== "") {
+      return asString;
     }
   }
   return null;
@@ -846,47 +853,10 @@ export default function PublicationRewardDetail({
     anchor.remove();
   };
 
-  if (loading) {
-    return (
-      <PageLayout
-        title="รายละเอียดคำร้อง (Submission Details)"
-        subtitle="กำลังโหลดข้อมูล... (Loading...)"
-        icon={FileText}
-      >
-        <div className="flex justify-center items-center py-12">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-            <p className="mt-4 text-gray-600">กำลังโหลดข้อมูล... (Loading...)</p>
-          </div>
-        </div>
-      </PageLayout>
-    );
-  }
-
-  if (!submission) {
-    return (
-      <PageLayout
-        title="ไม่พบข้อมูล (Data Not Found)"
-        subtitle="ไม่พบข้อมูลคำร้องที่ต้องการ (Requested submission not found)"
-        icon={AlertCircle}
-      >
-        <Card collapsible={false}>
-          <div className="text-center py-12">
-            <AlertCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
-            <p className="text-gray-600">ไม่พบข้อมูลคำร้องที่ต้องการ (Requested submission not found)</p>
-            <button onClick={handleBack} className="btn btn-primary mt-4">
-              กลับไปหน้ารายการ (Back to list)
-            </button>
-          </div>
-        </Card>
-      </PageLayout>
-    );
-  }
-
   // Extract publication details
   const pubDetail =
-    submission.PublicationRewardDetail ||
-    submission.publication_reward_detail ||
+    submission?.PublicationRewardDetail ||
+    submission?.publication_reward_detail ||
     {};
 
   const installmentNumber = useMemo(
@@ -985,6 +955,43 @@ export default function PublicationRewardDetail({
     };
   }, [submission, installmentNumber, installmentYearId, installmentFundSelection]);
 
+  if (loading) {
+    return (
+      <PageLayout
+        title="รายละเอียดคำร้อง (Submission Details)"
+        subtitle="กำลังโหลดข้อมูล... (Loading...)"
+        icon={FileText}
+      >
+        <div className="flex justify-center items-center py-12">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+            <p className="mt-4 text-gray-600">กำลังโหลดข้อมูล... (Loading...)</p>
+          </div>
+        </div>
+      </PageLayout>
+    );
+  }
+
+  if (!submission) {
+    return (
+      <PageLayout
+        title="ไม่พบข้อมูล (Data Not Found)"
+        subtitle="ไม่พบข้อมูลคำร้องที่ต้องการ (Requested submission not found)"
+        icon={AlertCircle}
+      >
+        <Card collapsible={false}>
+          <div className="text-center py-12">
+            <AlertCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
+            <p className="text-gray-600">ไม่พบข้อมูลคำร้องที่ต้องการ (Requested submission not found)</p>
+            <button onClick={handleBack} className="btn btn-primary mt-4">
+              กลับไปหน้ารายการ (Back to list)
+            </button>
+          </div>
+        </Card>
+      </PageLayout>
+    );
+  }
+
   // Approved amounts may come from different fields depending on API version
   const toNumber = (val) =>
     val !== undefined && val !== null ? Number(val) : null;
@@ -1042,6 +1049,34 @@ export default function PublicationRewardDetail({
     pubDetail.approval_date ??
     submission.approval_date ??
     null;
+
+  const contactPhone =
+    firstNonEmpty(
+      submission?.contact_phone,
+      submission?.details?.data?.contact_phone,
+      pubDetail?.contact_phone,
+    ) || "";
+
+  const bankAccount =
+    firstNonEmpty(
+      submission?.bank_account,
+      submission?.details?.data?.bank_account,
+      pubDetail?.bank_account,
+    ) || "";
+
+  const bankAccountName =
+    firstNonEmpty(
+      submission?.bank_account_name,
+      submission?.details?.data?.bank_account_name,
+      pubDetail?.bank_account_name,
+    ) || "";
+
+  const bankName =
+    firstNonEmpty(
+      submission?.bank_name,
+      submission?.details?.data?.bank_name,
+      pubDetail?.bank_name,
+    ) || "";
 
   const mainAnnouncementId = deriveAnnouncementId(
     pubDetail?.main_annoucement_id,
@@ -1165,6 +1200,10 @@ export default function PublicationRewardDetail({
                     {installmentLoading ? "กำลังโหลด..." : installmentLabel}
                   </span>
                 </div>
+                <div className="flex items-start gap-2">
+                  <span className="text-gray-500 shrink-0">เบอร์ติดต่อ:</span>
+                  <span className="font-medium break-words">{contactPhone || "-"}</span>
+                </div>
                 {submission.created_at && (
                   <div className="flex items-start gap-2">
                     <span className="text-gray-500 shrink-0">วันที่สร้างคำร้อง:</span>
@@ -1185,6 +1224,20 @@ export default function PublicationRewardDetail({
                     <span className="font-medium">{formatDate(approvedAt)}</span>
                   </div>
                 )}
+                <div className="flex items-start gap-2 lg:col-span-3">
+                  <span className="text-gray-500 shrink-0">ข้อมูลธนาคาร:</span>
+                  <div className="flex flex-col text-sm font-medium text-gray-700">
+                    <span>
+                      เลขที่บัญชี: <span className="font-semibold">{bankAccount || "-"}</span>
+                    </span>
+                    <span>
+                      ชื่อบัญชี: <span className="font-semibold">{bankAccountName || "-"}</span>
+                    </span>
+                    <span>
+                      ธนาคาร: <span className="font-semibold">{bankName || "-"}</span>
+                    </span>
+                  </div>
+                </div>
                 {announceReference && (
                   <div className="flex items-start gap-2 lg:col-span-3">
                     <span className="text-gray-500 shrink-0">หมายเลขอ้างอิงประกาศผลการพิจารณา:</span>

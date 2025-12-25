@@ -365,7 +365,13 @@ const getUserEmail = (user) => (user?.email ? user.email : '');
 // ---------- Add: helpers for subcategory name from payload ----------
 const firstNonEmpty = (...vals) => {
   for (const v of vals) {
-    if (typeof v === 'string' && v.trim() !== '') return v.trim();
+    if (v === null || v === undefined) continue;
+
+    const str = typeof v === 'string' || typeof v === 'number'
+      ? String(v).trim()
+      : '';
+
+    if (str !== '') return str;
   }
   return null;
 };
@@ -1719,6 +1725,38 @@ export default function PublicationSubmissionDetailsDept({ submissionId, onBack 
     submission?.approval_date ??
     null;
 
+  const contactPhone =
+    firstNonEmpty(
+      submission?.contact_phone,
+      submission?.details?.data?.contact_phone,
+      pubDetail?.contact_phone,
+      pubDetail?.fund_application_detail?.contact_phone,
+    ) || '';
+
+  const bankAccount =
+    firstNonEmpty(
+      submission?.bank_account,
+      submission?.details?.data?.bank_account,
+      pubDetail?.bank_account,
+      pubDetail?.fund_application_detail?.bank_account,
+    ) || '';
+
+  const bankAccountName =
+    firstNonEmpty(
+      submission?.bank_account_name,
+      submission?.details?.data?.bank_account_name,
+      pubDetail?.bank_account_name,
+      pubDetail?.fund_application_detail?.bank_account_name,
+    ) || '';
+
+  const bankName =
+    firstNonEmpty(
+      submission?.bank_name,
+      submission?.details?.data?.bank_name,
+      pubDetail?.bank_name,
+      pubDetail?.fund_application_detail?.bank_name,
+    ) || '';
+
   const showApprovedColumn =
     submission?.status_id === 2 &&
     approvedTotalDisplay != null &&
@@ -2391,6 +2429,7 @@ export default function PublicationSubmissionDetailsDept({ submissionId, onBack 
       icon={getColoredStatusIcon(getCodeById(submission?.status_id) || submission?.status?.status_code)}
       collapsible={false}
       headerClassName="items-center"
+      className="mb-6"
       title={
         <div className="flex items-center gap-2">
           <span>สถานะคำร้อง (Submission Status)</span>
@@ -2423,6 +2462,10 @@ export default function PublicationSubmissionDetailsDept({ submissionId, onBack 
             {/* Info grid: วันที่ต่าง ๆ และเลขอ้างอิงประกาศ */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-3 mt-2">
               <div className="flex items-start gap-2">
+                <span className="text-gray-500 shrink-0">เลขที่คำร้อง:</span>
+                <span className="font-medium break-all">{submission.submission_number || '-'}</span>
+              </div>
+              <div className="flex items-start gap-2">
                 <span className="text-gray-500 shrink-0">รอบการพิจารณา:</span>
                 <span className="font-medium">
                   {installmentLoading ? 'กำลังโหลด...' : installmentLabel}
@@ -2452,6 +2495,27 @@ export default function PublicationSubmissionDetailsDept({ submissionId, onBack 
                   <span className="font-medium">{formatDate(approvedAt)}</span>
                 </div>
               )}
+
+              <div className="flex items-start gap-2">
+                <span className="text-gray-500 shrink-0">เบอร์ติดต่อ:</span>
+                <span className="font-medium break-words">{contactPhone || '-'}</span>
+              </div>
+
+
+              <div className="flex items-start gap-2 md:col-span-2 lg:col-span-3">
+                <span className="text-gray-500 shrink-0">ข้อมูลธนาคาร:</span>
+                <div className="flex flex-col text-sm font-medium text-gray-700">
+                  <span>
+                    เลขที่บัญชี: <span className="font-semibold">{bankAccount || '-'}</span>
+                  </span>
+                  <span>
+                    ชื่อบัญชี: <span className="font-semibold">{bankAccountName || '-'}</span>
+                  </span>
+                  <span>
+                    ธนาคาร: <span className="font-semibold">{bankName || '-'}</span>
+                  </span>
+                </div>
+              </div>
 
 
               {/* หมายเลขอ้างอิงประกาศ */}
