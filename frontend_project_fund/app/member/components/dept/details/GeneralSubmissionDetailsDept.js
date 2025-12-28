@@ -1377,6 +1377,11 @@ export default function GeneralSubmissionDetailsDept({ submissionId, onBack }) {
     submission?.details?.data?.contact_phone,
     detail?.contact_phone,
     detail?.fund_application_detail?.contact_phone,
+    applicant?.contact_phone,
+    applicant?.tel,
+    applicant?.Tel,
+    applicant?.tel_format,
+    applicant?.TelFormat,
   ) || '';
 
   const bankAccount = firstNonEmpty(
@@ -1384,6 +1389,8 @@ export default function GeneralSubmissionDetailsDept({ submissionId, onBack }) {
     submission?.details?.data?.bank_account,
     detail?.bank_account,
     detail?.fund_application_detail?.bank_account,
+    applicant?.bank_account,
+    applicant?.BankAccount,
   ) || '';
 
   const bankName = firstNonEmpty(
@@ -1391,6 +1398,8 @@ export default function GeneralSubmissionDetailsDept({ submissionId, onBack }) {
     submission?.details?.data?.bank_name,
     detail?.bank_name,
     detail?.fund_application_detail?.bank_name,
+    applicant?.bank_name,
+    applicant?.BankName,
   ) || '';
 
   const bankAccountName = firstNonEmpty(
@@ -1398,7 +1407,76 @@ export default function GeneralSubmissionDetailsDept({ submissionId, onBack }) {
     submission?.details?.data?.bank_account_name,
     detail?.bank_account_name,
     detail?.fund_application_detail?.bank_account_name,
+    applicant?.bank_account_name,
+    applicant?.BankAccountName,
   ) || '';
+
+  useEffect(() => {
+    if (!submission && !detail) return;
+
+    const applicantContact = firstNonEmpty(
+      applicant?.contact_phone,
+      applicant?.tel,
+      applicant?.Tel,
+      applicant?.tel_format,
+      applicant?.TelFormat,
+    );
+
+    const applicantBank = {
+      bank_account: firstNonEmpty(applicant?.bank_account, applicant?.BankAccount),
+      bank_account_name: firstNonEmpty(applicant?.bank_account_name, applicant?.BankAccountName),
+      bank_name: firstNonEmpty(applicant?.bank_name, applicant?.BankName),
+    };
+
+    console.log('[GeneralSubmissionDetailsDept] contact/bank debug', {
+      submissionId: submission?.submission_id || submissionId,
+      resolved: {
+        contactPhone: contactPhone || null,
+        bankAccount: bankAccount || null,
+        bankAccountName: bankAccountName || null,
+        bankName: bankName || null,
+      },
+      candidates: {
+        submission: {
+          contact_phone: submission?.contact_phone,
+          bank_account: submission?.bank_account,
+          bank_account_name: submission?.bank_account_name,
+          bank_name: submission?.bank_name,
+          details_contact: submission?.details?.data?.contact_phone,
+          details_bank_account: submission?.details?.data?.bank_account,
+          details_bank_account_name: submission?.details?.data?.bank_account_name,
+          details_bank_name: submission?.details?.data?.bank_name,
+        },
+        detail: detail
+          ? {
+              contact_phone: detail?.contact_phone ?? detail?.fund_application_detail?.contact_phone,
+              bank_account: detail?.bank_account ?? detail?.fund_application_detail?.bank_account,
+              bank_account_name:
+                detail?.bank_account_name ?? detail?.fund_application_detail?.bank_account_name,
+              bank_name: detail?.bank_name ?? detail?.fund_application_detail?.bank_name,
+            }
+          : null,
+        applicant: applicant
+          ? {
+              contact_phone: applicantContact,
+              bank_account: applicantBank.bank_account,
+              bank_account_name: applicantBank.bank_account_name,
+              bank_name: applicantBank.bank_name,
+            }
+          : null,
+      },
+      apiSource: submission?.details?.source || submission?.source || null,
+    });
+  }, [
+    submission,
+    submissionId,
+    detail,
+    applicant,
+    contactPhone,
+    bankAccount,
+    bankAccountName,
+    bankName,
+  ]);
 
   const getSubcategoryNameGeneral = (submission, detail) => {
     // 1) ลองจาก detail ก่อน (ชื่อ key เปลี่ยนได้ตามฟอร์ม)
