@@ -589,6 +589,8 @@ func buildSubmissionDetailPayload(submissionID int) (gin.H, error) {
 	bankAccountName := firstNonEmptyString(submission.BankAccountName)
 	bankName := firstNonEmptyString(submission.BankName)
 
+	log.Printf("[dept-head-details] submission_id=%d type=%s contact_phone=%v bank_account=%v bank_account_name=%v bank_name=%v", submission.SubmissionID, submission.SubmissionType, contactPhone, bankAccount, bankAccountName, bankName)
+
 	// ---- applicant (เหมือนเดิม) ----
 	var applicant map[string]any
 	if submission.User != nil && submission.User.UserID > 0 {
@@ -714,7 +716,7 @@ func buildSubmissionDetailPayload(submissionID int) (gin.H, error) {
 		documents = []models.SubmissionDocument{}
 	}
 
-	// ---- payload หลัก (เหมือนเดิม) ----
+	// ---- payload หลัก (เหมือนเดิม แต่ใส่ค่า fallback สำหรับ contact/bank) ----
 	submissionPayload := gin.H{
 		"submission_id":     submission.SubmissionID,
 		"submission_number": submission.SubmissionNumber,
@@ -724,10 +726,30 @@ func buildSubmissionDetailPayload(submissionID int) (gin.H, error) {
 		"status_id":         submission.StatusID,
 
 		// Contact & bank info (shared across submission types)
-		"contact_phone":     submission.ContactPhone,
-		"bank_account":      submission.BankAccount,
-		"bank_name":         submission.BankName,
-		"bank_account_name": submission.BankAccountName,
+		"contact_phone": func() *string {
+			if contactPhone != nil {
+				return contactPhone
+			}
+			return submission.ContactPhone
+		}(),
+		"bank_account": func() *string {
+			if bankAccount != nil {
+				return bankAccount
+			}
+			return submission.BankAccount
+		}(),
+		"bank_name": func() *string {
+			if bankName != nil {
+				return bankName
+			}
+			return submission.BankName
+		}(),
+		"bank_account_name": func() *string {
+			if bankAccountName != nil {
+				return bankAccountName
+			}
+			return submission.BankAccountName
+		}(),
 
 		"created_at":   submission.CreatedAt,
 		"updated_at":   submission.UpdatedAt,
