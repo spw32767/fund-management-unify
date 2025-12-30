@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
@@ -534,6 +535,19 @@ func DeptHeadRequestRevision(c *gin.Context) {
 // controllers/dept_head_submission.go
 
 func buildSubmissionDetailPayload(submissionID int) (gin.H, error) {
+	firstNonEmptyString := func(values ...*string) *string {
+		for _, v := range values {
+			if v == nil {
+				continue
+			}
+			trimmed := strings.TrimSpace(*v)
+			if trimmed != "" {
+				return &trimmed
+			}
+		}
+		return nil
+	}
+
 	// โหลด submission พร้อมความสัมพันธ์ที่จำเป็น (ตามของเดิม)
 	var submission models.Submission
 	if err := config.DB.
@@ -553,6 +567,29 @@ func buildSubmissionDetailPayload(submissionID int) (gin.H, error) {
 	}
 
 	populateInstallmentFallback(config.DB, &submission)
+
+	applicantUser := extractApplicantUser(&submission)
+
+	contactPhone := firstNonEmptyString(
+		submission.ContactPhone,
+		func() *string {
+			if applicantUser != nil {
+				return applicantUser.Tel
+			}
+			return nil
+		}(),
+		func() *string {
+			if applicantUser != nil {
+				return applicantUser.TelFormat
+			}
+			return nil
+		}(),
+	)
+	bankAccount := firstNonEmptyString(submission.BankAccount)
+	bankAccountName := firstNonEmptyString(submission.BankAccountName)
+	bankName := firstNonEmptyString(submission.BankName)
+
+	log.Printf("[dept-head-details] submission_id=%d type=%s contact_phone=%v bank_account=%v bank_account_name=%v bank_name=%v", submission.SubmissionID, submission.SubmissionType, contactPhone, bankAccount, bankAccountName, bankName)
 
 	// ---- applicant (เหมือนเดิม) ----
 	var applicant map[string]any
@@ -583,7 +620,24 @@ func buildSubmissionDetailPayload(submissionID int) (gin.H, error) {
 	var detailsData any = nil
 	switch submission.SubmissionType {
 	case "publication_reward":
-		detailsData = submission.PublicationRewardDetail
+		if submission.PublicationRewardDetail != nil {
+			mapped := map[string]any{}
+			if raw, err := json.Marshal(submission.PublicationRewardDetail); err == nil {
+				_ = json.Unmarshal(raw, &mapped)
+			}
+			mapped["contact_phone"] = contactPhone
+			mapped["bank_account"] = bankAccount
+			mapped["bank_account_name"] = bankAccountName
+			mapped["bank_name"] = bankName
+			detailsData = mapped
+		} else {
+			detailsData = gin.H{
+				"contact_phone":     contactPhone,
+				"bank_account":      bankAccount,
+				"bank_account_name": bankAccountName,
+				"bank_name":         bankName,
+			}
+		}
 
 	case "fund_application":
 		// ดึงสองคอลัมน์ที่ struct ไม่มี เพื่อ inject เข้า response
@@ -614,12 +668,22 @@ func buildSubmissionDetailPayload(submissionID int) (gin.H, error) {
 				// >>> ประกาศที่ต้องการ <<<
 				"main_annoucement":              extra.MainAnnoucement,
 				"activity_support_announcement": extra.ActivitySupportAnnouncement,
+
+				// Contact & bank info fallback
+				"contact_phone":     contactPhone,
+				"bank_account":      bankAccount,
+				"bank_account_name": bankAccountName,
+				"bank_name":         bankName,
 			}
 		} else {
 			// กันเคสไม่ preload detail ด้วย
 			detailsData = gin.H{
 				"main_annoucement":              extra.MainAnnoucement,
 				"activity_support_announcement": extra.ActivitySupportAnnouncement,
+				"contact_phone":                 contactPhone,
+				"bank_account":                  bankAccount,
+				"bank_account_name":             bankAccountName,
+				"bank_name":                     bankName,
 			}
 		}
 	}
@@ -652,7 +716,7 @@ func buildSubmissionDetailPayload(submissionID int) (gin.H, error) {
 		documents = []models.SubmissionDocument{}
 	}
 
-	// ---- payload หลัก (เหมือนเดิม) ----
+	// ---- payload หลัก (เหมือนเดิม แต่ใส่ค่า fallback สำหรับ contact/bank) ----
 	submissionPayload := gin.H{
 		"submission_id":     submission.SubmissionID,
 		"submission_number": submission.SubmissionNumber,
@@ -660,6 +724,32 @@ func buildSubmissionDetailPayload(submissionID int) (gin.H, error) {
 		"user_id":           submission.UserID,
 		"year_id":           submission.YearID,
 		"status_id":         submission.StatusID,
+
+		// Contact & bank info (shared across submission types)
+		"contact_phone": func() *string {
+			if contactPhone != nil {
+				return contactPhone
+			}
+			return submission.ContactPhone
+		}(),
+		"bank_account": func() *string {
+			if bankAccount != nil {
+				return bankAccount
+			}
+			return submission.BankAccount
+		}(),
+		"bank_name": func() *string {
+			if bankName != nil {
+				return bankName
+			}
+			return submission.BankName
+		}(),
+		"bank_account_name": func() *string {
+			if bankAccountName != nil {
+				return bankAccountName
+			}
+			return submission.BankAccountName
+		}(),
 
 		"created_at":   submission.CreatedAt,
 		"updated_at":   submission.UpdatedAt,
