@@ -38,10 +38,10 @@ func InitDB() {
 
 	// In production, suppress SQL logs unless explicitly re-enabled via DEBUG_SQL=true.
 	// Switch the level back to logger.Info to print SQL statements again.
-	logLevel := logger.Info
-	if environment == "production" && debugSQL != "true" {
-		logLevel = logger.Silent
-	}
+logLevel := logger.Info
+if environment == "production" && debugSQL != "true" {
+logLevel = logger.Warn
+}
 
 	config := &gorm.Config{
 		Logger: logger.New(
