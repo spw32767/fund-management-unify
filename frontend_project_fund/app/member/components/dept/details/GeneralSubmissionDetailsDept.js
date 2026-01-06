@@ -1528,7 +1528,6 @@ export default function PublicationSubmissionDetailsDept({ submissionId, onBack 
   const announcementReferenceNumber = useMemo(
     () =>
       mainAnn?.announcement_reference_number ??
-      rewardAnn?.announcement_reference_number ??
       submission?.announce_reference_number ??
       pubDetail?.announce_reference_number ??
       submission?.FundApplicationDetail?.announce_reference_number ??
@@ -1870,16 +1869,15 @@ export default function PublicationSubmissionDetailsDept({ submissionId, onBack 
 
   useEffect(() => {
     const detail =
-      submission?.PublicationRewardDetail ||
-      submission?.publication_reward_detail ||
-      submission?.details?.data?.publication_reward_detail ||
+      submission?.FundApplicationDetail ||
+      submission?.fund_application_detail ||
+      submission?.details?.data?.fund_application_detail ||
       submission?.details?.data ||
       null;
 
     if (!detail) return;
 
     const mainId = detail?.main_annoucement;
-    const rewardId = detail?.reward_announcement;
 
     let cancelled = false;
     (async () => {
@@ -1893,13 +1891,7 @@ export default function PublicationSubmissionDetailsDept({ submissionId, onBack 
           setMainAnn(null);
         }
 
-        if (rewardId) {
-          const res2 = await deptHeadAPI.getAnnouncement(rewardId);
-          const parsed2 = res2?.announcement || res2?.data || res2 || null;
-          if (!cancelled) setRewardAnn(parsed2);
-        } else {
-          setRewardAnn(null);
-        }
+        setRewardAnn(null);
       } catch (e) {
         console.warn("Load announcements failed:", e);
         if (!cancelled) { setMainAnn(null); setRewardAnn(null); }
@@ -1908,8 +1900,8 @@ export default function PublicationSubmissionDetailsDept({ submissionId, onBack 
 
     return () => { cancelled = true; };
   }, [
-    submission?.PublicationRewardDetail,
-    submission?.publication_reward_detail,
+    submission?.FundApplicationDetail,
+    submission?.fund_application_detail,
     submission?.details?.data,
   ]);
 
@@ -2383,9 +2375,9 @@ export default function PublicationSubmissionDetailsDept({ submissionId, onBack 
 
   useEffect(() => {
     const detail =
-      submission?.PublicationRewardDetail ||
-      submission?.publication_reward_detail ||
-      submission?.details?.data?.publication_reward_detail ||
+      submission?.FundApplicationDetail ||
+      submission?.fund_application_detail ||
+      submission?.details?.data?.fund_application_detail ||
       submission?.details?.data ||
       null;
 
@@ -2394,7 +2386,6 @@ export default function PublicationSubmissionDetailsDept({ submissionId, onBack 
     }
 
     const mainId = detail?.main_annoucement;
-    const rewardId = detail?.reward_announcement;
 
     let cancelled = false;
     (async () => {
@@ -2415,20 +2406,7 @@ export default function PublicationSubmissionDetailsDept({ submissionId, onBack 
           setMainAnn(null);
         }
 
-        // โหลด Reward
-        if (rewardId) {
-          const res2 = await deptHeadAPI.getAnnouncement(rewardId);
-          const parsed2 =
-            res2?.announcement ||
-            res2?.data?.announcement ||
-            res2?.data ||
-            res2;
-          if (!cancelled) {
-            setRewardAnn(parsed2 || null);
-          }
-        } else {
-          setRewardAnn(null);
-        }
+        setRewardAnn(null);
       } catch (e) {
         console.warn('Load announcements failed:', e);
         if (!cancelled) {
@@ -2440,8 +2418,8 @@ export default function PublicationSubmissionDetailsDept({ submissionId, onBack 
 
     return () => { cancelled = true; };
   }, [
-    submission?.PublicationRewardDetail,
-    submission?.publication_reward_detail,
+    submission?.FundApplicationDetail,
+    submission?.fund_application_detail,
     submission?.details?.data,
   ]);
 
