@@ -858,13 +858,13 @@ function DeptDecisionPanel({
     submission?.head_signature ?? ''
   );
   const autoAnnounceReference =
-    typeof announcementReferenceNumber === 'string' ? announcementReferenceNumber.trim() : '';
+    typeof announcementReferenceNumber === 'string' ? announcementReferenceNumber : '';
   const announceReference =
     autoAnnounceReference ||
-    (submission?.PublicationRewardDetail?.announce_reference_number ??
-      submission?.announce_reference_number ??
-      submission?.announce_reference ??
-      '');
+    submission?.PublicationRewardDetail?.announce_reference_number ||
+    submission?.announce_reference_number ||
+    submission?.announce_reference ||
+    '';
   const [announceRef, setAnnounceRef] = useState(announceReference || '');
   const [saving, setSaving] = useState(false);
   const [selectedAction, setSelectedAction] = useState('approve');
@@ -1346,6 +1346,13 @@ export default function PublicationSubmissionDetailsDept({ submissionId, onBack 
     if (res?.details?.type === "publication_reward" && res.details.data) {
       data.PublicationRewardDetail = res.details.data;
     }
+    const announceFromResponse =
+      res?.details?.data?.announce_reference_number ??
+      res?.submission?.announce_reference_number ??
+      res?.announce_reference_number;
+    if (announceFromResponse !== undefined) {
+      data.announce_reference_number = announceFromResponse;
+    }
     setSubmission(data);
   }
 
@@ -1365,6 +1372,15 @@ export default function PublicationSubmissionDetailsDept({ submissionId, onBack 
         // Publication detail ...
         if (res?.details?.type === 'publication_reward' && res.details.data) {
           data.PublicationRewardDetail = res.details.data;
+        }
+
+        const announceFromResponse =
+          res?.details?.data?.announce_reference_number ??
+          res?.submission?.announce_reference_number ??
+          res?.announce_reference_number;
+
+        if (announceFromResponse !== undefined) {
+          data.announce_reference_number = announceFromResponse;
         }
 
         // Attach applicant if present
@@ -1497,6 +1513,16 @@ export default function PublicationSubmissionDetailsDept({ submissionId, onBack 
     submission?.publication_reward_detail ||
     submission?.details?.data ||
     {};
+
+  const announcementReferenceNumber = useMemo(
+    () =>
+      submission?.announce_reference_number ??
+      pubDetail?.announce_reference_number ??
+      submission?.announce_reference ??
+      pubDetail?.announce_reference ??
+      '',
+    [submission, pubDetail]
+  );
 
   const installmentNumber = useMemo(
     () => resolveInstallmentNumber(submission, pubDetail),
@@ -2561,11 +2587,11 @@ export default function PublicationSubmissionDetailsDept({ submissionId, onBack 
 
 
               {/* หมายเลขอ้างอิงประกาศ */}
-              {pubDetail?.announce_reference_number && (
+              {announcementReferenceNumber && (
                 <div className="flex items-start gap-2">
                   <span className="text-gray-500 shrink-0">หมายเลขอ้างอิงประกาศผลการพิจารณา:</span>
                   <span className="font-medium break-all">
-                    {pubDetail.announce_reference_number}
+                    {announcementReferenceNumber}
                   </span>
                 </div>
               )}
@@ -2895,27 +2921,7 @@ export default function PublicationSubmissionDetailsDept({ submissionId, onBack 
 
           <DeptDecisionPanel
             submission={submission}
-            announcementReferenceNumber={
-              mainAnn?.announcement_reference_number ??
-              mainAnn?.main_annoucement_detail?.announcement_reference_number ??
-              mainAnn?.reference_number ??
-              mainAnn?.reference_code ??
-              mainAnn?.reference ??
-              mainAnn?.announcement_reference ??
-              pubDetail?.main_annoucement_detail?.announcement_reference_number ??
-              pubDetail?.main_annoucement_detail?.reference_number ??
-              pubDetail?.main_annoucement_detail?.reference_code ??
-              pubDetail?.main_annoucement_detail?.reference ??
-              pubDetail?.main_annoucement_detail?.announcement_reference ??
-              rewardAnn?.announcement_reference_number ??
-              rewardAnn?.reference_number ??
-              rewardAnn?.reference_code ??
-              rewardAnn?.reference ??
-              rewardAnn?.announcement_reference ??
-              pubDetail?.announce_reference_number ??
-              submission?.announce_reference_number ??
-              ''
-            }
+            announcementReferenceNumber={announcementReferenceNumber || ''}
             onApprove={approve}
             onReject={reject}
             onRequestRevision={requestRevision}
