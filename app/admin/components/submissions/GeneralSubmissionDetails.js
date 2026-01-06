@@ -818,7 +818,7 @@ function FundApprovalPanel({
             approvedAmount: numericApproved,
             approveAmount: numericApproved,
             total_approve_amount: numericApproved,
-            announce_reference_number: announceRef?.trim() || null,
+            announce_reference_number: announceRef?.trim() || '',
             admin_comment: comment?.trim() || null,
           });
         } catch (e) {
@@ -2546,6 +2546,17 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
           submission={submission}
           fundDetail={detail}
           announcementReferenceNumber={
+            mainAnn?.announcement_reference_number ??
+            mainAnn?.main_annoucement_detail?.announcement_reference_number ??
+            mainAnn?.reference_number ??
+            mainAnn?.reference_code ??
+            mainAnn?.reference ??
+            mainAnn?.announcement_reference ??
+            detail?.main_annoucement_detail?.announcement_reference_number ??
+            detail?.main_annoucement_detail?.reference_number ??
+            detail?.main_annoucement_detail?.reference_code ??
+            detail?.main_annoucement_detail?.reference ??
+            detail?.main_annoucement_detail?.announcement_reference ??
             activityAnn?.announcement_reference_number ??
             activityAnn?.reference_number ??
             activityAnn?.reference_code ??

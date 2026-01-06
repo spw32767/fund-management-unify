@@ -3392,9 +3392,9 @@ export default function GenericFundApplicationForm({
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-sm font-medium text-gray-700" htmlFor="bank-account">
-                    เลขบัญชีธนาคาร
-                  </label>
+                <label className="text-sm font-medium text-gray-700" htmlFor="bank-account">
+                  เลขบัญชีธนาคาร <span className="text-red-500">*</span>
+                </label>
                   <input
                     id="bank-account"
                     type="text"
@@ -3418,9 +3418,9 @@ export default function GenericFundApplicationForm({
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-sm font-medium text-gray-700" htmlFor="bank-account-name">
-                    ชื่อบัญชีธนาคาร
-                  </label>
+                <label className="text-sm font-medium text-gray-700" htmlFor="bank-account-name">
+                  ชื่อบัญชีธนาคาร <span className="text-red-500">*</span>
+                </label>
                   <input
                     id="bank-account-name"
                     type="text"
@@ -3443,9 +3443,9 @@ export default function GenericFundApplicationForm({
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-sm font-medium text-gray-700" htmlFor="bank-name">
-                    ชื่อธนาคาร
-                  </label>
+                <label className="text-sm font-medium text-gray-700" htmlFor="bank-name">
+                  ชื่อธนาคาร <span className="text-red-500">*</span>
+                </label>
                   <input
                     id="bank-name"
                     type="text"
@@ -3527,7 +3527,7 @@ export default function GenericFundApplicationForm({
               <div className="grid gap-4 md:grid-cols-2 md:items-start">
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-gray-700" htmlFor="requested-amount">
-                    จำนวนเงินที่ขอ (บาท)
+                    จำนวนเงินที่ขอ (บาท) <span className="text-red-500">*</span>
                   </label>
                   <input
                     id="requested-amount"

@@ -1226,7 +1226,7 @@ function ApprovalPanel({ submission, pubDetail, rewardAnn, requestedSummary, app
             revision_fee_approve_amount: hideSharedFeeFields ? 0 : Number(revisionApprove),
             publication_fee_approve_amount: hideSharedFeeFields ? 0 : Number(publicationApprove),
             total_approve_amount: Number(totalApprove),
-            announce_reference_number: announceRef.trim() || null,
+            announce_reference_number: announceRef.trim() || '',
             admin_comment: adminComment.trim() || null,
           });
 
