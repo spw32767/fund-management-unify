@@ -94,6 +94,16 @@ const clampCurrencyValue = (rawValue) => {
   return rawValue;
 };
 
+// Normalize multiline inputs to a single spaced line to avoid layout shifts in generated documents
+const collapseInlineText = (value) => {
+  if (typeof value !== 'string') {
+    return '';
+  }
+
+  const withoutBreaks = value.replace(/[\r\n]+/g, ' ');
+  return withoutBreaks.replace(/\s+/g, ' ').trim();
+};
+
 const normalizeEndOfContractTerm = (item, index = 0) => {
   if (!item || typeof item !== 'object') {
     return null;
@@ -2491,7 +2501,9 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
             publication_fee: publicationValue,
             external_funding_amount: resolvedExternalAmount,
             total_amount: calculatedTotal,
-            author_name_list: detail.author_name_list ?? prev.author_name_list ?? '',
+            author_name_list: collapseInlineText(
+              detail.author_name_list ?? prev.author_name_list ?? ''
+            ),
             signature: detail.signature ?? prev.signature ?? '',
             has_university_fund: normalizeYesNoValue(
               detail.has_university_funding ??
@@ -3740,6 +3752,14 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
     }
 
     // สำหรับ input อื่นๆ รวมถึง author_status และ journal_quartile
+    else if (name === 'author_name_list') {
+      const inlineValue = collapseInlineText(value);
+      setFormData(prev => ({
+        ...prev,
+        [name]: inlineValue
+      }));
+    }
+
     else {
       setFormData(prev => ({
         ...prev,

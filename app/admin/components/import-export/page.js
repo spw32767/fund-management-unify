@@ -1,7 +1,7 @@
 "use client";
 
-import AuthGuard from "../../components/AuthGuard";
-import { AdminPageContent } from "../page";
+import AuthGuard from "../../../components/AuthGuard";
+import { AdminPageContent } from "../../page";
 
 export default function ImportExportPage() {
   return (
