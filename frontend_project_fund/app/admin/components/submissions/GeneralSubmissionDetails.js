@@ -2546,6 +2546,11 @@ export default function GeneralSubmissionDetails({ submissionId, onBack }) {
           submission={submission}
           fundDetail={detail}
           announcementReferenceNumber={
+            mainAnn?.announcement_reference_number ??
+            mainAnn?.reference_number ??
+            mainAnn?.reference_code ??
+            mainAnn?.reference ??
+            mainAnn?.announcement_reference ??
             activityAnn?.announcement_reference_number ??
             activityAnn?.reference_number ??
             activityAnn?.reference_code ??
