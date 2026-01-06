@@ -1346,6 +1346,9 @@ export default function PublicationSubmissionDetailsDept({ submissionId, onBack 
     if (res?.details?.type === "publication_reward" && res.details.data) {
       data.PublicationRewardDetail = res.details.data;
     }
+    if (res?.details?.type === "fund_application" && res.details.data) {
+      data.FundApplicationDetail = res.details.data;
+    }
     const announceFromResponse =
       res?.details?.data?.announce_reference_number ??
       res?.submission?.announce_reference_number ??
@@ -1372,6 +1375,9 @@ export default function PublicationSubmissionDetailsDept({ submissionId, onBack 
         // Publication detail ...
         if (res?.details?.type === 'publication_reward' && res.details.data) {
           data.PublicationRewardDetail = res.details.data;
+        }
+        if (res?.details?.type === 'fund_application' && res.details.data) {
+          data.FundApplicationDetail = res.details.data;
         }
 
         const announceFromResponse =
@@ -1508,18 +1514,25 @@ export default function PublicationSubmissionDetailsDept({ submissionId, onBack 
     [submission, getApplicant]
   );
 
-  const pubDetail =
-    submission?.PublicationRewardDetail ||
-    submission?.publication_reward_detail ||
-    submission?.details?.data ||
-    {};
+  const pubDetail = useMemo(
+    () =>
+      submission?.PublicationRewardDetail ||
+      submission?.publication_reward_detail ||
+      submission?.FundApplicationDetail ||
+      submission?.fund_application_detail ||
+      submission?.details?.data ||
+      null,
+    [submission]
+  );
 
   const announcementReferenceNumber = useMemo(
     () =>
       submission?.announce_reference_number ??
       pubDetail?.announce_reference_number ??
+      submission?.FundApplicationDetail?.announce_reference_number ??
       submission?.announce_reference ??
       pubDetail?.announce_reference ??
+      submission?.FundApplicationDetail?.announce_reference ??
       '',
     [submission, pubDetail]
   );
@@ -1587,16 +1600,6 @@ export default function PublicationSubmissionDetailsDept({ submissionId, onBack 
           )
           : null;
         const name = matched ? extractInstallmentPeriodName(matched) : null;
-        console.log('[PublicationSubmissionDetailsDept] installment debug', {
-          submissionId: submission?.submission_id,
-          installmentNumber,
-          resolvedNumber,
-          installmentYearId,
-          fundLevel,
-          fundKeyword,
-          periodsCount: periods.length,
-          periodName: name,
-        });
         setInstallmentPeriod({
           name,
           raw: matched?.raw ?? matched ?? null,
