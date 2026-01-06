@@ -1527,6 +1527,8 @@ export default function PublicationSubmissionDetailsDept({ submissionId, onBack 
 
   const announcementReferenceNumber = useMemo(
     () =>
+      mainAnn?.announcement_reference_number ??
+      rewardAnn?.announcement_reference_number ??
       submission?.announce_reference_number ??
       pubDetail?.announce_reference_number ??
       submission?.FundApplicationDetail?.announce_reference_number ??
@@ -1534,8 +1536,17 @@ export default function PublicationSubmissionDetailsDept({ submissionId, onBack 
       pubDetail?.announce_reference ??
       submission?.FundApplicationDetail?.announce_reference ??
       '',
-    [submission, pubDetail]
+    [submission, pubDetail, mainAnn, rewardAnn]
   );
+
+  const announcementReferenceDisplay = useMemo(() => {
+    if (announcementReferenceNumber === undefined || announcementReferenceNumber === null) {
+      return '(ไม่มีข้อมูล)';
+    }
+    const raw = String(announcementReferenceNumber);
+    if (raw.trim() === '') return '(ไม่มีข้อมูล)';
+    return raw;
+  }, [announcementReferenceNumber]);
 
   const installmentNumber = useMemo(
     () => resolveInstallmentNumber(submission, pubDetail),
@@ -2590,14 +2601,10 @@ export default function PublicationSubmissionDetailsDept({ submissionId, onBack 
 
 
               {/* หมายเลขอ้างอิงประกาศ */}
-              {announcementReferenceNumber && (
-                <div className="flex items-start gap-2">
-                  <span className="text-gray-500 shrink-0">หมายเลขอ้างอิงประกาศผลการพิจารณา:</span>
-                  <span className="font-medium break-all">
-                    {announcementReferenceNumber}
-                  </span>
-                </div>
-              )}
+              <div className="flex items-start gap-2">
+                <span className="text-gray-500 shrink-0">หมายเลขอ้างอิงประกาศผลการพิจารณา:</span>
+                <span className="font-medium break-all">{announcementReferenceDisplay}</span>
+              </div>
 
               {/* ประกาศหลักเกณฑ์ (Main Announcement) */}
               {(mainAnn || pubDetail?.main_annoucement) && (
