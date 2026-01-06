@@ -32,7 +32,7 @@ import { toast } from 'react-hot-toast';
 import StatusBadge from '@/app/admin/components/common/StatusBadge';
 import { useStatusMap } from '@/app/hooks/useStatusMap';
 
-import apiClient from "@/app/lib/api";
+import apiClient, { authAPI } from "@/app/lib/api";
 import deptHeadAPI from "@/app/lib/dept_head_api";
 import { fundInstallmentAPI, resolveInstallmentNumberFromPeriods } from '@/app/lib/fund_installment_api';
 import { rewardConfigAPI } from '@/app/lib/publication_api';
@@ -46,6 +46,26 @@ const pickArray = (...candidates) => {
     if (Array.isArray(candidate)) return candidate;
   }
   return [];
+};
+
+const buildDeptHeadDisplayName = (user) => {
+  if (!user || typeof user !== 'object') return '';
+
+  const prefix =
+    user.prefix ||
+    user.prefix_name ||
+    user.title ||
+    user.user_title ||
+    '';
+
+  const firstName = user.user_fname || user.first_name || '';
+  const lastName = user.user_lname || user.last_name || '';
+
+  return [prefix, firstName, lastName]
+    .map((part) => String(part || '').trim())
+    .filter(Boolean)
+    .join(' ')
+    .trim();
 };
 
 import { PDFDocument } from 'pdf-lib';
@@ -862,6 +882,28 @@ function DeptDecisionPanel({
   useEffect(() => {
     setAnnounceRef(announceReference || '');
   }, [announceReference]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const preloadHeadSignature = async () => {
+      if (headSignature?.trim()) return;
+      try {
+        const profile = await authAPI.getProfile();
+        const user = profile?.user || profile;
+        const displayName = buildDeptHeadDisplayName(user);
+        if (!cancelled && displayName && !headSignature?.trim()) {
+          setHeadSignature(displayName);
+        }
+      } catch (error) {
+        console.warn('[DeptDecisionPanel] Failed to preload head signature', error);
+      }
+    };
+
+    preloadHeadSignature();
+    return () => {
+      cancelled = true;
+    };
+  }, [headSignature]);
 
   const handleApprove = async () => {
     const trimmedComment = comment?.trim() || '';

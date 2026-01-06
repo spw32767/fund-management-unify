@@ -14,6 +14,7 @@ import PageLayout from '../../common/PageLayout';
 import Card from '../../common/Card';
 import StatusBadge from '../../common/StatusBadge';
 import deptHeadAPI from '@/app/lib/dept_head_api';
+import { authAPI } from '@/app/lib/api';
 import { fundInstallmentAPI, resolveInstallmentNumberFromPeriods } from '@/app/lib/fund_installment_api';
 import apiClient from '@/app/lib/api';
 import { notificationsAPI } from '@/app/lib/notifications_api';
@@ -196,6 +197,26 @@ const pickApplicant = (submission) => {
     (u) => u.is_applicant || u.IsApplicant || u.is_owner || u.is_submitter
   );
   return su?.user || su?.User || null;
+};
+
+const buildDeptHeadDisplayName = (user) => {
+  if (!user || typeof user !== 'object') return '';
+
+  const prefix =
+    user.prefix ||
+    user.prefix_name ||
+    user.title ||
+    user.user_title ||
+    '';
+
+  const firstName = user.user_fname || user.first_name || '';
+  const lastName = user.user_lname || user.last_name || '';
+
+  return [prefix, firstName, lastName]
+    .map((part) => String(part || '').trim())
+    .filter(Boolean)
+    .join(' ')
+    .trim();
 };
 
 const getUserFullName = (u) => {
@@ -521,6 +542,28 @@ function DeptDecisionPanel({
   const [selectedAction, setSelectedAction] = useState('approve');
   const [decisionPending, setDecisionPending] = useState(false);
   const [errors, setErrors] = useState({});
+
+  useEffect(() => {
+    let cancelled = false;
+    const preloadHeadSignature = async () => {
+      if (headSignature?.trim()) return;
+      try {
+        const profile = await authAPI.getProfile();
+        const user = profile?.user || profile;
+        const displayName = buildDeptHeadDisplayName(user);
+        if (!cancelled && displayName && !headSignature?.trim()) {
+          setHeadSignature(displayName);
+        }
+      } catch (error) {
+        console.warn('[DeptDecisionPanel] Failed to preload head signature', error);
+      }
+    };
+
+    preloadHeadSignature();
+    return () => {
+      cancelled = true;
+    };
+  }, [headSignature]);
 
   useEffect(() => {
     setAnnounceRef(announceReference || '');
