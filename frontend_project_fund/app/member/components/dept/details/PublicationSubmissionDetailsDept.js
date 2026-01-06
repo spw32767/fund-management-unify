@@ -2896,11 +2896,24 @@ export default function PublicationSubmissionDetailsDept({ submissionId, onBack 
           <DeptDecisionPanel
             submission={submission}
             announcementReferenceNumber={
+              mainAnn?.announcement_reference_number ??
+              mainAnn?.main_annoucement_detail?.announcement_reference_number ??
+              mainAnn?.reference_number ??
+              mainAnn?.reference_code ??
+              mainAnn?.reference ??
+              mainAnn?.announcement_reference ??
+              pubDetail?.main_annoucement_detail?.announcement_reference_number ??
+              pubDetail?.main_annoucement_detail?.reference_number ??
+              pubDetail?.main_annoucement_detail?.reference_code ??
+              pubDetail?.main_annoucement_detail?.reference ??
+              pubDetail?.main_annoucement_detail?.announcement_reference ??
               rewardAnn?.announcement_reference_number ??
               rewardAnn?.reference_number ??
               rewardAnn?.reference_code ??
               rewardAnn?.reference ??
               rewardAnn?.announcement_reference ??
+              pubDetail?.announce_reference_number ??
+              submission?.announce_reference_number ??
               ''
             }
             onApprove={approve}

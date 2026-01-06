@@ -1331,6 +1331,16 @@ export default function PublicationSubmissionDetailsDept({ submissionId, onBack 
   );
   const { getCodeById } = useStatusMap();
 
+  const detail = useMemo(
+    () =>
+      submission?.FundApplicationDetail ||
+      submission?.fund_application_detail ||
+      submission?.details?.data?.fund_application_detail ||
+      submission?.details?.data ||
+      null,
+    [submission]
+  );
+
   // แผงการตัดสินใจของหัวหน้าสาขา
   const [saving, setSaving] = useState(false);
   const [selectedAction, setSelectedAction] = useState('approve');
@@ -2896,11 +2906,17 @@ export default function PublicationSubmissionDetailsDept({ submissionId, onBack 
           <DeptDecisionPanel
             submission={submission}
             announcementReferenceNumber={
-              rewardAnn?.announcement_reference_number ??
-              rewardAnn?.reference_number ??
-              rewardAnn?.reference_code ??
-              rewardAnn?.reference ??
-              rewardAnn?.announcement_reference ??
+              mainAnn?.announcement_reference_number ??
+              mainAnn?.main_annoucement_detail?.announcement_reference_number ??
+              mainAnn?.reference_number ??
+              mainAnn?.reference_code ??
+              mainAnn?.reference ??
+              mainAnn?.announcement_reference ??
+              detail?.main_annoucement_detail?.announcement_reference_number ??
+              detail?.main_annoucement_detail?.reference_number ??
+              detail?.main_annoucement_detail?.reference_code ??
+              detail?.main_annoucement_detail?.reference ??
+              detail?.main_annoucement_detail?.announcement_reference ??
               ''
             }
             onApprove={approve}
