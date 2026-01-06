@@ -1521,7 +1521,7 @@ export default function PublicationSubmissionDetailsDept({ submissionId, onBack 
       submission?.FundApplicationDetail ||
       submission?.fund_application_detail ||
       submission?.details?.data ||
-      null,
+      {},
     [submission]
   );
 
