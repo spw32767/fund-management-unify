@@ -5610,7 +5610,7 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
           createPayload.subcategory_budget_id = submissionSubcategoryBudgetId;
         }
 
-        const submissionResponse = await submissionAPI.create(createPayload);
+        const submissionResponse = await submissionAPI.createSubmission(createPayload);
         submissionId = submissionResponse?.submission?.submission_id
           ?? submissionResponse?.submission_id
           ?? null;
@@ -6298,7 +6298,7 @@ const showSubmissionConfirmation = async () => {
           throw new Error('ไม่พบข้อมูลหมวดทุนสำหรับการสร้างคำร้อง');
         }
 
-        const submissionResponse = await submissionAPI.create({
+        const submissionResponse = await submissionAPI.createSubmission({
           submission_type: 'publication_reward',
           year_id: formData.year_id,
           category_id: formData.category_id || categoryId,
