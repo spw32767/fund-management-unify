@@ -1331,6 +1331,16 @@ export default function PublicationSubmissionDetailsDept({ submissionId, onBack 
   );
   const { getCodeById } = useStatusMap();
 
+  const detail = useMemo(
+    () =>
+      submission?.FundApplicationDetail ||
+      submission?.fund_application_detail ||
+      submission?.details?.data?.fund_application_detail ||
+      submission?.details?.data ||
+      null,
+    [submission]
+  );
+
   // แผงการตัดสินใจของหัวหน้าสาขา
   const [saving, setSaving] = useState(false);
   const [selectedAction, setSelectedAction] = useState('approve');
