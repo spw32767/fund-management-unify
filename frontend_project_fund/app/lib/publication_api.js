@@ -23,6 +23,10 @@ export const submissionAPI = {
       if (data.subcategory_id) payload.subcategory_id = data.subcategory_id;
       if (data.subcategory_budget_id) payload.subcategory_budget_id = data.subcategory_budget_id;
       if (data.status_id != null) payload.status_id = data.status_id;
+      if (data.contact_phone) payload.contact_phone = data.contact_phone;
+      if (data.bank_account) payload.bank_account = data.bank_account;
+      if (data.bank_account_name) payload.bank_account_name = data.bank_account_name;
+      if (data.bank_name) payload.bank_name = data.bank_name;
 
       const response = await apiClient.post('/submissions', payload);
       return response;
@@ -30,6 +34,11 @@ export const submissionAPI = {
       console.error('Error creating submission:', error);
       throw error;
     }
+  },
+
+  // Backwards-compatible alias
+  async createSubmission(data) {
+    return this.create(data);
   },
 
   // Get submission by ID
