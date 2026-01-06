@@ -818,7 +818,7 @@ function FundApprovalPanel({
             approvedAmount: numericApproved,
             approveAmount: numericApproved,
             total_approve_amount: numericApproved,
-            announce_reference_number: announceRef?.trim() || null,
+            announce_reference_number: announceRef?.trim() || '',
             admin_comment: comment?.trim() || null,
           });
         } catch (e) {
