@@ -32,6 +32,11 @@ export const submissionAPI = {
     }
   },
 
+  // Backwards-compatible alias
+  async createSubmission(data) {
+    return this.create(data);
+  },
+
   // Get submission by ID
   async getById(id) {
     try {
