@@ -51,17 +51,10 @@ const pickArray = (...candidates) => {
 const buildDeptHeadDisplayName = (user) => {
   if (!user || typeof user !== 'object') return '';
 
-  const prefix =
-    user.prefix ||
-    user.prefix_name ||
-    user.title ||
-    user.user_title ||
-    '';
-
   const firstName = user.user_fname || user.first_name || '';
   const lastName = user.user_lname || user.last_name || '';
 
-  return [prefix, firstName, lastName]
+  return [firstName, lastName]
     .map((part) => String(part || '').trim())
     .filter(Boolean)
     .join(' ')
