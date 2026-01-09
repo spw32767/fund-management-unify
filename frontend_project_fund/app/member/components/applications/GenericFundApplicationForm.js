@@ -1556,7 +1556,7 @@ export default function GenericFundApplicationForm({
         setSubmissionUsage(normalized);
         if (showWarning && normalized.overLimit && !submissionLimitWarningRef.current) {
           submissionLimitWarningRef.current = true;
-          await Swal.fire({
+          Swal.fire({
             icon: 'warning',
             title: 'เกินจำนวนครั้งที่กำหนด',
             text: buildSubmissionLimitWarning(normalized.maxSubmissionsPerYear),
