@@ -596,7 +596,7 @@ export const adminAPI = {
       const categoriesWithDetails = await Promise.all(
         categories.map(async (category) => {
           try {
-            const subcategories = await this.getSubcategories(category.category_id);
+            const subcategories = await this.getSubcategories(category.category_id, yearId);
 
             const subcategoriesWithBudgets = subcategories.map((subcategory) => {
               const targetRoles = targetRolesUtils.parseTargetRoles(subcategory.target_roles);
