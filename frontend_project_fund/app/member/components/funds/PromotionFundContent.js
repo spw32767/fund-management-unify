@@ -19,6 +19,23 @@ const normalizeText = (value) =>
     .trim()
     .toLowerCase();
 
+const waitForAuthToken = async (retries = 5, delayMs = 200) => {
+  if (typeof window === "undefined") return false;
+
+  for (let attempt = 0; attempt < retries; attempt += 1) {
+    const token =
+      localStorage.getItem("access_token") ||
+      localStorage.getItem("token") ||
+      localStorage.getItem("auth_token");
+
+    if (token) return true;
+
+    await new Promise((resolve) => setTimeout(resolve, delayMs));
+  }
+
+  return false;
+};
+
 const extractCategoryTexts = (category) => {
   if (!category || typeof category !== 'object') {
     return [];
@@ -318,17 +335,25 @@ export default function PromotionFundContent({ onNavigate }) {
   const loadAvailableYears = async () => {
     try {
       setYearsLoading(true);
-      const data = await systemAPI.getYears();
-      const yearsData = Array.isArray(data?.years)
-        ? data.years
-        : Array.isArray(data?.data)
-          ? data.data
-          : Array.isArray(data)
-            ? data
-            : [];
-      const validYears = yearsData.filter(
-        (year) => year && year.year_id && year.year
-      );
+      const fetchYears = async () => {
+        const data = await systemAPI.getYears();
+        const yearsData = Array.isArray(data?.years)
+          ? data.years
+          : Array.isArray(data?.data)
+            ? data.data
+            : Array.isArray(data)
+              ? data
+              : [];
+        return yearsData.filter((year) => year && year.year_id && year.year);
+      };
+
+      let validYears = await fetchYears().catch(() => []);
+
+      if (!validYears.length) {
+        await waitForAuthToken();
+        validYears = await fetchYears();
+      }
+
       return validYears;
     } catch (err) {
       console.error('Error loading years:', err);
