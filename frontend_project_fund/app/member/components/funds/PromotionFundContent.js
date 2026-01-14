@@ -8,6 +8,7 @@ import { teacherAPI } from '../../../lib/member_api';
 import { targetRolesUtils, filterFundsByRole } from '../../../lib/target_roles_utils';
 import { FORM_TYPE_CONFIG } from '../../../lib/form_type_config';
 import systemConfigAPI from '../../../lib/system_config_api';
+import { systemAPI } from '../../../lib/api';
 
 const PROMOTION_CATEGORY_KEYWORDS = [
   'ทุนอุดหนุนกิจกรรม'
@@ -317,18 +318,18 @@ export default function PromotionFundContent({ onNavigate }) {
   const loadAvailableYears = async () => {
     try {
       setYearsLoading(true);
-      const response = await fetch('/api/years');
-      const data = await response.json();
-      
-      if (data.success) {
-        const yearsData = data.years || data.data || [];
-        const validYears = yearsData.filter(year => 
-          year && year.year_id && year.year
-        );
-        return validYears;
-      } else {
-        throw new Error(data.error || 'Failed to load years');
-      }
+      const data = await systemAPI.getYears();
+      const yearsData = Array.isArray(data?.years)
+        ? data.years
+        : Array.isArray(data?.data)
+          ? data.data
+          : Array.isArray(data)
+            ? data
+            : [];
+      const validYears = yearsData.filter(
+        (year) => year && year.year_id && year.year
+      );
+      return validYears;
     } catch (err) {
       console.error('Error loading years:', err);
       return [];
