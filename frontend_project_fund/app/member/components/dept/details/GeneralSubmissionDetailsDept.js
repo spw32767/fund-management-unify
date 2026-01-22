@@ -863,7 +863,13 @@ function DeptDecisionPanel({
     autoAnnounceReference ||
     (submission?.PublicationRewardDetail?.announce_reference_number ??
       submission?.announce_reference_number ??
+      submission?.announcement_reference_number ??
       submission?.announce_reference ??
+      submission?.announcement_reference ??
+      submission?.details?.data?.announce_reference_number ??
+      submission?.details?.data?.announcement_reference_number ??
+      submission?.fund_application_detail?.announce_reference_number ??
+      submission?.fund_application_detail?.announcement_reference_number ??
       '');
   const [announceRef, setAnnounceRef] = useState(announceReference || '');
   const [saving, setSaving] = useState(false);
@@ -2914,6 +2920,11 @@ export default function PublicationSubmissionDetailsDept({ submissionId, onBack 
               rewardAnn?.announcement_reference ??
               pubDetail?.announce_reference_number ??
               submission?.announce_reference_number ??
+              submission?.announcement_reference_number ??
+              submission?.details?.data?.announce_reference_number ??
+              submission?.details?.data?.announcement_reference_number ??
+              submission?.fund_application_detail?.announce_reference_number ??
+              submission?.fund_application_detail?.announcement_reference_number ??
               ''
             }
             onApprove={approve}
