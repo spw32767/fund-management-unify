@@ -51,17 +51,10 @@ const pickArray = (...candidates) => {
 const buildDeptHeadDisplayName = (user) => {
   if (!user || typeof user !== 'object') return '';
 
-  const prefix =
-    user.prefix ||
-    user.prefix_name ||
-    user.title ||
-    user.user_title ||
-    '';
-
   const firstName = user.user_fname || user.first_name || '';
   const lastName = user.user_lname || user.last_name || '';
 
-  return [prefix, firstName, lastName]
+return [firstName, lastName]
     .map((part) => String(part || '').trim())
     .filter(Boolean)
     .join(' ')
@@ -1225,7 +1218,7 @@ function DeptDecisionPanel({
           >
             <textarea
               className="w-full min-h-[100px] rounded-lg border-0 bg-transparent p-3 outline-none"
-              placeholder="เขียนหมายเหตุของหัวหน้าสาขาหรือบันทึกหมายเหตุ (ถ้ามี)"
+              placeholder="เขียนหมายเหตุของหัวหน้าสาขาหรือบันทึกหมายเหตุ"
               value={comment}
               onChange={(e) => {
                 const next = e.target.value;
@@ -2896,16 +2889,16 @@ export default function PublicationSubmissionDetailsDept({ submissionId, onBack 
           <DeptDecisionPanel
             submission={submission}
             announcementReferenceNumber={
-              mainAnn?.announcement_reference_number ??
-              mainAnn?.reference_number ??
-              mainAnn?.reference_code ??
-              mainAnn?.reference ??
-              mainAnn?.announcement_reference ??
               rewardAnn?.announcement_reference_number ??
               rewardAnn?.reference_number ??
               rewardAnn?.reference_code ??
               rewardAnn?.reference ??
               rewardAnn?.announcement_reference ??
+              mainAnn?.announcement_reference_number ??
+              mainAnn?.reference_number ??
+              mainAnn?.reference_code ??
+              mainAnn?.reference ??
+              mainAnn?.announcement_reference ??
               pubDetail?.announce_reference_number ??
               submission?.announce_reference_number ??
               ''

@@ -51,17 +51,10 @@ const pickArray = (...candidates) => {
 const buildDeptHeadDisplayName = (user) => {
   if (!user || typeof user !== 'object') return '';
 
-  const prefix =
-    user.prefix ||
-    user.prefix_name ||
-    user.title ||
-    user.user_title ||
-    '';
-
   const firstName = user.user_fname || user.first_name || '';
   const lastName = user.user_lname || user.last_name || '';
 
-  return [prefix, firstName, lastName]
+return [firstName, lastName]
     .map((part) => String(part || '').trim())
     .filter(Boolean)
     .join(' ')
@@ -858,13 +851,13 @@ function DeptDecisionPanel({
     submission?.head_signature ?? ''
   );
   const autoAnnounceReference =
-    typeof announcementReferenceNumber === 'string' ? announcementReferenceNumber.trim() : '';
+    typeof announcementReferenceNumber === 'string' ? announcementReferenceNumber : '';
   const announceReference =
     autoAnnounceReference ||
-    (submission?.PublicationRewardDetail?.announce_reference_number ??
-      submission?.announce_reference_number ??
-      submission?.announce_reference ??
-      '');
+    submission?.PublicationRewardDetail?.announce_reference_number ||
+    submission?.announce_reference_number ||
+    submission?.announce_reference ||
+    '';
   const [announceRef, setAnnounceRef] = useState(announceReference || '');
   const [saving, setSaving] = useState(false);
   const [selectedAction, setSelectedAction] = useState('approve');
@@ -1225,7 +1218,7 @@ function DeptDecisionPanel({
           >
             <textarea
               className="w-full min-h-[100px] rounded-lg border-0 bg-transparent p-3 outline-none"
-              placeholder="เขียนหมายเหตุของหัวหน้าสาขาหรือบันทึกหมายเหตุ (ถ้ามี)"
+              placeholder="เขียนหมายเหตุของหัวหน้าสาขาหรือบันทึกหมายเหตุ"
               value={comment}
               onChange={(e) => {
                 const next = e.target.value;
@@ -1346,6 +1339,16 @@ export default function PublicationSubmissionDetailsDept({ submissionId, onBack 
     if (res?.details?.type === "publication_reward" && res.details.data) {
       data.PublicationRewardDetail = res.details.data;
     }
+    if (res?.details?.type === "fund_application" && res.details.data) {
+      data.FundApplicationDetail = res.details.data;
+    }
+    const announceFromResponse =
+      res?.details?.data?.announce_reference_number ??
+      res?.submission?.announce_reference_number ??
+      res?.announce_reference_number;
+    if (announceFromResponse !== undefined) {
+      data.announce_reference_number = announceFromResponse;
+    }
     setSubmission(data);
   }
 
@@ -1365,6 +1368,18 @@ export default function PublicationSubmissionDetailsDept({ submissionId, onBack 
         // Publication detail ...
         if (res?.details?.type === 'publication_reward' && res.details.data) {
           data.PublicationRewardDetail = res.details.data;
+        }
+        if (res?.details?.type === 'fund_application' && res.details.data) {
+          data.FundApplicationDetail = res.details.data;
+        }
+
+        const announceFromResponse =
+          res?.details?.data?.announce_reference_number ??
+          res?.submission?.announce_reference_number ??
+          res?.announce_reference_number;
+
+        if (announceFromResponse !== undefined) {
+          data.announce_reference_number = announceFromResponse;
         }
 
         // Attach applicant if present
@@ -1492,11 +1507,38 @@ export default function PublicationSubmissionDetailsDept({ submissionId, onBack 
     [submission, getApplicant]
   );
 
-  const pubDetail =
-    submission?.PublicationRewardDetail ||
-    submission?.publication_reward_detail ||
-    submission?.details?.data ||
-    {};
+  const pubDetail = useMemo(
+    () =>
+      submission?.PublicationRewardDetail ||
+      submission?.publication_reward_detail ||
+      submission?.FundApplicationDetail ||
+      submission?.fund_application_detail ||
+      submission?.details?.data ||
+      {},
+    [submission]
+  );
+
+  const announcementReferenceNumber = useMemo(
+    () =>
+      mainAnn?.announcement_reference_number ??
+      submission?.announce_reference_number ??
+      pubDetail?.announce_reference_number ??
+      submission?.FundApplicationDetail?.announce_reference_number ??
+      submission?.announce_reference ??
+      pubDetail?.announce_reference ??
+      submission?.FundApplicationDetail?.announce_reference ??
+      '',
+    [submission, pubDetail, mainAnn, rewardAnn]
+  );
+
+  const announcementReferenceDisplay = useMemo(() => {
+    if (announcementReferenceNumber === undefined || announcementReferenceNumber === null) {
+      return '(ไม่มีข้อมูล)';
+    }
+    const raw = String(announcementReferenceNumber);
+    if (raw.trim() === '') return '(ไม่มีข้อมูล)';
+    return raw;
+  }, [announcementReferenceNumber]);
 
   const installmentNumber = useMemo(
     () => resolveInstallmentNumber(submission, pubDetail),
@@ -1561,16 +1603,6 @@ export default function PublicationSubmissionDetailsDept({ submissionId, onBack 
           )
           : null;
         const name = matched ? extractInstallmentPeriodName(matched) : null;
-        console.log('[PublicationSubmissionDetailsDept] installment debug', {
-          submissionId: submission?.submission_id,
-          installmentNumber,
-          resolvedNumber,
-          installmentYearId,
-          fundLevel,
-          fundKeyword,
-          periodsCount: periods.length,
-          periodName: name,
-        });
         setInstallmentPeriod({
           name,
           raw: matched?.raw ?? matched ?? null,
@@ -1830,16 +1862,15 @@ export default function PublicationSubmissionDetailsDept({ submissionId, onBack 
 
   useEffect(() => {
     const detail =
-      submission?.PublicationRewardDetail ||
-      submission?.publication_reward_detail ||
-      submission?.details?.data?.publication_reward_detail ||
+      submission?.FundApplicationDetail ||
+      submission?.fund_application_detail ||
+      submission?.details?.data?.fund_application_detail ||
       submission?.details?.data ||
       null;
 
     if (!detail) return;
 
     const mainId = detail?.main_annoucement;
-    const rewardId = detail?.reward_announcement;
 
     let cancelled = false;
     (async () => {
@@ -1853,13 +1884,7 @@ export default function PublicationSubmissionDetailsDept({ submissionId, onBack 
           setMainAnn(null);
         }
 
-        if (rewardId) {
-          const res2 = await deptHeadAPI.getAnnouncement(rewardId);
-          const parsed2 = res2?.announcement || res2?.data || res2 || null;
-          if (!cancelled) setRewardAnn(parsed2);
-        } else {
-          setRewardAnn(null);
-        }
+        setRewardAnn(null);
       } catch (e) {
         console.warn("Load announcements failed:", e);
         if (!cancelled) { setMainAnn(null); setRewardAnn(null); }
@@ -1868,8 +1893,8 @@ export default function PublicationSubmissionDetailsDept({ submissionId, onBack 
 
     return () => { cancelled = true; };
   }, [
-    submission?.PublicationRewardDetail,
-    submission?.publication_reward_detail,
+    submission?.FundApplicationDetail,
+    submission?.fund_application_detail,
     submission?.details?.data,
   ]);
 
@@ -2343,9 +2368,9 @@ export default function PublicationSubmissionDetailsDept({ submissionId, onBack 
 
   useEffect(() => {
     const detail =
-      submission?.PublicationRewardDetail ||
-      submission?.publication_reward_detail ||
-      submission?.details?.data?.publication_reward_detail ||
+      submission?.FundApplicationDetail ||
+      submission?.fund_application_detail ||
+      submission?.details?.data?.fund_application_detail ||
       submission?.details?.data ||
       null;
 
@@ -2354,7 +2379,6 @@ export default function PublicationSubmissionDetailsDept({ submissionId, onBack 
     }
 
     const mainId = detail?.main_annoucement;
-    const rewardId = detail?.reward_announcement;
 
     let cancelled = false;
     (async () => {
@@ -2375,20 +2399,7 @@ export default function PublicationSubmissionDetailsDept({ submissionId, onBack 
           setMainAnn(null);
         }
 
-        // โหลด Reward
-        if (rewardId) {
-          const res2 = await deptHeadAPI.getAnnouncement(rewardId);
-          const parsed2 =
-            res2?.announcement ||
-            res2?.data?.announcement ||
-            res2?.data ||
-            res2;
-          if (!cancelled) {
-            setRewardAnn(parsed2 || null);
-          }
-        } else {
-          setRewardAnn(null);
-        }
+        setRewardAnn(null);
       } catch (e) {
         console.warn('Load announcements failed:', e);
         if (!cancelled) {
@@ -2400,8 +2411,8 @@ export default function PublicationSubmissionDetailsDept({ submissionId, onBack 
 
     return () => { cancelled = true; };
   }, [
-    submission?.PublicationRewardDetail,
-    submission?.publication_reward_detail,
+    submission?.FundApplicationDetail,
+    submission?.fund_application_detail,
     submission?.details?.data,
   ]);
 
@@ -2561,14 +2572,10 @@ export default function PublicationSubmissionDetailsDept({ submissionId, onBack 
 
 
               {/* หมายเลขอ้างอิงประกาศ */}
-              {pubDetail?.announce_reference_number && (
-                <div className="flex items-start gap-2">
-                  <span className="text-gray-500 shrink-0">หมายเลขอ้างอิงประกาศผลการพิจารณา:</span>
-                  <span className="font-medium break-all">
-                    {pubDetail.announce_reference_number}
-                  </span>
-                </div>
-              )}
+              <div className="flex items-start gap-2">
+                <span className="text-gray-500 shrink-0">หมายเลขอ้างอิงประกาศผลการพิจารณา:</span>
+                <span className="font-medium break-all">{announcementReferenceDisplay}</span>
+              </div>
 
               {/* ประกาศหลักเกณฑ์ (Main Announcement) */}
               {(mainAnn || pubDetail?.main_annoucement) && (
@@ -2895,27 +2902,7 @@ export default function PublicationSubmissionDetailsDept({ submissionId, onBack 
 
           <DeptDecisionPanel
             submission={submission}
-            announcementReferenceNumber={
-              mainAnn?.announcement_reference_number ??
-              mainAnn?.main_annoucement_detail?.announcement_reference_number ??
-              mainAnn?.reference_number ??
-              mainAnn?.reference_code ??
-              mainAnn?.reference ??
-              mainAnn?.announcement_reference ??
-              pubDetail?.main_annoucement_detail?.announcement_reference_number ??
-              pubDetail?.main_annoucement_detail?.reference_number ??
-              pubDetail?.main_annoucement_detail?.reference_code ??
-              pubDetail?.main_annoucement_detail?.reference ??
-              pubDetail?.main_annoucement_detail?.announcement_reference ??
-              rewardAnn?.announcement_reference_number ??
-              rewardAnn?.reference_number ??
-              rewardAnn?.reference_code ??
-              rewardAnn?.reference ??
-              rewardAnn?.announcement_reference ??
-              pubDetail?.announce_reference_number ??
-              submission?.announce_reference_number ??
-              ''
-            }
+            announcementReferenceNumber={announcementReferenceNumber || ''}
             onApprove={approve}
             onReject={reject}
             onRequestRevision={requestRevision}
