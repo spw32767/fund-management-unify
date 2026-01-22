@@ -1406,6 +1406,7 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
   const [currentSubmissionId, setCurrentSubmissionId] = useState(initialSubmissionId ?? null);
   const [currentSubmissionStatus, setCurrentSubmissionStatus] = useState(null);
   const [currentUser, setCurrentUser] = useState(null);
+  const [submissionUsage, setSubmissionUsage] = useState(null);
   const [previewState, setPreviewState] = useState({
     loading: false,
     error: null,
@@ -1420,6 +1421,7 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
   const previewSignatureRef = useRef('');
   const previewSectionRef = useRef(null);
   const policyWarningRef = useRef({ lastShownKey: null });
+  const submissionLimitWarningRef = useRef(false);
   const [availableAuthorStatuses, setAvailableAuthorStatuses] = useState([]);
   const [availableQuartiles, setAvailableQuartiles] = useState([]);
   const [quartileConfigs, setQuartileConfigs] = useState({}); // เก็บ config ของแต่ละ quartile
@@ -1453,6 +1455,72 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
     });
     return map;
   }, [users]);
+
+  const normalizeSubmissionUsage = useCallback((payload) => {
+    const root = payload?.data ?? payload;
+    if (!root || typeof root !== 'object') {
+      return null;
+    }
+
+    const maxRaw = root.max_submissions_per_year ?? root.maxSubmissionsPerYear ?? root.max_submissions;
+    const usedRaw = root.used_submissions ?? root.usedSubmissions ?? root.used_submissions_count;
+    const max = Number(maxRaw ?? 0);
+    const used = Number(usedRaw ?? 0);
+
+    if (!Number.isFinite(max) && !Number.isFinite(used)) {
+      return null;
+    }
+
+    const overLimit =
+      typeof root.over_limit === 'boolean'
+        ? root.over_limit
+        : Number.isFinite(max) && Number.isFinite(used) && max > 0
+        ? used >= max
+        : false;
+
+    return {
+      year: root.year ?? null,
+      yearId: root.year_id ?? root.yearId ?? null,
+      maxSubmissionsPerYear: Number.isFinite(max) ? max : 0,
+      usedSubmissions: Number.isFinite(used) ? used : 0,
+      overLimit,
+    };
+  }, []);
+
+  const buildSubmissionLimitWarning = useCallback((max) => (
+    `คุณขอทุนจำนวนมากกว่า ${max} รายการต่อปี ซึ่งเป็นเงื่อนไขสูงสุดของจำนวนทุนที่จะได้รับการพิจารณาแต่ยังสามารถส่งคำขอทุนและบันทึกร่างได้ตามปกติ`
+  ), []);
+
+  const fetchSubmissionUsage = useCallback(async (options = {}) => {
+    const { showWarning = false } = options;
+    try {
+      const response = await systemConfigAPI.getSubmissionUsage();
+      const normalized = normalizeSubmissionUsage(response);
+      if (normalized) {
+        setSubmissionUsage(normalized);
+        if (showWarning && normalized.overLimit && !submissionLimitWarningRef.current) {
+          submissionLimitWarningRef.current = true;
+          await Swal.fire({
+            icon: 'warning',
+            title: 'จำนวนรายการเกินกำหนด',
+            text: buildSubmissionLimitWarning(normalized.maxSubmissionsPerYear),
+            confirmButtonText: 'รับทราบ',
+          });
+        }
+      }
+      return normalized;
+    } catch (error) {
+      console.warn('Unable to fetch submission usage limit:', error);
+      return null;
+    }
+  }, [buildSubmissionLimitWarning, normalizeSubmissionUsage]);
+
+  useEffect(() => {
+    if (readOnly) {
+      return;
+    }
+    fetchSubmissionUsage({ showWarning: true });
+  }, [fetchSubmissionUsage, readOnly]);
 
   const getCoauthorDisplayInfo = useCallback(
     (coauthor) => {
@@ -2974,7 +3042,7 @@ export default function PublicationRewardForm({ onNavigate, categoryId, yearId, 
             const warningMessages = [];
             const userRemainingGrants = normalizedPolicy?.user_remaining?.grants;
             if (userRemainingGrants === 0) {
-              warningMessages.push('คุณใช้สิทธิ์จำนวนครั้งครบตามโควตาประจำปีแล้ว');
+              warningMessages.push('คุณใช้สิทธิ์จำนวนรายการครบตามโควตาประจำปีแล้ว');
             }
             const userRemainingAmount = normalizedPolicy?.user_remaining?.amount;
             if (userRemainingAmount !== null && userRemainingAmount !== undefined && userRemainingAmount <= 0) {
@@ -6170,6 +6238,24 @@ const showSubmissionConfirmation = async () => {
   // MAIN SUBMISSION FUNCTION
   // =================================================================
 
+  const ensureSubmissionLimitAcknowledged = async () => {
+    const usage = submissionUsage ?? (await fetchSubmissionUsage());
+    if (!usage || !usage.overLimit || !usage.maxSubmissionsPerYear) {
+      return true;
+    }
+
+    const result = await Swal.fire({
+      icon: 'warning',
+      title: 'จำนวนรายการเกินกำหนด',
+      text: buildSubmissionLimitWarning(usage.maxSubmissionsPerYear),
+      showCancelButton: true,
+      confirmButtonText: 'ยืนยันส่งคำร้อง',
+      cancelButtonText: 'กลับไปตรวจสอบ',
+    });
+
+    return result.isConfirmed;
+  };
+
   // Validate publication data before sending
   const validatePublicationData = (data) => {
     const errors = [];
@@ -6235,6 +6321,11 @@ const showSubmissionConfirmation = async () => {
     }
 
     setErrors({});
+
+    const limitConfirmed = await ensureSubmissionLimitAcknowledged();
+    if (!limitConfirmed) {
+      return;
+    }
 
     // Show confirmation dialog
     const confirmed = await showSubmissionConfirmation();

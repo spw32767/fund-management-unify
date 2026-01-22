@@ -10,6 +10,7 @@ import { teacherAPI } from "../../../lib/member_api";
 import { targetRolesUtils, filterFundsByRole } from "../../../lib/target_roles_utils";
 import { FORM_TYPE_CONFIG } from "../../../lib/form_type_config";
 import systemConfigAPI from "../../../lib/system_config_api";
+import { systemAPI } from "../../../lib/api";
 
 const RESEARCH_CATEGORY_KEYWORDS = [
   "ทุนส่งเสริมการวิจัย"
@@ -19,6 +20,23 @@ const normalizeText = (value) =>
   String(value ?? "")
     .trim()
     .toLowerCase();
+
+const waitForAuthToken = async (retries = 5, delayMs = 200) => {
+  if (typeof window === "undefined") return false;
+
+  for (let attempt = 0; attempt < retries; attempt += 1) {
+    const token =
+      localStorage.getItem("access_token") ||
+      localStorage.getItem("token") ||
+      localStorage.getItem("auth_token");
+
+    if (token) return true;
+
+    await new Promise((resolve) => setTimeout(resolve, delayMs));
+  }
+
+  return false;
+};
 
 const extractCategoryTexts = (category) => {
   if (!category || typeof category !== "object") {
@@ -329,16 +347,26 @@ export default function ResearchFundContent({ onNavigate }) {
   const loadAvailableYears = async () => {
     try {
       setYearsLoading(true);
-      const response = await fetch("/api/years");
-      const data = await response.json();
+      const fetchYears = async () => {
+        const data = await systemAPI.getYears();
+        const yearsData = Array.isArray(data?.years)
+          ? data.years
+          : Array.isArray(data?.data)
+            ? data.data
+            : Array.isArray(data)
+              ? data
+              : [];
+        return yearsData.filter((year) => year && year.year_id && year.year);
+      };
 
-      if (data.success) {
-        const yearsData = data.years || data.data || [];
-        const validYears = yearsData.filter((year) => year && year.year_id && year.year);
-        return validYears;
-      } else {
-        throw new Error(data.error || "Failed to load years");
+      let validYears = await fetchYears().catch(() => []);
+
+      if (!validYears.length) {
+        await waitForAuthToken();
+        validYears = await fetchYears();
       }
+
+      return validYears;
     } catch (err) {
       console.error("Error loading years:", err);
       return [];
