@@ -142,6 +142,7 @@ export const systemConfigAPI = {
       // อื่น ๆ
       kku_report_year: root?.kku_report_year ?? null,
       installment: root?.installment ?? null,
+      max_submissions_per_year: root?.max_submissions_per_year ?? null,
     };
 
     // เติม “เวลาเริ่ม/สิ้นสุดรายช่อง” ให้เป็น ISO เสมอ
