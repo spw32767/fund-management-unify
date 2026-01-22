@@ -192,6 +192,10 @@ class APIClient {
   // Make request with retry logic for token refresh
   async makeRequestWithRetry(url, options, retryCount = 0) {
     let token = this.getToken();
+    if (!token && retryCount === 0) {
+      await this.waitForInitialToken();
+      token = this.getToken();
+    }
 
     // Determine if payload is FormData so we don't force JSON headers
     const isFormData = options.body instanceof FormData;
@@ -298,6 +302,23 @@ class APIClient {
       
       throw new NetworkError('Network error: ' + error.message);
     }
+  }
+
+  // Wait briefly for token to exist (e.g., right after login)
+  async waitForInitialToken(retries = 5, delayMs = 200) {
+    if (typeof window === 'undefined') return false;
+
+    for (let attempt = 0; attempt < retries; attempt += 1) {
+      const token =
+        localStorage.getItem(this.accessTokenKey) ||
+        localStorage.getItem(this.tokenKey);
+
+      if (token) return true;
+
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+    }
+
+    return false;
   }
 
   // ==================== BASIC HTTP METHODS ====================
