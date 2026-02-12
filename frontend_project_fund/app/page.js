@@ -37,13 +37,18 @@ export default function HomePage() {
   }, [isAuthenticated, user, isLoading, router]);
 
   const redirectBasedOnRole = (userData) => {
-    const userRole = userData.role_id || userData.role;
+    const userRoleRaw = userData.role_id ?? userData.role;
+    const userRole = typeof userRoleRaw === 'string' ? userRoleRaw.toLowerCase() : userRoleRaw;
+    const userRoleNumber = Number(userRoleRaw);
 
     setTimeout(() => {
       if (
         userRole === 1 ||
         userRole === 2 ||
         userRole === 4 ||
+        userRoleNumber === 1 ||
+        userRoleNumber === 2 ||
+        userRoleNumber === 4 ||
         userRole === 'teacher' ||
         userRole === 'staff' ||
         userRole === 'dept_head'
@@ -52,10 +57,12 @@ export default function HomePage() {
       } else if (
         userRole === 3 ||
         userRole === 5 ||
+        userRoleNumber === 3 ||
+        userRoleNumber === 5 ||
         userRole === 'admin' ||
         userRole === 'executive'
       ) {
-        router.replace('/admin');
+        router.replace('/admin/dashboard');
       } else {
         router.replace('/dashboard');
       }

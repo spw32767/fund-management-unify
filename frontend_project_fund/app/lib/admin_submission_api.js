@@ -5,7 +5,7 @@ const isExecutiveRole = () => {
   const user = apiClient.getUser?.();
   if (!user) return false;
   const role = user.role_id ?? user.role;
-  return role === 5 || String(role).toLowerCase() === 'executive';
+  return Number(role) === 5 || String(role).toLowerCase() === 'executive';
 };
 
 const pickFirst = (...candidates) => {
@@ -1005,7 +1005,7 @@ export const submissionsListingAPI = {
   // Export submissions (admin)
   async exportSubmissions(params) {
     try {
-      const endpoint = isExecutiveRole() ? '/executive/submissions/export' : '/admin/submissions/export';
+      const endpoint = isExecutiveRole() ? '/executive/submissions' : '/admin/submissions/export';
       const response = await apiClient.get(endpoint, { params });
       return response;
     } catch (error) {

@@ -30,6 +30,10 @@ const normalizeRoleName = (role) => {
   }
 
   if (typeof role === 'string') {
+    const numericRole = Number(role);
+    if (!Number.isNaN(numericRole) && ROLE_NAME_BY_ID[numericRole]) {
+      return ROLE_NAME_BY_ID[numericRole];
+    }
     return role;
   }
 

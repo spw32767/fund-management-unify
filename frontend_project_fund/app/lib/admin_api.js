@@ -7,7 +7,7 @@ const isExecutiveRole = () => {
   const user = apiClient.getUser?.();
   if (!user) return false;
   const role = user.role_id ?? user.role;
-  return role === 5 || String(role).toLowerCase() === 'executive';
+  return Number(role) === 5 || String(role).toLowerCase() === 'executive';
 };
 
 // Admin API methods for managing funds and roles

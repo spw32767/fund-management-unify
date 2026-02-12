@@ -34,7 +34,8 @@ function AdminPageContent({ initialPage = 'dashboard' }) {
   const { user } = useAuth();
   const rawRole = user?.role_id ?? user?.role;
   const normalizedRole = typeof rawRole === 'string' ? rawRole.toLowerCase() : rawRole;
-  const isExecutive = normalizedRole === 5 || normalizedRole === 'executive';
+  const numericRole = Number(rawRole);
+  const isExecutive = normalizedRole === 5 || normalizedRole === 'executive' || numericRole === 5;
   const [isOpen, setIsOpen] = useState(false);
   const [submenuOpen, setSubmenuOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState(initialPage);

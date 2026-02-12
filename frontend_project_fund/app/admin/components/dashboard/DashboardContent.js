@@ -464,7 +464,8 @@ export default function DashboardContent({ onNavigate }) {
   const { user } = useAuth();
   const rawRole = user?.role_id ?? user?.role;
   const normalizedRole = typeof rawRole === "string" ? rawRole.toLowerCase() : rawRole;
-  const isExecutive = normalizedRole === 5 || normalizedRole === "executive";
+  const numericRole = Number(rawRole);
+  const isExecutive = normalizedRole === 5 || normalizedRole === "executive" || numericRole === 5;
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
