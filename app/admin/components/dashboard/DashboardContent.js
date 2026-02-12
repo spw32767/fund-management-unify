@@ -460,7 +460,7 @@ function ErrorState({ message, onRetry }) {
   );
 }
 
-export default function DashboardContent({ onNavigate }) {
+export default function DashboardContent({ onNavigate, basePath = "/admin" }) {
   const { user } = useAuth();
   const rawRole = user?.role_id ?? user?.role;
   const normalizedRole = typeof rawRole === "string" ? rawRole.toLowerCase() : rawRole;
@@ -623,7 +623,7 @@ export default function DashboardContent({ onNavigate }) {
       icon={LayoutDashboard}
       loading={loading}
       breadcrumbs={[
-        { label: "หน้าแรก", href: "/admin" },
+        { label: "หน้าแรก", href: basePath },
         { label: "แดชบอร์ดผู้ดูแลระบบ" },
       ]}
       actions={(

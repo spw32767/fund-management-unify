@@ -54,7 +54,11 @@ export const canAccess = (pathname, role) => {
   const normalizedRole = normalizeRoleName(role);
 
   if (pathname.startsWith('/admin')) {
-    return normalizedRole === 'admin' || normalizedRole === 'executive';
+    return normalizedRole === 'admin';
+  }
+
+  if (pathname.startsWith('/executive')) {
+    return normalizedRole === 'executive';
   }
 
   if (pathname.startsWith('/member')) {
