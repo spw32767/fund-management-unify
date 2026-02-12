@@ -12,6 +12,7 @@ const ROLE_NAME_BY_ID = {
   2: 'staff',
   3: 'admin',
   4: 'dept_head',
+  5: 'executive',
 };
 
 const normalizeRoleName = (role) => {
@@ -29,6 +30,10 @@ const normalizeRoleName = (role) => {
   }
 
   if (typeof role === 'string') {
+    const numericRole = Number(role);
+    if (!Number.isNaN(numericRole) && ROLE_NAME_BY_ID[numericRole]) {
+      return ROLE_NAME_BY_ID[numericRole];
+    }
     return role;
   }
 
@@ -49,7 +54,7 @@ export const canAccess = (pathname, role) => {
   const normalizedRole = normalizeRoleName(role);
 
   if (pathname.startsWith('/admin')) {
-    return normalizedRole === 'admin';
+    return normalizedRole === 'admin' || normalizedRole === 'executive';
   }
 
   if (pathname.startsWith('/member')) {

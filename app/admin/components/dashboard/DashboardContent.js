@@ -25,6 +25,7 @@ import Card from "../common/Card";
 import SimpleCard from "../common/SimpleCard";
 import MonthlyChart from "./MonthlyChart";
 import adminAPI from "../../../lib/admin_api";
+import { useAuth } from "@/app/contexts/AuthContext";
 import EligibilitySummary from "./EligibilitySummary";
 import StatusPipeline from "./StatusPipeline";
 import FinancialHighlights from "./FinancialHighlights";
@@ -460,6 +461,11 @@ function ErrorState({ message, onRetry }) {
 }
 
 export default function DashboardContent({ onNavigate }) {
+  const { user } = useAuth();
+  const rawRole = user?.role_id ?? user?.role;
+  const normalizedRole = typeof rawRole === "string" ? rawRole.toLowerCase() : rawRole;
+  const numericRole = Number(rawRole);
+  const isExecutive = normalizedRole === 5 || normalizedRole === "executive" || numericRole === 5;
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -632,21 +638,25 @@ export default function DashboardContent({ onNavigate }) {
           />
 
           <div className="flex flex-wrap gap-2 justify-end">
-            <button
-              type="button"
-              onClick={() => onNavigate?.("applications-list")}
-              className="inline-flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-medium text-blue-700 hover:bg-blue-100 transition"
-            >
-              จัดการคำร้อง
-            </button>
-            <button
-              type="button"
-              onClick={handleExportAllData}
-              className="inline-flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-medium text-blue-700 hover:bg-blue-100 transition"
-            >
-              <Download className="w-4 h-4" />
-              ส่งออกข้อมูลทั้งหมด
-            </button>
+            {!isExecutive && (
+              <button
+                type="button"
+                onClick={() => onNavigate?.("applications-list")}
+                className="inline-flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-medium text-blue-700 hover:bg-blue-100 transition"
+              >
+                จัดการคำร้อง
+              </button>
+            )}
+            {!isExecutive && (
+              <button
+                type="button"
+                onClick={handleExportAllData}
+                className="inline-flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-medium text-blue-700 hover:bg-blue-100 transition"
+              >
+                <Download className="w-4 h-4" />
+                ส่งออกข้อมูลทั้งหมด
+              </button>
+            )}
             <button
               type="button"
               onClick={handleRefresh}

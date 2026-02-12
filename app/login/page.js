@@ -59,8 +59,10 @@ export default function LoginPage() {
       return;
     }
 
-    // ตรวจสอบ role จาก user object
-    const userRole = user.role_id || user.role;
+    // รองรับ role ทั้งแบบ number/string เช่น 5 หรือ "5"
+    const userRoleRaw = user.role_id ?? user.role;
+    const userRole = typeof userRoleRaw === 'string' ? userRoleRaw.toLowerCase() : userRoleRaw;
+    const userRoleNumber = Number(userRoleRaw);
 
     // หน่วงเวลาเล็กน้อยเพื่อให้ state update เสร็จ
     setTimeout(() => {
@@ -68,13 +70,23 @@ export default function LoginPage() {
         userRole === 1 ||
         userRole === 2 ||
         userRole === 4 ||
+        userRoleNumber === 1 ||
+        userRoleNumber === 2 ||
+        userRoleNumber === 4 ||
         userRole === 'teacher' ||
         userRole === 'staff' ||
         userRole === 'dept_head'
       ) {
         router.replace('/member');
-      } else if (userRole === 3 || userRole === 'admin') {
-        router.replace('/admin');
+      } else if (
+        userRole === 3 ||
+        userRole === 5 ||
+        userRoleNumber === 3 ||
+        userRoleNumber === 5 ||
+        userRole === 'admin' ||
+        userRole === 'executive'
+      ) {
+        router.replace('/admin/dashboard');
       } else {
         router.replace('/dashboard');
       }
