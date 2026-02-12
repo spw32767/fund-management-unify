@@ -647,14 +647,16 @@ export default function DashboardContent({ onNavigate }) {
                 จัดการคำร้อง
               </button>
             )}
-            <button
-              type="button"
-              onClick={handleExportAllData}
-              className="inline-flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-medium text-blue-700 hover:bg-blue-100 transition"
-            >
-              <Download className="w-4 h-4" />
-              ส่งออกข้อมูลทั้งหมด
-            </button>
+            {!isExecutive && (
+              <button
+                type="button"
+                onClick={handleExportAllData}
+                className="inline-flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-medium text-blue-700 hover:bg-blue-100 transition"
+              >
+                <Download className="w-4 h-4" />
+                ส่งออกข้อมูลทั้งหมด
+              </button>
+            )}
             <button
               type="button"
               onClick={handleRefresh}
