@@ -1,6 +1,13 @@
 // app/lib/admin_submission_api.js
 import apiClient from './api';
 
+const isExecutiveRole = () => {
+  const user = apiClient.getUser?.();
+  if (!user) return false;
+  const role = user.role_id ?? user.role;
+  return Number(role) === 5 || String(role).toLowerCase() === 'executive';
+};
+
 const pickFirst = (...candidates) => {
   for (const value of candidates) {
     if (value !== undefined && value !== null && value !== '') {
@@ -634,7 +641,10 @@ export const adminSubmissionAPI = {
 
     let primary;
     try {
-      primary = await apiClient.get(`/admin/submissions/${submissionId}/details`);
+      const detailsEndpoint = isExecutiveRole()
+        ? `/executive/submissions/${submissionId}/details`
+        : `/admin/submissions/${submissionId}/details`;
+      primary = await apiClient.get(detailsEndpoint);
     } catch (error) {
       console.warn('[adminSubmissionAPI] primary details fetch failed', error);
       return buildFallbackSubmissionDetails(submissionId);
@@ -983,7 +993,8 @@ export const submissionsListingAPI = {
 
   async getAdminSubmissions(params) {
     try {
-      const response = await apiClient.get('/admin/submissions', { params });
+      const endpoint = isExecutiveRole() ? '/executive/submissions' : '/admin/submissions';
+      const response = await apiClient.get(endpoint, { params });
       return response;
     } catch (error) {
       console.error('[API] Error fetching admin submissions:', error);
@@ -994,7 +1005,8 @@ export const submissionsListingAPI = {
   // Export submissions (admin)
   async exportSubmissions(params) {
     try {
-      const response = await apiClient.get('/admin/submissions/export', { params });
+      const endpoint = isExecutiveRole() ? '/executive/submissions' : '/admin/submissions/export';
+      const response = await apiClient.get(endpoint, { params });
       return response;
     } catch (error) {
       console.error('Error exporting submissions:', error);

@@ -4,6 +4,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
+import { useAuth } from "../contexts/AuthContext";
 import AuthGuard from "../components/AuthGuard";
 import Header from "./components/layout/Header";
 import Navigation from "./components/layout/Navigation";
@@ -30,6 +31,11 @@ const IMPORT_TAB_MAP = {
 };
 
 function AdminPageContent({ initialPage = 'dashboard' }) {
+  const { user } = useAuth();
+  const rawRole = user?.role_id ?? user?.role;
+  const normalizedRole = typeof rawRole === 'string' ? rawRole.toLowerCase() : rawRole;
+  const numericRole = Number(rawRole);
+  const isExecutive = normalizedRole === 5 || normalizedRole === 'executive' || numericRole === 5;
   const [isOpen, setIsOpen] = useState(false);
   const [submenuOpen, setSubmenuOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState(initialPage);
@@ -40,25 +46,27 @@ function AdminPageContent({ initialPage = 'dashboard' }) {
 
   const normalizePage = useCallback((page) => {
     const canonicalPage = IMPORT_TAB_MAP[page] ? 'academic-imports' : page;
-    const allowedPages = [
-      'dashboard',
-      'research-fund',
-      'promotion-fund',
-      'applications-list',
-      'scopus-research-search',
-      'legacy-submissions',
-      'fund-settings',
-      'projects',
-      'approval-records',
-      'academic-imports',
-      'import-export',
-      'notifications',
-      'generic-fund-application',
-      'publication-reward-form',
-    ];
+    const allowedPages = isExecutive
+      ? ['dashboard', 'applications-list']
+      : [
+          'dashboard',
+          'research-fund',
+          'promotion-fund',
+          'applications-list',
+          'scopus-research-search',
+          'legacy-submissions',
+          'fund-settings',
+          'projects',
+          'approval-records',
+          'academic-imports',
+          'import-export',
+          'notifications',
+          'generic-fund-application',
+          'publication-reward-form',
+        ];
 
     return allowedPages.includes(canonicalPage) ? canonicalPage : 'dashboard';
-  }, []);
+  }, [isExecutive]);
 
   const pageFromPath = useCallback(
     (path) => {
@@ -234,6 +242,7 @@ function AdminPageContent({ initialPage = 'dashboard' }) {
       handleNavigate={handleNavigate}
       submenuOpen={submenuOpen}
       setSubmenuOpen={setSubmenuOpen}
+      isExecutive={isExecutive}
     />
   );
 
@@ -261,6 +270,7 @@ function AdminPageContent({ initialPage = 'dashboard' }) {
               handleNavigate={handleNavigate}
               submenuOpen={submenuOpen}
               setSubmenuOpen={setSubmenuOpen}
+              isExecutive={isExecutive}
             />
           </div>
         </div>
@@ -282,7 +292,7 @@ export { AdminPageContent };
 export default function AdminPage() {
   return (
     <AuthGuard 
-      allowedRoles={[3, 'admin']}
+      allowedRoles={[3, 5, 'admin', 'executive']}
       requireAuth={true}
     >
       <AdminPageContent />

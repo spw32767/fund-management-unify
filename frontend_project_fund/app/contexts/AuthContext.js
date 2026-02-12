@@ -337,14 +337,16 @@ export function AuthProvider({ children }) {
   const hasRole = (role) => {
     if (!state.user) return false;
     
-    const userRole = state.user.role_id || state.user.role;
+    const userRoleRaw = state.user.role_id ?? state.user.role;
+    const userRoleNumber = Number(userRoleRaw);
+    const userRoleName = String(state.user.role ?? userRoleRaw ?? '').toLowerCase();
     
     if (typeof role === 'string') {
-      return state.user.role === role;
+      return userRoleName === role.toLowerCase();
     }
     
     if (typeof role === 'number') {
-      return userRole === role;
+      return userRoleRaw === role || userRoleNumber === role;
     }
 
     return false;
@@ -383,10 +385,12 @@ export function AuthProvider({ children }) {
       2: 'เจ้าหน้าที่',
       3: 'ผู้ดูแลระบบ',
       4: 'หัวหน้าสาขา',
+      5: 'ผู้บริหาร',
       teacher: 'อาจารย์',
       staff: 'เจ้าหน้าที่',
       admin: 'ผู้ดูแลระบบ',
       dept_head: 'หัวหน้าสาขา',
+      executive: 'ผู้บริหาร',
     };
 
     const userRole = state.user.role_id || state.user.role;

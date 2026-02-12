@@ -3,6 +3,13 @@
 import apiClient from './api';
 import { targetRolesUtils } from './target_roles_utils';
 
+const isExecutiveRole = () => {
+  const user = apiClient.getUser?.();
+  if (!user) return false;
+  const role = user.role_id ?? user.role;
+  return Number(role) === 5 || String(role).toLowerCase() === 'executive';
+};
+
 // Admin API methods for managing funds and roles
 export const adminAPI = {
   
@@ -80,7 +87,8 @@ export const adminAPI = {
   async getCategories(yearId = null) {
     try {
       const params = yearId ? { year_id: yearId } : {};
-      const response = await apiClient.get('/admin/categories', params);
+      const endpoint = isExecutiveRole() ? '/executive/categories' : '/admin/categories';
+      const response = await apiClient.get(endpoint, params);
       return response.categories || [];
     } catch (error) {
       console.error('Error fetching admin categories:', error);
@@ -178,7 +186,8 @@ export const adminAPI = {
       if (categoryId) params.category_id = categoryId;
       if (yearId) params.year_id = yearId;
       
-      const response = await apiClient.get('/admin/subcategories', params);
+      const endpoint = isExecutiveRole() ? '/executive/subcategories' : '/admin/subcategories';
+      const response = await apiClient.get(endpoint, params);
 
       return response;
     } catch (error) {
@@ -200,7 +209,8 @@ export const adminAPI = {
         params.year_id = yearId;
       }
 
-      const response = await apiClient.get('/admin/subcategories', params);
+      const endpoint = isExecutiveRole() ? '/executive/subcategories' : '/admin/subcategories';
+      const response = await apiClient.get(endpoint, params);
       return response.subcategories || [];
     } catch (error) {
       console.error('Error fetching subcategories:', error);
@@ -646,7 +656,8 @@ export const adminAPI = {
   // Get system statistics
   async getSystemStats(params = {}) {
     try {
-      const response = await apiClient.get('/admin/dashboard/stats', params);
+      const endpoint = isExecutiveRole() ? '/executive/dashboard/stats' : '/admin/dashboard/stats';
+      const response = await apiClient.get(endpoint, params);
       return response;
     } catch (error) {
       console.error('Error fetching system stats:', error);
@@ -671,8 +682,8 @@ export const adminAPI = {
   async searchFunds(searchTerm, params = {}) {
     try {
       const [categoriesResponse, subcategoriesResponse] = await Promise.all([
-        apiClient.get('/admin/categories', params),
-        apiClient.get('/admin/subcategories', params)
+        apiClient.get(isExecutiveRole() ? '/executive/categories' : '/admin/categories', params),
+        apiClient.get(isExecutiveRole() ? '/executive/subcategories' : '/admin/subcategories', params)
       ]);
       
       return {
