@@ -49,7 +49,12 @@ export default function HomePage() {
         userRole === 'dept_head'
       ) {
         router.replace('/member');
-      } else if (userRole === 3 || userRole === 'admin') {
+      } else if (
+        userRole === 3 ||
+        userRole === 5 ||
+        userRole === 'admin' ||
+        userRole === 'executive'
+      ) {
         router.replace('/admin');
       } else {
         router.replace('/dashboard');

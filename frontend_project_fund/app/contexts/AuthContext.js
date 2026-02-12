@@ -383,10 +383,12 @@ export function AuthProvider({ children }) {
       2: 'เจ้าหน้าที่',
       3: 'ผู้ดูแลระบบ',
       4: 'หัวหน้าสาขา',
+      5: 'ผู้บริหาร',
       teacher: 'อาจารย์',
       staff: 'เจ้าหน้าที่',
       admin: 'ผู้ดูแลระบบ',
       dept_head: 'หัวหน้าสาขา',
+      executive: 'ผู้บริหาร',
     };
 
     const userRole = state.user.role_id || state.user.role;

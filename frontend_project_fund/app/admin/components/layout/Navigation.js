@@ -24,7 +24,8 @@ export default function Navigation({
   setCurrentPage,
   handleNavigate, 
   submenuOpen, 
-  setSubmenuOpen 
+  setSubmenuOpen,
+  isExecutive = false
 }) {
   const { logout } = useAuth();
   const router = useRouter();
@@ -104,6 +105,11 @@ export default function Navigation({
     }
   ];
 
+
+  const visibleMenuItems = isExecutive
+    ? menuItems.filter((item) => item.id === "dashboard")
+    : menuItems;
+
   const handleMenuClick = (item) => {
     if (item.hasSubmenu) {
       setSubmenuOpen(!submenuOpen);
@@ -137,7 +143,7 @@ export default function Navigation({
 
   return (
     <nav className="pb-40 md:ms-4">
-      {menuItems.map((item) => (
+      {visibleMenuItems.map((item) => (
         <div key={item.id}>
           <button
             onClick={() => handleMenuClick(item)}
