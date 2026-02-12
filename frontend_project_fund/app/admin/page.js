@@ -30,7 +30,7 @@ const IMPORT_TAB_MAP = {
   'kku-people-scraper': 'kku-profile',
 };
 
-function AdminPageContent({ initialPage = 'dashboard' }) {
+function AdminPageContent({ initialPage = 'dashboard', basePath = '/admin' }) {
   const { user } = useAuth();
   const rawRole = user?.role_id ?? user?.role;
   const normalizedRole = typeof rawRole === 'string' ? rawRole.toLowerCase() : rawRole;
@@ -74,10 +74,11 @@ function AdminPageContent({ initialPage = 'dashboard' }) {
 
       const segments = path.split('/').filter(Boolean);
 
-      if (segments[0] !== 'admin') return 'dashboard';
+      const rootSegment = String(basePath || '/admin').replace(/^\//, '').split('/')[0] || 'admin';
+      if (segments[0] !== rootSegment) return 'dashboard';
       return normalizePage(segments[1] || 'dashboard');
     },
-    [normalizePage]
+    [basePath, normalizePage]
   );
 
   const syncPathWithPage = useCallback(
@@ -85,14 +86,15 @@ function AdminPageContent({ initialPage = 'dashboard' }) {
       if (typeof window === 'undefined') return;
 
       const normalized = normalizePage(page);
-      const targetPath = `/admin/${normalized}`;
+      const normalizedBasePath = basePath.startsWith('/') ? basePath : `/${basePath}`;
+      const targetPath = `${normalizedBasePath}/${normalized}`;
 
       if (window.location.pathname === targetPath) return;
 
       const method = replace ? 'replaceState' : 'pushState';
       window.history[method]({ page: normalized }, '', targetPath);
     },
-    [normalizePage]
+    [basePath, normalizePage]
   );
 
   useEffect(() => {
@@ -168,7 +170,7 @@ function AdminPageContent({ initialPage = 'dashboard' }) {
   const renderPageContent = () => {
     switch (currentPage) {
       case 'dashboard':
-        return <DashboardContent onNavigate={handleNavigate} />;
+        return <DashboardContent onNavigate={handleNavigate} basePath={basePath} />;
       case 'research-fund':
         return <ResearchFundContent onNavigate={handleNavigate} />;
       case 'promotion-fund':
@@ -292,7 +294,7 @@ export { AdminPageContent };
 export default function AdminPage() {
   return (
     <AuthGuard 
-      allowedRoles={[3, 5, 'admin', 'executive']}
+      allowedRoles={[3, 'admin']}
       requireAuth={true}
     >
       <AdminPageContent />

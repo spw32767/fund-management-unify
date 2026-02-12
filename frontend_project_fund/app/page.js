@@ -56,13 +56,16 @@ export default function HomePage() {
         router.replace('/member');
       } else if (
         userRole === 3 ||
-        userRole === 5 ||
         userRoleNumber === 3 ||
-        userRoleNumber === 5 ||
-        userRole === 'admin' ||
-        userRole === 'executive'
+        userRole === 'admin'
       ) {
         router.replace('/admin/dashboard');
+      } else if (
+        userRole === 5 ||
+        userRoleNumber === 5 ||
+        userRole === 'executive'
+      ) {
+        router.replace('/executive/dashboard');
       } else {
         router.replace('/dashboard');
       }
