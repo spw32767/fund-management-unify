@@ -183,6 +183,7 @@ export default function AnnouncementPage() {
   const [installmentPeriods, setInstallmentPeriods] = useState([]);
   const [systemNow, setSystemNow] = useState(null);
   const [loadingInstallments, setLoadingInstallments] = useState(true);
+  const [loadingSystemConfig, setLoadingSystemConfig] = useState(true);
 
   useEffect(() => {
     loadAnnouncements();
@@ -289,6 +290,7 @@ export default function AnnouncementPage() {
 
   const loadSystemConfig = async () => {
     try {
+      setLoadingSystemConfig(true);
       const rawConfig = await systemConfigAPI.getWindow();
       const normalized = systemConfigAPI.normalizeWindow(rawConfig);
 
@@ -344,8 +346,14 @@ export default function AnnouncementPage() {
       console.error("Error loading system config:", error);
       setSystemConfigAnnouncementIds([]);
       setSystemNow(null);
+    } finally {
+      setLoadingSystemConfig(false);
     }
   };
+
+  const isLoadingAnnouncementTable =
+    loadingAnnouncements ||
+    (announcementVisibilityFilter === "current" && loadingSystemConfig);
 
   const loadYears = async () => {
     setYearsLoading(true);
@@ -1112,7 +1120,7 @@ export default function AnnouncementPage() {
               )}
             </div>
 
-            {loadingAnnouncements ? (
+            {isLoadingAnnouncementTable ? (
               <div className="flex items-center justify-center py-8">
                 <div className="w-8 h-8 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin"></div>
                 <span className="ml-2 text-gray-600">กำลังโหลด...</span>
