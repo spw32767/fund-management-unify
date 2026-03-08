@@ -1,11 +1,9 @@
-"use client";
+﻿"use client";
 
 import Image from "next/image";
 import { useMemo } from "react";
-import { LogIn } from "lucide-react";
 import { HiMenu } from "react-icons/hi";
 import { RxCross2 } from "react-icons/rx";
-import { useRouter } from "next/navigation";
 import { BRANDING } from "../../config/branding";
 
 export default function PublicHeader({
@@ -14,8 +12,6 @@ export default function PublicHeader({
   Navigation,
   currentPageTitle = "หน้าหลัก",
 }) {
-  const router = useRouter();
-
   const {
     appName,
     appAcronym,
@@ -37,6 +33,8 @@ export default function PublicHeader({
     } = {},
   } = BRANDING;
 
+  const canToggleMenu = Boolean(Navigation);
+
   const logoContainerClass = useMemo(() => {
     const baseSizeClass = containerClassName || "w-10 h-10";
     const sharedClasses = "rounded-lg flex items-center justify-center";
@@ -44,13 +42,6 @@ export default function PublicHeader({
 
     return [baseSizeClass, sharedClasses, background].filter(Boolean).join(" ");
   }, [containerClassName, logoBackgroundClass]);
-
-  const handleLogin = () => {
-    router.push("/login");
-  };
-
-  const loginButtonBaseClass =
-    "inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-blue-600 to-purple-600 text-sm font-semibold text-white shadow-lg shadow-blue-500/30 transition hover:-translate-y-0.5 hover:shadow-xl";
 
   const handleToggleMenu = () => {
     setIsOpen?.((prev) => !prev);
@@ -114,7 +105,7 @@ export default function PublicHeader({
         <div className="flex items-center gap-3">
           <button
             className={`${
-              isOpen ? "hidden" : "block"
+              isOpen || !canToggleMenu ? "hidden" : "block"
             } inline-flex items-center justify-center me-4 ms-3 p-2 w-10 h-10 text-sm text-gray-500 rounded-lg md:hidden hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-gray-200`}
             onClick={handleToggleMenu}
             aria-label="open-mobile-menu"
@@ -127,23 +118,13 @@ export default function PublicHeader({
           </div>
           <div>
             <h1 className="text-lg sm:text-xl font-bold text-gray-800">
-              {subtitles.public || subtitles.member || "กองทุนวิจัยฯ วิทยาลัยการคอมพิวเตอร์"}
+              {subtitles.public || "งานวิจัยและนวัตกรรมวิทยาลัยการคอมพิวเตอร์"}
             </h1>
             <p className="text-sm text-gray-700 leading-tight">
               {appName || "Fund Management"}
             </p>
             <p className="text-xs text-gray-500 mt-1">{currentPageTitle}</p>
           </div>
-        </div>
-
-        <div className="hidden md:flex items-center gap-3">
-          <button
-            onClick={handleLogin}
-            className={`${loginButtonBaseClass} px-6 py-2.5`}
-          >
-            <LogIn size={18} />
-            <span>เข้าสู่ระบบ</span>
-          </button>
         </div>
 
         {isOpen && (
@@ -169,16 +150,6 @@ export default function PublicHeader({
               </button>
             </div>
 
-            <div className="mb-6 p-4 bg-gray-50 rounded-lg md:hidden">
-              <button
-                onClick={handleLogin}
-                className={`${loginButtonBaseClass} w-full justify-center px-6 py-3`}
-              >
-                <LogIn size={18} />
-                <span>เข้าสู่ระบบ</span>
-              </button>
-            </div>
-
             {renderNavigation()}
           </div>
         </div>
@@ -186,3 +157,4 @@ export default function PublicHeader({
     </header>
   );
 }
+
