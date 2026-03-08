@@ -58,27 +58,27 @@ const SLOT_TIME_KEYS = {
   main: {
     start: ["main_start_date", "main_announcement_start", "main_annoucement_start", "main_start_at"],
     end: ["main_end_date", "main_announcement_end", "main_annoucement_end", "main_end_at"],
-    id: ["main_annoucement", "main_announcement", "main_ann_id"],
+    id: ["main_effective_announcement_id", "main_annoucement", "main_announcement", "main_ann_id"],
   },
   reward: {
     start: ["reward_start_date", "reward_announcement_start", "reward_start_at"],
     end: ["reward_end_date", "reward_announcement_end", "reward_end_at"],
-    id: ["reward_announcement", "reward_ann_id"],
+    id: ["reward_effective_announcement_id", "reward_announcement", "reward_ann_id"],
   },
   activity_support: {
     start: ["activity_support_start_date", "activity_support_announcement_start", "activity_support_start_at"],
     end: ["activity_support_end_date", "activity_support_announcement_end", "activity_support_end_at"],
-    id: ["activity_support_announcement", "activity_support_ann_id"],
+    id: ["activity_support_effective_announcement_id", "activity_support_announcement", "activity_support_ann_id"],
   },
   conference: {
     start: ["conference_start_date", "conference_announcement_start", "conference_start_at"],
     end: ["conference_end_date", "conference_announcement_end", "conference_end_at"],
-    id: ["conference_announcement", "conference_ann_id"],
+    id: ["conference_effective_announcement_id", "conference_announcement", "conference_ann_id"],
   },
   service: {
     start: ["service_start_date", "service_announcement_start", "service_start_at"],
     end: ["service_end_date", "service_announcement_end", "service_end_at"],
-    id: ["service_announcement", "service_ann_id"],
+    id: ["service_effective_announcement_id", "service_announcement", "service_ann_id"],
   },
 };
 
@@ -152,9 +152,8 @@ export const systemConfigAPI = {
     for (const slot of Object.keys(SLOT_TIME_KEYS)) {
       const startVal = pickFirst(root, SLOT_TIME_KEYS[slot].start);
       const endVal = pickFirst(root, SLOT_TIME_KEYS[slot].end);
-      const idVal =
-        normalized[slot === "main" ? "main_annoucement" : `${slot}_announcement`] ??
-        pickFirst(root, SLOT_TIME_KEYS[slot].id);
+      const legacyId = normalized[slot === "main" ? "main_annoucement" : `${slot}_announcement`];
+      const idVal = pickFirst(root, SLOT_TIME_KEYS[slot].id) ?? legacyId;
 
       const startISO = toISOorNull(startVal);
       const endISO = toISOorNull(endVal);
