@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
 import Image from 'next/image';
@@ -45,7 +45,7 @@ export default function LoginPage() {
   const [resetStatus, setResetStatus] = useState({ message: '', error: '' });
   const [resetLoading, setResetLoading] = useState(false);
 
-  // Redirect if already authenticated - แก้ไขให้ใช้ Next.js router
+  // Redirect if already authenticated - เนเธเนเนเธเนเธซเนเนเธเน Next.js router
   useEffect(() => {
     if (isAuthenticated && user && !redirecting) {
       setRedirecting(true);
@@ -53,18 +53,18 @@ export default function LoginPage() {
     }
   }, [isAuthenticated, user, redirecting]);
 
-  // แก้ไขการ redirect ให้ใช้ Next.js router และตรวจสอบ role ให้แม่นยำ
+  // เนเธเนเนเธเธเธฒเธฃ redirect เนเธซเนเนเธเน Next.js router เนเธฅเธฐเธ•เธฃเธงเธเธชเธญเธ role เนเธซเนเนเธกเนเธเธขเธณ
   const redirectBasedOnRole = () => {
     if (!user) {
       return;
     }
 
-    // รองรับ role ทั้งแบบ number/string เช่น 5 หรือ "5"
+    // เธฃเธญเธเธฃเธฑเธ role เธ—เธฑเนเธเนเธเธ number/string เน€เธเนเธ 5 เธซเธฃเธทเธญ "5"
     const userRoleRaw = user.role_id ?? user.role;
     const userRole = typeof userRoleRaw === 'string' ? userRoleRaw.toLowerCase() : userRoleRaw;
     const userRoleNumber = Number(userRoleRaw);
 
-    // หน่วงเวลาเล็กน้อยเพื่อให้ state update เสร็จ
+    // เธซเธเนเธงเธเน€เธงเธฅเธฒเน€เธฅเนเธเธเนเธญเธขเน€เธเธทเนเธญเนเธซเน state update เน€เธชเธฃเนเธ
     setTimeout(() => {
       if (
         userRole === 1 ||
@@ -116,14 +116,14 @@ export default function LoginPage() {
     try {
       await login(formData.email, formData.password);
 
-      // อย่าทำการ redirect ที่นี่ ให้ useEffect จัดการ
-      // เพราะ login function จะ update isAuthenticated และ user state
+      // เธญเธขเนเธฒเธ—เธณเธเธฒเธฃ redirect เธ—เธตเนเธเธตเน เนเธซเน useEffect เธเธฑเธ”เธเธฒเธฃ
+      // เน€เธเธฃเธฒเธฐ login function เธเธฐ update isAuthenticated เนเธฅเธฐ user state
       
     } catch (error) {
       if (!error?.name || error?.name !== 'AuthError') {
         console.error('Login error:', error);
       }
-      // Error จะถูก handle ใน AuthContext แล้ว
+      // Error เธเธฐเธ–เธนเธ handle เนเธ AuthContext เนเธฅเนเธง
     }
   };
 
@@ -265,7 +265,7 @@ export default function LoginPage() {
     }
   }, [searchParams, router]);
 
-  // แสดง loading screen ขณะ redirecting
+  // เนเธชเธ”เธ loading screen เธเธ“เธฐ redirecting
   if (redirecting) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-purple-50">
@@ -283,8 +283,8 @@ export default function LoginPage() {
             <h1 className="text-2xl font-bold text-gray-900 mb-1">
               เข้าสู่ระบบสำเร็จ
             </h1>
-            <p className="text-gray-600">กำลังโหลดหน้า...</p>
-            <p className="text-sm text-gray-500">กำลังเปลี่ยนหน้า...</p>
+            <p className='text-gray-600'>กำลังโหลดหน้า...</p>
+            <p className='text-sm text-gray-500'>กำลังเปลี่ยนหน้า...</p>
           </div>
 
           <div className="w-10 h-10 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin" aria-label="loading" />
@@ -320,6 +320,14 @@ export default function LoginPage() {
             <h1 className="text-2xl font-bold text-gray-900 mb-2">{modeTitle}</h1>
 
             <p className="text-gray-600">{modeDescription}</p>
+            <button
+              type="button"
+              onClick={() => router.push('/')}
+              className="mt-4 inline-flex items-center gap-2 text-sm font-medium text-blue-600 hover:text-blue-700"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              กลับหน้าหลัก
+            </button>
           </div>
 
           {globalMessage && mode === 'login' && (
@@ -348,7 +356,7 @@ export default function LoginPage() {
                     value={formData.email}
                     onChange={handleInputChange}
                     className="block w-full pl-10 pr-3 py-3 text-gray-600 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
-                    placeholder="กรุณากรอกอีเมล"
+                    placeholder='กรุณากรอกอีเมล'
                   />
                 </div>
               </div>
@@ -370,7 +378,7 @@ export default function LoginPage() {
                     value={formData.password}
                     onChange={handleInputChange}
                     className="block w-full pl-10 pr-12 py-3 text-gray-600 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
-                    placeholder="กรุณากรอกรหัสผ่าน"
+                    placeholder='กรุณากรอกรหัสผ่าน'
                   />
                   <button
                     type="button"
@@ -429,7 +437,7 @@ export default function LoginPage() {
                   <span className="w-full border-t border-gray-200" aria-hidden="true"></span>
                 </div>
                 <div className="relative flex justify-center text-sm">
-                  <span className="px-2 bg-white text-gray-500">หรือเข้าสู่ระบบด้วย</span>
+                  <span className='px-2 bg-white text-gray-500'>หรือเข้าสู่ระบบด้วย</span>
                 </div>
               </div>
 
@@ -542,7 +550,7 @@ export default function LoginPage() {
                   value={resetForm.token}
                   onChange={handleResetChange}
                   className="block w-full px-3 py-3 text-gray-600 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
-                  placeholder="วางโทเคนจากอีเมลที่ได้รับ"
+                  placeholder='วางโทเคนจากอีเมลที่ได้รับ'
                 />
               </div>
 
@@ -563,7 +571,7 @@ export default function LoginPage() {
                     value={resetForm.new_password}
                     onChange={handleResetChange}
                     className="block w-full pl-10 pr-3 py-3 text-gray-600 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
-                    placeholder="กรอกรหัสผ่านใหม่ (อย่างน้อย 8 ตัวอักษร)"
+                    placeholder='กรอกรหัสผ่านใหม่ (อย่างน้อย 8 ตัวอักษร)'
                   />
                 </div>
               </div>
@@ -585,7 +593,7 @@ export default function LoginPage() {
                     value={resetForm.confirm_password}
                     onChange={handleResetChange}
                     className="block w-full pl-10 pr-3 py-3 text-gray-600 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
-                    placeholder="ยืนยันรหัสผ่านใหม่"
+                    placeholder='ยืนยันรหัสผ่านใหม่'
                   />
                 </div>
               </div>
@@ -625,3 +633,4 @@ export default function LoginPage() {
     </div>
   );
 }
+
