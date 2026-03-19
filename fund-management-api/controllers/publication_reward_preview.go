@@ -939,10 +939,7 @@ func buildPreviewDocumentLine(meta []PublicationRewardPreviewAttachment, attachm
 	if len(metaCopy) > 0 {
 		entries := make([]documentAggregationEntry, 0, len(metaCopy))
 		for _, entry := range metaCopy {
-			name := strings.TrimSpace(entry.DocumentTypeName)
-			if name == "" {
-				name = strings.TrimSpace(entry.Filename)
-			}
+			name := selectCleanDocumentName(entry.Filename, entry.DocumentTypeName)
 			if name == "" {
 				continue
 			}
@@ -969,7 +966,7 @@ func buildPreviewDocumentLine(meta []PublicationRewardPreviewAttachment, attachm
 
 	entries := make([]documentAggregationEntry, 0, len(attachments))
 	for _, header := range attachments {
-		name := strings.TrimSpace(header.Filename)
+		name := selectCleanDocumentName(header.Filename)
 		if name == "" {
 			continue
 		}
@@ -1372,16 +1369,7 @@ func buildDocumentLine(documents []models.SubmissionDocument) string {
 
 	entries := make([]documentAggregationEntry, 0, len(documents))
 	for _, doc := range documents {
-		name := strings.TrimSpace(doc.DocumentTypeName)
-		if name == "" {
-			name = strings.TrimSpace(doc.DocumentType.DocumentTypeName)
-		}
-		if name == "" {
-			name = strings.TrimSpace(doc.Description)
-		}
-		if name == "" {
-			name = strings.TrimSpace(doc.File.OriginalName)
-		}
+		name := strings.TrimSpace(selectDocumentTypeName(doc))
 		if name == "" {
 			continue
 		}
@@ -1420,6 +1408,16 @@ func documentUnitForName(name string) string {
 	}
 
 	return "ฉบับ"
+}
+
+func selectDocumentTypeName(doc models.SubmissionDocument) string {
+	if doc.DocumentTypeName != "" {
+		return doc.DocumentTypeName
+	}
+	if doc.DocumentType.DocumentTypeName != "" {
+		return doc.DocumentType.DocumentTypeName
+	}
+	return ""
 }
 
 func generatePublicationRewardPDF(replacements map[string]string) ([]byte, error) {
