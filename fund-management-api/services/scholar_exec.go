@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"os"
 	"os/exec"
+	"path/filepath"
+	"strings"
 	"time"
 )
 
@@ -27,15 +29,12 @@ func FetchScholarOnce(authorID string) ([]ScholarPub, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
 
-	py := os.Getenv("VENV_PY")
+	py := strings.TrimSpace(os.Getenv("VENV_PY"))
 	if py == "" {
 		py = "python3" // fallback
 	}
 
-	script := os.Getenv("SCHOLAR_SCRIPT")
-	if script == "" {
-		script = "scripts/scholarly_fetch.py"
-	}
+	script := resolveScholarScriptPath("SCHOLAR_SCRIPT", "scripts/scholarly_fetch.py")
 
 	cmd := exec.CommandContext(ctx, py, script, authorID)
 
@@ -63,16 +62,13 @@ func SearchScholarAuthors(query string) ([]ScholarAuthorHit, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
 
-	py := os.Getenv("VENV_PY")
+	py := strings.TrimSpace(os.Getenv("VENV_PY"))
 	if py == "" {
 		py = "python3"
 	}
 
 	// allow override via env; fallback to repo path
-	script := os.Getenv("SCHOLAR_SEARCH_SCRIPT")
-	if script == "" {
-		script = "scripts/scholar_search_authors.py"
-	}
+	script := resolveScholarScriptPath("SCHOLAR_SEARCH_SCRIPT", "scripts/scholar_search_authors.py")
 
 	cmd := exec.CommandContext(ctx, py, script, query)
 	out, err := cmd.Output()
@@ -101,14 +97,11 @@ func FetchScholarAuthorIndices(authorID string) (*ScholarAuthorIndices, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	py := os.Getenv("VENV_PY")
+	py := strings.TrimSpace(os.Getenv("VENV_PY"))
 	if py == "" {
 		py = "python3"
 	}
-	script := os.Getenv("SCHOLAR_AUTHOR_SCRIPT")
-	if script == "" {
-		script = "scripts/scholar_author_indices.py"
-	}
+	script := resolveScholarScriptPath("SCHOLAR_AUTHOR_SCRIPT", "scripts/scholar_author_indices.py")
 
 	cmd := exec.CommandContext(ctx, py, script, authorID)
 	out, err := cmd.Output()
@@ -121,4 +114,57 @@ func FetchScholarAuthorIndices(authorID string) (*ScholarAuthorIndices, error) {
 		return nil, err
 	}
 	return &ai, nil
+}
+
+func resolveScholarScriptPath(envKey, defaultRel string) string {
+	if val := strings.TrimSpace(os.Getenv(envKey)); val != "" {
+		return val
+	}
+
+	if defaultRel == "" {
+		return ""
+	}
+
+	if filepath.IsAbs(defaultRel) {
+		if _, err := os.Stat(defaultRel); err == nil {
+			return defaultRel
+		}
+		return defaultRel
+	}
+
+	candidates := []string{""}
+	if wd, err := os.Getwd(); err == nil {
+		candidates = append(candidates, wd)
+	}
+	if exePath, err := os.Executable(); err == nil {
+		dir := filepath.Dir(exePath)
+		for i := 0; i < 5; i++ {
+			candidates = append(candidates, dir)
+			parent := filepath.Dir(dir)
+			if parent == dir {
+				break
+			}
+			dir = parent
+		}
+	}
+
+	seen := make(map[string]struct{})
+	for _, base := range candidates {
+		path := defaultRel
+		if strings.TrimSpace(base) != "" {
+			path = filepath.Join(base, defaultRel)
+		}
+		if _, ok := seen[path]; ok {
+			continue
+		}
+		seen[path] = struct{}{}
+		if _, err := os.Stat(path); err == nil {
+			if abs, err := filepath.Abs(path); err == nil {
+				return abs
+			}
+			return path
+		}
+	}
+
+	return defaultRel
 }
