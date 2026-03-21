@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"fund-management-api/config"
@@ -13,6 +14,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 // matchesFund determines if a fund description matches a given quartile bucket.
@@ -21,37 +23,60 @@ func matchesFund(desc, authorStatus, quartile string) bool {
 	if desc == "" || quartile == "" {
 		return false
 	}
+
+	normalizedQuartile := strings.ToUpper(strings.TrimSpace(quartile))
 	d := strings.ToLower(desc)
 
-	// normalize some Thai/typographical variants
-	d = strings.ReplaceAll(d, "ลําดับ", "ลำดับ") // normalize variants
-	d = strings.ReplaceAll(d, "％", "%")
-	d = strings.ReplaceAll(d, "  ", " ")
+	// normalize some Thai/typographical variants and spacing
+	replacer := strings.NewReplacer(
+		"ลําดับ", "ลำดับ",
+		"％", "%",
+		"  ", " ",
+		"กลุ่มที่", "กลุ่ม",
+	)
+	d = replacer.Replace(d)
 
-	switch quartile {
+	switch normalizedQuartile {
 	case "T5":
 		// วารสาร ... (ลำดับ 5% แรก)
-		return strings.Contains(d, "5%") || strings.Contains(d, "5 %")
+		return strings.Contains(d, "5%") || strings.Contains(d, "5 %") || strings.Contains(d, "top 5")
 	case "T10":
 		// วารสาร ... (ลำดับ 10% แรก)
-		return strings.Contains(d, "10%") || strings.Contains(d, "10 %")
-	case "Q1":
-		return strings.Contains(d, "ควอร์ไทล์ 1") || strings.Contains(d, "q1")
-	case "Q2":
-		return strings.Contains(d, "ควอร์ไทล์ 2") || strings.Contains(d, "q2")
-	case "Q3":
-		return strings.Contains(d, "ควอร์ไทล์ 3") || strings.Contains(d, "q3")
-	case "Q4":
-		return strings.Contains(d, "ควอร์ไทล์ 4") || strings.Contains(d, "q4")
-	case "TCI":
-		// TCI กลุ่มที่ 1 สาขาวิทยาศาสตร์เทคโนโลยี
-		return strings.Contains(d, "tci") &&
-			(strings.Contains(d, "กลุ่มที่ 1") || strings.Contains(d, "group 1")) &&
-			(strings.Contains(d, "วิทยาศาสตร์") || strings.Contains(d, "เทคโนโลยี") ||
-				strings.Contains(d, "science") || strings.Contains(d, "technology"))
-	default:
-		return false
+		return strings.Contains(d, "10%") || strings.Contains(d, "10 %") || strings.Contains(d, "top 10")
+	case "Q1", "Q2", "Q3", "Q4":
+		return strings.Contains(d, "ควอร์ไทล์") && strings.Contains(d, strings.ToLower(normalizedQuartile)) ||
+			strings.Contains(d, strings.ToLower(normalizedQuartile))
 	}
+
+	if strings.HasPrefix(normalizedQuartile, "TCI") || normalizedQuartile == "TCI" {
+		if !strings.Contains(d, "tci") {
+			return false
+		}
+
+		group1 := strings.Contains(d, "กลุ่ม 1") || strings.Contains(d, "group 1") || strings.Contains(d, "tci 1")
+		group2 := strings.Contains(d, "กลุ่ม 2") || strings.Contains(d, "group 2") || strings.Contains(d, "tci 2")
+		hasGroup := group1 || group2
+
+		// accept both science/tech and social/humanities wording
+		sci := strings.Contains(d, "วิทยาศาสตร์") || strings.Contains(d, "เทคโนโลยี") || strings.Contains(d, "science") ||
+			strings.Contains(d, "technology")
+		social := strings.Contains(d, "สังคม") || strings.Contains(d, "มนุษยศาสตร์") || strings.Contains(d, "social") ||
+			strings.Contains(d, "human")
+
+		return hasGroup && (sci || social)
+	}
+
+	return false
+}
+
+// rewardCfg represents reward_config rows we need to expose alongside rate/budget
+// matching. Defined at file scope so both option and resolver handlers can reuse it.
+type rewardCfg struct {
+	Year                 string
+	JournalQuartile      string
+	MaxAmount            float64
+	ConditionDescription string
+	IsActive             bool
 }
 
 // GetEnabledYearsForCategory returns years that have budgets for a category
@@ -105,7 +130,7 @@ func GetPublicationOptions(c *gin.Context) {
 		return
 	}
 
-	// Load active rates for the given year, fallback to the latest available year when missing
+	// Load active rates for the given year, fallback to reward_config when missing
 	var rates []models.PublicationRewardRate
 	rateYear := year.Year
 	if err := config.DB.
@@ -115,53 +140,128 @@ func GetPublicationOptions(c *gin.Context) {
 		return
 	}
 	if len(rates) == 0 {
-		var fallbackYears []string
-		if err := config.DB.Model(&models.PublicationRewardRate{}).
-			Select("year").
-			Where("is_active = ?", true).
-			Order("year DESC").
-			Limit(1).
-			Pluck("year", &fallbackYears).Error; err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to resolve fallback rates"})
+		type configRow struct {
+			Year            string
+			JournalQuartile string
+			MaxAmount       float64
+		}
+		var configs []configRow
+		if err := config.DB.Table(models.RewardConfig{}.TableName()).
+			Select("year, journal_quartile, max_amount").
+			Where("year = ? AND is_active = ? AND delete_at IS NULL", rateYear, true).
+			Find(&configs).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch reward config"})
 			return
 		}
 
-		if len(fallbackYears) > 0 {
-			rateYear = fallbackYears[0]
-			if err := config.DB.
-				Where("year = ? AND is_active = ?", rateYear, true).
-				Find(&rates).Error; err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch fallback rates"})
+		if len(configs) == 0 {
+			if err := config.DB.Table(models.RewardConfig{}.TableName()).
+				Select("year, journal_quartile, max_amount").
+				Where("is_active = ? AND delete_at IS NULL", true).
+				Order("year DESC").
+				Limit(1).
+				Find(&configs).Error; err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch fallback reward config"})
 				return
+			}
+		}
+
+		if len(configs) > 0 {
+			defaultStatuses := []string{"first_author", "corresponding_author"}
+			for _, cfg := range configs {
+				for _, status := range defaultStatuses {
+					rates = append(rates, models.PublicationRewardRate{
+						Year:            cfg.Year,
+						AuthorStatus:    status,
+						JournalQuartile: strings.ToUpper(cfg.JournalQuartile),
+						RewardAmount:    cfg.MaxAmount,
+						IsActive:        true,
+					})
+				}
 			}
 		}
 	}
 
-	// Load active budgets for the category/year
+	// Load active budgets for the category/year. If none exist for the requested
+	// year, fall back to the latest available year so the FE still receives
+	// usable options instead of a hard 404.
 	type budgetRow struct {
 		SubcategoryID   int
 		BudgetID        int
 		FundDescription string
 	}
 	var budgets []budgetRow
-	if err := config.DB.Table("fund_subcategories fs").
-		Select("fs.subcategory_id, sb.subcategory_budget_id AS budget_id, sb.fund_description").
-		Joins(`
-                        JOIN subcategory_budgets sb
-                          ON sb.subcategory_id = fs.subcategory_id
-                         AND sb.status = 'active'
-                         AND sb.delete_at IS NULL
-                `).
-		Where(`
-                        fs.delete_at IS NULL
-                        AND fs.status = 'active'
-                        AND fs.category_id = ?
-                        AND fs.year_id = ?
-                        AND (fs.form_type = 'publication_reward' OR fs.form_type IS NULL)
-                `, categoryID, yearID).
-		Find(&budgets).Error; err != nil {
+	budgetQuery := func(targetYear string, dest *[]budgetRow) error {
+		return config.DB.Table("fund_subcategories fs").
+			Select("fs.subcategory_id, sb.subcategory_budget_id AS budget_id, sb.fund_description").
+			Joins(`
+                                JOIN subcategory_budgets sb
+                                  ON sb.subcategory_id = fs.subcategory_id
+                                 AND sb.status = 'active'
+                                 AND sb.delete_at IS NULL
+                        `).
+			Where(`
+                                fs.delete_at IS NULL
+                                AND fs.status = 'active'
+                                AND fs.category_id = ?
+                                AND fs.year_id = ?
+                                AND (fs.form_type = 'publication_reward' OR fs.form_type IS NULL)
+                        `, categoryID, targetYear).
+			Find(dest).Error
+	}
+
+	if err := budgetQuery(yearID, &budgets); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch budgets"})
 		return
+	}
+	if len(budgets) == 0 {
+		var fallbackYear struct{ YearID int }
+		if err := config.DB.Table("fund_subcategories fs").
+			Select("fs.year_id").
+			Joins(`
+                                JOIN subcategory_budgets sb
+                                  ON sb.subcategory_id = fs.subcategory_id
+                                 AND sb.status = 'active'
+                                 AND sb.delete_at IS NULL
+                        `).
+			Where(`
+                                fs.delete_at IS NULL
+                                AND fs.status = 'active'
+                                AND fs.category_id = ?
+                                AND (fs.form_type = 'publication_reward' OR fs.form_type IS NULL)
+                        `, categoryID).
+			Order("fs.year_id DESC").
+			Limit(1).
+			Scan(&fallbackYear).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch fallback budgets"})
+			return
+		}
+
+		if fallbackYear.YearID != 0 {
+			if err := budgetQuery(strconv.Itoa(fallbackYear.YearID), &budgets); err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch fallback budgets"})
+				return
+			}
+		}
+	}
+
+	// Prefetch reward_config rows so we can surface whether manuscript/page charge
+	// fees are currently claimable for the selected quartile.
+	var rewardConfigs []rewardCfg
+	if err := config.DB.Table(models.RewardConfig{}.TableName()).
+		Select("year, journal_quartile, max_amount, condition_description, is_active").
+		Where("year = ? AND delete_at IS NULL", rateYear).
+		Order("is_active DESC").
+		Find(&rewardConfigs).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch reward config"})
+		return
+	}
+	rewardCfgMap := make(map[string]rewardCfg)
+	for _, cfg := range rewardConfigs {
+		key := strings.ToUpper(strings.TrimSpace(cfg.JournalQuartile))
+		if _, exists := rewardCfgMap[key]; !exists {
+			rewardCfgMap[key] = cfg
+		}
 	}
 
 	// Match budgets to rate rows by fund_description bucket
@@ -169,6 +269,7 @@ func GetPublicationOptions(c *gin.Context) {
 	for _, rate := range rates {
 		for _, b := range budgets {
 			if matchesFund(b.FundDescription, rate.AuthorStatus, rate.JournalQuartile) {
+				cfg := rewardCfgMap[strings.ToUpper(rate.JournalQuartile)]
 				options = append(options, gin.H{
 					"author_status":         rate.AuthorStatus,
 					"journal_quartile":      rate.JournalQuartile,
@@ -176,6 +277,12 @@ func GetPublicationOptions(c *gin.Context) {
 					"subcategory_id":        b.SubcategoryID,
 					"subcategory_budget_id": b.BudgetID,
 					"fund_description":      b.FundDescription,
+					"reward_config": gin.H{
+						"year":                  cfg.Year,
+						"max_amount":            cfg.MaxAmount,
+						"condition_description": cfg.ConditionDescription,
+						"is_active":             cfg.IsActive,
+					},
 				})
 				break
 			}
@@ -214,7 +321,7 @@ func ResolvePublicationBudget(c *gin.Context) {
 		return
 	}
 
-	// Find the active rate row for (year, authorStatus, quartile) with fallback to the latest available year
+	// Find the active rate row for (year, authorStatus, quartile) with fallback to reward_config/latest year
 	var rate models.PublicationRewardRate
 	err := config.DB.
 		Where("year = ? AND author_status = ? AND journal_quartile = ? AND is_active = ?", year.Year, authorStatus, quartile, true).
@@ -225,11 +332,46 @@ func ResolvePublicationBudget(c *gin.Context) {
 			return
 		}
 
-		// Fall back to the latest available active rate for the requested author status and quartile
-		if err := config.DB.
-			Where("author_status = ? AND journal_quartile = ? AND is_active = ?", authorStatus, quartile, true).
-			Order("year DESC").
-			First(&rate).Error; err != nil {
+		fallback := func() error {
+			if err := config.DB.
+				Where("author_status = ? AND journal_quartile = ? AND is_active = ?", authorStatus, quartile, true).
+				Order("year DESC").
+				First(&rate).Error; err == nil {
+				return nil
+			}
+
+			type cfgRow struct {
+				Year            string
+				JournalQuartile string
+				MaxAmount       float64
+			}
+			var cfg cfgRow
+			cfgErr := config.DB.Table(models.RewardConfig{}.TableName()).
+				Select("year, journal_quartile, max_amount").
+				Where("year = ? AND journal_quartile = ? AND is_active = ? AND delete_at IS NULL", year.Year, quartile, true).
+				First(&cfg).Error
+			if errors.Is(cfgErr, gorm.ErrRecordNotFound) {
+				cfgErr = config.DB.Table(models.RewardConfig{}.TableName()).
+					Select("year, journal_quartile, max_amount").
+					Where("journal_quartile = ? AND is_active = ? AND delete_at IS NULL", quartile, true).
+					Order("year DESC").
+					First(&cfg).Error
+			}
+			if cfgErr != nil {
+				return cfgErr
+			}
+
+			rate = models.PublicationRewardRate{
+				Year:            cfg.Year,
+				AuthorStatus:    authorStatus,
+				JournalQuartile: strings.ToUpper(cfg.JournalQuartile),
+				RewardAmount:    cfg.MaxAmount,
+				IsActive:        true,
+			}
+			return nil
+		}
+
+		if err := fallback(); err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				c.JSON(http.StatusNotFound, gin.H{"error": "rate not found"})
 				return
@@ -239,7 +381,23 @@ func ResolvePublicationBudget(c *gin.Context) {
 		}
 	}
 
-	// Load budgets for the category/year
+	// Load reward_config metadata for manuscript/page charge fees. We surface it
+	// regardless of active status so the FE can display whether additional fees
+	// are claimable for the selected quartile/year.
+	var rewardCfg rewardCfg
+	cfgErr := config.DB.Table(models.RewardConfig{}.TableName()).
+		Select("year, journal_quartile, max_amount, condition_description, is_active").
+		Where("journal_quartile = ? AND delete_at IS NULL", quartile).
+		Order(clause.OrderBy{Orders: []clause.Order{{Expr: gorm.Expr("(year = ?)", year.Year), Desc: true}}}).
+		Order("year DESC").
+		First(&rewardCfg).Error
+	if cfgErr != nil && !errors.Is(cfgErr, gorm.ErrRecordNotFound) {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch reward config"})
+		return
+	}
+
+	// Load budgets for the category/year, falling back to the latest available
+	// year to avoid 404s when the current cycle has not been configured yet.
 	type budgetRow struct {
 		SubcategoryID     int
 		BudgetID          int
@@ -251,37 +409,72 @@ func ResolvePublicationBudget(c *gin.Context) {
 		MaxGrants         sql.NullInt64
 	}
 	var budgets []budgetRow
-	if err := config.DB.Table("fund_subcategories fs").
-		Select(`
-                        fs.subcategory_id,
-                        sb.subcategory_budget_id AS budget_id,
-                        sb.fund_description,
-                        sb.record_scope,
-                        sb.allocated_amount,
-                        sb.max_amount_per_grant,
-                        sb.max_amount_per_year,
-                        sb.max_grants
-                `).
-		Joins(`
-                        JOIN subcategory_budgets sb
-                          ON sb.subcategory_id = fs.subcategory_id
-                         AND sb.status = 'active'
-                         AND sb.delete_at IS NULL
-                `).
-		Where(`
-                        fs.delete_at IS NULL
-                        AND fs.status = 'active'
-                        AND fs.category_id = ?
-                        AND fs.year_id = ?
-                        AND (fs.form_type = 'publication_reward' OR fs.form_type IS NULL)
-                `, categoryID, yearID).
-		Find(&budgets).Error; err != nil {
+	budgetQuery := func(targetYear string, dest *[]budgetRow) error {
+		return config.DB.Table("fund_subcategories fs").
+			Select(`
+                                fs.subcategory_id,
+                                sb.subcategory_budget_id AS budget_id,
+                                sb.fund_description,
+                                sb.record_scope,
+                                sb.allocated_amount,
+                                sb.max_amount_per_grant,
+                                sb.max_amount_per_year,
+                                sb.max_grants
+                        `).
+			Joins(`
+                                JOIN subcategory_budgets sb
+                                  ON sb.subcategory_id = fs.subcategory_id
+                                 AND sb.status = 'active'
+                                 AND sb.delete_at IS NULL
+                        `).
+			Where(`
+                                fs.delete_at IS NULL
+                                AND fs.status = 'active'
+                                AND fs.category_id = ?
+                                AND fs.year_id = ?
+                                AND (fs.form_type = 'publication_reward' OR fs.form_type IS NULL)
+                        `, categoryID, targetYear).
+			Find(dest).Error
+	}
+
+	if err := budgetQuery(yearID, &budgets); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch budgets"})
 		return
+	}
+	if len(budgets) == 0 {
+		var fallbackYear struct{ YearID int }
+		if err := config.DB.Table("fund_subcategories fs").
+			Select("fs.year_id").
+			Joins(`
+                                JOIN subcategory_budgets sb
+                                  ON sb.subcategory_id = fs.subcategory_id
+                                 AND sb.status = 'active'
+                                 AND sb.delete_at IS NULL
+                        `).
+			Where(`
+                                fs.delete_at IS NULL
+                                AND fs.status = 'active'
+                                AND fs.category_id = ?
+                                AND (fs.form_type = 'publication_reward' OR fs.form_type IS NULL)
+                        `, categoryID).
+			Order("fs.year_id DESC").
+			Limit(1).
+			Scan(&fallbackYear).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch fallback budgets"})
+			return
+		}
+
+		if fallbackYear.YearID != 0 {
+			if err := budgetQuery(strconv.Itoa(fallbackYear.YearID), &budgets); err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch fallback budgets"})
+				return
+			}
+		}
 	}
 
 	var overallRow *budgetRow
 	var ruleRow *budgetRow
+	var fallbackRow *budgetRow
 	for i, b := range budgets {
 		if b.RecordScope == "overall" && overallRow == nil {
 			overallRow = &budgets[i]
@@ -289,16 +482,27 @@ func ResolvePublicationBudget(c *gin.Context) {
 		if b.RecordScope == "rule" && matchesFund(b.FundDescription, authorStatus, quartile) {
 			ruleRow = &budgets[i]
 		}
-	}
-
-	if overallRow == nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "no overall budget found"})
-		return
+		if fallbackRow == nil && matchesFund(b.FundDescription, authorStatus, quartile) {
+			fallbackRow = &budgets[i]
+		}
 	}
 
 	chosenRow := overallRow
 	if ruleRow != nil {
 		chosenRow = ruleRow
+	}
+	if chosenRow == nil {
+		if fallbackRow != nil {
+			chosenRow = fallbackRow
+		} else if len(budgets) > 0 {
+			chosenRow = &budgets[0]
+		}
+		overallRow = chosenRow
+	}
+
+	if chosenRow == nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "no active budget found"})
+		return
 	}
 
 	approvedStatusID, err := utils.GetStatusIDByCode(utils.StatusCodeApproved)
@@ -395,6 +599,13 @@ func ResolvePublicationBudget(c *gin.Context) {
 		"subcategory_budget_id": chosenRow.BudgetID,
 		"fund_description":      chosenRow.FundDescription,
 		"reward_amount":         rate.RewardAmount,
+		"reward_config": gin.H{
+			"year":                  rewardCfg.Year,
+			"journal_quartile":      rewardCfg.JournalQuartile,
+			"max_amount":            rewardCfg.MaxAmount,
+			"condition_description": rewardCfg.ConditionDescription,
+			"is_active":             rewardCfg.IsActive,
+		},
 		"policy": gin.H{
 			"overall": gin.H{
 				"subcategory_budget_id": overallRow.BudgetID,
